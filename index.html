@@ -1,0 +1,213 @@
+<!DOCTYPE html> <html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+
+  <title>Chisel</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.8.0/dist/ethers.umd.min.js"
+               onload="window.ethers58 = window.ethers; delete window.ethers;"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.umd.min.js"></script>
+  <script src="elliptic.6_5_4.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/crypto-js.min.js"></script>
+  <script src="dgb.js?13sfhjk45"></script>
+  <script src="chisel.js?1235"></script>
+  <script src="addressCombo.js"></script>
+  <script src="tablet.js?123466d"></script>
+  <script src="../lib/fileProxy.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+
+  <link rel="stylesheet" href="css/style.css?12345">
+
+
+</head>
+<body>
+  <div id="hotdog"></div>
+  <div id="app"></div>
+  <div id="cameraWidget"></div>
+</body>
+<script>
+console.log("affsfsd")
+
+const BUILD = 1; // 1 = true (force reload), 0 = false (use cached)
+c = console.log
+loadScript =  function loadScript(url) {
+
+    if (BUILD) { url += "?" + Math.random(); }
+
+   console.log(url);
+
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+Promise.all([
+  loadScript("hamburger_menu.js"),
+  loadScript("../lib/camera.js"),
+  loadScript("../lib/fileProxy.js"),
+  loadScript("../lib/menu.js")
+    .then(() => loadScript("menus/main.js"))
+    .then(() => Promise.all(
+      ["welcome", "demo","address","import","tablet","about","wallet","whitepaper"].map(id =>
+        loadScript(`menus/${id}.js`)
+      )
+    ))
+]).then(() => {
+  console.log("All scripts loaded");
+  const main = document.createElement('div');
+  buildInterface(mainMenu);
+
+  // Extra build steps for Import
+
+lines = []
+document.getElementById('imgInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return; 
+  imgImp = new Image();
+  imgImp.onload = reloadImage;
+  imgImp.src = URL.createObjectURL(file);
+  c(imgImp);
+});
+
+getCharCount = function getCharCount() {
+
+  // Display character count at the top
+  const countDisplay = document.getElementById('lineCharCount') || (() => {
+    const p = document.createElement('p');
+    p.id = 'lineCharCount';
+    p.style.fontFamily = 'monospace';
+    const container = document.getElementById('controls') || document.body;
+    container.insertBefore(p, container.firstChild);
+    return p;
+  })();
+  countDisplay.textContent = `Characters per line: ${dgb.debug.trimmedCols}`;
+
+}
+
+
+
+
+
+
+}).catch(err => {
+  console.error('Failed to load menu scripts:', err);
+});
+
+function showPage(id, event) {
+
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.btn').forEach(p => p.classList.remove('active'));
+         document.querySelector(`#section-${id}`).classList.add('active');
+         if (event && event.target) {
+            event.target.classList.add('active');
+         }
+         choice = mainMenu.tools.get(id)
+      }
+
+buildInterface = function buildInterface(menu) {
+
+	c("in buildInterface")
+      const root = document.getElementById('app');
+      root.innerHTML = '';
+      const header = document.createElement('header');
+      header.innerHTML = '<h2>Chisel Interface</h2>';
+      const nav = document.createElement('nav');
+      const main = document.createElement('div');
+      root.appendChild(header);
+
+
+
+      menu.order.forEach( (id,y) => {
+      choice = menu.tools.get(id)
+
+       const section = document.createElement('section');
+       section.id = "section-" + id; section.className = 'page'; section.innerHTML = choice.html;
+       main.appendChild(section);
+       main.id = "main";
+       main.name = "main";
+      root.appendChild(main);
+
+      const btn = document.createElement('button');
+      btn.textContent = choice.label;
+   //   btn.name = id;
+      btn.id = "btn-" + id; btn.className = "btn";
+      console.log(id)
+      btn.onclick = function (e) { showPage(id, e); };
+      root.appendChild(btn);
+
+    });
+
+      root.appendChild(main);
+      const footer = document.createElement('div');
+      footer.innerHTML = `<br><hr> 
+
+  <a href="https://discord.gg/uZ473s4Y" target="_blank" rel="noopener noreferrer"
+     style="
+       display: inline-block;
+       padding: 10px 18px;
+       background-color: #5865F2;
+       color: white;
+       font-family: monospace;
+       font-weight: 600;
+       text-decoration: none;
+       border-radius: 6px;
+       user-select: none;
+       margin-right: 12px;
+     ">
+    Join our Discord
+  </a>
+
+  <a href="https://github.com/johnrigler/chisel" target="_blank" rel="noopener noreferrer"
+     style="
+       display: inline-block;
+       padding: 10px 18px;
+       background-color: #5865F2;
+       color: white;
+       font-family: monospace;
+       font-weight: 600;
+       text-decoration: none;
+       border-radius: 6px;
+       user-select: none;
+     ">
+    View on GitHub
+  </a>
+`;
+
+      root.appendChild(footer);
+
+//    const link = document.createElement('link');
+//    link.rel = 'stylesheet';
+//    link.href = './css/style.css';  // relative path to your file
+//    document.head.appendChild(link);
+
+      showPage("welcome");
+      loadAddressData("DDDDDDDDDDDDDDDDDDDDDDDDDDDD5SVJPi");
+ //     Tablet.loadColors();
+
+     // colorMap2 = {}
+      Tablet.loadColors("b57.json").then(
+      colorMap2 = Object.fromEntries(
+        Object.entries(Tablet.colors).map(([ch, c]) => [ch, [c.r, c.g, c.b]])
+      )
+      )
+
+
+      document.getElementById('tablet').style.display = 'block';
+
+    }
+
+
+ const main = document.createElement('main');
+
+
+
+
+</script>
+
