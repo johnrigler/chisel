@@ -1,0 +1,36 @@
+<html>
+
+<head>
+
+  <!--- script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.umd.min.js"></script  --->
+  <script src="chisel.js?1bc4"></script>
+
+</head>
+
+<body>
+
+    <div id=main> </div>
+
+</body>
+
+
+
+
+</html>
+
+<script>
+
+const addr="RM5u7Qbe4sLdUnrgKQLBKvreCMRDb5FySU"
+
+let rvn = new CHISEL("https://rigler.org:8769/");
+
+rvn.load().then( x => 
+  {
+  rvn.address.getaddressutxos(addr)
+    .then(utxos => {
+    const vin = CHISEL.buildVin(utxos);
+    console.log(vin);
+  })
+});
+
+</script>
