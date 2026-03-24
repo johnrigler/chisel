@@ -48,6 +48,7 @@ class CHISEL {
   }
 
  static normalizeUTXO(u) {
+    console.log(u)
     return {
       txid: u.txid,
       vout: u.vout !== undefined ? u.vout : u.outputIndex,
@@ -56,10 +57,11 @@ class CHISEL {
   }
 
   static buildVin(utxos) {
-    return utxos.map(CHISEL.normalizeUTXO).map(u => ({
+    return [ utxos.map(CHISEL.normalizeUTXO).map(u => ({
       txid: u.txid,
       vout: u.vout
-    }));
+    }))[0] , utxos.map(CHISEL.normalizeUTXO).map(u => ({
+      satoshis: u.satoshis }))[0] ];
   }
 
 }
