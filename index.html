@@ -28,8 +28,8 @@ rvn.load().then( x =>
   {
   rvn.address.getaddressutxos(addr)
     .then(utxos => {
-    const vin = CHISEL.buildVin(utxos);
-    console.log(vin);
+    [ vin , chg ] = CHISEL.buildVin(utxos);
+    console.log([ vin, { [addr]:chg['satoshis'] } ] );
   })
 });
 
