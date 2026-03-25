@@ -3,7 +3,7 @@
 <head>
 
   <!--- script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.umd.min.js"></script  --->
-  <script src="chisel.js?1bc4"></script>
+  <script src="chisel.js?1jjjbc4"></script>
 
 </head>
 
@@ -29,7 +29,8 @@ rvn.load().then( x =>
   rvn.address.getaddressutxos(addr)
     .then(utxos => {
     [ vin , chg ] = CHISEL.buildVin(utxos);
-    console.log([ vin, { [addr]:chg['satoshis'] } ] );
+
+	    console.log( [ vin , { [addr]:chg['satoshis'] } ] );
   })
 });
 
