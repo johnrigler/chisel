@@ -31,6 +31,15 @@ rvn.load().then( x =>
     [ vin , chg ] = CHISEL.buildVin(utxos);
 
 	    console.log( [ vin , { [addr]:chg['satoshis'] } ] );
+
+  this.tx = {
+    vin: vin,
+    vout: { [addr]:chg['satoshis'] } ,
+    fee: 0,
+    op_return: null
+};
+
+
   })
 });
 

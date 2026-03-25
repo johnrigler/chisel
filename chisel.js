@@ -6,6 +6,12 @@ class CHISEL {
 
     this.rpc = {};
     this.local = {};
+
+    this.tablets = {}; // intent layer
+    this.slabs = {};   // resolved layer
+    this.etchings = {}; // final txs
+
+
   }
 
   async call(method, params=[]){
