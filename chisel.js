@@ -28,6 +28,7 @@ class CHISEL {
     });
 
     const j = await r.json();
+    console.log(j);
 
     if(j.error) throw j.error;
 

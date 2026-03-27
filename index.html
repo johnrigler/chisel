@@ -3,18 +3,15 @@
 <head>
 
   <!--- script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.umd.min.js"></script  --->
-  <script src="chisel.js?1jjjbc4"></script>
+  <script src="chisel.js?1jadadfc4"></script>
 
 </head>
 
-<body>
+  <body>
 
-    <div id=main> </div>
+      <div id=main> </div>
 
-</body>
-
-
-
+  </body>
 
 </html>
 
@@ -29,13 +26,13 @@ rvn.load().then( x =>
   rvn.address.getaddressutxos(addr)
     .then(utxos => {
     [ vin , chg ] = CHISEL.buildVin(utxos);
+	    ravenChg = chg['satoshis']/100000000 - 0.0005
 
-	    console.log( [ vin , { [addr]:chg['satoshis'] } ] );
+	    console.log( [ vin , { [addr]:ravenChg } ] );
 
   this.tx = {
     vin: vin,
-    vout: { [addr]:chg['satoshis'] } ,
-    fee: 0,
+    vout: { [addr]:ravenChg } ,
     op_return: null
 };
 
