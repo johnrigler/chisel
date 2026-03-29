@@ -6,11 +6,16 @@ import urllib.request
 import ssl
 
 RPC_TARGET = "http://127.0.0.1:8766/"
-RPC_USER = "root"
-RPC_PASS = "password"
 PORT = 8769
 CERT = "/etc/letsencrypt/live/rigler.org/fullchain.pem"
 KEY =  "/etc/letsencrypt/live/rigler.org/privkey.pem"
+
+
+with open("proxyConfig.json") as f:
+    cfg = json.load(f)
+
+RPC_USER = cfg["RPC_USER"]
+RPC_PASS = cfg["RPC_PASS"]
 
 METHOD_GROUPS = {
 
@@ -98,7 +103,7 @@ class RPCProxy(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(length)
-
+        print(body)
         try:
             req = json.loads(body)
             method = req.get("method")
@@ -114,7 +119,8 @@ class RPCProxy(BaseHTTPRequestHandler):
         request = urllib.request.Request(
             RPC_TARGET,
             data=body,
-            headers={"Content-Type": "text/plain"},
+            headers={"Content-Type": "application/json"},
+            # was text/plain
         )
 
         password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
@@ -134,8 +140,21 @@ class RPCProxy(BaseHTTPRequestHandler):
             self.wfile.write(data)
 
         except Exception as e:
-            self.send_error(500, str(e))
+            self.send_response(200)
+            self.cors()
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
 
+            error = {
+                "result": None,
+                "error": {
+                "code": -1,
+                "message": str(e)
+            },
+            "id": None
+            }
+            print(error)
+        # self.wfile.write(json.dumps(error).encode())
 
 def run():
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
