@@ -2,6 +2,8 @@
       //
       // Constants
       //
+      //
+      const APP_VERSION = "2.0.0";
       const DEFAULT_RPC_URL = "https://rigler.org:8769/";
       const DEFAULT_ADDRESS = "RM5u7Qbe4sLdUnrgKQLBKvreCMRDb5FySU";
       const DEFAULT_FEE_RVN = "0.0005";
