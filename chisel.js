@@ -1,74 +1,65 @@
 class CHISEL {
-
-  constructor(url){
-
+  constructor(url) {
     this.url = url;
-
     this.rpc = {};
     this.local = {};
-
-    this.tablets = {}; // intent layer
-    this.slabs = {};   // resolved layer
-    this.etchings = {}; // final txs
-
-
+    this.tablets = {};
+    this.slabs = {};
+    this.etchings = {};
   }
 
-  async call(method, params=[]){
-
-    const r = await fetch(this.url,{
-      method:"POST",
-      headers:{ "Content-Type":"text/plain" },
-      body:JSON.stringify({
-        jsonrpc:"1.0",
-        id:"chisel",
-        method:method,
-        params:params
+  async call(method, params = []) {
+    const response = await fetch(this.url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        jsonrpc: "1.0",
+        id: "chisel",
+        method: method,
+        params: params
       })
     });
 
-    const j = await r.json();
-    console.log(j);
+    const json = await response.json();
 
-    if(j.error) throw j.error;
-
-    return j.result;
-  }
-
-  async load(){
-
-    const groups = await fetch(this.url+"methods").then(r=>r.json());
-
-    for (let group in groups){
-
-      this[group] = {};
-
-      for (let m of groups[group]){
-
-        this[group][m] = (...p)=>this.call(m,p);
-        this.rpc[m] = (...p)=>this.call(m,p);
-
-      }
-
+    if (json.error) {
+      throw json.error;
     }
 
+    return json.result;
   }
 
- static normalizeUTXO(u) {
-    console.log(u)
+  async load() {
+    const groups = await fetch(this.url + "methods").then(function onResponse(response) {
+      return response.json();
+    });
+
+    for (const group in groups) {
+      this[group] = {};
+
+      for (const methodName of groups[group]) {
+        this[group][methodName] = (...params) => this.call(methodName, params);
+        this.rpc[methodName] = (...params) => this.call(methodName, params);
+      }
+    }
+  }
+
+  static normalizeUTXO(utxo) {
     return {
-      txid: u.txid,
-      vout: u.vout !== undefined ? u.vout : u.outputIndex,
-      satoshis: u.satoshis
+      txid: utxo.txid,
+      vout: utxo.vout !== undefined ? utxo.vout : utxo.outputIndex,
+      satoshis: utxo.satoshis
     };
   }
 
   static buildVin(utxos) {
-    return [ utxos.map(CHISEL.normalizeUTXO).map(u => ({
-      txid: u.txid,
-      vout: u.vout
-    }))[0] , utxos.map(CHISEL.normalizeUTXO).map(u => ({
-      satoshis: u.satoshis }))[0] ];
-  }
+    return utxos.map(function mapUTXO(utxo) {
+      const normalized = CHISEL.normalizeUTXO(utxo);
 
+      return {
+        txid: normalized.txid,
+        vout: normalized.vout
+      };
+    });
+  }
 }

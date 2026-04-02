@@ -1,43 +1,593 @@
-<html>
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <title>Chisel Transaction Builder</title>
 
-  <!--- script src="https://cdn.jsdelivr.net/npm/ethers@6.10.0/dist/ethers.umd.min.js"></script  --->
-  <script src="chisel.js?1jadadfc4"></script>
-
-</head>
-
-  <body>
-
-      <div id=main> </div>
-
-  </body>
-
-</html>
-
+<script src="https://cdn.jsdelivr.net/npm/elliptic@6.5.4/dist/elliptic.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<script src="chisel.js"></script>
+<script src="chisel.sign.js"></script>
 <script>
-
-const addr="RM5u7Qbe4sLdUnrgKQLBKvreCMRDb5FySU"
-
-let rvn = new CHISEL("https://rigler.org:8769/");
-
-rvn.load().then( x => 
-  {
-  rvn.address.getaddressutxos(addr)
-    .then(utxos => {
-    [ vin , chg ] = CHISEL.buildVin(utxos);
-	    ravenChg = chg['satoshis']/100000000 - 0.0005
-
-	    console.log( [ vin , { [addr]:ravenChg } ] );
-
-  this.tx = {
-    vin: vin,
-    vout: { [addr]:ravenChg } ,
-    op_return: null
-};
-
-
-  })
-});
-
+  installChiselSigner(CHISEL, {
+    elliptic: window.elliptic,
+    CryptoJS: window.CryptoJS
+  });
 </script>
+
+
+
+
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: #f5f5f5;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 24px;
+    }
+
+    .panel {
+      background: #1b1b1b;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .row {
+      display: grid;
+      gap: 12px;
+    }
+
+    label {
+      color: #cfcfcf;
+      padding-top: 10px;
+    }
+
+    input,
+    textarea,
+    select,
+    button {
+      font: inherit;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #0d0d0d;
+      color: #f5f5f5;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    button {
+      width: fit-content;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #7b61ff;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    pre,
+    code {
+      display: block;
+      margin: 0;
+      padding: 12px;
+      border: 1px solid #2e2e2e;
+      border-radius: 8px;
+      background: #0d0d0d;
+      color: #9fe870;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: auto;
+    }
+
+    .label {
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+
+    .help {
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    #status {
+      color: #ffd166;
+    }
+
+    #status.error {
+      color: #ff6b6b;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Chisel Transaction Builder + Decoder</h1>
+
+    <section class="panel row">
+      <div class="grid">
+        <label for="rpcUrl">RPC URL</label>
+        <input id="rpcUrl" type="text" />
+
+        <label for="mode">Mode</label>
+        <select id="mode">
+          <option value="rvn">Plain RVN</option>
+          <option value="asset-transfer">Asset Transfer</option>
+        </select>
+
+        <label for="senderAddress">Sender address</label>
+        <input id="senderAddress" type="text" />
+
+        <label for="feeRvn">Fee (RVN)</label>
+        <input id="feeRvn" type="number" min="0" step="0.00000001" />
+
+        <label for="utxoJson">UTXO source</label>
+        <textarea id="utxoJson" readonly></textarea>
+
+        <label for="opReturnAscii">OP_RETURN ASCII</label>
+        <input id="opReturnAscii" type="text" />
+
+        <label for="opReturnHex">OP_RETURN HEX</label>
+        <input id="opReturnHex" type="text" />
+
+        <label for="assetName">Asset name</label>
+        <input id="assetName" type="text" />
+
+        <label for="assetQuantity">Asset quantity</label>
+        <input id="assetQuantity" type="number" step="0.00000001" />
+
+        <label for="assetToAddress">Asset to address</label>
+        <input id="assetToAddress" type="text" />
+
+        <label for="assetChangeAddress">Asset change address</label>
+        <input id="assetChangeAddress" type="text" />
+
+        <label for="assetIpfsHash">Ravencoin IPFS hash</label>
+        <input id="assetIpfsHash" type="text" />
+      </div>
+
+      <div class="help">
+        Plain RVN mode uses <code>createrawtransaction</code>. Asset Transfer mode uses Ravencoin <code>transfer</code>, where asset name and IPFS are special RPC-level fields.
+      </div>
+
+      <button id="createAndDecodeButton" type="button">CREATE AND DECODE</button>
+      <div id="status">Idle</div>
+    </section>
+
+    <section class="panel row">
+      <div class="label">VIN</div>
+      <pre id="vinJson"></pre>
+    </section>
+
+    <section class="panel row">
+      <div class="label">VOUT</div>
+      <pre id="voutJson"></pre>
+    </section>
+
+    <section class="panel row">
+      <div class="label">RPC payload</div>
+      <pre id="rpcPayloadJson"></pre>
+    </section>
+
+    <section class="panel row">
+      <div class="label">Raw transaction hex</div>
+      <code id="rawHex"></code>
+    </section>
+
+    <section class="panel row">
+      <div class="label">Decoded transaction JSON</div>
+      <pre id="decodedJson"></pre>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      //
+      // Constants
+      //
+      const DEFAULT_RPC_URL = "https://rigler.org:8769/";
+      const DEFAULT_ADDRESS = "RM5u7Qbe4sLdUnrgKQLBKvreCMRDb5FySU";
+      const DEFAULT_FEE_RVN = "0.0005";
+      const DEFAULT_MODE = "rvn";
+      const DEFAULT_ASSET_QUANTITY = "1";
+      const SATOSHIS_PER_RVN = 100000000;
+      const STATUS_IDLE = "Idle";
+      const STATUS_LOADING = "Building transaction...";
+      const STATUS_DONE = "Transaction built and decoded successfully.";
+
+      //
+      // Elements
+      //
+      const elems = {
+        rpcUrl: document.querySelector("#rpcUrl"),
+        mode: document.querySelector("#mode"),
+        senderAddress: document.querySelector("#senderAddress"),
+        feeRvn: document.querySelector("#feeRvn"),
+        utxoJson: document.querySelector("#utxoJson"),
+        opReturnAscii: document.querySelector("#opReturnAscii"),
+        opReturnHex: document.querySelector("#opReturnHex"),
+        assetName: document.querySelector("#assetName"),
+        assetQuantity: document.querySelector("#assetQuantity"),
+        assetToAddress: document.querySelector("#assetToAddress"),
+        assetChangeAddress: document.querySelector("#assetChangeAddress"),
+        assetIpfsHash: document.querySelector("#assetIpfsHash"),
+        createAndDecodeButton: document.querySelector("#createAndDecodeButton"),
+        status: document.querySelector("#status"),
+        vinJson: document.querySelector("#vinJson"),
+        voutJson: document.querySelector("#voutJson"),
+        rpcPayloadJson: document.querySelector("#rpcPayloadJson"),
+        rawHex: document.querySelector("#rawHex"),
+        decodedJson: document.querySelector("#decodedJson")
+      };
+
+      //
+      // State
+      //
+      const state = {
+        isLoading: false,
+        status: STATUS_IDLE,
+        error: false,
+        vinJson: "",
+        voutJson: "",
+        rpcPayloadJson: "",
+        rawHex: "",
+        decodedJson: ""
+      };
+
+      //
+      // Helpers
+      //
+      function setInputValue(elem, value) {
+        if (!elem) {
+          return;
+        }
+
+        elem.value = value;
+      }
+
+      function normalizeUTXO(utxo) {
+        return {
+          txid: utxo.txid,
+          vout: utxo.vout !== undefined ? utxo.vout : utxo.outputIndex,
+          satoshis: utxo.satoshis
+        };
+      }
+
+      function buildVin(utxos) {
+        return utxos.map(function mapUTXOToVin(utxo) {
+          return {
+            txid: utxo.txid,
+            vout: utxo.vout
+          };
+        });
+      }
+
+      function sumSatoshis(utxos) {
+        return utxos.reduce(function reduceSatoshis(total, utxo) {
+          return total + utxo.satoshis;
+        }, 0);
+      }
+
+      function rvnToSatoshis(rvn) {
+        return Math.round(Number(rvn) * SATOSHIS_PER_RVN);
+      }
+
+      function satoshisToRVN(satoshis) {
+        return satoshis / SATOSHIS_PER_RVN;
+      }
+
+      function stringToHex(string) {
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(string);
+
+        return Array.from(bytes, function mapByteToHex(byte) {
+          return byte.toString(16).padStart(2, "0");
+        }).join("");
+      }
+
+      function normalizeHex(hex) {
+        return hex.trim().replace(/^0x/i, "").replace(/\s+/g, "");
+      }
+
+      function isHex(value) {
+        return /^[0-9a-fA-F]*$/.test(value);
+      }
+
+      function resolveGenericOpReturnHex() {
+        const ascii = elems.opReturnAscii.value.trim();
+        const hex = normalizeHex(elems.opReturnHex.value);
+
+        if (ascii && hex) {
+          throw new Error("Use either OP_RETURN ASCII or OP_RETURN HEX, not both.");
+        }
+
+        if (ascii) {
+          return stringToHex(ascii);
+        }
+
+        if (hex) {
+          if (!isHex(hex)) {
+            throw new Error("OP_RETURN HEX contains non-hex characters.");
+          }
+
+          if (hex.length % 2 !== 0) {
+            throw new Error("OP_RETURN HEX must have an even number of characters.");
+          }
+
+          return hex.toLowerCase();
+        }
+
+        return "";
+      }
+
+      function buildRvnVout(address, changeSatoshis, opReturnHex) {
+        const vout = {
+          [address]: satoshisToRVN(changeSatoshis)
+        };
+
+        if (opReturnHex) {
+          vout.data = opReturnHex;
+        }
+
+        return vout;
+      }
+
+      function getFormValues() {
+        return {
+          rpcUrl: elems.rpcUrl.value.trim(),
+          mode: elems.mode.value,
+          senderAddress: elems.senderAddress.value.trim(),
+          feeSatoshis: rvnToSatoshis(elems.feeRvn.value),
+          genericOpReturnHex: resolveGenericOpReturnHex(),
+          assetName: elems.assetName.value.trim(),
+          assetQuantity: elems.assetQuantity.value.trim(),
+          assetToAddress: elems.assetToAddress.value.trim(),
+          assetChangeAddress: elems.assetChangeAddress.value.trim(),
+          assetIpfsHash: elems.assetIpfsHash.value.trim()
+        };
+      }
+
+      //
+      // RPC
+      //
+      async function getAddressUtxos(rpcUrl, address) {
+        const rvn = new CHISEL(rpcUrl);
+        await rvn.load();
+        return rvn.address.getaddressutxos(address);
+      }
+
+      async function createRvnRawTransaction(rpcUrl, vin, vout) {
+        const rvn = new CHISEL(rpcUrl);
+        await rvn.load();
+        return rvn.tx.createrawtransaction(vin, vout);
+      }
+
+      async function createAssetTransferTransaction(values) {
+        const rvn = new CHISEL(values.rpcUrl);
+        await rvn.load();
+
+        return rvn.asset.transfer(
+          values.assetName,
+          Number(values.assetQuantity),
+          values.assetToAddress,
+          "",
+          0,
+          values.assetChangeAddress,
+          values.assetChangeAddress,
+          values.assetIpfsHash
+        );
+      }
+
+      async function decodeRawTransaction(rpcUrl, rawHex) {
+        const rvn = new CHISEL(rpcUrl);
+        await rvn.load();
+        return rvn.tx.decoderawtransaction(rawHex);
+      }
+
+      //
+      // DOM setters
+      //
+      function setDefaultInputs() {
+        setInputValue(elems.rpcUrl, DEFAULT_RPC_URL);
+        setInputValue(elems.mode, DEFAULT_MODE);
+        setInputValue(elems.senderAddress, DEFAULT_ADDRESS);
+        setInputValue(elems.feeRvn, DEFAULT_FEE_RVN);
+        setInputValue(elems.utxoJson, "Will populate for RVN mode.");
+        setInputValue(elems.opReturnAscii, "");
+        setInputValue(elems.opReturnHex, "");
+        setInputValue(elems.assetName, "");
+        setInputValue(elems.assetQuantity, DEFAULT_ASSET_QUANTITY);
+        setInputValue(elems.assetToAddress, DEFAULT_ADDRESS);
+        setInputValue(elems.assetChangeAddress, DEFAULT_ADDRESS);
+        setInputValue(elems.assetIpfsHash, "");
+        render();
+      }
+
+      function setLoading(isLoading) {
+        state.isLoading = isLoading;
+        render();
+      }
+
+      function setStatus(status, error) {
+        state.status = status;
+        state.error = Boolean(error);
+        render();
+      }
+
+      function setVinJson(value) {
+        state.vinJson = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+        render();
+      }
+
+      function setVoutJson(value) {
+        state.voutJson = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+        render();
+      }
+
+      function setRpcPayloadJson(value) {
+        state.rpcPayloadJson = JSON.stringify(value, null, 2);
+        render();
+      }
+
+      function setRawHex(rawHex) {
+        state.rawHex = rawHex;
+        render();
+      }
+
+      function setDecodedJson(decoded) {
+        state.decodedJson = JSON.stringify(decoded, null, 2);
+        render();
+      }
+
+      function setUtxoJson(value) {
+        setInputValue(
+          elems.utxoJson,
+          typeof value === "string" ? value : JSON.stringify(value, null, 2)
+        );
+      }
+
+      function clearOutput() {
+        state.vinJson = "";
+        state.voutJson = "";
+        state.rpcPayloadJson = "";
+        state.rawHex = "";
+        state.decodedJson = "";
+        render();
+      }
+
+      function render() {
+        elems.createAndDecodeButton.disabled = state.isLoading;
+        elems.status.textContent = state.status;
+        elems.status.className = state.error ? "error" : "";
+        elems.vinJson.textContent = state.vinJson;
+        elems.voutJson.textContent = state.voutJson;
+        elems.rpcPayloadJson.textContent = state.rpcPayloadJson;
+        elems.rawHex.textContent = state.rawHex;
+        elems.decodedJson.textContent = state.decodedJson;
+      }
+
+      //
+      // DOM listeners
+      //
+      async function onClickCreateAndDecode() {
+        try {
+          clearOutput();
+          setLoading(true);
+          setStatus(STATUS_LOADING, false);
+
+          const values = getFormValues();
+
+          if (values.mode === "rvn") {
+            const rawUtxos = await getAddressUtxos(values.rpcUrl, values.senderAddress);
+            const utxos = rawUtxos.map(normalizeUTXO);
+            const vin = buildVin(utxos);
+            const totalSatoshis = sumSatoshis(utxos);
+            const changeSatoshis = totalSatoshis - values.feeSatoshis;
+
+            if (changeSatoshis <= 0) {
+              throw new Error("Not enough balance to pay the fee.");
+            }
+
+            const vout = buildRvnVout(values.senderAddress, changeSatoshis, values.genericOpReturnHex);
+
+            setUtxoJson(utxos);
+            setVinJson(vin);
+            setVoutJson(vout);
+            setRpcPayloadJson({
+              method: "createrawtransaction",
+              params: [vin, vout]
+            });
+
+            const rawHex = await createRvnRawTransaction(values.rpcUrl, vin, vout);
+            setRawHex(rawHex);
+
+            const decoded = await decodeRawTransaction(values.rpcUrl, rawHex);
+            setDecodedJson(decoded);
+          }
+
+          if (values.mode === "asset-transfer") {
+            const payload = {
+              method: "transfer",
+              params: [
+                values.assetName,
+                Number(values.assetQuantity),
+                values.assetToAddress,
+                "",
+                0,
+                values.assetChangeAddress,
+                values.assetChangeAddress,
+                values.assetIpfsHash
+              ]
+            };
+
+            setUtxoJson("(asset RPC builds inputs on node side)");
+            setVinJson("(built by transfer RPC)");
+            setVoutJson("(built by transfer RPC)");
+            setRpcPayloadJson(payload);
+
+            const rawHex = await createAssetTransferTransaction(values);
+            setRawHex(rawHex);
+
+            const decoded = await decodeRawTransaction(values.rpcUrl, rawHex);
+            setDecodedJson(decoded);
+          }
+
+          setStatus(STATUS_DONE, false);
+        } catch (error) {
+          console.error(error);
+          setStatus(error.message || String(error), true);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      function addEventListeners() {
+        elems.createAndDecodeButton.onclick = onClickCreateAndDecode;
+      }
+
+      //
+      // Init
+      //
+      setDefaultInputs();
+      addEventListeners();
+      render();
+    })();
+  </script>
+</body>
+</html>
