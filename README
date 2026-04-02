@@ -20,3 +20,5 @@ Chisel also includes other commands such as a javascript version of
 "unspendable" which can figure out the last six digits of any 
 unspendable crypto address.
 
+With un (unspendable), ad hoc first class language is available using 
+tricks inspired partly by the #BSV currency. 
