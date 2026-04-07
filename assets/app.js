@@ -3,6 +3,7 @@
       // Constants
       //
       //
+      const APP_NAME = "chisel";
       const APP_VERSION = "2.0.0";
       const DEFAULT_RPC_URL = "https://rigler.org:8769/";
       const DEFAULT_ADDRESS = "RM5u7Qbe4sLdUnrgKQLBKvreCMRDb5FySU";
@@ -36,7 +37,8 @@
         voutJson: document.querySelector("#voutJson"),
         rpcPayloadJson: document.querySelector("#rpcPayloadJson"),
         rawHex: document.querySelector("#rawHex"),
-        decodedJson: document.querySelector("#decodedJson")
+        decodedJson: document.querySelector("#decodedJson"),
+	version: document.querySelector("#version")
       };
 
       //
@@ -285,6 +287,11 @@
         elems.decodedJson.textContent = state.decodedJson;
       }
 
+       function setAppVersion() {
+          elems.version.textContent = APP_NAME + " v" + APP_VERSION;
+	       console.log(elems.version)
+      }
+
       //
       // DOM listeners
       //
@@ -370,4 +377,5 @@
       setDefaultInputs();
       addEventListeners();
       render();
+      setAppVersion();
     })();
