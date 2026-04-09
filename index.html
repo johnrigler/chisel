@@ -3,158 +3,258 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel Transaction Builder</title>
+  <title>Chisel Broadcaster</title>
 
-<script src="assets/vendor/elliptic-6-6-1.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+  <script src="assets/vendor/elliptic-6-6-1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 
   <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      background: #111;
-      color: #f5f5f5;
+      background: #0b0d10;
+      color: #e6edf3;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
+    header {
+      border-bottom: 1px solid #222a33;
+      background: #0f1318;
+    }
+
+    header .shell,
     main {
       max-width: 1100px;
       margin: 0 auto;
       padding: 24px;
     }
 
-    h1 {
-      margin: 0 0 16px;
-      font-size: 24px;
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    main {
+      display: grid;
+      gap: 16px;
     }
 
     .panel {
-      background: #1b1b1b;
-      border: 1px solid #333;
-      border-radius: 10px;
+      background: #11161c;
+      border: 1px solid #222a33;
+      border-radius: 12px;
       padding: 16px;
-      margin-bottom: 16px;
+      display: grid;
+      gap: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+    }
+
+    .hero {
+      display: grid;
+      gap: 8px;
+    }
+
+    .hero p {
+      color: #9fb0c0;
+      line-height: 1.5;
     }
 
     .grid {
       display: grid;
-      grid-template-columns: 190px 1fr;
       gap: 12px;
+      grid-template-columns: 180px 1fr;
       align-items: start;
     }
 
-    .row {
-      display: grid;
-      gap: 12px;
-    }
-
     label {
-      color: #cfcfcf;
+      color: #b8c7d6;
       padding-top: 10px;
+      font-size: 14px;
     }
 
     input,
-    textarea,
-    select,
-    button {
+    button,
+    textarea {
       font: inherit;
     }
 
     input,
-    textarea,
-    select {
+    textarea {
       width: 100%;
-      box-sizing: border-box;
-      padding: 10px 12px;
-      border: 1px solid #333;
-      border-radius: 8px;
-      background: #0d0d0d;
-      color: #f5f5f5;
+      padding: 12px 14px;
+      border: 1px solid #2c3642;
+      border-radius: 10px;
+      background: #0a0f14;
+      color: #e6edf3;
+      outline: none;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: #7c6dff;
+      box-shadow: 0 0 0 3px rgba(124, 109, 255, 0.16);
     }
 
     textarea {
-      min-height: 90px;
+      min-height: 88px;
       resize: vertical;
     }
 
+    .actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
     button {
-      width: fit-content;
-      padding: 10px 14px;
       border: 0;
-      border-radius: 8px;
-      background: #7b61ff;
+      border-radius: 10px;
+      padding: 12px 16px;
+      background: linear-gradient(180deg, #8b7bff 0%, #705dff 100%);
       color: white;
       cursor: pointer;
+      font-weight: 700;
+      letter-spacing: 0.02em;
     }
 
     button:disabled {
-      opacity: 0.5;
+      opacity: 0.55;
       cursor: default;
-    }
-
-    pre,
-    code {
-      display: block;
-      margin: 0;
-      padding: 12px;
-      border: 1px solid #2e2e2e;
-      border-radius: 8px;
-      background: #0d0d0d;
-      color: #9fe870;
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow-x: auto;
-    }
-
-    .label {
-      font-size: 12px;
-      color: #aaa;
-      margin-bottom: 8px;
-    }
-
-    .help {
-      font-size: 12px;
-      color: #aaa;
     }
 
     #status {
       color: #ffd166;
+      min-height: 1.5em;
     }
 
     #status.error {
-      color: #ff6b6b;
+      color: #ff7b7b;
+    }
+
+    .help {
+      color: #91a4b7;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .steps {
+      display: grid;
+      gap: 16px;
+    }
+
+    .stepTitle {
+      color: #8ea1b5;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .json,
+    .hex {
+      display: block;
+      margin: 0;
+      padding: 14px;
+      border: 1px solid #1f2933;
+      border-radius: 10px;
+      background: #05080b;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: auto;
+      line-height: 1.5;
+      min-height: 52px;
+    }
+
+    .hex {
+      color: #c5f467;
+    }
+
+    .json {
+      color: #d7e2ee;
+    }
+
+    .json-key {
+      color: #7dd3fc;
+    }
+
+    .json-string {
+      color: #a3e635;
+    }
+
+    .json-number {
+      color: #f9a8d4;
+    }
+
+    .json-boolean {
+      color: #f59e0b;
+      font-weight: 700;
+    }
+
+    .json-null {
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    .json-punctuation {
+      color: #6b7280;
+    }
+
+    .muted {
+      color: #91a4b7;
+    }
+
+    details {
+      border-top: 1px solid #202833;
+      padding-top: 12px;
+    }
+
+    details summary {
+      cursor: pointer;
+      color: #c4d0dc;
+      user-select: none;
+    }
+
+    @media (max-width: 760px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      label {
+        padding-top: 0;
+      }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Chisel</h1>
-    <p id="version"></p>
+    <div class="shell">
+      <h1>Chisel</h1>
+      <p id="version" class="muted"></p>
+    </div>
   </header>
+
   <main>
-    <h1>Chisel Transaction Builder + Decoder</h1>
+    <section class="panel hero">
+      <h2>One-step RVN send-back + broadcast</h2>
+      <p>Paste one Ravencoin WIF, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction back through rigler.org.</p>
+    </section>
 
-    <section class="panel row">
+    <section class="panel">
       <div class="grid">
-        <label for="rpcUrl">RPC URL</label>
-        <input id="rpcUrl" type="text" />
-
-        <label for="mode">Mode</label>
-        <select id="mode">
-          <option value="rvn">Plain RVN</option>
-          <option value="asset-transfer">Asset Transfer</option>
-        </select>
-
-        <label for="senderAddress">Sender address</label>
-        <input id="senderAddress" type="text" />
-
-	<label for="senderWif">Sender WIF</label>
-<input id="senderWif" type="password" autocomplete="off" spellcheck="false" />
+        <label for="senderWif">Sender WIF</label>
+        <input id="senderWif" type="password" autocomplete="off" spellcheck="false" />
 
         <label for="feeRvn">Fee (RVN)</label>
         <input id="feeRvn" type="number" min="0" step="0.00000001" />
-
-        <label for="utxoJson">UTXO source</label>
-        <textarea id="utxoJson" readonly></textarea>
 
         <label for="opReturnAscii">OP_RETURN ASCII</label>
         <input id="opReturnAscii" type="text" />
@@ -162,80 +262,113 @@
         <label for="opReturnHex">OP_RETURN HEX</label>
         <input id="opReturnHex" type="text" />
 
-        <label for="assetName">Asset name</label>
-        <input id="assetName" type="text" />
+        <label for="rpcUrl">RPC URL</label>
+        <input id="rpcUrl" type="text" />
+      </div>
 
-        <label for="assetQuantity">Asset quantity</label>
-        <input id="assetQuantity" type="number" step="0.00000001" />
-
-        <label for="assetToAddress">Asset to address</label>
-        <input id="assetToAddress" type="text" />
-
-        <label for="assetChangeAddress">Asset change address</label>
-        <input id="assetChangeAddress" type="text" />
-
-        <label for="assetIpfsHash">Ravencoin IPFS hash</label>
-        <input id="assetIpfsHash" type="text" />
+      <div class="actions">
+        <button id="sendButton" type="button">BUILD, SIGN, DECODE, SEND</button>
+        <div id="status">Idle</div>
       </div>
 
       <div class="help">
-        Plain RVN mode uses <code>createrawtransaction</code>. Asset Transfer mode uses Ravencoin <code>transfer</code>, where asset name and IPFS are special RPC-level fields.
+        This flow derives the sender address from the WIF, fetches UTXOs, builds a send-back transaction to the same address minus fee, signs it locally in the browser, decodes it for inspection, and then broadcasts the signed hex.
       </div>
 
-      <button id="createAndDecodeButton" type="button">CREATE AND DECODE</button>
-      <div id="status">Idle</div>
+      <details>
+        <summary>Advanced / derived values</summary>
+        <div class="grid" style="margin-top: 12px;">
+          <label for="senderAddress">Derived sender address</label>
+          <input id="senderAddress" type="text" readonly />
+
+          <label for="utxoCount">UTXO count</label>
+          <input id="utxoCount" type="text" readonly />
+
+          <label for="spendTotalRvn">Spend total (RVN)</label>
+          <input id="spendTotalRvn" type="text" readonly />
+
+          <label for="changeRvn">Send-back amount (RVN)</label>
+          <input id="changeRvn" type="text" readonly />
+        </div>
+      </details>
     </section>
 
-    <section class="panel row">
-      <div class="label">VIN</div>
-      <pre id="vinJson"></pre>
-    </section>
+    <section class="steps">
+      <section class="panel">
+        <div class="stepTitle">1. Account</div>
+        <pre id="accountJson" class="json"></pre>
+      </section>
 
-    <section class="panel row">
-      <div class="label">VOUT</div>
-      <pre id="voutJson"></pre>
-    </section>
+      <section class="panel">
+        <div class="stepTitle">2. UTXOs</div>
+        <pre id="utxoJson" class="json"></pre>
+      </section>
 
-    <section class="panel row">
-      <div class="label">RPC payload</div>
-      <pre id="rpcPayloadJson"></pre>
-    </section>
+      <section class="panel">
+        <div class="stepTitle">3. VIN</div>
+        <pre id="vinJson" class="json"></pre>
+      </section>
 
-    <section class="panel row">
-      <div class="label">Raw transaction hex</div>
-      <code id="rawHex"></code>
-    </section>
+      <section class="panel">
+        <div class="stepTitle">4. VOUT</div>
+        <pre id="voutJson" class="json"></pre>
+      </section>
 
-    <section class="panel row">
-      <div class="label">Decoded transaction JSON</div>
-      <pre id="decodedJson"></pre>
+      <section class="panel">
+        <div class="stepTitle">5. Build payload</div>
+        <pre id="buildPayloadJson" class="json"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">6. Unsigned raw transaction</div>
+        <code id="rawHex" class="hex"></code>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">7. Decoded unsigned transaction</div>
+        <pre id="decodedUnsignedJson" class="json"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">8. Signed raw transaction</div>
+        <code id="signedHex" class="hex"></code>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">9. Send payload</div>
+        <pre id="sendPayloadJson" class="json"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">10. Broadcast result</div>
+        <pre id="sendResultJson" class="json"></pre>
+      </section>
     </section>
   </main>
-<footer class="footer">
-  <h3>Next Steps</h3>
-  <ul>
-    <li>Add ethers.js library</li>
-    <li>Start with single WIF input and sign/send transactions</li>
-    <li>Support multiple WIF keys (per input signing)</li>
-    <li>Auto-match inputs to keys via pubKeyHash</li>
-    <li>Add transaction broadcast capability</li>
-    <li>Improve error handling and validation feedback</li>
-    <li>Support additional script types (P2SH, multisig)</li>
-    <li>Refactor into modular architecture (optional future build step)</li>
-    <li>Add test vectors for signing and decoding correctness</li>
-  </ul>
-</footer>
-<script src="chisel.js?asdfasd"></script>
-<script src="chisel.sign.js?Asdfasd"></script>
-<script src="assets/app.js?1adf"></script>
-<script src="assets/qrField.js"></script>
-<script>
-	installChiselSigner(CHISEL, {
-		elliptic: window.elliptic,
-		CryptoJS: window.CryptoJS
-	});
-</script>
 
+  <script src="chisel.js?2g4dsg0208"></script>
+  <script src="chisel.sign.js?455555555555"></script>
+  <script src="chisel.ravencoin.js?adfsd32"></script>
+  <script src="assets/app.js?5432643"></script>
+
+<script>
+  installChiselSigner(CHISEL, {
+    elliptic: window.elliptic,
+    CryptoJS: window.CryptoJS
+  });
+
+  installChiselRavencoin(CHISEL);
+
+  window.RVN = CHISEL.ravencoin;
+  window.CHISEL_DEBUG = {
+    CHISEL: CHISEL,
+    RVN: CHISEL.ravencoin
+  };
+
+  WIF="L2rer42njkmAH1ktNAVE1w458WtnNUmHBFFe3k7KfveSW7KQJACi"
+  console.log(WIF)
+
+</script>
 
 </body>
 </html>

@@ -4,6 +4,9 @@
   //
   const CURVE_NAME = "secp256k1";
   const SIGHASH_ALL_HEX = "01000000";
+  const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const MAINNET_WIF_PREFIX = 128;
+  const TESTNET_WIF_PREFIX = 239;
 
   //
   // Plugin
@@ -28,7 +31,7 @@
     // Static helpers
     //
     CHISEL.hexToBytes = function hexToBytes(hex) {
-      const normalized = hex.trim().replace(/^0x/i, "").toLowerCase();
+      const normalized = hex.trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
 
       if (normalized.length % 2 !== 0) {
         throw new Error("Invalid hex length.");
@@ -94,6 +97,27 @@
       throw new Error("varInt too large.");
     };
 
+    CHISEL.hexToUint8Array = function hexToUint8Array(hex) {
+      return new Uint8Array(CHISEL.hexToBytes(hex));
+    };
+
+    CHISEL.concatBytes = function concatBytes() {
+      const arrays = Array.from(arguments);
+      const TOTAL_LENGTH = arrays.reduce(function reduceTotal(total, array) {
+        return total + array.length;
+      }, 0);
+
+      const merged = new Uint8Array(TOTAL_LENGTH);
+      let offset = 0;
+
+      arrays.forEach(function appendArray(array) {
+        merged.set(array, offset);
+        offset += array.length;
+      });
+
+      return merged;
+    };
+
     CHISEL.sha256Hex = async function sha256Hex(hex) {
       const bytes = new Uint8Array(CHISEL.hexToBytes(hex));
       const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
@@ -118,6 +142,152 @@
       const first = await CHISEL.sha256Hex(hex);
 
       return CHISEL.sha256Hex(first);
+    };
+
+    CHISEL.base58ToBytes = function base58ToBytes(value) {
+      const normalized = value.trim();
+
+      if (!normalized) {
+        throw new Error("Base58 value is required.");
+      }
+
+      let bytes = [0];
+
+      for (const character of normalized) {
+        const characterIndex = BASE58_ALPHABET.indexOf(character);
+
+        if (characterIndex === -1) {
+          throw new Error("Invalid Base58 character.");
+        }
+
+        let carry = characterIndex;
+
+        for (let i = bytes.length - 1; i >= 0; i--) {
+          const current = bytes[i] * 58 + carry;
+          bytes[i] = current & 255;
+          carry = current >> 8;
+        }
+
+        while (carry > 0) {
+          bytes.unshift(carry & 255);
+          carry >>= 8;
+        }
+      }
+
+      let leadingZeroCount = 0;
+
+      for (const character of normalized) {
+        if (character === "1") {
+          leadingZeroCount++;
+        } else {
+          break;
+        }
+      }
+
+      if (leadingZeroCount > 0) {
+        bytes = new Array(leadingZeroCount).fill(0).concat(bytes);
+      }
+
+      return new Uint8Array(bytes);
+    };
+
+    CHISEL.bytesToBase58 = function bytesToBase58(bytes) {
+      if (!bytes.length) {
+        return "";
+      }
+
+      let digits = [0];
+
+      for (const byte of bytes) {
+        let carry = byte;
+
+        for (let i = digits.length - 1; i >= 0; i--) {
+          const current = digits[i] * 256 + carry;
+          digits[i] = current % 58;
+          carry = Math.floor(current / 58);
+        }
+
+        while (carry > 0) {
+          digits.unshift(carry % 58);
+          carry = Math.floor(carry / 58);
+        }
+      }
+
+      let output = "";
+
+      for (const byte of bytes) {
+        if (byte === 0) {
+          output += "1";
+        } else {
+          break;
+        }
+      }
+
+      output += digits.map(function mapDigit(digit) {
+        return BASE58_ALPHABET[digit];
+      }).join("");
+
+      return output;
+    };
+
+    CHISEL.base58CheckDecode = async function base58CheckDecode(value) {
+      const bytes = CHISEL.base58ToBytes(value);
+
+      if (bytes.length < 5) {
+        throw new Error("Invalid Base58Check payload.");
+      }
+
+      const payload = bytes.slice(0, bytes.length - 4);
+      const checksum = bytes.slice(bytes.length - 4);
+      const payloadHex = CHISEL.bytesToHex(payload);
+      const expectedChecksumHex = (await CHISEL.doubleSha256Hex(payloadHex)).slice(0, 8);
+      const checksumHex = CHISEL.bytesToHex(checksum);
+
+      if (checksumHex !== expectedChecksumHex) {
+        throw new Error("Invalid Base58Check checksum.");
+      }
+
+      return payload;
+    };
+
+    CHISEL.base58CheckEncode = async function base58CheckEncode(payloadBytes) {
+      const payloadHex = CHISEL.bytesToHex(payloadBytes);
+      const checksumHex = (await CHISEL.doubleSha256Hex(payloadHex)).slice(0, 8);
+      const checksumBytes = CHISEL.hexToUint8Array(checksumHex);
+      const full = CHISEL.concatBytes(payloadBytes, checksumBytes);
+
+      return CHISEL.bytesToBase58(full);
+    };
+
+    CHISEL.wifToPrivateKey = async function wifToPrivateKey(wif) {
+      const payload = await CHISEL.base58CheckDecode(wif);
+      const version = payload[0];
+      const compressed = payload.length === 34;
+
+      if (version !== MAINNET_WIF_PREFIX && version !== TESTNET_WIF_PREFIX) {
+        throw new Error("Unsupported WIF network prefix.");
+      }
+
+      if (payload.length !== 33 && payload.length !== 34) {
+        throw new Error("Unexpected WIF payload length.");
+      }
+
+      if (compressed && payload[33] !== 1) {
+        throw new Error("Invalid compressed WIF flag.");
+      }
+
+      return {
+        version: version,
+        compressed: compressed,
+        privateKeyHex: CHISEL.bytesToHex(payload.slice(1, 33))
+      };
+    };
+
+    CHISEL.privateKeyHexToPublicKeyHex = function privateKeyHexToPublicKeyHex(privateKeyHex, compressed) {
+      const ec = new ELLIPTIC.ec(CURVE_NAME);
+      const keyPair = ec.keyFromPrivate(CHISEL.normalizeHex(privateKeyHex));
+
+      return keyPair.getPublic(Boolean(compressed), "hex");
     };
 
     CHISEL.parseRawTransaction = function parseRawTransaction(rawTxHex) {
@@ -154,249 +324,34 @@
       };
     };
 
-    CHISEL.buildP2pkhLockScript = async function buildP2pkhLockScript(privateKeyHex) {
-      const ec = new ELLIPTIC.ec(CURVE_NAME);
-      const keyPair = ec.keyFromPrivate(privateKeyHex);
-      const publicKeyHex = keyPair.getPublic(true, "hex");
+    CHISEL.buildP2pkhLockScript = async function buildP2pkhLockScript(privateKeyHex, compressed) {
+      const publicKeyHex = CHISEL.privateKeyHexToPublicKeyHex(privateKeyHex, compressed);
       const publicKeyHashHex = await CHISEL.hash160Hex(publicKeyHex);
 
       return "76a914" + publicKeyHashHex + "88ac";
     };
 
-	      const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-    const RVN_MAINNET_P2PKH_PREFIX = 60;
-    const RVN_MAINNET_WIF_PREFIX = 128;
-    const RVN_TESTNET_WIF_PREFIX = 239;
-
-    CHISEL.concatBytes = function concatBytes(...arrays) {
-      const totalLength = arrays.reduce(function addLength(sum, array) {
-        return sum + array.length;
-      }, 0);
-
-      const merged = new Uint8Array(totalLength);
-      let offset = 0;
-
-      arrays.forEach(function appendArray(array) {
-        merged.set(array, offset);
-        offset += array.length;
-      });
-
-      return merged;
-    };
-
-    CHISEL.numberToBytes = function numberToBytes(number) {
-      if (number === 0) {
-        return new Uint8Array([0]);
-      }
-
-      const bytes = [];
-      let value = number;
-
-      while (value > 0) {
-        bytes.unshift(value & 255);
-        value = Math.floor(value / 256);
-      }
-
-      return new Uint8Array(bytes);
-    };
-
-    CHISEL.base58ToBytes = function base58ToBytes(value) {
-      const trimmed = value.trim();
-
-      if (!trimmed) {
-        throw new Error("Base58 value is required.");
-      }
-
-      let decoded = new Uint8Array([0]);
-
-      for (const character of trimmed) {
-        const characterIndex = BASE58_ALPHABET.indexOf(character);
-
-        if (characterIndex === -1) {
-          throw new Error("Invalid Base58 character.");
-        }
-
-        let carry = characterIndex;
-        const next = [];
-
-        for (let i = decoded.length - 1; i >= 0; i--) {
-          const current = decoded[i] * 58 + carry;
-          next.unshift(current & 255);
-          carry = current >> 8;
-        }
-
-        while (carry > 0) {
-          next.unshift(carry & 255);
-          carry >>= 8;
-        }
-
-        decoded = new Uint8Array(next);
-      }
-
-      let leadingZeroCount = 0;
-
-      for (const character of trimmed) {
-        if (character === "1") {
-          leadingZeroCount++;
-        } else {
-          break;
-        }
-      }
-
-      if (leadingZeroCount > 0) {
-        decoded = CHISEL.concatBytes(new Uint8Array(leadingZeroCount), decoded);
-      }
-
-      return decoded;
-    };
-
-    CHISEL.bytesToBase58 = function bytesToBase58(bytes) {
-      if (!bytes || bytes.length === 0) {
-        return "";
-      }
-
-      let digits = [0];
-
-      for (const byte of bytes) {
-        let carry = byte;
-
-        for (let i = digits.length - 1; i >= 0; i--) {
-          const value = digits[i] * 256 + carry;
-          digits[i] = value % 58;
-          carry = Math.floor(value / 58);
-        }
-
-        while (carry > 0) {
-          digits.unshift(carry % 58);
-          carry = Math.floor(carry / 58);
-        }
-      }
-
-      let output = "";
-
-      for (const byte of bytes) {
-        if (byte === 0) {
-          output += "1";
-        } else {
-          break;
-        }
-      }
-
-      output += digits.map(function mapDigit(digit) {
-        return BASE58_ALPHABET[digit];
-      }).join("");
-
-      return output;
-    };
-
-    CHISEL.hexToUint8Array = function hexToUint8Array(hex) {
-      return new Uint8Array(CHISEL.hexToBytes(hex));
-    };
-
-    CHISEL.base58CheckDecode = async function base58CheckDecode(value) {
-      const bytes = CHISEL.base58ToBytes(value);
-
-      if (bytes.length < 5) {
-        throw new Error("Invalid Base58Check payload.");
-      }
-
-      const payload = bytes.slice(0, -4);
-      const checksum = bytes.slice(-4);
-      const payloadHex = CHISEL.bytesToHex(payload);
-      const checksumHex = CHISEL.bytesToHex(checksum);
-      const expectedChecksumHex = (await CHISEL.doubleSha256Hex(payloadHex)).slice(0, 8);
-
-      if (checksumHex !== expectedChecksumHex) {
-        throw new Error("Invalid Base58Check checksum.");
-      }
-
-      return payload;
-    };
-
-    CHISEL.base58CheckEncode = async function base58CheckEncode(payloadBytes) {
-      const payloadHex = CHISEL.bytesToHex(payloadBytes);
-      const checksumHex = (await CHISEL.doubleSha256Hex(payloadHex)).slice(0, 8);
-      const checksumBytes = CHISEL.hexToUint8Array(checksumHex);
-      const full = CHISEL.concatBytes(payloadBytes, checksumBytes);
-
-      return CHISEL.bytesToBase58(full);
-    };
-
-    CHISEL.wifToPrivateKey = async function wifToPrivateKey(wif) {
-      const payload = await CHISEL.base58CheckDecode(wif);
-
-      if (payload.length !== 33 && payload.length !== 34) {
-        throw new Error("Unexpected WIF payload length.");
-      }
-
-      const version = payload[0];
-      const isCompressed = payload.length === 34;
-
-      if (version !== RVN_MAINNET_WIF_PREFIX && version !== RVN_TESTNET_WIF_PREFIX) {
-        throw new Error("Unsupported WIF network prefix.");
-      }
-
-      if (isCompressed && payload[payload.length - 1] !== 1) {
-        throw new Error("Invalid compressed WIF flag.");
-      }
-
-      const privateKeyBytes = isCompressed ? payload.slice(1, 33) : payload.slice(1, 33);
-
-      return {
-        privateKeyHex: CHISEL.bytesToHex(privateKeyBytes),
-        compressed: isCompressed,
-        network: version === RVN_MAINNET_WIF_PREFIX ? "mainnet" : "testnet"
-      };
-    };
-
-    CHISEL.privateKeyHexToPublicKeyHex = function privateKeyHexToPublicKeyHex(privateKeyHex, compressed) {
-      const ec = new ELLIPTIC.ec(CURVE_NAME);
-      const keyPair = ec.keyFromPrivate(CHISEL.normalizeHex(privateKeyHex));
-
-      return keyPair.getPublic(Boolean(compressed), "hex");
-    };
-
-    CHISEL.publicKeyHexToAddress = async function publicKeyHexToAddress(publicKeyHex, versionByte) {
-      const prefixBytes = new Uint8Array([versionByte]);
-      const publicKeyHashHex = await CHISEL.hash160Hex(publicKeyHex);
-      const publicKeyHashBytes = CHISEL.hexToUint8Array(publicKeyHashHex);
-      const payloadBytes = CHISEL.concatBytes(prefixBytes, publicKeyHashBytes);
-
-      return CHISEL.base58CheckEncode(payloadBytes);
-    };
-
-    CHISEL.privateKeyHexToRvnAddress = async function privateKeyHexToRvnAddress(privateKeyHex, compressed) {
-      const publicKeyHex = CHISEL.privateKeyHexToPublicKeyHex(privateKeyHex, compressed);
-
-      return CHISEL.publicKeyHexToAddress(publicKeyHex, RVN_MAINNET_P2PKH_PREFIX);
-    };
-
-    CHISEL.wifToRvnAccount = async function wifToRvnAccount(wif) {
-      const decoded = await CHISEL.wifToPrivateKey(wif);
-      const address = await CHISEL.privateKeyHexToRvnAddress(decoded.privateKeyHex, decoded.compressed);
-
-      return {
-        wif: wif.trim(),
-        privateKeyHex: decoded.privateKeyHex,
-        compressed: decoded.compressed,
-        network: decoded.network,
-        address: address
-      };
-    };
-
-    CHISEL.signRawTransaction = async function signRawTransaction(rawTxHex, privateKeysHex) {
+    CHISEL.signRawTransaction = async function signRawTransaction(rawTxHex, signingInputs) {
       const ec = new ELLIPTIC.ec(CURVE_NAME);
       const parsed = CHISEL.parseRawTransaction(rawTxHex);
 
-      if (privateKeysHex.length !== parsed.vins.length) {
-        throw new Error("Private key count must match input count.");
+      if (signingInputs.length !== parsed.vins.length) {
+        throw new Error("Signing input count must match input count.");
       }
 
       for (let i = 0; i < parsed.vins.length; i++) {
-        const privateKeyHex = CHISEL.normalizeHex(privateKeysHex[i]);
+        const signingInput = typeof signingInputs[i] === "string"
+          ? {
+              privateKeyHex: signingInputs[i],
+              compressed: true
+            }
+          : signingInputs[i];
+
+        const privateKeyHex = CHISEL.normalizeHex(signingInput.privateKeyHex);
+        const compressed = Boolean(signingInput.compressed);
         const keyPair = ec.keyFromPrivate(privateKeyHex);
-        const publicKeyHex = keyPair.getPublic(true, "hex");
-        const lockScriptHex = await CHISEL.buildP2pkhLockScript(privateKeyHex);
+        const publicKeyHex = keyPair.getPublic(compressed, "hex");
+        const lockScriptHex = await CHISEL.buildP2pkhLockScript(privateKeyHex, compressed);
 
         let preimage = parsed.version + CHISEL.varInt(parsed.vins.length);
 
@@ -438,8 +393,8 @@
       return finalHex.toLowerCase();
     };
 
-    CHISEL.prototype.signRawTransaction = async function signRawTransaction(rawTxHex, privateKeysHex) {
-      return CHISEL.signRawTransaction(rawTxHex, privateKeysHex);
+    CHISEL.prototype.signRawTransaction = async function signRawTransaction(rawTxHex, signingInputs) {
+      return CHISEL.signRawTransaction(rawTxHex, signingInputs);
     };
   }
 
