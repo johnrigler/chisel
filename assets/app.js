@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.0.2";
+  const APP_VERSION = "2.0.3";
   const DEFAULT_RPC_URL = "https://rigler.org:8769/";
   const DEFAULT_FEE_RVN = "0.0005";
   const SATOSHIS_PER_RVN = 100000000;
@@ -389,12 +389,8 @@
       throw new Error("Fee must be greater than zero.");
     }
 
-//    const account = await CHISEL.wifToPrivateKey(values.senderWif);
-//    setAccountJson(account);
-
- const account = await CHISEL.ravencoin.wifToAccount(wif);
- const senderAddress = account.address;
-
+    const account = await CHISEL.ravencoin.wifToAccount(values.senderWif);
+    const senderAddress = account.address;
 
     const rawUtxos = await getAddressUtxos(values.rpcUrl, account.address);
     const utxos = rawUtxos.map(normalizeUTXO);
