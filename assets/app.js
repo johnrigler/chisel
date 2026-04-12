@@ -392,6 +392,9 @@
     const account = await CHISEL.wifToPrivateKey(values.senderWif);
     setAccountJson(account);
 
+// const account = await CHISEL.ravencoin.wifToAccount(wif);
+// const senderAddress = account.address;
+
 
     const rawUtxos = await getAddressUtxos(values.rpcUrl, account.address);
     const utxos = rawUtxos.map(normalizeUTXO);
