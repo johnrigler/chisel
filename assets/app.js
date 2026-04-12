@@ -389,11 +389,11 @@
       throw new Error("Fee must be greater than zero.");
     }
 
-    const account = await CHISEL.wifToPrivateKey(values.senderWif);
-    setAccountJson(account);
+//    const account = await CHISEL.wifToPrivateKey(values.senderWif);
+//    setAccountJson(account);
 
-// const account = await CHISEL.ravencoin.wifToAccount(wif);
-// const senderAddress = account.address;
+ const account = await CHISEL.ravencoin.wifToAccount(wif);
+ const senderAddress = account.address;
 
 
     const rawUtxos = await getAddressUtxos(values.rpcUrl, account.address);
@@ -499,5 +499,6 @@ const signedHex = await CHISEL.signRawTransaction(rawHex, signingInputs);
   //
   setDefaults();
   addEventListeners();
+  console.log(elems);
   render();
 })();

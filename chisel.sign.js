@@ -125,9 +125,18 @@
       return CHISEL.bytesToHex(new Uint8Array(hashBuffer));
     };
 
+/*
     CHISEL.ripemd160Hex = function ripemd160Hex(hex) {
       const bytes = CHISEL.hexToBytes(hex);
       const wordArray = CRYPTO_JS.lib.WordArray.create(bytes);
+
+      return CRYPTO_JS.RIPEMD160(wordArray).toString(CRYPTO_JS.enc.Hex);
+    };
+*/
+
+    CHISEL.ripemd160Hex = function ripemd160Hex(hex) {
+      const normalized = CHISEL.normalizeHex(hex);
+      const wordArray = CRYPTO_JS.enc.Hex.parse(normalized);
 
       return CRYPTO_JS.RIPEMD160(wordArray).toString(CRYPTO_JS.enc.Hex);
     };
