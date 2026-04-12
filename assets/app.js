@@ -5,7 +5,7 @@
   const APP_NAME = "chisel";
   const APP_VERSION = "2.0.3";
   const DEFAULT_RPC_URL = "https://rigler.org:8769/";
-  const DEFAULT_FEE_RVN = "0.0005";
+  const DEFAULT_FEE_RVN = "0.002";
   const SATOSHIS_PER_RVN = 100000000;
   const STATUS_IDLE = "Idle";
   const STATUS_WORKING = "Building, signing, decoding, and sending...";
