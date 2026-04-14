@@ -121,3 +121,5 @@ Chisel assumes:
 It is not a beginner abstraction layer.
 
 ---
+[This is version 1 of the project, it is a beautiful disaster in digibyte]
+(https://johnrigler.github.io/chisel-v1/)
