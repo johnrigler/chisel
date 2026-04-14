@@ -1,399 +1,348 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>QR Label Sheet</title>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <title>QR Label Sheet Example</title>
 
-<style>
-  body {
-    margin: 0;
-    background: #fff;
-    font-family: Arial, sans-serif;
-  }
+  <style>
+    :root {
+      --PAGE_WIDTH: 8.5in;
+      --PAGE_HEIGHT: 11in;
 
-  .toolbar {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    display: flex;
-    gap: 10px;
-    z-index: 10;
-  }
+      --SHEET_MARGIN_TOP: 0.5in;
+      --SHEET_MARGIN_LEFT: 0.25in;
 
-  button {
-    padding: 10px 14px;
-    border: 0;
-    border-radius: 8px;
-    background: #111;
-    color: #fff;
-    cursor: pointer;
-  }
+      --LABEL_WIDTH: 2in;
+      --LABEL_HEIGHT: 2in;
 
-  #sheet {
-    display: grid;
-    padding: 24px;
-  }
+      --COLUMN_GAP: 0in;
+      --ROW_GAP: 0in;
 
-  .tile {
-    display: grid;
-    place-items: center;
-    background: #fff;
-  }
+      --COLUMN_PITCH: calc(var(--LABEL_WIDTH) + var(--COLUMN_GAP));
+      --ROW_PITCH: calc(var(--LABEL_HEIGHT) + var(--ROW_GAP));
 
-  .qr-frame {
-    display: grid;
-    place-items: center;
-    background: #fff;
-  }
+      --COLUMNS: 4;
+      --ROWS: 5;
 
-  @media print {
-    .toolbar {
-      display: none !important;
+      --QR_SIZE: 1.3in;
+      --LABEL_PADDING: 0.12in;
+      --FRAME_PADDING: 0.22in;
+
+      --FONT_SIZE: 10pt;
+      --SHOW_GUIDES: 1;
     }
 
-    #sheet {
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
       padding: 0;
-    }
-  }
-</style>
-</head>
-
-<body>
-
-<div class="toolbar">
-  <button id="printButton" type="button">PRINT</button>
-  <button id="randomButton" type="button">RANDOMIZE</button>
-</div>
-
-<main id="sheet"></main>
-
-<script>
-(function () {
-  //
-  // Constants
-  //
-  const DEFAULT_ROWS = 5;
-  const DEFAULT_COLS = 7;
-  const TILE_SIZE = 120;
-  const BORDER_THICKNESS = 12;
-  const INSET = 10;
-  const GAP = 6;
-
-  const LOCAL_QR_PATH = "./lib/qrcode.min.js";
-  const REMOTE_QR_API = "https://api.qrserver.com/v1/create-qr-code/";
-
-  //
-  // State
-  //
-  const state = {
-    rows: DEFAULT_ROWS,
-    cols: DEFAULT_COLS,
-    values: [],
-    hasLocalQR: false,
-    isPrinting: false,
-    hasPendingPostPrintRandomize: false,
-  };
-
-  //
-  // Elements
-  //
-  const elems = {
-    sheet: document.querySelector("#sheet"),
-    printButton: document.querySelector("#printButton"),
-    randomButton: document.querySelector("#randomButton"),
-  };
-
-  //
-  // QR loading
-  //
-  function loadScript(src) {
-    return new Promise(function (resolve, reject) {
-      const script = document.createElement("script");
-
-      script.src = src;
-      script.onload = resolve;
-      script.onerror = reject;
-
-      document.head.appendChild(script);
-    });
-  }
-
-  async function setQrLibraryAvailability() {
-    if (window.QRCode) {
-      state.hasLocalQR = true;
-      return;
+      background: #f3f3f3;
+      color: #111;
+      font-family: Arial, Helvetica, sans-serif;
     }
 
-    try {
-      await loadScript(LOCAL_QR_PATH);
-      state.hasLocalQR = typeof window.QRCode !== "undefined";
-    } catch (error) {
-      state.hasLocalQR = false;
-    }
-  }
-
-  //
-  // Generators
-  //
-  function generateRandomHexChunk() {
-    return Math.random().toString(16).slice(2);
-  }
-
-
-//
-// Constants
-//
-const HEX_LENGTH = 16;
-
-//
-// Generators
-//
-function generateSecureHexValue() {
-  const byteLength = HEX_LENGTH / 2;
-  const bytes = new Uint8Array(byteLength);
-
-  crypto.getRandomValues(bytes);
-
-  let hex = "";
-
-  for (let i = 0; i < bytes.length; i += 1) {
-    hex += bytes[i].toString(16).padStart(2, "0");
-  }
-
-	console.log(hex);
-
-  return hex.toUpperCase();
-}
-
-
-  function generateValues() {
-    const total = state.rows * state.cols;
-    state.values = [];
-
-    for (let index = 0; index < total; index += 1) {
-      state.values.push(generateSecureHexValue());
-    }
-  }
-
-  //
-  // Formatters
-  //
-  function clampChannel(value) {
-    return Math.max(0, Math.min(255, value));
-  }
-
-  function getBorderColor(value) {
-    const red = Number.parseInt(value.slice(0, 2), 16);
-    const green = Number.parseInt(value.slice(2, 4), 16);
-    const blue = Number.parseInt(value.slice(4, 6), 16);
-
-    return "rgb(" +
-      clampChannel(red) + ", " +
-      clampChannel(green) + ", " +
-      clampChannel(blue) + ")";
-  }
-
-  function getQrSize() {
-    return TILE_SIZE - INSET * 2 - BORDER_THICKNESS * 2;
-  }
-
-  function getRemoteQrUrl(value) {
-    const size = getQrSize();
-    const params = new URLSearchParams({
-      size: size + "x" + size,
-      data: value,
-      ecc: "H",
-      margin: "0",
-    });
-
-    return REMOTE_QR_API + "?" + params.toString();
-  }
-
-  //
-  // QR rendering
-  //
-  function renderLocalQr(mount, value) {
-    mount.innerHTML = "";
-
-    new QRCode(mount, {
-      text: value,
-      width: getQrSize(),
-      height: getQrSize(),
-      colorDark: "#000000",
-      colorLight: "#ffffff",
-      correctLevel: QRCode.CorrectLevel.H,
-    });
-
-    const image = mount.querySelector("img");
-    const canvas = mount.querySelector("canvas");
-
-    if (image) {
-      image.width = getQrSize();
-      image.height = getQrSize();
-      image.alt = "QR code for " + value;
-      image.style.display = "block";
+    .toolbar {
+      max-width: 10in;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
     }
 
-    if (canvas) {
-      canvas.width = getQrSize();
-      canvas.height = getQrSize();
-      canvas.style.display = "block";
-    }
-  }
-
-  function renderRemoteQr(mount, value) {
-    const image = document.createElement("img");
-
-    image.src = getRemoteQrUrl(value);
-    image.width = getQrSize();
-    image.height = getQrSize();
-    image.alt = "QR code for " + value;
-    image.style.display = "block";
-
-    mount.innerHTML = "";
-    mount.appendChild(image);
-  }
-
-  function renderQr(mount, value) {
-    if (state.hasLocalQR) {
-      renderLocalQr(mount, value);
-      return;
+    .toolbar h1,
+    .toolbar p {
+      margin: 0;
     }
 
-    renderRemoteQr(mount, value);
-  }
-
-  //
-  // DOM builders
-  //
-  function createTile(value) {
-    const tile = document.createElement("div");
-    const frame = document.createElement("div");
-    const mount = document.createElement("div");
-
-    tile.className = "tile";
-    tile.style.width = TILE_SIZE + "px";
-    tile.style.height = TILE_SIZE + "px";
-    tile.style.padding = INSET + "px";
-
-    frame.className = "qr-frame";
-    frame.style.width = TILE_SIZE - INSET * 2 + "px";
-    frame.style.height = TILE_SIZE - INSET * 2 + "px";
-    frame.style.padding = BORDER_THICKNESS + "px";
-    frame.style.border = BORDER_THICKNESS + "px solid " + getBorderColor(value);
-
-    frame.appendChild(mount);
-    tile.appendChild(frame);
-
-    renderQr(mount, value);
-
-    return tile;
-  }
-
-  //
-  // DOM setters
-  //
-  function renderSheet() {
-    elems.sheet.innerHTML = "";
-    elems.sheet.style.gridTemplateColumns = "repeat(" + state.cols + ", " + TILE_SIZE + "px)";
-    elems.sheet.style.gap = GAP + "px";
-
-    state.values.forEach(function renderTile(value) {
-      elems.sheet.appendChild(createTile(value));
-    });
-  }
-
-  function render() {
-    renderSheet();
-  }
-
-  function randomizeAndRender() {
-    generateValues();
-    render();
-  }
-
-  //
-  // Print lifecycle
-  //
-  function setPrintStarted() {
-    state.isPrinting = true;
-    state.hasPendingPostPrintRandomize = true;
-  }
-
-  function setPrintFinished() {
-    if (!state.hasPendingPostPrintRandomize) {
-      state.isPrinting = false;
-      return;
+    .toolbar button {
+      width: fit-content;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #111;
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
     }
 
-    state.isPrinting = false;
-    state.hasPendingPostPrintRandomize = false;
-    randomizeAndRender();
-  }
-
-  //
-  // DOM listeners
-  //
-  function onClickPrint() {
-    setPrintStarted();
-    window.print();
-  }
-
-  function onClickRandomize() {
-    randomizeAndRender();
-  }
-
-  function onBeforePrint() {
-    setPrintStarted();
-  }
-
-  function onAfterPrint() {
-    setPrintFinished();
-  }
-
-  function onPrintMediaChange(event) {
-    if (event.matches) {
-      setPrintStarted();
-      return;
+    .sheet {
+      position: relative;
+      width: var(--PAGE_WIDTH);
+      height: var(--PAGE_HEIGHT);
+      margin: 0 auto 24px;
+      background: #fff;
+      box-shadow: 0 0 0 1px #ddd, 0 8px 30px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
     }
 
-    setPrintFinished();
-  }
+    .label {
+      position: absolute;
+      width: var(--LABEL_WIDTH);
+      height: var(--LABEL_HEIGHT);
+      border: calc(var(--SHOW_GUIDES) * 1px) dashed rgba(0, 0, 0, 0.25);
+    }
 
-  function addPrintListeners() {
-    window.addEventListener("beforeprint", onBeforePrint);
-    window.addEventListener("afterprint", onAfterPrint);
+    .labelFrame {
+      width: 100%;
+      height: 100%;
+      padding: var(--FRAME_PADDING);
+      display: grid;
+    }
 
-    if (typeof window.matchMedia === "function") {
-      const mediaQueryList = window.matchMedia("print");
+    .labelBody {
+      width: 100%;
+      height: 100%;
+      padding: var(--LABEL_PADDING);
+      background: #fff;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      align-items: center;
+      justify-items: center;
+      gap: 0.06in;
+    }
 
-      if (typeof mediaQueryList.addEventListener === "function") {
-        mediaQueryList.addEventListener("change", onPrintMediaChange);
-      } else if (typeof mediaQueryList.addListener === "function") {
-        mediaQueryList.addListener(onPrintMediaChange);
+    .qrSlot {
+      width: var(--QR_SIZE);
+      height: var(--QR_SIZE);
+      display: grid;
+      place-items: center;
+    }
+
+    .qrSlot img,
+    .qrSlot canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .labelText {
+      max-width: 100%;
+      font-size: var(--FONT_SIZE);
+      line-height: 1.2;
+      text-align: center;
+      word-break: break-word;
+    }
+
+    .helpCode {
+      background: #eee;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+
+    @page {
+      size: letter portrait;
+      margin: 0;
+    }
+
+    @media print {
+      html,
+      body {
+        background: #fff;
+      }
+
+      .toolbar {
+        display: none;
+      }
+
+      .sheet {
+        margin: 0;
+        box-shadow: none;
       }
     }
-  }
+  </style>
+</head>
+<body>
+  <section class="toolbar">
+    <h1>QR Label Sheet Example</h1>
+    <p>
+      This page is a working example built for your older QR package interface:
+      <span class="helpCode">new QRCode(element, options)</span>.
+    </p>
+    <p>
+      Print on plain paper first. Then adjust
+      <span class="helpCode">--SHEET_MARGIN_TOP</span>,
+      <span class="helpCode">--SHEET_MARGIN_LEFT</span>,
+      <span class="helpCode">--LABEL_WIDTH</span>,
+      and
+      <span class="helpCode">--LABEL_HEIGHT</span>
+      until the guides line up with your real label stock.
+    </p>
+    <button id="printButton" type="button">PRINT</button>
+  </section>
 
-  function addEventListeners() {
-    elems.printButton.onclick = onClickPrint;
-    elems.randomButton.onclick = onClickRandomize;
-    addPrintListeners();
-  }
+  <main class="sheet" id="sheet"></main>
 
-  //
-  // Init
-  //
-  async function init() {
-    await setQrLibraryAvailability();
-    addEventListeners();
-    randomizeAndRender();
-  }
+  <script src="lib/davidshimjs-qrcodejs-04f46c6/qrcode.min.js"></script>
+  <script>
+    (function () {
+      //
+      // Constants
+      //
+      const COLUMNS = 4;
+      const ROWS = 5;
+      const TOTAL_LABELS = COLUMNS * ROWS;
+      const QR_PIXEL_SIZE = 180;
+      const HEX_LENGTH = 16;
 
-  init();
-})();
-</script>
+      //
+      // Elements
+      //
+      const elems = {
+        printButton: document.querySelector("#printButton"),
+        sheet: document.querySelector("#sheet")
+      };
 
+      //
+      // State
+      //
+      let cachedLabels = null;
+
+      //
+      // Helpers
+      //
+      function getRandomHex(length) {
+        const BYTE_LENGTH = Math.ceil(length / 2);
+        const bytes = new Uint8Array(BYTE_LENGTH);
+
+        crypto.getRandomValues(bytes);
+
+        return Array.from(bytes, function mapByte(byte) {
+          return byte.toString(16).padStart(2, "0");
+        }).join("").slice(0, length).toUpperCase();
+      }
+
+      function getBorderColorFromValue(value) {
+        return "#" + value.slice(0, 6);
+      }
+
+      //
+      // Data
+      //
+      function getLabelData() {
+        if (cachedLabels) {
+          return cachedLabels;
+        }
+
+        cachedLabels = Array.from({ length: TOTAL_LABELS }, function mapLabel() {
+          const VALUE = getRandomHex(HEX_LENGTH);
+
+          return {
+            qrValue: VALUE,
+            text: VALUE,
+            borderColor: getBorderColorFromValue(VALUE)
+          };
+        });
+
+        return cachedLabels;
+      }
+
+      //
+      // DOM setters
+      //
+      function setLabelPosition(label, columnIndex, rowIndex) {
+        label.style.left = "calc(var(--SHEET_MARGIN_LEFT) + (" + columnIndex + " * var(--COLUMN_PITCH)))";
+        label.style.top = "calc(var(--SHEET_MARGIN_TOP) + (" + rowIndex + " * var(--ROW_PITCH)))";
+      }
+
+      function setLabelBorderColor(frame, borderColor) {
+        frame.style.background = borderColor;
+      }
+
+      function createLabel() {
+        const article = document.createElement("article");
+        const frame = document.createElement("div");
+        const body = document.createElement("div");
+
+        article.className = "label";
+        frame.className = "labelFrame";
+        body.className = "labelBody";
+
+        frame.append(body);
+        article.append(frame);
+
+        return {
+          label: article,
+          frame: frame,
+          body: body
+        };
+      }
+
+      function createQrSlot() {
+        const div = document.createElement("div");
+        div.className = "qrSlot";
+
+        return div;
+      }
+
+      function createLabelText(text) {
+        const div = document.createElement("div");
+        div.className = "labelText";
+        div.textContent = text;
+
+        return div;
+      }
+
+      function appendLabel(label) {
+        elems.sheet.append(label);
+      }
+
+      function renderQrCode(qrSlot, value) {
+        qrSlot.innerHTML = "";
+
+        new QRCode(qrSlot, {
+          text: value,
+          width: QR_PIXEL_SIZE,
+          height: QR_PIXEL_SIZE,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H
+        });
+      }
+
+      function renderLabels() {
+        const labels = getLabelData();
+
+        labels.forEach(function renderLabel(labelData, index) {
+          const rowIndex = Math.floor(index / COLUMNS);
+          const columnIndex = index % COLUMNS;
+          const labelParts = createLabel();
+          const qrSlot = createQrSlot();
+          // const text = createLabelText(labelData.text);
+
+          setLabelPosition(labelParts.label, columnIndex, rowIndex);
+          setLabelBorderColor(labelParts.frame, labelData.borderColor);
+
+          labelParts.body.append(qrSlot, "");
+	// the code above printed the value out below the hex.
+	// when I take it out completely, the qr code does not display.
+          appendLabel(labelParts.label);
+          renderQrCode(qrSlot, labelData.qrValue);
+        });
+      }
+
+      //
+      // DOM listeners
+      //
+      function onPrintButtonClick() {
+        window.print();
+      }
+
+      function addEventListeners() {
+        elems.printButton.onclick = onPrintButtonClick;
+      }
+
+      //
+      // Init
+      //
+      addEventListeners();
+      renderLabels();
+    })();
+  </script>
 </body>
 </html>

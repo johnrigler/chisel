@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.1.0";
+  const APP_VERSION = "2.1.1";
   const DEFAULT_RPC_URL = "https://rigler.org:8769/";
   const DEFAULT_FEE_RVN = "0.002";
   const SATOSHIS_PER_RVN = 100000000;
