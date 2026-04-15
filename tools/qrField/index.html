@@ -140,21 +140,25 @@
       margin: 0;
     }
 
-    @media print {
-      html,
-      body {
-        background: #fff;
-      }
+   @media print {
+  html,
+  body {
+    background: #fff;
+  }
 
-      .toolbar {
-        display: none;
-      }
+  .toolbar {
+    display: none;
+  }
 
-      .sheet {
-        margin: 0;
-        box-shadow: none;
-      }
-    }
+  .sheet {
+    margin: 0;
+    box-shadow: none;
+  }
+  {
+   -webkit-print-color-adjust: exact;
+   print-color-adjust: exact;
+   } 
+} 
   </style>
 </head>
 <body>
