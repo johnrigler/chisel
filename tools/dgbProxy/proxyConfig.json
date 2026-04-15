@@ -1,0 +1,10 @@
+{
+  "RPC_TARGET": "http://127.0.0.1:14022/",
+  "RPC_USER": "root",
+  "RPC_PASS": "Frt2Jul7",
+  "BIND_HOST": "0.0.0.0",
+  "PORT": 8443,
+  "USE_TLS": true,
+  "CERT": "/etc/letsencrypt/live/secretbeachsolutions.com/fullchain.pem",
+  "KEY": "/etc/letsencrypt/live/secretbeachsolutions.com/privkey.pem"
+}
