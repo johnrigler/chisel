@@ -5,7 +5,6 @@
   const P2PKH_PREFIX = 30;
   const MAINNET_WIF_PREFIX = 128;
   const TESTNET_WIF_PREFIX = 239;
-
   const NAMESPACE = "digibyte";
 
   //
@@ -23,7 +22,7 @@
     CHISEL[NAMESPACE] = CHISEL[NAMESPACE] || {};
 
     //
-    // Helpers
+    // Address helpers
     //
     CHISEL[NAMESPACE].publicKeyHexToAddress = async function publicKeyHexToAddress(publicKeyHex) {
       const versionBytes = new Uint8Array([P2PKH_PREFIX]);
@@ -65,6 +64,80 @@
         compressedAddress: compressedAddress,
         uncompressedAddress: uncompressedAddress
       };
+    };
+
+    //
+    // Explorer helpers
+    //
+    CHISEL[NAMESPACE].buildExplorerAddressTxsUrl = function buildExplorerAddressTxsUrl(baseUrl, address) {
+      const trimmedBaseUrl = String(baseUrl).replace(/\/+$/, "");
+      return trimmedBaseUrl + "/api/address/" + encodeURIComponent(address) + "/txs";
+    };
+
+    CHISEL[NAMESPACE].deriveAddressUtxosFromTransactions = function deriveAddressUtxosFromTransactions(
+      transactions,
+      address
+    ) {
+      const utxoMap = new Map();
+      const spentSet = new Set();
+
+      transactions.forEach(function collectSpentOutputs(tx) {
+        if (!tx || !tx.status || !tx.status.confirmed || !Array.isArray(tx.vin)) {
+          return;
+        }
+
+        tx.vin.forEach(function collectVin(vin) {
+          if (
+            vin &&
+            vin.prevout &&
+            vin.prevout.scriptpubkey_address === address &&
+            vin.txid !== undefined &&
+            vin.vout !== undefined
+          ) {
+            spentSet.add(vin.txid + ":" + vin.vout);
+          }
+        });
+      });
+
+      transactions.forEach(function collectOutputs(tx) {
+        if (!tx || !tx.status || !tx.status.confirmed || !Array.isArray(tx.vout)) {
+          return;
+        }
+
+        tx.vout.forEach(function collectVout(vout, index) {
+          if (
+            vout &&
+            vout.scriptpubkey_type === "p2pkh" &&
+            vout.scriptpubkey_address === address &&
+            Number(vout.value) > 0
+          ) {
+            utxoMap.set(tx.txid + ":" + index, {
+              txid: tx.txid,
+              vout: index,
+              satoshis: Number(vout.value),
+              confirmed: true,
+              blockHeight: tx.status.block_height,
+              blockTime: tx.status.block_time
+            });
+          }
+        });
+      });
+
+      spentSet.forEach(function deleteSpentOutput(key) {
+        utxoMap.delete(key);
+      });
+
+      return Array.from(utxoMap.values()).sort(function sortUtxos(a, b) {
+        if (b.blockHeight !== a.blockHeight) {
+          return b.blockHeight - a.blockHeight;
+        }
+
+        if (a.txid !== b.txid) {
+          return a.txid.localeCompare(b.txid);
+        }
+
+        return a.vout - b.vout;
+      });
     };
   }
 

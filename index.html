@@ -215,6 +215,10 @@
       color: #91a4b7;
     }
 
+    .hide {
+      display: none;
+    }
+
     details {
       border-top: 1px solid #202833;
       padding-top: 12px;
@@ -247,7 +251,7 @@
 
   <main>
     <section class="panel hero">
-      <h2 id="heroTitle">One-step send-back + broadcast</h2>
+      <h2 id="heroTitle">One-step Ravencoin send-back + broadcast</h2>
       <p id="heroText">
         Paste one private key in WIF format, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction. Your private key is only used locally in this session and never sent to the remote API.
       </p>
@@ -273,8 +277,11 @@
         <label for="opReturnHex">OP_RETURN HEX</label>
         <input id="opReturnHex" type="text" />
 
-        <label for="rpcUrl">RPC URL</label>
+        <label id="rpcUrlLabel" for="rpcUrl">RPC / API URL</label>
         <input id="rpcUrl" type="text" />
+
+        <label id="explorerUrlLabel" for="explorerUrl" class="hide">Explorer URL</label>
+        <input id="explorerUrl" class="hide" type="text" />
       </div>
 
       <div class="actions">
@@ -283,7 +290,7 @@
       </div>
 
       <div class="help" id="currencyHelp">
-        This flow derives the sender address from the WIF, fetches UTXOs, builds a send-back transaction to the same address minus fee, signs it locally in the browser, decodes it for inspection, and then broadcasts the signed hex.
+        Ravencoin uses the RPC/API server directly for UTXOs, create, decode, and send.
       </div>
 
       <details>
@@ -346,12 +353,17 @@
       </section>
 
       <section class="panel">
-        <div class="stepTitle">9. Send payload</div>
+        <div class="stepTitle">9. Decoded signed transaction</div>
+        <pre id="decodedSignedJson" class="json"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">10. Send payload</div>
         <pre id="sendPayloadJson" class="json"></pre>
       </section>
 
       <section class="panel">
-        <div class="stepTitle">10. Broadcast result</div>
+        <div class="stepTitle">11. Broadcast result</div>
         <pre id="sendResultJson" class="json"></pre>
       </section>
     </section>
@@ -360,7 +372,7 @@
   <script src="chisel.js?2g4dsg0208"></script>
   <script src="chisel.sign.js?45555"></script>
   <script src="chisel.ravencoin.js?adfsd32"></script>
-  <script src="chisel.digibyte.js?asdfsad"></script>
+  <script src="chisel.digibyte.js"></script>
   <script>
     installChiselSigner(CHISEL, {
       elliptic: window.elliptic,
@@ -378,6 +390,6 @@
       DGB: CHISEL.digibyte
     };
   </script>
-  <script src="assets/app.js?54sdfsd43"></script>
+  <script src="assets/app.js?2.2.7"></script>
 </body>
 </html>
