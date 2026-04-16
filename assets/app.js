@@ -3,31 +3,65 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.1.1";
-  const DEFAULT_RPC_URL = "https://rigler.org:8769/";
-  const DEFAULT_FEE_RVN = "0.002";
-  const SATOSHIS_PER_RVN = 100000000;
+  const APP_VERSION = "2.2.1";
+  const DEFAULT_CURRENCY = "ravencoin";
+  const SATOSHIS_PER_COIN = 100000000;
   const STATUS_IDLE = "Idle";
-  const STATUS_WORKING = "Building, signing, decoding, and sending...";
-  const STATUS_DONE = "Transaction sent successfully.";
   const ENTER_KEY = "Enter";
+  const REQUEST_TIMEOUT_MS = 20000;
+
+  const CURRENCIES = {
+    ravencoin: {
+      key: "ravencoin",
+      name: "Ravencoin",
+      ticker: "RVN",
+      namespace: "ravencoin",
+      defaultRpcUrl: "https://rigler.org:8769/",
+      defaultFee: "0.002",
+      heroTitle: "One-step Ravencoin send-back + broadcast",
+      heroText:
+        "Paste one Ravencoin WIF, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction. Your private key is only used locally in this session and never sent to the remote API.",
+      helpText:
+        "This flow derives the sender address from the WIF, fetches UTXOs, builds a send-back transaction to the same address minus fee, signs it locally in the browser, decodes it for inspection, and then broadcasts the signed hex."
+    },
+    digibyte: {
+      key: "digibyte",
+      name: "Digibyte",
+      ticker: "DGB",
+      namespace: "digibyte",
+      defaultRpcUrl: "https://secretbeachsolutions.com:8443/",
+      defaultFee: "0.0005",
+      heroTitle: "One-step Digibyte send-back + broadcast",
+      heroText:
+        "Paste one Digibyte WIF, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction. Your private key is only used locally in this session and never sent to the remote API.",
+      helpText:
+        "This flow derives the sender address from the WIF, fetches UTXOs, builds a send-back transaction to the same address minus fee, signs it locally in the browser, decodes it for inspection, and then broadcasts the signed hex."
+    }
+  };
 
   //
   // Elements
   //
   const elems = {
+    currency: document.querySelector("#currency"),
     senderWif: document.querySelector("#senderWif"),
     feeRvn: document.querySelector("#feeRvn"),
+    feeLabel: document.querySelector("#feeLabel"),
     opReturnAscii: document.querySelector("#opReturnAscii"),
     opReturnHex: document.querySelector("#opReturnHex"),
     rpcUrl: document.querySelector("#rpcUrl"),
     senderAddress: document.querySelector("#senderAddress"),
     utxoCount: document.querySelector("#utxoCount"),
     spendTotalRvn: document.querySelector("#spendTotalRvn"),
+    spendTotalLabel: document.querySelector("#spendTotalLabel"),
     changeRvn: document.querySelector("#changeRvn"),
+    changeLabel: document.querySelector("#changeLabel"),
     sendButton: document.querySelector("#sendButton"),
     status: document.querySelector("#status"),
     version: document.querySelector("#version"),
+    heroTitle: document.querySelector("#heroTitle"),
+    heroText: document.querySelector("#heroText"),
+    currencyHelp: document.querySelector("#currencyHelp"),
     accountJson: document.querySelector("#accountJson"),
     utxoJson: document.querySelector("#utxoJson"),
     vinJson: document.querySelector("#vinJson"),
@@ -68,6 +102,42 @@
     elem.value = value;
   }
 
+  function getCurrencyKey() {
+    return elems.currency.value;
+  }
+
+  function getCurrencyConfig() {
+    const currencyKey = getCurrencyKey();
+    const currency = CURRENCIES[currencyKey];
+
+    if (!currency) {
+      throw new Error("Unsupported currency selected.");
+    }
+
+    return currency;
+  }
+
+  function getCurrencyPlugin() {
+    const namespace = getCurrencyConfig().namespace;
+    const plugin = CHISEL[namespace];
+
+    if (!plugin) {
+      throw new Error("Currency plugin is not installed: " + namespace);
+    }
+
+    return plugin;
+  }
+
+  async function getAccountFromWif(wif) {
+    const plugin = getCurrencyPlugin();
+
+    if (!plugin.wifToAccount) {
+      throw new Error("wifToAccount() is not available for " + getCurrencyConfig().name + ".");
+    }
+
+    return plugin.wifToAccount(wif);
+  }
+
   function normalizeUTXO(utxo) {
     return {
       txid: utxo.txid,
@@ -91,15 +161,15 @@
     }, 0);
   }
 
-  function rvnToSatoshis(rvn) {
-    return Math.round(Number(rvn) * SATOSHIS_PER_RVN);
+  function coinToSatoshis(amount) {
+    return Math.round(Number(amount) * SATOSHIS_PER_COIN);
   }
 
-  function satoshisToRVN(satoshis) {
-    return satoshis / SATOSHIS_PER_RVN;
+  function satoshisToCoin(satoshis) {
+    return satoshis / SATOSHIS_PER_COIN;
   }
 
-  function formatRvn(value) {
+  function formatCoin(value) {
     return Number(value).toFixed(8);
   }
 
@@ -181,18 +251,30 @@
     ).replace(/([{}\[\],:])/g, '<span class="json-punctuation">$1</span>');
   }
 
+  function withTimeout(promise, label) {
+    return Promise.race([
+      promise,
+      new Promise(function onTimeout(_, reject) {
+        window.setTimeout(function rejectTimeout() {
+          reject(new Error(label + " timed out after " + REQUEST_TIMEOUT_MS + "ms."));
+        }, REQUEST_TIMEOUT_MS);
+      })
+    ]);
+  }
+
   function getFormValues() {
     return {
+      currency: getCurrencyKey(),
       rpcUrl: elems.rpcUrl.value.trim(),
       senderWif: elems.senderWif.value.trim(),
-      feeSatoshis: rvnToSatoshis(elems.feeRvn.value),
+      feeSatoshis: coinToSatoshis(elems.feeRvn.value),
       opReturnHex: resolveOpReturnHex()
     };
   }
 
   function buildSendBackVout(address, changeSatoshis, opReturnHex) {
     const vout = {
-      [address]: satoshisToRVN(changeSatoshis)
+      [address]: satoshisToCoin(changeSatoshis)
     };
 
     if (opReturnHex) {
@@ -206,42 +288,80 @@
   // RPC
   //
   async function getRpcClient(rpcUrl) {
-    const rvn = new CHISEL(rpcUrl);
-    await rvn.load();
-    return rvn;
+    const client = new CHISEL(rpcUrl);
+    await withTimeout(client.load(), "RPC client load");
+    return client;
   }
 
   async function getAddressUtxos(rpcUrl, address) {
-    const rvn = await getRpcClient(rpcUrl);
-    return rvn.address.getaddressutxos(address);
+    const client = await getRpcClient(rpcUrl);
+
+    if (!client.address || !client.address.getaddressutxos) {
+      throw new Error("This RPC server does not support address.getaddressutxos().");
+    }
+
+    return withTimeout(client.address.getaddressutxos(address), "getaddressutxos");
   }
 
   async function createRawTransaction(rpcUrl, vin, vout) {
-    const rvn = await getRpcClient(rpcUrl);
-    return rvn.tx.createrawtransaction(vin, vout);
+    const client = await getRpcClient(rpcUrl);
+
+    if (!client.tx || !client.tx.createrawtransaction) {
+      throw new Error("This RPC server does not support tx.createrawtransaction().");
+    }
+
+    return withTimeout(client.tx.createrawtransaction(vin, vout), "createrawtransaction");
   }
 
   async function decodeRawTransaction(rpcUrl, rawHex) {
-    const rvn = await getRpcClient(rpcUrl);
-    return rvn.tx.decoderawtransaction(rawHex);
+    const client = await getRpcClient(rpcUrl);
+
+    if (!client.tx || !client.tx.decoderawtransaction) {
+      throw new Error("This RPC server does not support tx.decoderawtransaction().");
+    }
+
+    return withTimeout(client.tx.decoderawtransaction(rawHex), "decoderawtransaction");
   }
 
   async function sendRawTransaction(rpcUrl, signedHex) {
-    const rvn = await getRpcClient(rpcUrl);
-    return rvn.tx.sendrawtransaction(signedHex);
+    const client = await getRpcClient(rpcUrl);
+
+    if (!client.tx || !client.tx.sendrawtransaction) {
+      throw new Error("This RPC server does not support tx.sendrawtransaction().");
+    }
+
+    return withTimeout(client.tx.sendrawtransaction(signedHex), "sendrawtransaction");
   }
 
   //
   // DOM setters
   //
+  function setAppVersion() {
+    elems.version.textContent = APP_NAME + " v" + APP_VERSION;
+  }
+
+  function setCurrencyText() {
+    const currency = getCurrencyConfig();
+    const ticker = currency.ticker;
+
+    elems.heroTitle.textContent = currency.heroTitle;
+    elems.heroText.textContent = currency.heroText;
+    elems.currencyHelp.textContent = currency.helpText;
+    elems.feeLabel.textContent = "Fee (" + ticker + ")";
+    elems.spendTotalLabel.textContent = "Spend total (" + ticker + ")";
+    elems.changeLabel.textContent = "Send-back amount (" + ticker + ")";
+  }
+
   function setDefaults() {
-    setInputValue(elems.rpcUrl, DEFAULT_RPC_URL);
-    setInputValue(elems.feeRvn, DEFAULT_FEE_RVN);
+    setInputValue(elems.currency, DEFAULT_CURRENCY);
+    setInputValue(elems.rpcUrl, CURRENCIES[DEFAULT_CURRENCY].defaultRpcUrl);
+    setInputValue(elems.feeRvn, CURRENCIES[DEFAULT_CURRENCY].defaultFee);
     setInputValue(elems.senderAddress, "");
     setInputValue(elems.utxoCount, "");
     setInputValue(elems.spendTotalRvn, "");
     setInputValue(elems.changeRvn, "");
     setAppVersion();
+    setCurrencyText();
     render();
   }
 
@@ -311,8 +431,8 @@
   function setTotals(totalSatoshis, changeSatoshis) {
     state.spendTotalSatoshis = totalSatoshis;
     state.changeSatoshis = changeSatoshis;
-    setInputValue(elems.spendTotalRvn, formatRvn(satoshisToRVN(totalSatoshis)));
-    setInputValue(elems.changeRvn, formatRvn(satoshisToRVN(changeSatoshis)));
+    setInputValue(elems.spendTotalRvn, formatCoin(satoshisToCoin(totalSatoshis)));
+    setInputValue(elems.changeRvn, formatCoin(satoshisToCoin(changeSatoshis)));
     render();
   }
 
@@ -367,15 +487,12 @@
     renderJsonBlock(elems.sendResultJson, state.sendResult);
   }
 
-  function setAppVersion() {
-    elems.version.textContent = APP_NAME + " v" + APP_VERSION;
-  }
-
   //
   // Flow
   //
   async function buildAndSendTransaction() {
     const values = getFormValues();
+    const currency = getCurrencyConfig();
 
     if (!values.senderWif) {
       throw new Error("Sender WIF is required.");
@@ -389,9 +506,21 @@
       throw new Error("Fee must be greater than zero.");
     }
 
-    const account = await CHISEL.ravencoin.wifToAccount(values.senderWif);
-    const senderAddress = account.address;
+    setStatus("Deriving " + currency.ticker + " account from WIF...", false);
+    const account = await getAccountFromWif(values.senderWif);
 
+    setAccountJson({
+      currency: currency.key,
+      ticker: currency.ticker,
+      network: account.network,
+      compressed: account.compressed,
+      address: account.address,
+      compressedAddress: account.compressedAddress,
+      uncompressedAddress: account.uncompressedAddress,
+      privateKeyHex: account.privateKeyHex
+    });
+
+    setStatus("Fetching UTXOs for " + account.address + "...", false);
     const rawUtxos = await getAddressUtxos(values.rpcUrl, account.address);
     const utxos = rawUtxos.map(normalizeUTXO);
     setUtxosJson(utxos);
@@ -417,45 +546,42 @@
 
     const buildPayload = {
       method: "createrawtransaction",
+      currency: currency.key,
       params: [vin, vout]
     };
     setBuildPayloadJson(buildPayload);
 
+    setStatus("Creating raw transaction...", false);
     const rawHex = await createRawTransaction(values.rpcUrl, vin, vout);
     setRawHex(rawHex);
 
+    setStatus("Decoding raw transaction...", false);
     const decodedUnsigned = await decodeRawTransaction(values.rpcUrl, rawHex);
     setDecodedUnsignedJson(decodedUnsigned);
-/*
-	  //
-    const privateKeysHex = vin.map(function mapVinToPrivateKey() {
-      return account.privateKeyHex;
+
+    const signingInputs = vin.map(function mapVinToSigningInput() {
+      return {
+        privateKeyHex: account.privateKeyHex,
+        compressed: account.compressed
+      };
     });
 
-    const signedHex = await CHISEL.signRawTransaction(rawHex, privateKeysHex);
-
-
-	  */
-
-const signingInputs = vin.map(function mapVinToSigningInput() {
-  return {
-    privateKeyHex: account.privateKeyHex,
-    compressed: account.compressed
-  };
-});
-
-const signedHex = await CHISEL.signRawTransaction(rawHex, signingInputs);
-
+    setStatus("Signing raw transaction locally...", false);
+    const signedHex = await CHISEL.signRawTransaction(rawHex, signingInputs);
     setSignedHex(signedHex);
 
     const sendPayload = {
       method: "sendrawtransaction",
+      currency: currency.key,
       params: [signedHex]
     };
     setSendPayloadJson(sendPayload);
 
+    setStatus("Broadcasting signed transaction...", false);
     const sendResult = await sendRawTransaction(values.rpcUrl, signedHex);
     setSendResultJson(sendResult);
+
+    setStatus("Transaction sent successfully.", false);
   }
 
   //
@@ -465,9 +591,7 @@ const signedHex = await CHISEL.signRawTransaction(rawHex, signingInputs);
     try {
       clearOutputs();
       setLoading(true);
-      setStatus(STATUS_WORKING, false);
       await buildAndSendTransaction();
-      setStatus(STATUS_DONE, false);
     } catch (error) {
       console.error(error);
       setStatus(error.message || String(error), true);
@@ -485,9 +609,21 @@ const signedHex = await CHISEL.signRawTransaction(rawHex, signingInputs);
     onClickSendButton();
   }
 
+  function onChangeCurrency() {
+    const nextCurrency = getCurrencyConfig();
+
+    clearOutputs();
+    setCurrencyText();
+    setInputValue(elems.rpcUrl, nextCurrency.defaultRpcUrl);
+    setInputValue(elems.feeRvn, nextCurrency.defaultFee);
+    setStatus(STATUS_IDLE, false);
+    render();
+  }
+
   function addEventListeners() {
     elems.sendButton.onclick = onClickSendButton;
     elems.senderWif.onkeydown = onKeydownSenderWif;
+    elems.currency.onchange = onChangeCurrency;
   }
 
   //
@@ -495,6 +631,5 @@ const signedHex = await CHISEL.signRawTransaction(rawHex, signingInputs);
   //
   setDefaults();
   addEventListeners();
-  console.log(elems);
   render();
 })();

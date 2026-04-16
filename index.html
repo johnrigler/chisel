@@ -82,12 +82,14 @@
     }
 
     input,
+    select,
     button,
     textarea {
       font: inherit;
     }
 
     input,
+    select,
     textarea {
       width: 100%;
       padding: 12px 14px;
@@ -99,6 +101,7 @@
     }
 
     input:focus,
+    select:focus,
     textarea:focus {
       border-color: #7c6dff;
       box-shadow: 0 0 0 3px rgba(124, 109, 255, 0.16);
@@ -244,16 +247,24 @@
 
   <main>
     <section class="panel hero">
-      <h2>One-step RVN send-back + broadcast</h2>
-      <p>Paste one Ravencoin WIF, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction back through rigler.org. Your private key is only used locally in this session and never sent to the remote API. This is a limited sample program which demonstrates the basic use case for the Chisel Web3 transaction creator tool. </p>
+      <h2 id="heroTitle">One-step send-back + broadcast</h2>
+      <p id="heroText">
+        Paste one private key in WIF format, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction. Your private key is only used locally in this session and never sent to the remote API.
+      </p>
     </section>
 
     <section class="panel">
       <div class="grid">
+        <label for="currency">Currency</label>
+        <select id="currency">
+          <option value="ravencoin">Ravencoin</option>
+          <option value="digibyte">Digibyte</option>
+        </select>
+
         <label for="senderWif">Sender WIF</label>
         <input id="senderWif" type="password" autocomplete="off" spellcheck="false" />
 
-        <label for="feeRvn">Fee (RVN)</label>
+        <label id="feeLabel" for="feeRvn">Fee (RVN)</label>
         <input id="feeRvn" type="number" min="0" step="0.00000001" />
 
         <label for="opReturnAscii">OP_RETURN ASCII</label>
@@ -271,7 +282,7 @@
         <div id="status">Idle</div>
       </div>
 
-      <div class="help">
+      <div class="help" id="currencyHelp">
         This flow derives the sender address from the WIF, fetches UTXOs, builds a send-back transaction to the same address minus fee, signs it locally in the browser, decodes it for inspection, and then broadcasts the signed hex.
       </div>
 
@@ -284,10 +295,10 @@
           <label for="utxoCount">UTXO count</label>
           <input id="utxoCount" type="text" readonly />
 
-          <label for="spendTotalRvn">Spend total (RVN)</label>
+          <label id="spendTotalLabel" for="spendTotalRvn">Spend total (RVN)</label>
           <input id="spendTotalRvn" type="text" readonly />
 
-          <label for="changeRvn">Send-back amount (RVN)</label>
+          <label id="changeLabel" for="changeRvn">Send-back amount (RVN)</label>
           <input id="changeRvn" type="text" readonly />
         </div>
       </details>
@@ -349,23 +360,24 @@
   <script src="chisel.js?2g4dsg0208"></script>
   <script src="chisel.sign.js?45555"></script>
   <script src="chisel.ravencoin.js?adfsd32"></script>
-  <script src="assets/app.js?5443"></script>
+  <script src="chisel.digibyte.js?asdfsad"></script>
+  <script>
+    installChiselSigner(CHISEL, {
+      elliptic: window.elliptic,
+      CryptoJS: window.CryptoJS
+    });
 
-<script>
-  installChiselSigner(CHISEL, {
-    elliptic: window.elliptic,
-    CryptoJS: window.CryptoJS
-  });
+    installChiselRavencoin(CHISEL);
+    installChiselDigibyte(CHISEL);
 
-  installChiselRavencoin(CHISEL);
-
-  window.RVN = CHISEL.ravencoin;
-  window.CHISEL_DEBUG = {
-    CHISEL: CHISEL,
-    RVN: CHISEL.ravencoin
-  };
-
-</script>
-
+    window.RVN = CHISEL.ravencoin;
+    window.DGB = CHISEL.digibyte;
+    window.CHISEL_DEBUG = {
+      CHISEL: CHISEL,
+      RVN: CHISEL.ravencoin,
+      DGB: CHISEL.digibyte
+    };
+  </script>
+  <script src="assets/app.js?54sdfsd43"></script>
 </body>
 </html>
