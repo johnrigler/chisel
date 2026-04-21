@@ -373,23 +373,16 @@
   <script src="chisel.sign.js?45555"></script>
   <script src="chisel.ravencoin.js?adfsd32"></script>
   <script src="chisel.digibyte.js"></script>
-  <script>
-    installChiselSigner(CHISEL, {
-      elliptic: window.elliptic,
-      CryptoJS: window.CryptoJS
-    });
 
-    installChiselRavencoin(CHISEL);
-    installChiselDigibyte(CHISEL);
+ <script>
+  window.CHISEL_DEBUG = {
+    CHISEL: window.CHISEL,
+    COINS: window.CHISEL ? window.CHISEL.getCoins() : []
+  };
+</script>
 
-    window.RVN = CHISEL.ravencoin;
-    window.DGB = CHISEL.digibyte;
-    window.CHISEL_DEBUG = {
-      CHISEL: CHISEL,
-      RVN: CHISEL.ravencoin,
-      DGB: CHISEL.digibyte
-    };
-  </script>
   <script src="assets/app.js?2.2.7"></script>
 </body>
 </html>
+
+
