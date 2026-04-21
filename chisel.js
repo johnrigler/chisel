@@ -1,8 +1,13 @@
 (function () {
-  const CURVE_NAME = "secp256k1";
-  const SIGHASH_ALL_HEX = "01000000";
-  const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  //
+  // Constants
+  //
+  const JSON_RPC_VERSION = "1.0";
+  const REQUEST_ID = "chisel";
 
+  //
+  // Class
+  //
   class CHISEL {
     constructor(url) {
       this.url = url;
@@ -10,18 +15,20 @@
     }
 
     async call(method, params = []) {
-      const res = await fetch(this.url, {
+      const response = await fetch(this.url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
-          jsonrpc: "1.0",
-          id: "chisel",
-          method,
-          params
+          jsonrpc: JSON_RPC_VERSION,
+          id: REQUEST_ID,
+          method: method,
+          params: params
         })
       });
 
-      const json = await res.json();
+      const json = await response.json();
 
       if (json.error) {
         throw new Error(json.error.message || JSON.stringify(json.error));
@@ -31,116 +38,84 @@
     }
 
     async load() {
-      const groups = await fetch(this.url + "methods").then(r => r.json());
+      const groups = await fetch(this.url + "methods").then(function onResponse(response) {
+        return response.json();
+      });
 
-      for (const group in groups) {
-        this[group] = {};
+      for (const groupName in groups) {
+        this[groupName] = this[groupName] || {};
 
-        for (const method of groups[group]) {
-          this[group][method] = (...params) => this.call(method, params);
-          this.rpc[method] = (...params) => this.call(method, params);
-        }
+        groups[groupName].forEach((methodName) => {
+          this[groupName][methodName] = (...params) => this.call(methodName, params);
+          this.rpc[methodName] = (...params) => this.call(methodName, params);
+        });
       }
     }
 
     static installCoin(name, plugin) {
+      if (!name) {
+        throw new Error("Coin name is required.");
+      }
+
+      if (!plugin || typeof plugin !== "object") {
+        throw new Error("Coin plugin is required.");
+      }
+
       CHISEL.coins[name] = plugin;
     }
 
     static getCoin(name) {
       const coin = CHISEL.coins[name];
-      if (!coin) throw new Error("Coin not installed: " + name);
+
+      if (!coin) {
+        throw new Error("Coin not installed: " + name);
+      }
+
       return coin;
+    }
+
+    static getCoins() {
+      return Object.values(CHISEL.coins).sort(function sortCoins(a, b) {
+        const aOrder = Number(a.ORDER || 0);
+        const bOrder = Number(b.ORDER || 0);
+
+        if (aOrder !== bOrder) {
+          return aOrder - bOrder;
+        }
+
+        return String(a.DISPLAY_NAME || a.NAME).localeCompare(String(b.DISPLAY_NAME || b.NAME));
+      });
     }
 
     static normalizeUTXO(utxo) {
       return {
         txid: utxo.txid,
-        vout: utxo.vout ?? utxo.outputIndex,
-        satoshis: Number(utxo.satoshis)
+        vout: utxo.vout !== undefined ? utxo.vout : utxo.outputIndex,
+        satoshis: Number(utxo.satoshis),
+        scriptPubKey: utxo.scriptPubKey || utxo.scriptpubkey || "",
+        address: utxo.address || ""
       };
     }
 
     static buildVin(utxos) {
-      return utxos.map(u => ({
-        txid: u.txid,
-        vout: u.vout
-      }));
+      return utxos.map(function mapUtxoToVin(utxo) {
+        const normalized = CHISEL.normalizeUTXO(utxo);
+
+        return {
+          txid: normalized.txid,
+          vout: normalized.vout
+        };
+      });
     }
 
-    static sum(utxos) {
-      return utxos.reduce((t, u) => t + Number(u.satoshis), 0);
+    static sumUtxoSatoshis(utxos) {
+      return utxos.reduce(function reduceTotal(total, utxo) {
+        return total + Number(utxo.satoshis);
+      }, 0);
     }
   }
 
   CHISEL.coins = {};
 
-  //
-  // ===== SHARED SIGNING INTERNALS =====
-  //
-  CHISEL.signing = (function () {
-    function hexToBytes(hex) {
-      const clean = hex.replace(/^0x/, "").toLowerCase();
-      const out = [];
-      for (let i = 0; i < clean.length; i += 2) {
-        out.push(parseInt(clean.slice(i, i + 2), 16));
-      }
-      return new Uint8Array(out);
-    }
-
-    function bytesToHex(bytes) {
-      return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
-    }
-
-    function varInt(n) {
-      if (n < 253) return n.toString(16).padStart(2, "0");
-      throw new Error("varInt too large (simplified)");
-    }
-
-    async function sha256(hex) {
-      const bytes = hexToBytes(hex);
-      const buf = await crypto.subtle.digest("SHA-256", bytes);
-      return bytesToHex(new Uint8Array(buf));
-    }
-
-    async function doubleSha256(hex) {
-      return sha256(await sha256(hex));
-    }
-
-    function parseTx(hex) {
-      const vinCount = parseInt(hex.slice(8, 10), 16);
-      let cursor = 10;
-      const vins = [];
-
-      for (let i = 0; i < vinCount; i++) {
-        const txid = hex.slice(cursor, cursor + 64);
-        const vout = hex.slice(cursor + 64, cursor + 72);
-        const scriptLen = parseInt(hex.slice(cursor + 72, cursor + 74), 16);
-        const scriptEnd = cursor + 74 + scriptLen * 2;
-
-        vins.push({
-          txid,
-          vout,
-          seq: hex.slice(scriptEnd, scriptEnd + 8),
-          scriptSig: ""
-        });
-
-        cursor = scriptEnd + 8;
-      }
-
-      return {
-        version: hex.slice(0, 8),
-        vins,
-        rest: hex.slice(cursor)
-      };
-    }
-
-    return {
-      parseTx,
-      doubleSha256,
-      varInt
-    };
-  })();
-
-  globalThis.CHISEL = CHISEL;
+  window.CHISEL = CHISEL;
 })();
