@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.3.0";
+  const APP_VERSION = "2.3.4";
   const DEFAULT_CURRENCY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -379,12 +379,9 @@
   }
 
   //
-  // Flow
+  // Validators
   //
-  async function runBuildSignDecodeSend() {
-    const coin = getCoin();
-    const values = getFormValues();
-
+  function validateBuildSignSendValues(coin, values) {
     if (!values.senderWif) {
       throw new Error("Sender WIF is required.");
     }
@@ -400,6 +397,16 @@
     if (values.feeUnits <= 0) {
       throw new Error("Fee must be greater than zero.");
     }
+  }
+
+  //
+  // Flow
+  //
+  async function buildTransactionContext() {
+    const coin = getCoin();
+    const values = getFormValues();
+
+    validateBuildSignSendValues(coin, values);
 
     const client = new CHISEL(values.rpcUrl);
     await client.load();
@@ -410,6 +417,7 @@
 
     setStatusMessage("Deriving " + coin.TICKER + " account from WIF...", false);
     const account = await coin.wifToAccount(values.senderWif);
+
     setAccountData({
       currency: coin.NAME,
       ticker: coin.TICKER,
@@ -461,34 +469,65 @@
     const decodedUnsigned = await coin.decodeRawTransaction(client, values, rawHex);
     setDecodedUnsignedData(decodedUnsigned);
 
-    const signingInputs = vin.map(function mapSigningInput() {
+    return {
+      coin,
+      values,
+      client,
+      account,
+      utxos,
+      vin,
+      vout,
+      requiredFeeUnits,
+      rawHex,
+      signedHex: null
+    };
+  }
+
+  async function signTransactionContext(context) {
+    const signingInputs = context.vin.map(function mapSigningInput() {
       return {
-        privateKeyHex: account.privateKeyHex,
-        compressed: account.compressed
+        privateKeyHex: context.account.privateKeyHex,
+        compressed: context.account.compressed
       };
     });
 
     setStatusMessage("Signing raw transaction locally...", false);
-    const signedHex = await coin.signRawTransaction(rawHex, signingInputs);
+    const signedHex = await context.coin.signRawTransaction(context.rawHex, signingInputs);
     setSignedHexData(signedHex);
 
     setStatusMessage("Decoding signed raw transaction...", false);
-    const decodedSigned = await coin.decodeRawTransaction(client, values, signedHex);
+    const decodedSigned = await context.coin.decodeRawTransaction(context.client, context.values, signedHex);
     setDecodedSignedData(decodedSigned);
 
     setSendPayloadData({
       method: "sendrawtransaction",
-      currency: coin.NAME,
+      currency: context.coin.NAME,
       params: [signedHex]
     });
 
+    context.signedHex = signedHex;
+
+    return context;
+  }
+
+  async function sendTransactionContext(context) {
     setStatusMessage("Broadcasting signed transaction...", false);
-    const sendResult = await coin.sendRawTransaction(client, values, signedHex);
+    const sendResult = await context.coin.sendRawTransaction(context.client, context.values, context.signedHex);
     setSendResultData(sendResult);
 
+    return context;
+  }
+
+  async function runBuildSignDecodeSend() {
+    const context = await buildTransactionContext();
+    await signTransactionContext(context);
+    await sendTransactionContext(context);
     setStatusMessage(STATUS_DONE, false);
   }
 
+
+	//////
+	//////
   //
   // DOM listeners
   //
@@ -538,4 +577,10 @@
   }
 
   init();
+
+window.runBuildSignDecodeSend = runBuildSignDecodeSend;
+window.buildTransactionContext = buildTransactionContext;
+window.signTransactionContext = signTransactionContext;
+window.sendTransactionContext = sendTransactionContext;
+
 })();
