@@ -3,11 +3,33 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.3.4";
-  const DEFAULT_CURRENCY = "ravencoin";
+  const APP_VERSION = "2.3.6";
+  const DEFAULT_CURRENCY_KEY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
   const ENTER_KEY = "Enter";
+  console.log(APP_VERSION)
+
+  //
+  // Currency registry
+  //
+  const CURRENCY_DEFINITIONS = {
+    ravencoin: {
+      key: "ravencoin",
+      label: "Ravencoin",
+      aliases: ["ravencoin", "Ravencoin", "rvn", "RVN"]
+    },
+    digibyte: {
+      key: "digibyte",
+      label: "Digibyte",
+      aliases: ["digibyte", "Digibyte", "dgb", "DGB"]
+    },
+    litecoinTestnet: {
+      key: "litecoinTestnet",
+      label: "Litecoin Testnet",
+      aliases: ["litecoinTestnet", "litecoin-testnet", "Litecoin Testnet", "tltc", "TLTC"]
+    }
+  };
 
   //
   // Elements
@@ -59,6 +81,8 @@
     utxos: null,
     vin: null,
     vout: null,
+    feeWasManuallyEdited: false,
+    lastSuggestedFeeValue: "",
     buildPayload: null,
     rawHex: "",
     decodedUnsigned: null,
@@ -69,16 +93,134 @@
   };
 
   //
-  // Helpers
+  // Currency helpers
   //
-  function getCoin() {
-    return CHISEL.getCoin(elems.currency.value);
+  function getSelectedCurrencyKey() {
+    return elems.currency.value;
   }
+
+  function isFeeInputUsingSuggestedValue() {
+  return elems.feeRvn.value === "" || elems.feeRvn.value === state.lastSuggestedFeeValue;
+}
+
+ function tryGetCoinFromChisel(key) {
+   if (typeof CHISEL === "undefined" || typeof CHISEL.getCoin !== "function") {
+      return null;
+    }
+
+    try {
+      const coin = CHISEL.getCoin(key);
+
+      if (!coin) {
+        return null;
+      }
+
+      return coin;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function tryGetCoinFromAliases(aliases) {
+    for (let i = 0; i < aliases.length; i += 1) {
+      const coin = tryGetCoinFromChisel(aliases[i]);
+
+      if (coin) {
+        return coin;
+      }
+    }
+
+    return null;
+  }
+
+  function tryBuildCoinFromGlobal(key) {
+    switch (key) {
+      case "ravencoin":
+        if (typeof RAVENCOIN === "function") {
+          return new RAVENCOIN();
+        }
+        break;
+
+      case "digibyte":
+        if (typeof DIGIBYTE === "function") {
+          return new DIGIBYTE();
+        }
+        break;
+
+      case "litecoinTestnet":
+        if (typeof LITECOIN_TESTNET === "function") {
+          return new LITECOIN_TESTNET();
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    return null;
+  }
+
+  function resolveCoin(key) {
+    const definition = CURRENCY_DEFINITIONS[key];
+
+    if (!definition) {
+      throw new Error("Unknown currency: " + key);
+    }
+
+    const chiselCoin = tryGetCoinFromAliases(definition.aliases);
+
+    if (chiselCoin) {
+      return chiselCoin;
+    }
+
+    const globalCoin = tryBuildCoinFromGlobal(key);
+
+    if (globalCoin) {
+      return globalCoin;
+    }
+
+    throw new Error("Currency is not available yet: " + definition.label);
+  }
+
+  function isCurrencyAvailable(key) {
+    try {
+      return Boolean(resolveCoin(key));
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function getAvailableCurrencyKeys() {
+    return Object.keys(CURRENCY_DEFINITIONS).filter(function filterCurrencyKey(key) {
+      return isCurrencyAvailable(key);
+    });
+  }
+
+  function getDefaultCurrencyKey() {
+    const availableKeys = getAvailableCurrencyKeys();
+
+    if (availableKeys.indexOf(DEFAULT_CURRENCY_KEY) >= 0) {
+      return DEFAULT_CURRENCY_KEY;
+    }
+
+    if (availableKeys.length > 0) {
+      return availableKeys[0];
+    }
+
+    return DEFAULT_CURRENCY_KEY;
+  }
+
+function getCoin() {
+  return CHISEL.getCoin(elems.currency.value || DEFAULT_CURRENCY_KEY);
+}
 
   function getCoinName() {
     return getCoin().NAME;
   }
 
+  //
+  // Generic helpers
+  //
   function setInputValue(elem, value) {
     elem.value = value;
   }
@@ -101,28 +243,30 @@
   function formatJsonSyntax(value) {
     const json = JSON.stringify(value, null, 2);
 
-    return escapeHtml(json).replace(
-      /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"\s*:?)|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g,
-      function replaceToken(match) {
-        if (/^"/.test(match)) {
-          if (/:$/.test(match)) {
-            return '<span class="json-key">' + match + "</span>";
+    return escapeHtml(json)
+      .replace(
+        /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"\s*:?)|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g,
+        function replaceToken(match) {
+          if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+              return '<span class="json-key">' + match + "</span>";
+            }
+
+            return '<span class="json-string">' + match + "</span>";
           }
 
-          return '<span class="json-string">' + match + "</span>";
-        }
+          if (match === "true" || match === "false") {
+            return '<span class="json-boolean">' + match + "</span>";
+          }
 
-        if (match === "true" || match === "false") {
-          return '<span class="json-boolean">' + match + "</span>";
-        }
+          if (match === "null") {
+            return '<span class="json-null">' + match + "</span>";
+          }
 
-        if (match === "null") {
-          return '<span class="json-null">' + match + "</span>";
+          return '<span class="json-number">' + match + "</span>";
         }
-
-        return '<span class="json-number">' + match + "</span>";
-      }
-    ).replace(/([{}\[\],:])/g, '<span class="json-punctuation">$1</span>');
+      )
+      .replace(/([{}\[\],:])/g, '<span class="json-punctuation">$1</span>');
   }
 
   function normalizeHex(hex) {
@@ -141,6 +285,17 @@
       return byte.toString(16).padStart(2, "0");
     }).join("");
   }
+
+function setFeeUnitsValue(feeUnits) {
+  const coin = getCoin();
+  const feeValue = coin.unitsToCoin(Number(feeUnits)).toFixed(8);
+
+  elems.feeRvn.value = feeValue;
+  elems.feeRvn.dispatchEvent(new Event("input", { bubbles: true }));
+  elems.feeRvn.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+
 
   function resolveOpReturnHex() {
     const ascii = elems.opReturnAscii.value.trim();
@@ -181,6 +336,25 @@
     };
   }
 
+function getResolvedOpReturnHexForFee() {
+  const ascii = elems.opReturnAscii.value.trim();
+  const hex = normalizeHex(elems.opReturnHex.value);
+
+  if (ascii && hex) {
+    return "";
+  }
+
+  if (ascii) {
+    return stringToHex(ascii);
+  }
+
+  if (hex && isHex(hex) && hex.length % 2 === 0) {
+    return hex.toLowerCase();
+  }
+
+  return "";
+}
+
   function buildSendBackVout(address, changeUnits, opReturnHex) {
     const coin = getCoin();
     const vout = {
@@ -201,53 +375,67 @@
     elems.version.textContent = APP_NAME + " v" + APP_VERSION;
   }
 
-  function setCurrencyOptions() {
-    elems.currency.innerHTML = "";
+function setCurrencyOptions() {
+  const coins = CHISEL.getCoins();
 
-    CHISEL.getCoins().forEach(function appendCoinOption(coin) {
-      const option = document.createElement("option");
-      option.value = coin.NAME;
-      option.textContent = coin.DISPLAY_NAME || coin.NAME;
-      elems.currency.append(option);
-    });
+  elems.currency.innerHTML = "";
+
+  coins.forEach(function appendCoinOption(coin) {
+    const option = document.createElement("option");
+
+    option.value = coin.NAME;
+    option.textContent = coin.DISPLAY_NAME || coin.NAME;
+
+    elems.currency.append(option);
+  });
+
+  elems.currency.value = DEFAULT_CURRENCY_KEY;
+}
+
+function setCurrencyForm() {
+
+  console.log("setCurrencyForm currency =", elems.currency.value);
+  console.log("installed coins =", CHISEL.getCoins().map(function mapCoin(coin) {
+    return coin.NAME;
+  }));
+
+  const currencyKey = elems.currency.value || DEFAULT_CURRENCY_KEY;
+  const coin = CHISEL.getCoin(currencyKey);
+
+  elems.heroTitle.textContent = coin.HERO_TITLE || coin.DISPLAY_NAME || coin.NAME;
+  elems.heroText.textContent = coin.HERO_TEXT || "";
+  elems.currencyHelp.textContent = coin.HELP_TEXT || "";
+  elems.feeLabel.textContent = "Fee (" + coin.TICKER + ")";
+  elems.spendTotalLabel.textContent = "Spend total (" + coin.TICKER + ")";
+  elems.changeLabel.textContent = "Send-back amount (" + coin.TICKER + ")";
+  elems.rpcUrlLabel.textContent = coin.REQUIRES_EXPLORER ? "RPC URL" : "RPC / API URL";
+
+ // setInputValue(elems.feeRvn, coin.DEFAULT_FEE || "");
+  setSuggestedFeeValue();
+  setInputValue(elems.rpcUrl, coin.DEFAULT_RPC_URL || "");
+  setInputValue(elems.explorerUrl, coin.DEFAULT_EXPLORER_URL || "");
+
+  if (coin.REQUIRES_EXPLORER) {
+    showElem(elems.explorerUrl);
+    showElem(elems.explorerUrlLabel);
+    elems.explorerUrlLabel.textContent = "Explorer URL";
+  } else {
+    hideElem(elems.explorerUrl);
+    hideElem(elems.explorerUrlLabel);
   }
 
-  function setCurrencyForm() {
-    const coin = getCoin();
-
-    elems.heroTitle.textContent = coin.HERO_TITLE;
-    elems.heroText.textContent = coin.HERO_TEXT;
-    elems.currencyHelp.textContent = coin.HELP_TEXT;
-    elems.feeLabel.textContent = "Fee (" + coin.TICKER + ")";
-    elems.spendTotalLabel.textContent = "Spend total (" + coin.TICKER + ")";
-    elems.changeLabel.textContent = "Send-back amount (" + coin.TICKER + ")";
-    elems.rpcUrlLabel.textContent = coin.REQUIRES_EXPLORER ? "RPC URL" : "RPC / API URL";
-
-    setInputValue(elems.feeRvn, coin.DEFAULT_FEE);
-    setInputValue(elems.rpcUrl, coin.DEFAULT_RPC_URL || "");
-    setInputValue(elems.explorerUrl, coin.DEFAULT_EXPLORER_URL || "");
-
-    if (coin.REQUIRES_EXPLORER) {
-      showElem(elems.explorerUrl);
-      showElem(elems.explorerUrlLabel);
-      elems.explorerUrlLabel.textContent = "Explorer URL";
-    } else {
-      hideElem(elems.explorerUrl);
-      hideElem(elems.explorerUrlLabel);
-    }
-
-    if (coin.MIN_FEE) {
-      elems.currencyHelp.textContent =
-        coin.HELP_TEXT +
-        " Minimum enforced fee floor: " +
-        coin.unitsToCoin(coin.MIN_FEE).toFixed(8) +
-        " " +
-        coin.TICKER +
-        ".";
-    }
-
-    render();
+  if (coin.MIN_FEE) {
+    elems.currencyHelp.textContent =
+      (coin.HELP_TEXT || "") +
+      " Minimum enforced fee floor: " +
+      coin.unitsToCoin(coin.MIN_FEE).toFixed(8) +
+      " " +
+      coin.TICKER +
+      ".";
   }
+
+  render();
+}
 
   function setStatusMessage(message, isError) {
     state.status = message;
@@ -326,6 +514,77 @@
     render();
   }
 
+function xxxxxsetSuggestedFeeValue() {
+  const coin = getCoin();
+  const opReturnHex = getResolvedOpReturnHexForFee();
+  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
+
+  if (typeof coin.getRequiredFeeUnits === "function") {
+    const suggestedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
+      opReturnHex: opReturnHex
+    });
+
+    setInputValue(elems.feeRvn, coin.unitsToCoin(suggestedFeeUnits).toFixed(8));
+    return;
+  }
+
+  setInputValue(elems.feeRvn, coin.DEFAULT_FEE);
+  console.log("setSuggestedFeeValue")
+}
+
+function xxxxxxsetSuggestedFeeValue() {
+  const coin = getCoin();
+  const opReturnHex = getResolvedOpReturnHexForFee();
+  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
+  let suggestedFeeUnits = defaultFeeUnits;
+
+  if (typeof coin.getRequiredFeeUnits === "function") {
+    suggestedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
+      opReturnHex: opReturnHex
+    });
+  }
+
+  const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
+
+  console.log({
+    coin: coin.NAME,
+    opReturnHex: opReturnHex,
+    defaultFeeUnits: defaultFeeUnits,
+    suggestedFeeUnits: suggestedFeeUnits,
+    suggestedFeeValue: suggestedFeeValue,
+    before: elems.feeRvn.value
+  });
+
+  elems.feeRvn.value = suggestedFeeValue;
+
+  console.log({
+    after: elems.feeRvn.value
+  });
+}
+
+function setSuggestedFeeValue(force) {
+  const coin = getCoin();
+  const opReturnHex = getResolvedOpReturnHexForFee();
+  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
+  let suggestedFeeUnits = defaultFeeUnits;
+
+  if (typeof coin.getRequiredFeeUnits === "function") {
+    suggestedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
+      opReturnHex: opReturnHex
+    });
+  }
+
+  const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
+  const shouldUpdateInput = Boolean(force) || isFeeInputUsingSuggestedValue();
+
+  state.lastSuggestedFeeValue = suggestedFeeValue;
+
+  if (shouldUpdateInput) {
+    elems.feeRvn.value = suggestedFeeValue;
+  }
+}
+
+
   function clearOutputs() {
     state.account = null;
     state.utxos = null;
@@ -402,6 +661,27 @@
   //
   // Flow
   //
+//
+
+function extractSuggestedFeeFromErrorMessage(message) {
+  const normalizedMessage = String(message || "");
+
+  const decimalMatch = normalizedMessage.match(/\b0\.\d{1,8}\b/);
+
+  if (!decimalMatch) {
+    return "";
+  }
+
+  return decimalMatch[0];
+}
+
+function setFeeValue(feeValue) {
+  elems.feeRvn.value = feeValue;
+  elems.feeRvn.dispatchEvent(new Event("input", { bubbles: true }));
+  elems.feeRvn.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+
   async function buildTransactionContext() {
     const coin = getCoin();
     const values = getFormValues();
@@ -412,7 +692,7 @@
     await client.load();
 
     const requiredFeeUnits = coin.getRequiredFeeUnits
-      ? coin.getRequiredFeeUnits(values.feeUnits)
+      ? coin.getRequiredFeeUnits(values.feeUnits, values)
       : values.feeUnits;
 
     setStatusMessage("Deriving " + coin.TICKER + " account from WIF...", false);
@@ -523,26 +803,47 @@
     await signTransactionContext(context);
     await sendTransactionContext(context);
     setStatusMessage(STATUS_DONE, false);
+
+    return context;
   }
 
-
-	//////
-	//////
   //
   // DOM listeners
   //
-  async function onClickSendButton() {
-    try {
-      clearOutputs();
-      setLoadingState(true);
-      await runBuildSignDecodeSend();
-    } catch (error) {
-      console.error(error);
-      setStatusMessage(error.message || String(error), true);
-    } finally {
-      setLoadingState(false);
+
+async function onClickSendButton() {
+  try {
+    clearOutputs();
+    setLoadingState(true);
+    await runBuildSignDecodeSend();
+  } catch (error) {
+    const errorMessage = error && error.message ? error.message : String(error);
+    const requiredFeeUnits = extractRequiredFeeUnitsFromErrorMessage(errorMessage);
+
+    if (requiredFeeUnits !== null) {
+      try {
+        setFeeUnitsValue(requiredFeeUnits);
+        setStatusMessage(
+          "Retrying with updated fee: " + getCoin().unitsToCoin(requiredFeeUnits).toFixed(8),
+          false
+        );
+
+        clearOutputs();
+        await runBuildSignDecodeSend();
+        return;
+      } catch (retryError) {
+        console.error(retryError);
+        setStatusMessage(retryError.message || String(retryError), true);
+        return;
+      }
     }
+
+    console.error(error);
+    setStatusMessage(errorMessage, true);
+  } finally {
+    setLoadingState(false);
   }
+}
 
   function onKeydownSenderWif(event) {
     if (event.key !== ENTER_KEY) {
@@ -559,28 +860,82 @@
     setCurrencyForm();
   }
 
+function onInputOpReturnAscii() {
+  setSuggestedFeeValue();
+}
+
+function onInputOpReturnHex() {
+  setSuggestedFeeValue();
+}
+
+
+  //
+  // Console tools
+  //
+  function setSenderWifValue(wif) {
+    elems.senderWif.value = wif;
+    elems.senderWif.dispatchEvent(new Event("input", { bubbles: true }));
+    elems.senderWif.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function setCurrencyValue(currencyKey) {
+    elems.currency.value = currencyKey;
+    elems.currency.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  window.loadWifAndSend = function loadWifAndSend(wif) {
+    if (!wif) {
+      throw new Error("WIF is required.");
+    }
+
+    setSenderWifValue(wif);
+    elems.sendButton.click();
+  };
+
+  window.loadCurrencyWifAndSend = function loadCurrencyWifAndSend(currencyKey, wif) {
+    if (!currencyKey) {
+      throw new Error("Currency key is required.");
+    }
+
+    if (!wif) {
+      throw new Error("WIF is required.");
+    }
+
+    setCurrencyValue(currencyKey);
+    setSenderWifValue(wif);
+    elems.sendButton.click();
+  };
+
   //
   // Init
   //
-  function init() {
+
+function init() {
+  try {
     setAppVersion();
     setCurrencyOptions();
-    setInputValue(elems.currency, DEFAULT_CURRENCY);
     setCurrencyForm();
     setStatusMessage(STATUS_IDLE, false);
 
     elems.sendButton.onclick = onClickSendButton;
     elems.senderWif.onkeydown = onKeydownSenderWif;
     elems.currency.onchange = onChangeCurrency;
+    elems.opReturnAscii.oninput = onInputOpReturnAscii;
+    elems.opReturnHex.oninput = onInputOpReturnHex;
 
     render();
+  } catch (error) {
+    console.error(error);
+    setStatusMessage(error.message || String(error), true);
   }
+}
 
   init();
 
-window.runBuildSignDecodeSend = runBuildSignDecodeSend;
-window.buildTransactionContext = buildTransactionContext;
-window.signTransactionContext = signTransactionContext;
-window.sendTransactionContext = sendTransactionContext;
-
+  window.getCoin = getCoin;
+  window.getCoinName = getCoinName;
+  window.runBuildSignDecodeSend = runBuildSignDecodeSend;
+  window.buildTransactionContext = buildTransactionContext;
+  window.signTransactionContext = signTransactionContext;
+  window.sendTransactionContext = sendTransactionContext;
 })();

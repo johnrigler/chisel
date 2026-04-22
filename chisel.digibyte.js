@@ -11,6 +11,8 @@
   const DEFAULT_EXPLORER_URL = "https://digiexplorer.info";
   const DEFAULT_FEE = "0.0002";
   const MIN_FEE = 20000;
+  const FEE_RATE_UNITS_PER_BYTE = 100;
+  const OP_RETURN_OUTPUT_OVERHEAD_BYTES = 12;
   const P2PKH_PREFIX = 30;
   const MAINNET_WIF_PREFIX = 128;
   const TESTNET_WIF_PREFIX = 239;
@@ -67,9 +69,37 @@
     };
   }
 
+	//////
   function getRequiredFeeUnits(feeUnits) {
     return Math.max(Number(feeUnits), MIN_FEE);
   }
+	/////
+	
+function getOpReturnByteLength(opReturnHex) {
+  if (!opReturnHex) {
+    return 0;
+  }
+
+  return String(opReturnHex).length / 2;
+}
+
+
+function getOpReturnFeeUnits(opReturnHex) {
+  const opReturnBytes = getOpReturnByteLength(opReturnHex);
+
+  if (opReturnBytes === 0) {
+    return 0;
+  }
+
+  return (OP_RETURN_OUTPUT_OVERHEAD_BYTES + opReturnBytes) * FEE_RATE_UNITS_PER_BYTE;
+}
+
+function getRequiredFeeUnits(feeUnits, values) {
+  const baseFeeUnits = Math.max(Number(feeUnits), MIN_FEE);
+  const opReturnFeeUnits = getOpReturnFeeUnits(values && values.opReturnHex);
+
+  return baseFeeUnits + opReturnFeeUnits;
+}
 
   function buildExplorerAddressTxsUrl(baseUrl, address) {
     const trimmedBaseUrl = String(baseUrl).replace(/\/+$/, "");
