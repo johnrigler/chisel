@@ -10,6 +10,9 @@
   const DEFAULT_RPC_URL = "https://rigler.org:8769/";
   const DEFAULT_EXPLORER_URL = "";
   const DEFAULT_FEE = "0.002";
+  const FEE_RATE_UNITS_PER_BYTE = 125;
+  const OP_RETURN_OUTPUT_OVERHEAD_BYTES = 12;
+
   const P2PKH_PREFIX = 60;
   const MAINNET_WIF_PREFIX = 128;
   const TESTNET_WIF_PREFIX = 239;

@@ -11,7 +11,7 @@
   const DEFAULT_EXPLORER_URL = "https://digiexplorer.info";
   const DEFAULT_FEE = "0.0002";
   const MIN_FEE = 20000;
-  const FEE_RATE_UNITS_PER_BYTE = 100;
+  const FEE_RATE_UNITS_PER_BYTE = 125; 
   const OP_RETURN_OUTPUT_OVERHEAD_BYTES = 12;
   const P2PKH_PREFIX = 30;
   const MAINNET_WIF_PREFIX = 128;
@@ -90,7 +90,7 @@ function getOpReturnFeeUnits(opReturnHex) {
   if (opReturnBytes === 0) {
     return 0;
   }
-
+  console.log(FEE_RATE_UNITS_PER_BYTE);
   return (OP_RETURN_OUTPUT_OVERHEAD_BYTES + opReturnBytes) * FEE_RATE_UNITS_PER_BYTE;
 }
 

@@ -562,7 +562,7 @@ function xxxxxxsetSuggestedFeeValue() {
   });
 }
 
-function setSuggestedFeeValue(force) {
+function xxxxxxxxxxxxxsetSuggestedFeeValue(force) {
   const coin = getCoin();
   const opReturnHex = getResolvedOpReturnHexForFee();
   const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
@@ -573,9 +573,68 @@ function setSuggestedFeeValue(force) {
       opReturnHex: opReturnHex
     });
   }
+/*
+function setSuggestedFeeValue(force) {
+  const coin = getCoin();
+  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
+  let suggestedFeeUnits = defaultFeeUnits;
+
+  if (coin.NAME === "digibyte") {
+    const opReturnHex = getResolvedOpReturnHexForFee();
+    const computedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
+      opReturnHex: opReturnHex
+    });
+
+    if (Number.isFinite(computedFeeUnits) && computedFeeUnits > 0) {
+      suggestedFeeUnits = Math.max(defaultFeeUnits, Number(computedFeeUnits));
+    }
+  }
+
+  const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
+  const shouldUpdateInput =
+    Boolean(force) ||
+    elems.feeRvn.value === "" ||
+    elems.feeRvn.value === state.lastSuggestedFeeValue;
+
+  state.lastSuggestedFeeValue = suggestedFeeValue;
+
+  if (shouldUpdateInput) {
+    elems.feeRvn.value = suggestedFeeValue;
+  }
+}
+*/
 
   const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
   const shouldUpdateInput = Boolean(force) || isFeeInputUsingSuggestedValue();
+
+  state.lastSuggestedFeeValue = suggestedFeeValue;
+
+  if (shouldUpdateInput) {
+    elems.feeRvn.value = suggestedFeeValue;
+  }
+}
+
+function setSuggestedFeeValue(force) {
+  const coin = getCoin();
+  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
+  let suggestedFeeUnits = defaultFeeUnits;
+
+  if (coin.NAME === "digibyte") {
+    const opReturnHex = getResolvedOpReturnHexForFee();
+    const computedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
+      opReturnHex: opReturnHex
+    });
+
+    if (Number.isFinite(computedFeeUnits) && computedFeeUnits > 0) {
+      suggestedFeeUnits = Math.max(defaultFeeUnits, Number(computedFeeUnits));
+    }
+  }
+
+  const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
+  const shouldUpdateInput =
+    Boolean(force) ||
+    elems.feeRvn.value === "" ||
+    elems.feeRvn.value === state.lastSuggestedFeeValue;
 
   state.lastSuggestedFeeValue = suggestedFeeValue;
 
@@ -818,7 +877,7 @@ async function onClickSendButton() {
     await runBuildSignDecodeSend();
   } catch (error) {
     const errorMessage = error && error.message ? error.message : String(error);
-    const requiredFeeUnits = extractRequiredFeeUnitsFromErrorMessage(errorMessage);
+    const requiredFeeUnits = extractSuggestedFeeFromErrorMessage(errorMessage);
 
     if (requiredFeeUnits !== null) {
       try {
