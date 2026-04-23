@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.3.6";
+  const APP_VERSION = "2.3.7c";
   const DEFAULT_CURRENCY_KEY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -217,6 +217,19 @@ function getCoin() {
   function getCoinName() {
     return getCoin().NAME;
   }
+
+// Digibyte specific
+
+function isTooLongMempoolChainError(message) {
+  return /too-long-mempool-chain|too many unconfirmed ancestors/i.test(String(message || ""));
+}
+
+// Ravencoin specific
+//
+function isMempoolConflictChainError(message) {
+  return /txn-mempool-conflict/i.test(String(message || ""));
+}
+
 
   //
   // Generic helpers
@@ -514,107 +527,7 @@ function setCurrencyForm() {
     render();
   }
 
-function xxxxxsetSuggestedFeeValue() {
-  const coin = getCoin();
-  const opReturnHex = getResolvedOpReturnHexForFee();
-  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
-
-  if (typeof coin.getRequiredFeeUnits === "function") {
-    const suggestedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
-      opReturnHex: opReturnHex
-    });
-
-    setInputValue(elems.feeRvn, coin.unitsToCoin(suggestedFeeUnits).toFixed(8));
-    return;
-  }
-
-  setInputValue(elems.feeRvn, coin.DEFAULT_FEE);
-  console.log("setSuggestedFeeValue")
-}
-
-function xxxxxxsetSuggestedFeeValue() {
-  const coin = getCoin();
-  const opReturnHex = getResolvedOpReturnHexForFee();
-  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
-  let suggestedFeeUnits = defaultFeeUnits;
-
-  if (typeof coin.getRequiredFeeUnits === "function") {
-    suggestedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
-      opReturnHex: opReturnHex
-    });
-  }
-
-  const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
-
-  console.log({
-    coin: coin.NAME,
-    opReturnHex: opReturnHex,
-    defaultFeeUnits: defaultFeeUnits,
-    suggestedFeeUnits: suggestedFeeUnits,
-    suggestedFeeValue: suggestedFeeValue,
-    before: elems.feeRvn.value
-  });
-
-  elems.feeRvn.value = suggestedFeeValue;
-
-  console.log({
-    after: elems.feeRvn.value
-  });
-}
-
-function xxxxxxxxxxxxxsetSuggestedFeeValue(force) {
-  const coin = getCoin();
-  const opReturnHex = getResolvedOpReturnHexForFee();
-  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
-  let suggestedFeeUnits = defaultFeeUnits;
-
-  if (typeof coin.getRequiredFeeUnits === "function") {
-    suggestedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
-      opReturnHex: opReturnHex
-    });
-  }
-/*
-function setSuggestedFeeValue(force) {
-  const coin = getCoin();
-  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
-  let suggestedFeeUnits = defaultFeeUnits;
-
-  if (coin.NAME === "digibyte") {
-    const opReturnHex = getResolvedOpReturnHexForFee();
-    const computedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
-      opReturnHex: opReturnHex
-    });
-
-    if (Number.isFinite(computedFeeUnits) && computedFeeUnits > 0) {
-      suggestedFeeUnits = Math.max(defaultFeeUnits, Number(computedFeeUnits));
-    }
-  }
-
-  const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
-  const shouldUpdateInput =
-    Boolean(force) ||
-    elems.feeRvn.value === "" ||
-    elems.feeRvn.value === state.lastSuggestedFeeValue;
-
-  state.lastSuggestedFeeValue = suggestedFeeValue;
-
-  if (shouldUpdateInput) {
-    elems.feeRvn.value = suggestedFeeValue;
-  }
-}
-*/
-
-  const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
-  const shouldUpdateInput = Boolean(force) || isFeeInputUsingSuggestedValue();
-
-  state.lastSuggestedFeeValue = suggestedFeeValue;
-
-  if (shouldUpdateInput) {
-    elems.feeRvn.value = suggestedFeeValue;
-  }
-}
-
-function setSuggestedFeeValue(force) {
+function xxxxxxxxxxsetSuggestedFeeValue(force) {
   const coin = getCoin();
   const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
   let suggestedFeeUnits = defaultFeeUnits;
@@ -643,8 +556,36 @@ function setSuggestedFeeValue(force) {
   }
 }
 
+function setSuggestedFeeValue(force) {
+  const coin = getCoin();
+  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
+  const opReturnHex = getResolvedOpReturnHexForFee();
+  let suggestedFeeUnits = defaultFeeUnits;
 
-  function clearOutputs() {
+  if (typeof coin.getRequiredFeeUnits === "function") {
+    const computedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
+      opReturnHex: opReturnHex
+    });
+
+    if (Number.isFinite(computedFeeUnits) && computedFeeUnits > 0) {
+      suggestedFeeUnits = Math.max(defaultFeeUnits, Number(computedFeeUnits));
+    }
+  }
+
+  const suggestedFeeValue = coin.unitsToCoin(suggestedFeeUnits).toFixed(8);
+  const shouldUpdateInput =
+    Boolean(force) ||
+    elems.feeRvn.value === "" ||
+    elems.feeRvn.value === state.lastSuggestedFeeValue;
+
+  state.lastSuggestedFeeValue = suggestedFeeValue;
+
+  if (shouldUpdateInput) {
+    elems.feeRvn.value = suggestedFeeValue;
+  }
+}
+
+function clearOutputs() {
     state.account = null;
     state.utxos = null;
     state.vin = null;
@@ -724,14 +665,13 @@ function setSuggestedFeeValue(force) {
 
 function extractSuggestedFeeFromErrorMessage(message) {
   const normalizedMessage = String(message || "");
+  const match = normalizedMessage.match(/min relay fee not met,\s*(\d+)\s*<\s*(\d+)/i);
 
-  const decimalMatch = normalizedMessage.match(/\b0\.\d{1,8}\b/);
-
-  if (!decimalMatch) {
-    return "";
+  if (!match) {
+    return null;
   }
 
-  return decimalMatch[0];
+  return Number(match[2]);
 }
 
 function setFeeValue(feeValue) {
@@ -896,6 +836,29 @@ async function onClickSendButton() {
         return;
       }
     }
+
+	  //// 
+	  //
+
+if (isTooLongMempoolChainError(errorMessage)) {
+  setStatusMessage(
+    "Broadcast rejected: too many unconfirmed ancestors. Wait for confirmation or use an older confirmed UTXO.",
+    true
+  );
+  return;
+}
+
+if (isMempoolConflictChainError(errorMessage)) {
+  setStatusMessage(
+  "Transaction is still in memory pool. Wait for confirmation or use an older confirmed UTXO.",
+     true
+  );
+return;
+}
+
+
+	  //
+	  /////
 
     console.error(error);
     setStatusMessage(errorMessage, true);
