@@ -78,9 +78,11 @@ function getRequiredFeeUnits(feeUnits, values) {
   return baseFeeUnits + opReturnFeeUnits;
 }
 */
+	/*
 function getRequiredFeeUnits(feeUnits) {
   return Number(feeUnits);
 }
+*/
 
   async function getAddressUtxos(client, values, address) {
     if (!client.address || !client.address.getaddressutxos) {
@@ -117,6 +119,37 @@ function getRequiredFeeUnits(feeUnits) {
   async function signRawTransaction(rawHex, signingInputs) {
     return CHISEL.signRawTransaction(rawHex, signingInputs);
   }
+
+const MIN_FEE = 200000;
+	// 125
+const FEE_RATE_UNITS_PER_BYTE = 800;
+const OP_RETURN_OUTPUT_OVERHEAD_BYTES = 12;
+
+function getOpReturnByteLength(opReturnHex) {
+  if (!opReturnHex) {
+    return 0;
+  }
+
+  return String(opReturnHex).length / 2;
+}
+
+function getOpReturnFeeUnits(opReturnHex) {
+  const opReturnBytes = getOpReturnByteLength(opReturnHex);
+
+  if (opReturnBytes === 0) {
+    return 0;
+  }
+
+  return (OP_RETURN_OUTPUT_OVERHEAD_BYTES + opReturnBytes) * FEE_RATE_UNITS_PER_BYTE;
+}
+
+function getRequiredFeeUnits(feeUnits, values) {
+  const baseFeeUnits = Math.max(Number(feeUnits), MIN_FEE);
+  const opReturnFeeUnits = getOpReturnFeeUnits(values && values.opReturnHex);
+
+  return baseFeeUnits + opReturnFeeUnits;
+}
+
 /*
 function getOpReturnByteLength(opReturnHex) {
   if (!opReturnHex) {
