@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.3.8";
+  const APP_VERSION = "2.3.9";
   const DEFAULT_CURRENCY_KEY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -41,6 +41,12 @@
     feeLabel: document.querySelector("#feeLabel"),
     opReturnAscii: document.querySelector("#opReturnAscii"),
     opReturnHex: document.querySelector("#opReturnHex"),
+    recipientRows: document.querySelector("#recipientRows"),
+    addRecipientButton: document.querySelector("#addRecipientButton"),
+    recipientTotalRvn: document.querySelector("#recipientTotalRvn"),
+    recipientTotalLabel: document.querySelector("#recipientTotalLabel"),
+    estimatedCostRvn: document.querySelector("#estimatedCostRvn"),
+    estimatedCostLabel: document.querySelector("#estimatedCostLabel"),
     rpcUrl: document.querySelector("#rpcUrl"),
     rpcUrlLabel: document.querySelector("#rpcUrlLabel"),
     explorerUrl: document.querySelector("#explorerUrl"),
@@ -299,6 +305,173 @@ function isMempoolConflictChainError(message) {
     }).join("");
   }
 
+
+function getRecipientRows() {
+  if (!elems.recipientRows) {
+    return [];
+  }
+
+  return Array.from(elems.recipientRows.querySelectorAll(".recipientRow"));
+}
+
+function getRecipientRowValues() {
+  return getRecipientRows().map(function mapRecipientRow(row) {
+    const addressInput = row.querySelector(".recipientAddress");
+    const amountInput = row.querySelector(".recipientAmount");
+
+    return {
+      row: row,
+      address: addressInput ? addressInput.value.trim() : "",
+      amountText: amountInput ? amountInput.value.trim() : ""
+    };
+  });
+}
+
+function getRecipientDraftsForFee() {
+  return getRecipientRowValues().filter(function filterRecipientDraft(rowValues) {
+    return rowValues.address !== "" || rowValues.amountText !== "";
+  });
+}
+
+function getRecipientDraftCountForFee() {
+  return getRecipientDraftsForFee().length;
+}
+
+function parseRecipients() {
+  const coin = getCoin();
+  const seenAddresses = {};
+
+  return getRecipientRowValues()
+    .filter(function filterBlankRecipient(rowValues) {
+      return rowValues.address !== "" || rowValues.amountText !== "";
+    })
+    .map(function mapRecipient(rowValues, index) {
+      const rowNumber = index + 1;
+
+      if (!rowValues.address) {
+        throw new Error("Recipient " + rowNumber + " is missing an address.");
+      }
+
+      if (!rowValues.amountText) {
+        throw new Error("Recipient " + rowNumber + " is missing an amount.");
+      }
+
+      const amountNumber = Number(rowValues.amountText);
+
+      if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+        throw new Error("Recipient " + rowNumber + " amount must be greater than zero.");
+      }
+
+      if (seenAddresses[rowValues.address]) {
+        throw new Error("Duplicate recipient address: " + rowValues.address);
+      }
+
+      seenAddresses[rowValues.address] = true;
+
+      return {
+        address: rowValues.address,
+        amount: amountNumber,
+        amountUnits: coin.coinToUnits(rowValues.amountText)
+      };
+    });
+}
+
+function getLooseRecipientTotalUnits() {
+  const coin = getCoin();
+
+  return getRecipientRowValues().reduce(function reduceRecipientTotal(total, rowValues) {
+    const amountNumber = Number(rowValues.amountText);
+
+    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+      return total;
+    }
+
+    return total + coin.coinToUnits(rowValues.amountText);
+  }, 0);
+}
+
+function sumRecipientUnits(recipients) {
+  return recipients.reduce(function reduceRecipientUnits(total, recipient) {
+    return total + Number(recipient.amountUnits);
+  }, 0);
+}
+
+function updateRecipientCostPreview() {
+  const coin = getCoin();
+  const recipientTotalUnits = getLooseRecipientTotalUnits();
+  const feeUnits = coin.coinToUnits(elems.feeRvn.value || "0");
+  const estimatedCostUnits = recipientTotalUnits + feeUnits;
+
+  if (elems.recipientTotalRvn) {
+    elems.recipientTotalRvn.value = coin.unitsToCoin(recipientTotalUnits).toFixed(8);
+  }
+
+  if (elems.estimatedCostRvn) {
+    elems.estimatedCostRvn.value = coin.unitsToCoin(estimatedCostUnits).toFixed(8);
+  }
+}
+
+function createRecipientRow(address, amount) {
+  const row = document.createElement("div");
+  const addressInput = document.createElement("input");
+  const amountInput = document.createElement("input");
+  const removeButton = document.createElement("button");
+
+  row.className = "recipientRow";
+
+  addressInput.className = "recipientAddress";
+  addressInput.type = "text";
+  addressInput.placeholder = "recipient address";
+  addressInput.spellcheck = false;
+  addressInput.value = address || "";
+
+  amountInput.className = "recipientAmount";
+  amountInput.type = "number";
+  amountInput.min = "0";
+  amountInput.step = "0.00000001";
+  amountInput.placeholder = "amount";
+  amountInput.value = amount || "";
+
+  removeButton.className = "removeRecipientButton";
+  removeButton.type = "button";
+  removeButton.textContent = "X";
+
+  addressInput.oninput = function onRecipientAddressInput() {
+    setSuggestedFeeValue();
+  };
+
+  amountInput.oninput = function onRecipientAmountInput() {
+    setSuggestedFeeValue();
+  };
+
+  removeButton.onclick = function onRemoveRecipient() {
+    row.remove();
+    setSuggestedFeeValue();
+  };
+
+  row.append(addressInput, amountInput, removeButton);
+
+  return row;
+}
+
+function addRecipientRow(address, amount) {
+  elems.recipientRows.append(createRecipientRow(address, amount));
+  setSuggestedFeeValue();
+}
+
+function clearRecipientRows() {
+  elems.recipientRows.innerHTML = "";
+  setSuggestedFeeValue();
+}
+
+function rejectRecipientsUsingChangeAddress(recipients, changeAddress) {
+  recipients.forEach(function rejectMatchingRecipient(recipient) {
+    if (recipient.address === changeAddress) {
+      throw new Error("Recipient address duplicates the send-back/change address: " + changeAddress);
+    }
+  });
+}
+
 function setFeeUnitsValue(feeUnits) {
   const coin = getCoin();
   const feeValue = coin.unitsToCoin(Number(feeUnits)).toFixed(8);
@@ -339,13 +512,16 @@ function setFeeUnitsValue(feeUnits) {
 
   function getFormValues() {
     const coin = getCoin();
+    const recipients = parseRecipients();
 
     return {
       rpcUrl: elems.rpcUrl.value.trim(),
       explorerUrl: elems.explorerUrl.value.trim(),
       senderWif: elems.senderWif.value.trim(),
       feeUnits: coin.coinToUnits(elems.feeRvn.value),
-      opReturnHex: resolveOpReturnHex()
+      opReturnHex: resolveOpReturnHex(),
+      recipients: recipients,
+      extraRecipientCount: recipients.length
     };
   }
 
@@ -368,11 +544,15 @@ function getResolvedOpReturnHexForFee() {
   return "";
 }
 
-  function buildSendBackVout(address, changeUnits, opReturnHex) {
+  function buildSendBackVout(address, changeUnits, opReturnHex, recipients) {
     const coin = getCoin();
     const vout = {
       [address]: coin.unitsToCoin(changeUnits)
     };
+
+    recipients.forEach(function appendRecipientVout(recipient) {
+      vout[recipient.address] = coin.unitsToCoin(recipient.amountUnits);
+    });
 
     if (opReturnHex) {
       vout.data = opReturnHex;
@@ -421,10 +601,12 @@ function setCurrencyForm() {
   elems.feeLabel.textContent = "Fee (" + coin.TICKER + ")";
   elems.spendTotalLabel.textContent = "Spend total (" + coin.TICKER + ")";
   elems.changeLabel.textContent = "Send-back amount (" + coin.TICKER + ")";
+  elems.recipientTotalLabel.textContent = "Recipient total (" + coin.TICKER + ")";
+  elems.estimatedCostLabel.textContent = "Recipients + fee (" + coin.TICKER + ")";
   elems.rpcUrlLabel.textContent = coin.REQUIRES_EXPLORER ? "RPC URL" : "RPC / API URL";
 
  // setInputValue(elems.feeRvn, coin.DEFAULT_FEE || "");
-  setSuggestedFeeValue();
+  setSuggestedFeeValue(true);
   setInputValue(elems.rpcUrl, coin.DEFAULT_RPC_URL || "");
   setInputValue(elems.explorerUrl, coin.DEFAULT_EXPLORER_URL || "");
 
@@ -447,6 +629,7 @@ function setCurrencyForm() {
       ".";
   }
 
+  updateRecipientCostPreview();
   render();
 }
 
@@ -535,7 +718,8 @@ function xxxxxxxxxxsetSuggestedFeeValue(force) {
   if (coin.NAME === "digibyte") {
     const opReturnHex = getResolvedOpReturnHexForFee();
     const computedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
-      opReturnHex: opReturnHex
+      opReturnHex: opReturnHex,
+      extraRecipientCount: getRecipientDraftCountForFee()
     });
 
     if (Number.isFinite(computedFeeUnits) && computedFeeUnits > 0) {
@@ -554,6 +738,8 @@ function xxxxxxxxxxsetSuggestedFeeValue(force) {
   if (shouldUpdateInput) {
     elems.feeRvn.value = suggestedFeeValue;
   }
+
+  updateRecipientCostPreview();
 }
 
 function setSuggestedFeeValue(force) {
@@ -564,7 +750,8 @@ function setSuggestedFeeValue(force) {
 
   if (typeof coin.getRequiredFeeUnits === "function") {
     const computedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
-      opReturnHex: opReturnHex
+      opReturnHex: opReturnHex,
+      extraRecipientCount: getRecipientDraftCountForFee()
     });
 
     if (Number.isFinite(computedFeeUnits) && computedFeeUnits > 0) {
@@ -583,6 +770,8 @@ function setSuggestedFeeValue(force) {
   if (shouldUpdateInput) {
     elems.feeRvn.value = suggestedFeeValue;
   }
+
+  updateRecipientCostPreview();
 }
 
 function clearOutputs() {
@@ -602,6 +791,7 @@ function clearOutputs() {
     setInputValue(elems.utxoCount, "");
     setInputValue(elems.spendTotalRvn, "");
     setInputValue(elems.changeRvn, "");
+    updateRecipientCostPreview();
 
     render();
   }
@@ -680,6 +870,22 @@ function setFeeValue(feeValue) {
   elems.feeRvn.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+function getMinimumRequiredFeeUnits(coin, values) {
+  const defaultFeeUnits = coin.coinToUnits(coin.DEFAULT_FEE);
+
+  if (typeof coin.getRequiredFeeUnits !== "function") {
+    return defaultFeeUnits;
+  }
+
+  const requiredFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, values);
+
+  if (!Number.isFinite(requiredFeeUnits) || requiredFeeUnits <= 0) {
+    return defaultFeeUnits;
+  }
+
+  return Math.max(defaultFeeUnits, Number(requiredFeeUnits));
+}
+
 
   async function buildTransactionContext() {
     const coin = getCoin();
@@ -690,9 +896,8 @@ function setFeeValue(feeValue) {
     const client = new CHISEL(values.rpcUrl);
     await client.load();
 
-    const requiredFeeUnits = coin.getRequiredFeeUnits
-      ? coin.getRequiredFeeUnits(values.feeUnits, values)
-      : values.feeUnits;
+    const minimumRequiredFeeUnits = getMinimumRequiredFeeUnits(coin, values);
+    const requiredFeeUnits = Math.max(values.feeUnits, minimumRequiredFeeUnits);
 
     setStatusMessage("Deriving " + coin.TICKER + " account from WIF...", false);
     const account = await coin.wifToAccount(values.senderWif);
@@ -712,6 +917,7 @@ function setFeeValue(feeValue) {
     const rawUtxos = await coin.getAddressUtxos(client, values, account.address);
     const utxos = rawUtxos.map(CHISEL.normalizeUTXO);
     setUtxoData(utxos);
+    rejectRecipientsUsingChangeAddress(values.recipients, account.address);
 
     if (utxos.length === 0) {
       throw new Error("No UTXOs found for the derived address.");
@@ -721,7 +927,8 @@ function setFeeValue(feeValue) {
     setVinData(vin);
 
     const totalUnits = CHISEL.sumUtxoSatoshis(utxos);
-    const changeUnits = totalUnits - requiredFeeUnits;
+    const recipientTotalUnits = sumRecipientUnits(values.recipients);
+    const changeUnits = totalUnits - recipientTotalUnits - requiredFeeUnits;
 
     if (changeUnits <= 0) {
       throw new Error("Not enough balance to pay the fee.");
@@ -729,7 +936,7 @@ function setFeeValue(feeValue) {
 
     setChangeData(changeUnits);
 
-    const vout = buildSendBackVout(account.address, changeUnits, values.opReturnHex);
+    const vout = buildSendBackVout(account.address, changeUnits, values.opReturnHex, values.recipients);
     setVoutData(vout);
 
     setBuildPayloadData({
@@ -737,7 +944,11 @@ function setFeeValue(feeValue) {
       currency: coin.NAME,
       params: [vin, vout],
       requestedFeeUnits: values.feeUnits,
-      appliedFeeUnits: requiredFeeUnits
+      minimumRequiredFeeUnits: minimumRequiredFeeUnits,
+      appliedFeeUnits: requiredFeeUnits,
+      recipientTotalUnits: recipientTotalUnits,
+      recipientTotal: coin.unitsToCoin(recipientTotalUnits),
+      recipients: values.recipients
     });
 
     setStatusMessage("Creating raw transaction...", false);
@@ -890,6 +1101,14 @@ function onInputOpReturnHex() {
   setSuggestedFeeValue();
 }
 
+function onInputFee() {
+  updateRecipientCostPreview();
+}
+
+function onClickAddRecipientButton() {
+  addRecipientRow("", "");
+}
+
 
   //
   // Console tools
@@ -944,7 +1163,10 @@ function init() {
     elems.currency.onchange = onChangeCurrency;
     elems.opReturnAscii.oninput = onInputOpReturnAscii;
     elems.opReturnHex.oninput = onInputOpReturnHex;
+    elems.feeRvn.oninput = onInputFee;
+    elems.addRecipientButton.onclick = onClickAddRecipientButton;
 
+    updateRecipientCostPreview();
     render();
   } catch (error) {
     console.error(error);
@@ -957,6 +1179,8 @@ function init() {
   window.getCoin = getCoin;
   window.getCoinName = getCoinName;
   window.runBuildSignDecodeSend = runBuildSignDecodeSend;
+  window.addRecipient = addRecipientRow;
+  window.clearRecipients = clearRecipientRows;
   window.buildTransactionContext = buildTransactionContext;
   window.signTransactionContext = signTransactionContext;
   window.sendTransactionContext = sendTransactionContext;

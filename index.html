@@ -119,6 +119,35 @@
       flex-wrap: wrap;
     }
 
+    .recipientEditor {
+      display: grid;
+      gap: 8px;
+    }
+
+    .recipientRows {
+      display: grid;
+      gap: 8px;
+    }
+
+    .recipientRow {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr 160px auto;
+      align-items: center;
+    }
+
+    .secondaryButton,
+    .removeRecipientButton {
+      background: #1d2630;
+      color: #d7e2ee;
+      border: 1px solid #2c3642;
+    }
+
+    .removeRecipientButton {
+      padding: 10px 12px;
+      font-weight: 700;
+    }
+
     button {
       border: 0;
       border-radius: 10px;
@@ -277,6 +306,19 @@
         <label for="opReturnHex">OP_RETURN HEX</label>
         <input id="opReturnHex" type="text" />
 
+        <label for="recipientRows">Extra recipients</label>
+        <div id="recipientEditor" class="recipientEditor">
+          <div id="recipientRows" class="recipientRows"></div>
+          <button id="addRecipientButton" class="secondaryButton" type="button">ADD RECIPIENT</button>
+          <div class="help">Optional fixed outputs. Change still returns to the sender after recipients and fee are subtracted.</div>
+        </div>
+
+        <label id="recipientTotalLabel" for="recipientTotalRvn">Recipient total (RVN)</label>
+        <input id="recipientTotalRvn" type="text" readonly />
+
+        <label id="estimatedCostLabel" for="estimatedCostRvn">Recipients + fee (RVN)</label>
+        <input id="estimatedCostRvn" type="text" readonly />
+
         <label id="rpcUrlLabel" for="rpcUrl">RPC / API URL</label>
         <input id="rpcUrl" type="text" />
 
@@ -371,8 +413,8 @@
 
   <script src="chisel.js?2g40899xx999"></script>
   <script src="chisel.sign.js?4599"></script>
-  <script src="chisel.ravencoin.js?330x00"></script>
-  <script src="chisel.digibyte.js?129999"></script>
+  <script src="chisel.ravencoin.js?2.3.9-multi-recipient"></script>
+  <script src="chisel.digibyte.js?2.3.9-multi-recipient"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -381,7 +423,7 @@
   };
 </script>
 
-  <script src="assets/app.js?2.3.5.9d656664234272s9"></script>
+  <script src="assets/app.js?2.3.9-multi-recipient"></script>
 </body>
 </html>
 

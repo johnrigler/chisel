@@ -121,9 +121,9 @@ function getRequiredFeeUnits(feeUnits) {
   }
 
 const MIN_FEE = 200000;
-	// 125
 const FEE_RATE_UNITS_PER_BYTE = 800;
 const OP_RETURN_OUTPUT_OVERHEAD_BYTES = 12;
+const P2PKH_OUTPUT_BYTES = 34;
 
 function getOpReturnByteLength(opReturnHex) {
   if (!opReturnHex) {
@@ -143,11 +143,28 @@ function getOpReturnFeeUnits(opReturnHex) {
   return (OP_RETURN_OUTPUT_OVERHEAD_BYTES + opReturnBytes) * FEE_RATE_UNITS_PER_BYTE;
 }
 
+function getRecipientOutputCount(values) {
+  if (!values) {
+    return 0;
+  }
+
+  if (Array.isArray(values.recipients)) {
+    return values.recipients.length;
+  }
+
+  return Math.max(0, Number(values.extraRecipientCount || 0));
+}
+
+function getRecipientOutputFeeUnits(values) {
+  return getRecipientOutputCount(values) * P2PKH_OUTPUT_BYTES * FEE_RATE_UNITS_PER_BYTE;
+}
+
 function getRequiredFeeUnits(feeUnits, values) {
   const baseFeeUnits = Math.max(Number(feeUnits), MIN_FEE);
   const opReturnFeeUnits = getOpReturnFeeUnits(values && values.opReturnHex);
+  const recipientOutputFeeUnits = getRecipientOutputFeeUnits(values);
 
-  return baseFeeUnits + opReturnFeeUnits;
+  return baseFeeUnits + opReturnFeeUnits + recipientOutputFeeUnits;
 }
 
 /*
