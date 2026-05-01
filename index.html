@@ -248,6 +248,30 @@
       display: none;
     }
 
+
+    .thunderwordBox {
+      display: grid;
+      gap: 12px;
+    }
+
+    .thunderwordControls {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+    }
+
+    .thunderwordLink {
+      color: #8bd3ff;
+      word-break: break-all;
+    }
+
+    @media (max-width: 760px) {
+      .thunderwordControls {
+        grid-template-columns: 1fr;
+      }
+    }
+
     details {
       border-top: 1px solid #202833;
       padding-top: 12px;
@@ -353,6 +377,25 @@
       </details>
     </section>
 
+
+
+    <section class="panel thunderwordBox">
+      <h2>Thunderword index</h2>
+      <p class="help">
+        Fetch txids attached to the universal Thunderword address and open one in the decoder.
+        Address: <a id="thunderwordAddressLink" class="thunderwordLink" href="#" target="_blank" rel="noopener">RRRRRRRRRRRRRRRRRRRRRRRRRRRRTvmrjL</a>
+      </p>
+      <div class="thunderwordControls">
+        <button id="loadThunderwordButton" class="secondaryButton" type="button">LOAD TABLE OF CONTENTS </button>
+        <select id="thunderwordTxidSelect">
+          <option value="">No txids loaded</option>
+        </select>
+        <a id="openThunderwordTxidLink" class="thunderwordLink" href="decode.html" target="_self">Open selected txid</a>
+      </div>
+      <pre id="thunderwordTxidJson" class="json"></pre>
+      <p id="thunderwordStatus" class="help"></p>
+    </section>
+
     <section class="steps">
       <section class="panel">
         <div class="stepTitle">1. Account</div>
@@ -412,7 +455,7 @@
   </main>
 
   <script src="chisel.js?2g40899xx999"></script>
-  <script src="chisel.unspendable.js?2.3.10b"></script>
+  <script src="chisel.unspendable.js"></script>
   <script src="chisel.sign.js?4599"></script>
   <script src="chisel.ravencoin.js?2.3.9-multi-recipient"></script>
   <script src="chisel.digibyte.js?2.3.9-multi-recipient"></script>
@@ -422,6 +465,122 @@
     CHISEL: window.CHISEL,
     COINS: window.CHISEL ? window.CHISEL.getCoins() : []
   };
+</script>
+
+
+
+<script>
+(function () {
+  "use strict";
+
+  var RPC_URL = "https://rigler.org:8769/";
+  var THUNDERWORD_ADDRESS = "RRRRRRRRRRRRRRRRRRRRRRRRRRRRTvmrjL";
+  var THUNDERWORD_EXPLORER_URL = "https://rvn.tokenview.io/en/address/" + THUNDERWORD_ADDRESS;
+
+  var elems = {
+    addressLink: document.getElementById("thunderwordAddressLink"),
+    loadButton: document.getElementById("loadThunderwordButton"),
+    txidSelect: document.getElementById("thunderwordTxidSelect"),
+    openLink: document.getElementById("openThunderwordTxidLink"),
+    txidJson: document.getElementById("thunderwordTxidJson"),
+    status: document.getElementById("thunderwordStatus")
+  };
+
+  function setStatus(text, isError) {
+    elems.status.textContent = text;
+    elems.status.className = isError ? "error" : "help";
+  }
+
+  function shortTxid(txid) {
+    return txid.slice(0, 12) + "..." + txid.slice(-12);
+  }
+
+  function setOpenLink(txid) {
+    if (!txid) {
+      elems.openLink.href = "decode.html";
+      elems.openLink.textContent = "Open selected txid";
+      return;
+    }
+
+    elems.openLink.href = "decode.html?txid=" + encodeURIComponent(txid) + "&mode=auto";
+    elems.openLink.textContent = "Open " + shortTxid(txid);
+  }
+
+  async function rpc(method, params) {
+    var response = await fetch(RPC_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        jsonrpc: "1.0",
+        id: "chisel-thunderword",
+        method: method,
+        params: params
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("RPC HTTP error: " + response.status);
+    }
+
+    var payload = await response.json();
+
+    if (payload.error) {
+      throw new Error(payload.error.message || JSON.stringify(payload.error));
+    }
+
+    return payload.result;
+  }
+
+  function renderTxidOptions(txids) {
+    elems.txidSelect.innerHTML = "";
+
+    if (!Array.isArray(txids) || txids.length === 0) {
+      var emptyOption = document.createElement("option");
+      emptyOption.value = "";
+      emptyOption.textContent = "No txids found";
+      elems.txidSelect.appendChild(emptyOption);
+      setOpenLink("");
+      return;
+    }
+
+    txids.forEach(function appendTxid(txid, index) {
+      var option = document.createElement("option");
+      option.value = txid;
+      option.textContent = String(index + 1).padStart(2, "0") + "  " + shortTxid(txid);
+      option.title = txid;
+      elems.txidSelect.appendChild(option);
+    });
+
+    elems.txidSelect.value = txids[0];
+    setOpenLink(txids[0]);
+  }
+
+  async function loadThunderwordTxids() {
+    elems.loadButton.disabled = true;
+    setStatus("Fetching Thunderword txids...", false);
+
+    try {
+      var txids = await rpc("getaddresstxids", [THUNDERWORD_ADDRESS]);
+      renderTxidOptions(txids);
+      elems.txidJson.textContent = JSON.stringify(txids, null, 2);
+      setStatus("Loaded " + txids.length + " txid(s).", false);
+    } catch (error) {
+      console.error(error);
+      setStatus(error.message || String(error), true);
+    } finally {
+      elems.loadButton.disabled = false;
+    }
+  }
+
+  elems.addressLink.href = THUNDERWORD_EXPLORER_URL;
+  elems.txidSelect.onchange = function onChangeThunderwordTxid() {
+    setOpenLink(elems.txidSelect.value);
+  };
+  elems.loadButton.onclick = loadThunderwordTxids;
+  setOpenLink("");
+})();
 </script>
 
   <script src="assets/app.js?2.3.9-multi-recipient"></script>

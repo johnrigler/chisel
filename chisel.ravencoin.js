@@ -8,7 +8,7 @@
   const ORDER = 10;
   const BASE_UNITS = 100000000;
   const DEFAULT_RPC_URL = "https://rigler.org:8769/";
-  const DEFAULT_EXPLORER_URL = "";
+  const DEFAULT_EXPLORER_URL = "https://explorer.rvn.zelcore.io/tx/";
   const DEFAULT_FEE = "0.002";
   // const FEE_RATE_UNITS_PER_BYTE = 125;
   // const OP_RETURN_OUTPUT_OVERHEAD_BYTES = 12;
