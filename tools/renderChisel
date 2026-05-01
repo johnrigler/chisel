@@ -1,0 +1,21 @@
+render_chisel() {
+  local s="1CzzzzzzFUCKxYoUxKEViNzzzzzzXaL9tT"
+
+  for ((i=0; i<${#s}; i++)); do
+    c="${s:$i:1}"
+
+    if [[ $i -lt 2 ]]; then
+      printf "\e[35m%s\e[0m" "$c"            # header
+    elif [[ $c == "z" ]]; then
+      printf "\e[2;33m%s\e[0m" "$c"          # padding
+    elif [[ $c == "x" ]]; then
+      printf "\e[90m%s\e[0m" "$c"            # space marker
+    elif [[ $i -ge $((${#s}-6)) ]]; then
+      printf "\e[31m%s\e[0m" "$c"            # checksum
+    else
+      printf "\e[32m%s\e[0m" "$c"            # readable text
+    fi
+  done
+
+  printf "\n"
+}
