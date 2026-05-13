@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>McDougal Base58/Base64 OP_RETURN Counter</title>
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 900px;
+      margin: 2rem auto;
+      background: #111;
+      color: #ddd;
+    }
+
+    textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      background: #222;
+      color: #eee;
+      border: 1px solid #555;
+      padding: 0.75rem;
+      font-family: monospace;
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-top: 1rem;
+      margin-bottom: 0.25rem;
+      color: #aaa;
+    }
+
+    .status {
+      padding: 0.75rem;
+      border: 1px solid #555;
+      background: #1b1b1b;
+      white-space: pre-wrap;
+    }
+
+    .bad {
+      color: #ff7777;
+    }
+
+    .ok {
+      color: #9be28f;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Base58 language → Base64 → OP_RETURN hex counter</h2>
+
+<label>OP_RETURN max bytes</label>
+<input id="maxBytes" value="80">
+
+<label>Input words</label>
+<textarea id="input" rows="4">domo arigato</textarea>
+
+<label>McDougal / Base58-safe text</label>
+<textarea id="mcdougal" rows="3" readonly></textarea>
+
+<label>Valid Base64 form</label>
+<textarea id="base64" rows="3" readonly></textarea>
+
+<label>Hex payload for OP_RETURN</label>
+<textarea id="hex" rows="5" readonly></textarea>
+
+<label>Status</label>
+<div id="status" class="status"></div>
+
+<script>
+(function () {
+  const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+  const inputEl = document.getElementById("input");
+  const maxBytesEl = document.getElementById("maxBytes");
+  const mcdougalEl = document.getElementById("mcdougal");
+  const base64El = document.getElementById("base64");
+  const hexEl = document.getElementById("hex");
+  const statusEl = document.getElementById("status");
+
+  function byteToHex(n) {
+    return n.toString(16).padStart(2, "0");
+  }
+
+  function bytesToHex(bytes) {
+    let out = "";
+
+    for (let i = 0; i < bytes.length; i++) {
+      out += byteToHex(bytes[i]);
+    }
+
+    return out;
+  }
+
+  function base64ToBytes(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+
+    return bytes;
+  }
+
+  function normalizeToMcDougal(str) {
+    let out = "";
+
+    for (let i = 0; i < str.length; i++) {
+      let ch = str[i];
+
+      if (ch === " " || ch === "\n" || ch === "\r" || ch === "\t") {
+        out += "x";
+        continue;
+      }
+
+      if (ch === "-") {
+        out += "y";
+        continue;
+      }
+
+      // Preserve readable o/i. Avoid Base58-forbidden O/I.
+      if (ch === "o" || ch === "O") {
+        out += "o";
+        continue;
+      }
+
+      if (ch === "i" || ch === "I") {
+        out += "i";
+        continue;
+      }
+
+      // Avoid Base58-forbidden zero.
+      if (ch === "0") {
+        out += "o";
+        continue;
+      }
+
+      // Avoid lowercase l ambiguity.
+      if (ch === "l") {
+        out += "L";
+        continue;
+      }
+
+      // Ordinary letters become uppercase.
+      if (/[a-zA-Z]/.test(ch)) {
+        ch = ch.toUpperCase();
+      }
+
+      // Keep only valid Base58 characters.
+      if (BASE58.indexOf(ch) !== -1) {
+        out += ch;
+      }
+    }
+
+    return out;
+  }
+
+  function makeValidBase64(str) {
+    while (str.length % 4 !== 0) {
+      str += "z";
+    }
+
+    return str;
+  }
+
+  function update() {
+    const maxBytes = parseInt(maxBytesEl.value, 10) || 80;
+
+    const mcdougal = normalizeToMcDougal(inputEl.value);
+    const b64 = makeValidBase64(mcdougal);
+    const bytes = base64ToBytes(b64);
+    const hex = bytesToHex(bytes);
+
+    const usedBytes = bytes.length;
+    const usedHexChars = hex.length;
+    const maxHexChars = maxBytes * 2;
+    const remainingBytes = maxBytes - usedBytes;
+    const remainingHexChars = maxHexChars - usedHexChars;
+
+    mcdougalEl.value = mcdougal;
+    base64El.value = b64;
+    hexEl.value = hex;
+
+    let status = "";
+    status += "Used bytes:        " + usedBytes + " / " + maxBytes + "\n";
+    status += "Remaining bytes:   " + remainingBytes + "\n";
+    status += "Used hex chars:    " + usedHexChars + " / " + maxHexChars + "\n";
+    status += "Remaining hex:     " + remainingHexChars + "\n";
+    status += "Base64 chars:      " + b64.length + "\n";
+    status += "McDougal chars:    " + mcdougal.length + "\n";
+
+    if (remainingBytes < 0) {
+      status += "\nOVER LIMIT by " + Math.abs(remainingBytes) + " byte(s).";
+      statusEl.className = "status bad";
+    } else {
+      status += "\nOK.";
+      statusEl.className = "status ok";
+    }
+
+    statusEl.textContent = status;
+  }
+
+  inputEl.addEventListener("input", update);
+  maxBytesEl.addEventListener("input", update);
+
+  update();
+})();
+</script>
+
+</body>
+</html>

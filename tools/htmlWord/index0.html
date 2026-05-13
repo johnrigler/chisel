@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <title>Decentralized HTML to Word Converter</title>
+
+    <style>
+      :root {
+        color-scheme: light dark;
+        --background: #f7f7f8;
+        --foreground: #171717;
+        --muted: #666;
+        --panel: #ffffff;
+        --border: #d8d8d8;
+        --accent: #2457ff;
+        --accent-dark: #183fc0;
+        --danger: #a40000;
+        --radius: 14px;
+        --shadow: 0 12px 34px rgba(0, 0, 0, 0.08);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: #101114;
+          --foreground: #f5f5f5;
+          --muted: #aaa;
+          --panel: #181a20;
+          --border: #333743;
+          --accent: #7d9aff;
+          --accent-dark: #9db2ff;
+          --danger: #ff8a8a;
+          --shadow: none;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.5;
+      }
+
+      main {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+
+      header {
+        margin-bottom: 24px;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+        line-height: 1.1;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 5vw, 4rem);
+        letter-spacing: -0.055em;
+      }
+
+      h2 {
+        font-size: 1rem;
+      }
+
+      p {
+        margin: 10px 0 0;
+        color: var(--muted);
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+      }
+
+      input,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--panel);
+        color: var(--foreground);
+      }
+
+      input {
+        min-height: 44px;
+        padding: 0 12px;
+      }
+
+      textarea {
+        min-height: 420px;
+        padding: 14px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.95rem;
+      }
+
+      button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 18px;
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      button:hover {
+        background: var(--accent-dark);
+      }
+
+      button.secondary {
+        background: transparent;
+        color: var(--foreground);
+        border: 1px solid var(--border);
+      }
+
+      button.secondary:hover {
+        background: color-mix(in srgb, var(--foreground) 8%, transparent);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 18px;
+      }
+
+      .fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .preview {
+        min-height: 420px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 18px;
+        overflow: auto;
+        background: white;
+        color: #171717;
+      }
+
+      .status {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .danger {
+        color: var(--danger);
+      }
+
+      @media (max-width: 860px) {
+        .grid,
+        .fields {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <header>
+        <h1>HTML to Word</h1>
+        <p>
+          A standalone, decentralized vanilla JavaScript tool. Nothing uploads.
+          The Word-compatible document is generated locally in your browser.
+        </p>
+      </header>
+
+      <section class="panel">
+        <div class="fields">
+          <div>
+            <label for="documentTitle">Document title</label>
+            <input id="documentTitle" value="Decentralized Document" />
+          </div>
+
+          <div>
+            <label for="fileName">File name</label>
+            <input id="fileName" value="decentralized-document" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <section>
+            <label for="htmlInput">HTML input</label>
+            <textarea id="htmlInput" spellcheck="false"><h1>Decentralized Document</h1>
+<p>This document was created locally in the browser using vanilla JavaScript.</p>
+
+<h2>Why this matters</h2>
+<ul>
+  <li>No server</li>
+  <li>No account</li>
+  <li>No tracking</li>
+  <li>No dependencies</li>
+</ul>
+
+<p><strong>Result:</strong> a Word-compatible document downloaded from your own device.</p></textarea>
+
+            <div class="toolbar">
+              <button id="downloadWord" type="button">Download Word Document</button>
+              <button class="secondary" id="loadExample" type="button">Load Example</button>
+              <button class="secondary" id="clearHtml" type="button">Clear</button>
+            </div>
+
+            <p class="status" id="status" role="status" aria-live="polite"></p>
+          </section>
+
+          <section>
+            <h2>Preview</h2>
+            <div class="preview" id="preview"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        //
+        // Constants
+        //
+        const DEFAULT_FILE_NAME = "decentralized-document";
+        const DEFAULT_TITLE = "Decentralized Document";
+        const WORD_MIME_TYPE = "application/msword";
+        const WORD_EXTENSION = ".doc";
+        const BYTE_ORDER_MARK = "\ufeff";
+
+        const EXAMPLE_HTML = `<h1>Decentralized Document</h1>
+<p>This document was created locally in the browser using vanilla JavaScript.</p>
+
+<h2>Core Benefits</h2>
+<ol>
+  <li>No server processing</li>
+  <li>No third-party library</li>
+  <li>No external API</li>
+  <li>No user data leaves the browser</li>
+</ol>
+
+<blockquote>
+  <p>Decentralized tools should keep user data close to the user.</p>
+</blockquote>
+
+<table border="1" cellpadding="8" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Offline capable after load</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Vanilla JavaScript</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Server upload</td>
+      <td>No</td>
+    </tr>
+  </tbody>
+</table>`;
+
+        //
+        // Elements
+        //
+        const elems = {
+          clearHtml: document.querySelector("button#clearHtml"),
+          documentTitle: document.querySelector("input#documentTitle"),
+          downloadWord: document.querySelector("button#downloadWord"),
+          fileName: document.querySelector("input#fileName"),
+          htmlInput: document.querySelector("textarea#htmlInput"),
+          loadExample: document.querySelector("button#loadExample"),
+          preview: document.querySelector("div#preview"),
+          status: document.querySelector("p#status"),
+        };
+
+        //
+        // Validators
+        //
+        function isValidText(value) {
+          return typeof value === "string" && value.trim().length > 0;
+        }
+
+        function isValidHtmlInputValue() {
+          return isValidText(elems.htmlInput.value);
+        }
+
+        //
+        // Formatters
+        //
+        function formatFileName(value) {
+          const formatted = value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-_ ]/g, "")
+            .replace(/\s+/g, "-")
+            .replace(/-+/g, "-");
+
+          if (formatted.length === 0) {
+            return DEFAULT_FILE_NAME;
+          }
+
+          return formatted;
+        }
+
+        function formatDocumentTitle(value) {
+          if (!isValidText(value)) {
+            return DEFAULT_TITLE;
+          }
+
+          return value.trim();
+        }
+
+        function formatWordDocumentHtml(title, bodyHtml) {
+          return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 12pt;
+        line-height: 1.45;
+      }
+
+      h1 {
+        font-size: 24pt;
+      }
+
+      h2 {
+        font-size: 18pt;
+      }
+
+      h3 {
+        font-size: 14pt;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+
+      th,
+      td {
+        border: 1px solid #333333;
+        padding: 6px;
+      }
+
+      blockquote {
+        border-left: 4px solid #999999;
+        margin-left: 0;
+        padding-left: 12px;
+        color: #444444;
+      }
+
+      img {
+        max-width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    ${bodyHtml}
+  </body>
+</html>`;
+        }
+
+        //
+        // Sanitizers
+        //
+        function sanitizeHtml(html) {
+          const template = document.createElement("template");
+
+          template.innerHTML = html;
+
+          template.content
+            .querySelectorAll("script, iframe, object, embed, link, meta")
+            .forEach(function (node) {
+              node.remove();
+            });
+
+          template.content.querySelectorAll("*").forEach(function (node) {
+            Array.from(node.attributes).forEach(function (attribute) {
+              const name = attribute.name.toLowerCase();
+              const value = attribute.value.trim().toLowerCase();
+
+              if (name.startsWith("on")) {
+                node.removeAttribute(attribute.name);
+              }
+
+              if ((name === "href" || name === "src") && value.startsWith("javascript:")) {
+                node.removeAttribute(attribute.name);
+              }
+            });
+          });
+
+          return template.innerHTML;
+        }
+
+        //
+        // Blob
+        //
+        function createWordBlob(html) {
+          return new Blob([BYTE_ORDER_MARK, html], {
+            type: WORD_MIME_TYPE,
+          });
+        }
+
+        function downloadBlob(blob, fileName) {
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+
+          anchor.href = url;
+          anchor.download = fileName;
+          document.body.append(anchor);
+          anchor.click();
+          anchor.remove();
+
+          URL.revokeObjectURL(url);
+        }
+
+        //
+        // DOM setters
+        //
+        function setHtmlInput(value) {
+          elems.htmlInput.value = value;
+          render();
+        }
+
+        function setStatus(message, isDanger) {
+          elems.status.textContent = message;
+          elems.status.classList.toggle("danger", isDanger);
+        }
+
+        function clearHtmlInput() {
+          elems.htmlInput.value = "";
+          render();
+        }
+
+        function loadExampleHtml() {
+          elems.documentTitle.value = DEFAULT_TITLE;
+          elems.fileName.value = DEFAULT_FILE_NAME;
+          setHtmlInput(EXAMPLE_HTML);
+        }
+
+        function downloadWordDocument() {
+          if (!isValidHtmlInputValue()) {
+            setStatus("Add HTML before downloading.", true);
+            render();
+
+            return;
+          }
+
+          const title = formatDocumentTitle(elems.documentTitle.value);
+          const fileName = `${formatFileName(elems.fileName.value)}${WORD_EXTENSION}`;
+          const sanitizedHtml = sanitizeHtml(elems.htmlInput.value);
+          const wordHtml = formatWordDocumentHtml(title, sanitizedHtml);
+          const blob = createWordBlob(wordHtml);
+
+          downloadBlob(blob, fileName);
+          setStatus(`Downloaded ${fileName}.`, false);
+          render();
+        }
+
+        function renderPreview() {
+          elems.preview.innerHTML = sanitizeHtml(elems.htmlInput.value);
+        }
+
+        function render() {
+          renderPreview();
+
+          if (isValidHtmlInputValue()) {
+            setStatus("Ready to download as a Word-compatible .doc file.", false);
+          } else {
+            setStatus("Paste or write HTML to begin.", false);
+          }
+        }
+
+        //
+        // DOM listeners
+        //
+        function onInputHtmlInput() {
+          render();
+        }
+
+        function onInputDocumentTitle() {
+          render();
+        }
+
+        function onInputFileName() {
+          render();
+        }
+
+        function onClickDownloadWord() {
+          downloadWordDocument();
+        }
+
+        function onClickLoadExample() {
+          loadExampleHtml();
+        }
+
+        function onClickClearHtml() {
+          clearHtmlInput();
+        }
+
+        function addEventListeners() {
+          elems.htmlInput.oninput = onInputHtmlInput;
+          elems.documentTitle.oninput = onInputDocumentTitle;
+          elems.fileName.oninput = onInputFileName;
+          elems.downloadWord.onclick = onClickDownloadWord;
+          elems.loadExample.onclick = onClickLoadExample;
+          elems.clearHtml.onclick = onClickClearHtml;
+        }
+
+        addEventListeners();
+        render();
+      })();
+    </script>
+  </body>
+</html>

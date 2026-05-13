@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <title>Decentralized HTML to Word/PDF Converter</title>
+
+    <style>
+      :root {
+        color-scheme: light dark;
+        --background: #f7f7f8;
+        --foreground: #171717;
+        --muted: #666666;
+        --panel: #ffffff;
+        --border: #d8d8d8;
+        --accent: #2457ff;
+        --accent-dark: #183fc0;
+        --danger: #a40000;
+        --radius: 14px;
+        --shadow: 0 12px 34px rgba(0, 0, 0, 0.08);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: #101114;
+          --foreground: #f5f5f5;
+          --muted: #aaaaaa;
+          --panel: #181a20;
+          --border: #333743;
+          --accent: #7d9aff;
+          --accent-dark: #9db2ff;
+          --danger: #ff8a8a;
+          --shadow: none;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.5;
+      }
+
+      main {
+        width: min(1200px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+
+      header {
+        margin-bottom: 24px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.1;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 5vw, 4rem);
+        letter-spacing: -0.055em;
+      }
+
+      h2 {
+        font-size: 1rem;
+      }
+
+      p {
+        margin: 10px 0 0;
+        color: var(--muted);
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+      }
+
+      input,
+      textarea,
+      button,
+      select {
+        font: inherit;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--panel);
+        color: var(--foreground);
+      }
+
+      input {
+        min-height: 44px;
+        padding: 0 12px;
+      }
+
+      input[type="file"] {
+        padding: 10px;
+      }
+
+      textarea {
+        min-height: 280px;
+        padding: 14px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.95rem;
+      }
+
+      button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 18px;
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      button:hover {
+        background: var(--accent-dark);
+      }
+
+      button.secondary {
+        background: transparent;
+        color: var(--foreground);
+        border: 1px solid var(--border);
+      }
+
+      button.secondary:hover {
+        background: color-mix(in srgb, var(--foreground) 8%, transparent);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 18px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      .fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .preview {
+        min-height: 600px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 18px;
+        overflow: auto;
+        background: white;
+        color: #171717;
+      }
+
+      .page {
+        min-height: 720px;
+        margin-bottom: 24px;
+        padding-bottom: 24px;
+        border-bottom: 2px dashed #cccccc;
+      }
+
+      .page:last-child {
+        margin-bottom: 0;
+        border-bottom: 0;
+      }
+
+      .page-title {
+        margin-bottom: 18px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #dddddd;
+        color: #555555;
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .file-list {
+        margin: 12px 0 0;
+        padding-left: 22px;
+        color: var(--muted);
+      }
+
+      .status {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .danger {
+        color: var(--danger);
+      }
+
+      @media print {
+        body {
+          background: white;
+        }
+
+        body > *:not(#printRoot) {
+          display: none !important;
+        }
+
+        #printRoot {
+          display: block !important;
+        }
+
+        .print-page {
+          page-break-after: always;
+          break-after: page;
+        }
+
+        .print-page:last-child {
+          page-break-after: auto;
+          break-after: auto;
+        }
+      }
+
+      #printRoot {
+        display: none;
+      }
+
+      @media (max-width: 900px) {
+        .grid,
+        .fields {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <header>
+        <h1>HTML to Word/PDF</h1>
+        <p>
+          Standalone decentralized converter. Upload multiple HTML files and create one document where each file becomes
+          a separate page.
+        </p>
+      </header>
+
+      <section class="panel">
+        <div class="fields">
+          <div>
+            <label for="documentTitle">Document title</label>
+            <input id="documentTitle" value="Decentralized Document" />
+          </div>
+
+          <div>
+            <label for="fileName">File name</label>
+            <input id="fileName" value="decentralized-document" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <section>
+            <label for="htmlFiles">Upload HTML files</label>
+            <input id="htmlFiles" type="file" accept=".html,.htm,text/html" multiple />
+
+            <ol class="file-list" id="fileList"></ol>
+
+            <label for="htmlInput" style="margin-top: 18px">Optional manual HTML page</label>
+            <textarea id="htmlInput" spellcheck="false"><h1>Manual Page</h1>
+<p>This optional HTML textarea becomes its own page in the exported document.</p></textarea>
+
+            <div class="toolbar">
+              <button id="downloadWord" type="button">Download Word</button>
+              <button id="downloadPdf" type="button">Save as PDF</button>
+              <button class="secondary" id="loadExample" type="button">Load Example</button>
+              <button class="secondary" id="clearAll" type="button">Clear All</button>
+            </div>
+
+            <p class="status" id="status" role="status" aria-live="polite"></p>
+          </section>
+
+          <section>
+            <h2>Combined Preview</h2>
+            <div class="preview" id="preview"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <section id="printRoot"></section>
+
+    <script>
+      (function () {
+        //
+        // Constants
+        //
+        const DEFAULT_FILE_NAME = "decentralized-document";
+        const DEFAULT_TITLE = "Decentralized Document";
+        const WORD_MIME_TYPE = "application/msword";
+        const WORD_EXTENSION = ".doc";
+        const BYTE_ORDER_MARK = "\ufeff";
+        const EMPTY_STATUS = "Upload HTML files or write manual HTML to begin.";
+
+        const EXAMPLE_HTML = `<h1>Example Uploaded Page</h1>
+<p>This simulates one uploaded HTML file.</p>
+
+<h2>Decentralized Export</h2>
+<ul>
+  <li>No server</li>
+  <li>No external dependency</li>
+  <li>No account</li>
+  <li>No tracking</li>
+</ul>
+
+<table border="1" cellpadding="8" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Format</th>
+      <th>Export Method</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Word</td>
+      <td>Local .doc Blob</td>
+    </tr>
+    <tr>
+      <td>PDF</td>
+      <td>Browser print dialog</td>
+    </tr>
+  </tbody>
+</table>`;
+
+        //
+        // Elements
+        //
+        const elems = {
+          clearAll: document.querySelector("button#clearAll"),
+          documentTitle: document.querySelector("input#documentTitle"),
+          downloadPdf: document.querySelector("button#downloadPdf"),
+          downloadWord: document.querySelector("button#downloadWord"),
+          fileList: document.querySelector("ol#fileList"),
+          fileName: document.querySelector("input#fileName"),
+          htmlFiles: document.querySelector("input#htmlFiles"),
+          htmlInput: document.querySelector("textarea#htmlInput"),
+          loadExample: document.querySelector("button#loadExample"),
+          preview: document.querySelector("div#preview"),
+          printRoot: document.querySelector("section#printRoot"),
+          status: document.querySelector("p#status"),
+        };
+
+        //
+        // State
+        //
+        const pages = [];
+
+        //
+        // Validators
+        //
+        function isValidText(value) {
+          return typeof value === "string" && value.trim().length > 0;
+        }
+
+        function isValidPageList() {
+          return getAllPages().length > 0;
+        }
+
+        //
+        // Formatters
+        //
+        function formatFileName(value) {
+          const formatted = value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-_ ]/g, "")
+            .replace(/\s+/g, "-")
+            .replace(/-+/g, "-");
+
+          if (formatted.length === 0) {
+            return DEFAULT_FILE_NAME;
+          }
+
+          return formatted;
+        }
+
+        function formatDocumentTitle(value) {
+          if (!isValidText(value)) {
+            return DEFAULT_TITLE;
+          }
+
+          return value.trim();
+        }
+
+        function formatPageTitle(value, index) {
+          if (isValidText(value)) {
+            return value.trim();
+          }
+
+          return `Page ${index + 1}`;
+        }
+
+        function formatWordDocumentHtml(title, pageHtml) {
+          return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      @page {
+        margin: 0.75in;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 12pt;
+        line-height: 1.45;
+      }
+
+      h1 {
+        font-size: 24pt;
+      }
+
+      h2 {
+        font-size: 18pt;
+      }
+
+      h3 {
+        font-size: 14pt;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+
+      th,
+      td {
+        border: 1px solid #333333;
+        padding: 6px;
+      }
+
+      blockquote {
+        border-left: 4px solid #999999;
+        margin-left: 0;
+        padding-left: 12px;
+        color: #444444;
+      }
+
+      img {
+        max-width: 100%;
+      }
+
+      .document-page {
+        page-break-after: always;
+        break-after: page;
+      }
+
+      .document-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+
+      .document-page-title {
+        margin-bottom: 18px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #dddddd;
+        color: #555555;
+        font-size: 9pt;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+    </style>
+  </head>
+  <body>
+    ${pageHtml}
+  </body>
+</html>`;
+        }
+
+        //
+        // Sanitizers
+        //
+        function sanitizeHtml(html) {
+          const template = document.createElement("template");
+
+          template.innerHTML = html;
+
+          template.content
+            .querySelectorAll("script, iframe, object, embed, link, meta")
+            .forEach(function (node) {
+              node.remove();
+            });
+
+          template.content.querySelectorAll("*").forEach(function (node) {
+            Array.from(node.attributes).forEach(function (attribute) {
+              const name = attribute.name.toLowerCase();
+              const value = attribute.value.trim().toLowerCase();
+
+              if (name.startsWith("on")) {
+                node.removeAttribute(attribute.name);
+              }
+
+              if ((name === "href" || name === "src") && value.startsWith("javascript:")) {
+                node.removeAttribute(attribute.name);
+              }
+            });
+          });
+
+          return template.innerHTML;
+        }
+
+        //
+        // Page builders
+        //
+        function getManualPage() {
+          if (!isValidText(elems.htmlInput.value)) {
+            return null;
+          }
+
+          return {
+            name: "Manual HTML",
+            html: elems.htmlInput.value,
+          };
+        }
+
+        function getAllPages() {
+          const manualPage = getManualPage();
+          const allPages = pages.slice();
+
+          if (manualPage) {
+            allPages.push(manualPage);
+          }
+
+          return allPages;
+        }
+
+        function createPageHtml(page, index, className) {
+          const title = formatPageTitle(page.name, index);
+          const sanitizedHtml = sanitizeHtml(page.html);
+
+          return `<article class="${className}">
+  <div class="document-page-title">${title}</div>
+  ${sanitizedHtml}
+</article>`;
+        }
+
+        function createCombinedPageHtml(className) {
+          return getAllPages()
+            .map(function (page, index) {
+              return createPageHtml(page, index, className);
+            })
+            .join("");
+        }
+
+        //
+        // Blob
+        //
+        function createWordBlob(html) {
+          return new Blob([BYTE_ORDER_MARK, html], {
+            type: WORD_MIME_TYPE,
+          });
+        }
+
+        function downloadBlob(blob, fileName) {
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+
+          anchor.href = url;
+          anchor.download = fileName;
+          document.body.append(anchor);
+          anchor.click();
+          anchor.remove();
+
+          URL.revokeObjectURL(url);
+        }
+
+        //
+        // File readers
+        //
+        function readFileAsText(file) {
+          return new Promise(function (resolve, reject) {
+            const reader = new FileReader();
+
+            reader.onload = function () {
+              resolve({
+                name: file.name,
+                html: String(reader.result),
+              });
+            };
+
+            reader.onerror = function () {
+              reject(new Error(`Could not read ${file.name}.`));
+            };
+
+            reader.readAsText(file);
+          });
+        }
+
+        function readFilesAsPages(files) {
+          return Promise.all(
+            Array.from(files).map(function (file) {
+              return readFileAsText(file);
+            })
+          );
+        }
+
+        //
+        // DOM setters
+        //
+        function setStatus(message, isDanger) {
+          elems.status.textContent = message;
+          elems.status.classList.toggle("danger", isDanger);
+        }
+
+        function setPages(nextPages) {
+          pages.length = 0;
+
+          nextPages.forEach(function (page) {
+            pages.push(page);
+          });
+
+          render();
+        }
+
+        function setExamplePages() {
+          pages.length = 0;
+
+          pages.push({
+            name: "example-uploaded-page.html",
+            html: EXAMPLE_HTML,
+          });
+
+          elems.htmlInput.value = `<h1>Second Page</h1>
+<p>This manual textarea is appended after uploaded files as another page.</p>`;
+
+          render();
+        }
+
+        function clearAllPages() {
+          pages.length = 0;
+          elems.htmlFiles.value = "";
+          elems.htmlInput.value = "";
+          render();
+        }
+
+        function downloadWordDocument() {
+          if (!isValidPageList()) {
+            setStatus(EMPTY_STATUS, true);
+            render();
+
+            return;
+          }
+
+          const title = formatDocumentTitle(elems.documentTitle.value);
+          const fileName = `${formatFileName(elems.fileName.value)}${WORD_EXTENSION}`;
+          const pageHtml = createCombinedPageHtml("document-page");
+          const wordHtml = formatWordDocumentHtml(title, pageHtml);
+          const blob = createWordBlob(wordHtml);
+
+          downloadBlob(blob, fileName);
+          setStatus(`Downloaded ${fileName}.`, false);
+          render();
+        }
+
+        function downloadPdfDocument() {
+          if (!isValidPageList()) {
+            setStatus(EMPTY_STATUS, true);
+            render();
+
+            return;
+          }
+
+          elems.printRoot.innerHTML = createCombinedPageHtml("print-page");
+          window.print();
+          setStatus("PDF export opened. Choose “Save as PDF” in the print dialog.", false);
+          render();
+        }
+
+        function renderFileList() {
+          elems.fileList.innerHTML = "";
+
+          pages.forEach(function (page, index) {
+            const item = document.createElement("li");
+
+            item.textContent = `${index + 1}. ${page.name}`;
+            elems.fileList.append(item);
+          });
+        }
+
+        function renderPreview() {
+          if (!isValidPageList()) {
+            elems.preview.innerHTML = "";
+            return;
+          }
+
+          elems.preview.innerHTML = createCombinedPageHtml("page");
+        }
+
+        function renderButtons() {
+          const hasPages = isValidPageList();
+
+          elems.downloadWord.disabled = !hasPages;
+          elems.downloadPdf.disabled = !hasPages;
+        }
+
+        function renderStatus() {
+          const count = getAllPages().length;
+
+          if (count === 0) {
+            setStatus(EMPTY_STATUS, false);
+            return;
+          }
+
+          setStatus(`${count} page${count === 1 ? "" : "s"} ready for Word or PDF export.`, false);
+        }
+
+        function render() {
+          renderFileList();
+          renderPreview();
+          renderButtons();
+          renderStatus();
+        }
+
+        //
+        // DOM listeners
+        //
+        function onInputDocumentTitle() {
+          render();
+        }
+
+        function onInputFileName() {
+          render();
+        }
+
+        function onInputHtmlInput() {
+          render();
+        }
+
+        function onChangeHtmlFiles(event) {
+          readFilesAsPages(event.target.files)
+            .then(function (nextPages) {
+              setPages(nextPages);
+            })
+            .catch(function (error) {
+              setStatus(error.message, true);
+            });
+        }
+
+        function onClickDownloadWord() {
+          downloadWordDocument();
+        }
+
+        function onClickDownloadPdf() {
+          downloadPdfDocument();
+        }
+
+        function onClickLoadExample() {
+          setExamplePages();
+        }
+
+        function onClickClearAll() {
+          clearAllPages();
+        }
+
+        function addEventListeners() {
+          elems.documentTitle.oninput = onInputDocumentTitle;
+          elems.fileName.oninput = onInputFileName;
+          elems.htmlInput.oninput = onInputHtmlInput;
+          elems.htmlFiles.onchange = onChangeHtmlFiles;
+          elems.downloadWord.onclick = onClickDownloadWord;
+          elems.downloadPdf.onclick = onClickDownloadPdf;
+          elems.loadExample.onclick = onClickLoadExample;
+          elems.clearAll.onclick = onClickClearAll;
+        }
+
+        addEventListeners();
+        render();
+      })();
+    </script>
+  </body>
+</html>

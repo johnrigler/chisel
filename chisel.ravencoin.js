@@ -121,7 +121,7 @@ function getRequiredFeeUnits(feeUnits) {
   }
 
 const MIN_FEE = 200000;
-const FEE_RATE_UNITS_PER_BYTE = 800;
+const FEE_RATE_UNITS_PER_BYTE = 900;
 const OP_RETURN_OUTPUT_OVERHEAD_BYTES = 12;
 const P2PKH_OUTPUT_BYTES = 34;
 

@@ -54,6 +54,9 @@ Originally tested with:
 Primarily designed for:
 - Ravencoin (native address indexing + asset support)
 
+Able to support:
+- Any UTXO-based currency/blockchain
+
 ---
 
 ## Data Encoding
@@ -117,6 +120,17 @@ Chisel assumes:
 - familiarity with UTXO models
 - understanding of raw transaction construction
 - comfort with client-side cryptography
+
+Chisel aspires to provide:
+- generic support of data-rich transaction creation for all UTXO currencies
+- specific extended support to best utilize the entire toolkit of each currency
+- deep integration with many blockchain community efforts
+
+Why Ravencoin is special:
+- easy to maintain a core node
+- special asset features
+- core node address and asset indexing
+- second arbitrary "IPFS" field
 
 It is not a beginner abstraction layer.
 

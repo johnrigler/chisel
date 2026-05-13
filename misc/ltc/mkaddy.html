@@ -1,0 +1,209 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>LTC WIF to Address</title>
+
+  <script src="../../assets/vendor/elliptic-6-6-1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+</head>
+<body>
+  <h3>Litecoin WIF → Address</h3>
+
+  <textarea id="wif" rows="3" cols="80" placeholder="Paste Litecoin WIF here"></textarea>
+  <br>
+  <button onclick="run()">Convert</button>
+
+  <pre id="out"></pre>
+
+<script>
+const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+const LTC = {
+  p2pkhPrefix: 0x30,
+  wifPrefix: 0xb0
+};
+
+function hexToBytes(hex) {
+  if (hex.length % 2 !== 0) throw new Error("Invalid hex length");
+  const out = [];
+  for (let i = 0; i < hex.length; i += 2) {
+    out.push(parseInt(hex.slice(i, i + 2), 16));
+  }
+  return out;
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function bytesToWordArray(bytes) {
+  const words = [];
+  for (let i = 0; i < bytes.length; i++) {
+    words[i >>> 2] |= bytes[i] << (24 - (i % 4) * 8);
+  }
+  return CryptoJS.lib.WordArray.create(words, bytes.length);
+}
+
+function wordArrayToBytes(wordArray) {
+  const bytes = [];
+  const words = wordArray.words;
+  const sigBytes = wordArray.sigBytes;
+
+  for (let i = 0; i < sigBytes; i++) {
+    bytes.push((words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff);
+  }
+
+  return bytes;
+}
+
+function sha256Bytes(bytes) {
+  return wordArrayToBytes(CryptoJS.SHA256(bytesToWordArray(bytes)));
+}
+
+function hash160Bytes(bytes) {
+  const sha = CryptoJS.SHA256(bytesToWordArray(bytes));
+  const ripe = CryptoJS.RIPEMD160(sha);
+  return wordArrayToBytes(ripe);
+}
+
+function base58Decode(str) {
+  let num = 0n;
+
+  for (const ch of str) {
+    const val = BASE58.indexOf(ch);
+    if (val < 0) throw new Error("Invalid Base58 character: " + ch);
+    num = num * 58n + BigInt(val);
+  }
+
+  let hex = num.toString(16);
+  if (hex.length % 2) hex = "0" + hex;
+
+  let bytes = hex === "00" ? [] : hexToBytes(hex);
+
+  for (let i = 0; i < str.length && str[i] === "1"; i++) {
+    bytes.unshift(0);
+  }
+
+  return bytes;
+}
+
+function base58Encode(bytes) {
+  let num = BigInt("0x" + bytesToHex(bytes));
+
+  let out = "";
+  while (num > 0n) {
+    const mod = Number(num % 58n);
+    out = BASE58[mod] + out;
+    num = num / 58n;
+  }
+
+  for (const b of bytes) {
+    if (b === 0) out = "1" + out;
+    else break;
+  }
+
+  return out || "1";
+}
+
+function base58CheckDecode(str) {
+  const bytes = base58Decode(str);
+  if (bytes.length < 5) throw new Error("Base58Check payload too short");
+
+  const payload = bytes.slice(0, -4);
+  const checksum = bytes.slice(-4);
+  const check = sha256Bytes(sha256Bytes(payload)).slice(0, 4);
+
+  if (bytesToHex(checksum) !== bytesToHex(check)) {
+    throw new Error("Bad Base58Check checksum");
+  }
+
+  return payload;
+}
+
+function base58CheckEncode(payload) {
+  const checksum = sha256Bytes(sha256Bytes(payload)).slice(0, 4);
+  return base58Encode(payload.concat(checksum));
+}
+
+function parseLitecoinWIF(wif) {
+  const payload = base58CheckDecode(wif.trim());
+
+  if (payload[0] !== LTC.wifPrefix) {
+    throw new Error(
+      "Wrong WIF prefix. Expected Litecoin mainnet 0xb0, got 0x" +
+      payload[0].toString(16)
+    );
+  }
+
+  let compressed = false;
+  let privBytes;
+
+  if (payload.length === 34 && payload[33] === 0x01) {
+    compressed = true;
+    privBytes = payload.slice(1, 33);
+  } else if (payload.length === 33) {
+    compressed = false;
+    privBytes = payload.slice(1, 33);
+  } else {
+    throw new Error("Invalid WIF payload length");
+  }
+
+  return {
+    privateKeyHex: bytesToHex(privBytes),
+    compressed
+  };
+}
+
+function privateKeyToPublicKeyHex(privateKeyHex, compressed) {
+  const ec = new elliptic.ec("secp256k1");
+  const key = ec.keyFromPrivate(privateKeyHex, "hex");
+  return key.getPublic(compressed, "hex");
+}
+
+function publicKeyToLitecoinAddress(publicKeyHex) {
+  const pubBytes = hexToBytes(publicKeyHex);
+  const h160 = hash160Bytes(pubBytes);
+
+  const payload = [LTC.p2pkhPrefix].concat(h160);
+  return base58CheckEncode(payload);
+}
+
+function wifToLitecoinAddress(wif) {
+  const parsed = parseLitecoinWIF(wif);
+  const publicKeyHex = privateKeyToPublicKeyHex(
+    parsed.privateKeyHex,
+    parsed.compressed
+  );
+
+  const address = publicKeyToLitecoinAddress(publicKeyHex);
+
+  return {
+    address,
+    compressed: parsed.compressed,
+    privateKeyHex: parsed.privateKeyHex,
+    publicKeyHex
+  };
+}
+
+function run() {
+  const out = document.getElementById("out");
+
+  try {
+    const wif = document.getElementById("wif").value.trim();
+    const result = wifToLitecoinAddress(wif);
+
+    out.textContent =
+      "address:      " + result.address + "\n" +
+      "compressed:   " + result.compressed + "\n" +
+      "public key:   " + result.publicKeyHex + "\n" +
+      "private key:  " + result.privateKeyHex + "\n\n" +
+      "expected?:    LcudkPQzLuuqsnzHSmJ7iLREaHStvPKRVb\n" +
+      "match?:       " + (result.address === "LcudkPQzLuuqsnzHSmJ7iLREaHStvPKRVb");
+  } catch (err) {
+    out.textContent = "ERROR: " + err.message;
+  }
+}
+</script>
+</body>
+</html>

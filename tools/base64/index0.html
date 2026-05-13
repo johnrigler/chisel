@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>McDougal Base58 → Base64 → Hex</title>
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 900px;
+      margin: 2rem auto;
+      background: #111;
+      color: #ddd;
+    }
+
+    textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      background: #222;
+      color: #eee;
+      border: 1px solid #555;
+      padding: 0.75rem;
+      font-family: monospace;
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-top: 1rem;
+      margin-bottom: 0.25rem;
+      color: #aaa;
+    }
+
+    .warn {
+      color: #ffb86c;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+<h2>McDougal/Base58 → Base64 → Hex</h2>
+
+<label>Input words</label>
+<textarea id="input" rows="4">domo arigato</textarea>
+
+<label>McDougal / Base58-safe text</label>
+<textarea id="mcdougal" rows="3" readonly></textarea>
+
+<label>Valid Base64 form</label>
+<textarea id="base64" rows="3" readonly></textarea>
+
+<label>Hex of decoded Base64 bytes</label>
+<textarea id="hex" rows="4" readonly></textarea>
+
+<label>ASCII hex of the Base64 glyphs themselves</label>
+<textarea id="asciihex" rows="4" readonly></textarea>
+
+<div id="warn" class="warn"></div>
+
+<script>
+(function () {
+  const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  const inputEl = document.getElementById("input");
+  const mcdougalEl = document.getElementById("mcdougal");
+  const base64El = document.getElementById("base64");
+  const hexEl = document.getElementById("hex");
+  const asciiHexEl = document.getElementById("asciihex");
+  const warnEl = document.getElementById("warn");
+
+  function byteToHex(n) {
+    return n.toString(16).padStart(2, "0");
+  }
+
+  function bytesToHex(bytes) {
+    let out = "";
+    for (let i = 0; i < bytes.length; i++) {
+      out += byteToHex(bytes[i]);
+    }
+    return out;
+  }
+
+  function asciiToHex(str) {
+    let out = "";
+    for (let i = 0; i < str.length; i++) {
+      out += byteToHex(str.charCodeAt(i));
+    }
+    return out;
+  }
+
+  function base64ToBytes(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+
+    return bytes;
+  }
+
+  function normalizeToMcDougal(str) {
+    let out = "";
+
+    for (let i = 0; i < str.length; i++) {
+      let ch = str[i];
+
+      if (ch === " ") {
+        out += "x";
+        continue;
+      }
+
+      if (ch === "-") {
+        out += "y";
+        continue;
+      }
+
+      if (ch === "\n" || ch === "\r" || ch === "\t") {
+        out += "x";
+        continue;
+      }
+
+      // Preserve readable small o/i because uppercase O/I are not Base58.
+      if (ch === "o" || ch === "O") {
+        out += "o";
+        continue;
+      }
+
+      if (ch === "i" || ch === "I") {
+        out += "i";
+        continue;
+      }
+
+      // Avoid zero. Treat it as readable o.
+      if (ch === "0") {
+        out += "o";
+        continue;
+      }
+
+      // Avoid lowercase L ambiguity.
+      if (ch === "l") {
+        out += "L";
+        continue;
+      }
+
+      // Ordinary letters become uppercase.
+      if (/[a-zA-Z]/.test(ch)) {
+        ch = ch.toUpperCase();
+      }
+
+      // Keep only characters that are valid Bitcoin Base58.
+      if (BASE58.indexOf(ch) !== -1) {
+        out += ch;
+      }
+    }
+
+    return out;
+  }
+
+  function makeValidBase64FromBase58(str) {
+    // Since Bitcoin Base58 is a subset of Base64 chars,
+    // the only remaining issue is length.
+    //
+    // Standard Base64 wants length % 4 === 0.
+    // Instead of "=" padding, this uses McDougal-style z padding.
+    while (str.length % 4 !== 0) {
+      str += "z";
+    }
+
+    return str;
+  }
+
+  function validateSubset(str) {
+    const bad = [];
+
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+
+      if (BASE58.indexOf(ch) === -1) {
+        bad.push(ch);
+      }
+
+      if (BASE64.indexOf(ch) === -1) {
+        bad.push(ch);
+      }
+    }
+
+    return bad;
+  }
+
+  function update() {
+    warnEl.textContent = "";
+
+    const raw = inputEl.value;
+
+    // Prefix example:
+    // D = fixed first letter
+    // C = subject modifier
+    // x = separator / space
+    let mcdougal = normalizeToMcDougal(raw);
+
+    const bad = validateSubset(mcdougal);
+
+    if (bad.length > 0) {
+      warnEl.textContent = "Invalid chars found: " + bad.join(" ");
+    }
+
+    const b64 = makeValidBase64FromBase58(mcdougal);
+    const bytes = base64ToBytes(b64);
+
+    mcdougalEl.value = mcdougal;
+    base64El.value = b64;
+    hexEl.value = bytesToHex(bytes);
+    asciiHexEl.value = asciiToHex(b64);
+  }
+
+  inputEl.addEventListener("input", update);
+  update();
+})();
+</script>
+
+</body>
+</html>

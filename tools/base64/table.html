@@ -1,0 +1,269 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MacDougall Mapping Review</title>
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 1100px;
+      margin: 2rem auto;
+      background: #111;
+      color: #ddd;
+      line-height: 1.45;
+    }
+
+    h1, h2 {
+      color: #f0f0f0;
+      font-weight: normal;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1rem 0 2rem 0;
+      background: #181818;
+    }
+
+    th, td {
+      border: 1px solid #444;
+      padding: 0.45rem 0.6rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #252525;
+      color: #eee;
+      position: sticky;
+      top: 0;
+    }
+
+    code, .glyph {
+      background: #222;
+      padding: 0.1rem 0.25rem;
+      border-radius: 3px;
+      color: #fff;
+    }
+
+    .note {
+      color: #bbb;
+      margin-bottom: 1rem;
+    }
+
+    .conflict {
+      color: #ffb86c;
+    }
+
+    .ok {
+      color: #9be28f;
+    }
+
+    .small {
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+
+<h1>MacDougall Mapping Review</h1>
+
+<p class="note">
+  This page separates three things that seem to be overlapping: the exact Base58-to-display substitution table, the older readable shorthand rules, and the newer Base64 OP_RETURN grammar. Correct the rows that are wrong and delete whatever is dead wood.
+</p>
+
+<h2>1. Exact Base58 → Display Table</h2>
+
+<p class="small">
+  Source strings:
+</p>
+
+<pre>b58_digits = 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
+b58_dcmap  = 123456789abcdefghjklmnpqrstuvwxyz!)0(=/\,i;?&quot;_o}{@+|*.: -~</pre>
+
+<table>
+  <thead>
+    <tr>
+      <th>Index</th>
+      <th>Base58 glyph</th>
+      <th>Display glyph</th>
+      <th>Meaning / tentative reading</th>
+      <th>Status / question</th>
+    </tr>
+  </thead>
+  <tbody id="exactTable"></tbody>
+</table>
+
+<h2>2. Punctuation / Structural Glyphs From Exact Table</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Display glyph</th>
+      <th>Encoded by Base58 glyph</th>
+      <th>Tentative meaning</th>
+      <th>Comment</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><span class="glyph">space</span></td><td><code>y</code></td><td>space</td><td class="conflict">Conflicts with older shorthand where <code>x</code> meant space.</td></tr>
+    <tr><td><code>-</code></td><td><code>z</code></td><td>hyphen / dash</td><td class="conflict">Conflicts with older shorthand where <code>y</code> meant hyphen.</td></tr>
+    <tr><td><code>.</code></td><td><code>w</code></td><td>period</td><td class="ok">Matches your newer note: <code>v</code> has sometimes represented period in shorthand, but exact table says Base58 <code>w</code> displays as period.</td></tr>
+    <tr><td><code>:</code></td><td><code>x</code></td><td>colon / double period</td><td class="ok">Exact table says Base58 <code>x</code> displays as colon.</td></tr>
+    <tr><td><code>'</code></td><td><code>W</code></td><td>apostrophe / single tick</td><td class="conflict">You noted apostrophe was sometimes cast as <code>g</code>. Exact table points to <code>W</code>.</td></tr>
+    <tr><td><code>)</code></td><td><code>b</code></td><td>close parenthesis</td><td class="ok">You explicitly noted this.</td></tr>
+    <tr><td><code>(</code></td><td><code>d</code></td><td>open parenthesis</td><td class="ok">You explicitly noted this.</td></tr>
+    <tr><td><code>+</code></td><td><code>t</code></td><td>plus / possible newline in Base64 grammar</td><td>Exact table has plus, but Base64 grammar may use literal <code>+</code> as newline.</td></tr>
+    <tr><td><code>/</code></td><td><code>f</code></td><td>slash / possible reference operator</td><td>Exact table has slash, but Base64 grammar may use literal <code>/.../</code> as transaction reference syntax.</td></tr>
+  </tbody>
+</table>
+
+<h2>3. Older Readable Shorthand Rules</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Readable shorthand glyph</th>
+      <th>Meaning</th>
+      <th>Conflict with exact table?</th>
+      <th>Suggested handling</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><code>x</code></td><td>space</td><td class="conflict">Yes. Exact table maps Base58 <code>x</code> to display <code>:</code>.</td><td>Keep only as OP_RETURN/Base64 shorthand, not exact b58_dcmap.</td></tr>
+    <tr><td><code>y</code></td><td>hyphen</td><td class="conflict">Yes. Exact table maps Base58 <code>y</code> to display space.</td><td>Possible legacy alias. Dangerous if exact reversal matters.</td></tr>
+    <tr><td><code>z</code></td><td>padding</td><td class="conflict">Yes. Exact table maps Base58 <code>z</code> to display hyphen.</td><td>Use as Base64 padding convention only, not exact table display.</td></tr>
+    <tr><td><code>v</code></td><td>period</td><td class="conflict">Exact table maps Base58 <code>v</code> to display <code>*</code>.</td><td>Needs correction: is <code>v</code> period only in OP_RETURN grammar?</td></tr>
+    <tr><td><code>w</code></td><td>colon / double period</td><td class="conflict">Exact table maps Base58 <code>w</code> to display period.</td><td>Needs correction: is <code>w</code> colon only in OP_RETURN grammar?</td></tr>
+  </tbody>
+</table>
+
+<h2>4. Newer Base64 OP_RETURN Grammar Proposal</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Glyph / pattern</th>
+      <th>Meaning</th>
+      <th>Reason</th>
+      <th>Open question</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><code>+</code></td><td>newline</td><td>Valid Base64, unavailable in Base58, visually structural.</td><td>Keep?</td></tr>
+    <tr><td><code>/N/</code></td><td>insert local vout <code>N</code></td><td>Transaction-local interpolation.</td><td>Example: <code>/5/</code> means current tx vout 5.</td></tr>
+    <tr><td><code>/+ ... +/</code></td><td>group / parenthetical phrase</td><td>Allows nested or marked phrase structure.</td><td>Should this render as parentheses?</td></tr>
+    <tr><td><code>//</code></td><td>unassigned or literal slash</td><td>May not be needed yet.</td><td>Leave reserved?</td></tr>
+    <tr><td><code>/CHAINwHEIGHTvTXvVOUT/</code></td><td>cross-chain or historical locality reference</td><td>Uses MacDougall punctuation idea: <code>w</code> for colon, <code>v</code> for period.</td><td>Conflicts with exact b58_dcmap if mixed.</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Tentative Conclusion</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Mode</th>
+      <th>Purpose</th>
+      <th>Canonical rules</th>
+      <th>Do not mix with</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Exact MacDougall table mode</td>
+      <td>Reversible Base58 display conversion</td>
+      <td>Use <code>b58_digits</code> and <code>b58_dcmap</code> by index.</td>
+      <td>Do not assume <code>x = space</code>, <code>y = hyphen</code>, <code>z = padding</code>.</td>
+    </tr>
+    <tr>
+      <td>Readable shorthand mode</td>
+      <td>Human-friendly inscriptions and older conventions</td>
+      <td><code>x</code> space, <code>y</code> hyphen, <code>z</code> padding, possibly <code>v</code> period and <code>w</code> colon.</td>
+      <td>Do not claim exact reversibility against <code>b58_dcmap</code>.</td>
+    </tr>
+    <tr>
+      <td>Base64 OP_RETURN grammar</td>
+      <td>Readable byte stream for OP_RETURN</td>
+      <td>Use standard Base64 alphabet with structural <code>+</code> and <code>/.../</code> operators.</td>
+      <td>Do not treat as valid address-shaped Base58.</td>
+    </tr>
+  </tbody>
+</table>
+
+<script>
+(function () {
+  const b58_digits = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  const b58_dcmap  = '123456789abcdefghjklmnpqrstuvwxyz!)0(=/\\,i;?"_o}{@+|*.: -~';
+
+  const meanings = {
+    ' ': 'space',
+    '-': 'hyphen / dash',
+    '.': 'period',
+    ':': 'colon / double period',
+    "'": 'apostrophe / single tick',
+    ')': 'close parenthesis',
+    '(': 'open parenthesis',
+    '+': 'plus',
+    '/': 'slash',
+    '~': 'tilde / possible padding or terminator?',
+    '!': 'exclamation',
+    '0': 'zero glyph',
+    '=': 'equals',
+    '\\': 'backslash',
+    ',': 'comma',
+    ';': 'semicolon',
+    '?': 'question mark',
+    '"': 'double quote',
+    '_': 'underscore',
+    '}': 'close brace',
+    '{': 'open brace',
+    '@': 'at sign',
+    '|': 'pipe',
+    '*': 'asterisk'
+  };
+
+  function displayGlyph(ch) {
+    if (ch === ' ') return '<span class="glyph">space</span>';
+    if (ch === '\\') return '<code>\\\\</code>';
+    if (ch === '"') return '<code>&amp;quot;</code>';
+    return '<code>' + escapeHtml(ch) + '</code>';
+  }
+
+  function escapeHtml(s) {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  const tbody = document.getElementById('exactTable');
+
+  for (let i = 0; i < b58_digits.length; i++) {
+    const b58 = b58_digits[i];
+    const dc = b58_dcmap[i];
+    const tr = document.createElement('tr');
+
+    const meaning = meanings[dc] || (/[a-zA-Z0-9]/.test(dc) ? 'literal glyph' : 'needs review');
+    let status = '';
+
+    if (b58 === 'b' && dc === ')') status = 'noted by John';
+    if (b58 === 'd' && dc === '(') status = 'noted by John';
+    if (dc === ' ' || dc === '-' || dc === '.' || dc === ':' || dc === "'") status += (status ? '; ' : '') + 'structural punctuation';
+
+    tr.innerHTML =
+      '<td>' + i + '</td>' +
+      '<td><code>' + escapeHtml(b58) + '</code></td>' +
+      '<td>' + displayGlyph(dc) + '</td>' +
+      '<td>' + escapeHtml(meaning) + '</td>' +
+      '<td>' + escapeHtml(status || '') + '</td>';
+
+    tbody.appendChild(tr);
+  }
+})();
+</script>
+
+</body>
+</html>

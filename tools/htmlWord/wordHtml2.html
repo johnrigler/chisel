@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <title>Decentralized Word to HTML Converter</title>
+
+    <style>
+      :root {
+        color-scheme: light dark;
+        --background: #f7f7f8;
+        --foreground: #171717;
+        --muted: #666666;
+        --panel: #ffffff;
+        --border: #d8d8d8;
+        --accent: #2457ff;
+        --accent-dark: #183fc0;
+        --danger: #b00020;
+        --radius: 14px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: #101114;
+          --foreground: #f5f5f5;
+          --muted: #aaaaaa;
+          --panel: #181a20;
+          --border: #333743;
+          --accent: #7d9aff;
+          --accent-dark: #9db2ff;
+          --danger: #ff8a8a;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.5;
+      }
+
+      main {
+        width: min(1200px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+        line-height: 1.1;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 5vw, 4rem);
+        letter-spacing: -0.055em;
+      }
+
+      h2 {
+        margin-bottom: 10px;
+        font-size: 1rem;
+      }
+
+      p {
+        color: var(--muted);
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 800;
+      }
+
+      input,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--panel);
+        color: var(--foreground);
+      }
+
+      input {
+        min-height: 44px;
+        padding: 10px;
+      }
+
+      textarea {
+        min-height: 560px;
+        padding: 14px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.92rem;
+      }
+
+      button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 18px;
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      button:hover {
+        background: var(--accent-dark);
+      }
+
+      button.secondary {
+        background: transparent;
+        color: var(--foreground);
+        border: 1px solid var(--border);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .panel {
+        margin-top: 24px;
+        padding: 18px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 14px 0;
+      }
+
+      .preview {
+        min-height: 560px;
+        padding: 24px;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: white;
+        color: #171717;
+      }
+
+      .preview table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .preview th,
+      .preview td {
+        border: 1px solid #333333;
+        padding: 6px;
+        vertical-align: top;
+      }
+
+      .preview img {
+        max-width: 100%;
+        height: auto;
+      }
+
+      .status {
+        min-height: 24px;
+        margin-top: 12px;
+        color: var(--muted);
+      }
+
+      .danger {
+        color: var(--danger);
+      }
+
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  </head>
+
+  <body>
+    <main>
+      <header>
+        <h1>Word to HTML</h1>
+        <p>Reads a .docx document locally and generates editable HTML.</p>
+      </header>
+
+      <section class="panel">
+        <label for="wordFile">Upload .docx document</label>
+        <input
+          id="wordFile"
+          type="file"
+          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        />
+
+        <div class="toolbar">
+          <button id="downloadHtml" type="button" disabled>Download HTML</button>
+          <button class="secondary" id="copyHtml" type="button" disabled>Copy HTML</button>
+          <button class="secondary" id="clearAll" type="button">Clear</button>
+        </div>
+
+        <p class="status" id="status" role="status" aria-live="polite">Upload a .docx file to begin.</p>
+
+        <div class="grid">
+          <section>
+            <h2>Generated HTML</h2>
+            <textarea id="htmlOutput" spellcheck="false"></textarea>
+          </section>
+
+          <section>
+            <h2>Preview</h2>
+            <div class="preview" id="preview"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        //
+        // Constants
+        //
+        const DEFAULT_FILE_NAME = "converted-document.html";
+        const HTML_MIME_TYPE = "text/html;charset=utf-8";
+        const DOCX_DOCUMENT_PATH = "word/document.xml";
+        const DOCX_RELS_PATH = "word/_rels/document.xml.rels";
+
+        //
+        // Elements
+        //
+        const elems = {
+          clearAll: document.querySelector("button#clearAll"),
+          copyHtml: document.querySelector("button#copyHtml"),
+          downloadHtml: document.querySelector("button#downloadHtml"),
+          htmlOutput: document.querySelector("textarea#htmlOutput"),
+          preview: document.querySelector("div#preview"),
+          status: document.querySelector("p#status"),
+          wordFile: document.querySelector("input#wordFile"),
+        };
+
+        //
+        // State
+        //
+        const state = {
+          fileName: DEFAULT_FILE_NAME,
+          html: "",
+        };
+
+        //
+        // Validators
+        //
+        function isValidText(value) {
+          return typeof value === "string" && value.trim().length > 0;
+        }
+
+        function isValidHtml() {
+          return isValidText(state.html);
+        }
+
+        function isValidDocxFile(file) {
+          return Boolean(file) && file.name.toLowerCase().endsWith(".docx");
+        }
+
+        function isValidJsZip() {
+          return typeof JSZip !== "undefined";
+        }
+
+        //
+        // Formatters
+        //
+        function formatFileName(value) {
+          const base = value
+            .replace(/\.[^.]+$/, "")
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-_ ]/g, "")
+            .replace(/\s+/g, "-")
+            .replace(/-+/g, "-");
+
+          if (!isValidText(base)) {
+            return DEFAULT_FILE_NAME;
+          }
+
+          return `${base}.html`;
+        }
+
+        function formatFullHtml(bodyHtml) {
+          return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>Converted Word Document</title>
+    <style>
+      body {
+        max-width: 760px;
+        margin: 40px auto;
+        padding: 0 20px;
+        font-family: Arial, sans-serif;
+        line-height: 1.5;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border: 1px solid #333333;
+        padding: 6px;
+        vertical-align: top;
+      }
+
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+${bodyHtml}
+  </body>
+</html>`;
+        }
+
+        function escapeHtml(value) {
+          return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+        }
+
+        //
+        // XML helpers
+        //
+        function parseXml(value) {
+          return new DOMParser().parseFromString(value, "application/xml");
+        }
+
+        function getLocalName(node) {
+          return node.localName || node.nodeName.split(":").pop();
+        }
+
+        function getAttr(node, localName) {
+          for (let index = 0; index < node.attributes.length; index++) {
+            const attribute = node.attributes[index];
+
+            if (getLocalName(attribute) === localName) {
+              return attribute.value;
+            }
+          }
+
+          return "";
+        }
+
+        function getFirstChild(node, localName) {
+          return Array.from(node.children).find(function (child) {
+            return getLocalName(child) === localName;
+          });
+        }
+
+        function getChildren(node, localName) {
+          return Array.from(node.children).filter(function (child) {
+            return getLocalName(child) === localName;
+          });
+        }
+
+        //
+        // Relationship parsing
+        //
+        function getRelationshipPath(target) {
+          if (!isValidText(target)) {
+            return "";
+          }
+
+          if (target.startsWith("/")) {
+            return target.slice(1);
+          }
+
+          if (target.startsWith("word/")) {
+            return target;
+          }
+
+          return `word/${target}`;
+        }
+
+        function parseRelationships(xml) {
+          const relationships = new Map();
+
+          if (!isValidText(xml)) {
+            return relationships;
+          }
+
+          const doc = parseXml(xml);
+          const nodes = Array.from(doc.getElementsByTagName("*"));
+
+          nodes.forEach(function (node) {
+            if (getLocalName(node) === "Relationship") {
+              relationships.set(node.getAttribute("Id"), {
+                target: node.getAttribute("Target"),
+                type: node.getAttribute("Type"),
+              });
+            }
+          });
+
+          return relationships;
+        }
+
+        //
+        // DOCX file helpers
+        //
+        function getMimeType(path) {
+          const value = path.toLowerCase();
+
+          if (value.endsWith(".png")) {
+            return "image/png";
+          }
+
+          if (value.endsWith(".jpg") || value.endsWith(".jpeg")) {
+            return "image/jpeg";
+          }
+
+          if (value.endsWith(".gif")) {
+            return "image/gif";
+          }
+
+          if (value.endsWith(".svg")) {
+            return "image/svg+xml";
+          }
+
+          if (value.endsWith(".webp")) {
+            return "image/webp";
+          }
+
+          return "application/octet-stream";
+        }
+
+        async function getZipText(zip, path) {
+          const file = zip.file(path);
+
+          if (!file) {
+            return "";
+          }
+
+          return file.async("text");
+        }
+
+        async function getZipBase64Image(zip, path) {
+          const file = zip.file(path);
+
+          if (!file) {
+            return "";
+          }
+
+          const base64 = await file.async("base64");
+          const mimeType = getMimeType(path);
+
+          return `data:${mimeType};base64,${base64}`;
+        }
+
+        //
+        // Word style helpers
+        //
+        function getParagraphStyle(paragraph) {
+          const pPr = getFirstChild(paragraph, "pPr");
+
+          if (!pPr) {
+            return "";
+          }
+
+          const pStyle = getFirstChild(pPr, "pStyle");
+
+          if (!pStyle) {
+            return "";
+          }
+
+          return getAttr(pStyle, "val").toLowerCase();
+        }
+
+        function getParagraphTag(paragraph) {
+          const style = getParagraphStyle(paragraph);
+
+          if (style.includes("title")) {
+            return "h1";
+          }
+
+          if (style.includes("heading1")) {
+            return "h1";
+          }
+
+          if (style.includes("heading2")) {
+            return "h2";
+          }
+
+          if (style.includes("heading3")) {
+            return "h3";
+          }
+
+          if (style.includes("heading4")) {
+            return "h4";
+          }
+
+          if (style.includes("heading5")) {
+            return "h5";
+          }
+
+          if (style.includes("heading6")) {
+            return "h6";
+          }
+
+          return "p";
+        }
+
+        function hasRunProperty(run, localName) {
+          const rPr = getFirstChild(run, "rPr");
+
+          if (!rPr) {
+            return false;
+          }
+
+          return Boolean(getFirstChild(rPr, localName));
+        }
+
+        function wrapRunHtml(run, html) {
+          let wrapped = html;
+
+          if (hasRunProperty(run, "strike")) {
+            wrapped = `<s>${wrapped}</s>`;
+          }
+
+          if (hasRunProperty(run, "u")) {
+            wrapped = `<u>${wrapped}</u>`;
+          }
+
+          if (hasRunProperty(run, "i")) {
+            wrapped = `<em>${wrapped}</em>`;
+          }
+
+          if (hasRunProperty(run, "b")) {
+            wrapped = `<strong>${wrapped}</strong>`;
+          }
+
+          return wrapped;
+        }
+
+        //
+        // DOCX conversion
+        //
+        async function convertDrawingToHtml(drawing, zip, relationships) {
+          const blips = Array.from(drawing.getElementsByTagName("*")).filter(function (node) {
+            return getLocalName(node) === "blip";
+          });
+
+          if (blips.length === 0) {
+            return "";
+          }
+
+          const embedId = getAttr(blips[0], "embed");
+          const relationship = relationships.get(embedId);
+
+          if (!relationship) {
+            return "";
+          }
+
+          const path = getRelationshipPath(relationship.target);
+          const dataUrl = await getZipBase64Image(zip, path);
+
+          if (!isValidText(dataUrl)) {
+            return "";
+          }
+
+          return `<img src="${dataUrl}" alt="">`;
+        }
+
+        async function convertRunToHtml(run, zip, relationships) {
+          const parts = [];
+
+          for (const child of Array.from(run.children)) {
+            const localName = getLocalName(child);
+
+            if (localName === "t") {
+              parts.push(escapeHtml(child.textContent));
+            }
+
+            if (localName === "tab") {
+              parts.push("&#9;");
+            }
+
+            if (localName === "br") {
+              parts.push("<br>");
+            }
+
+            if (localName === "drawing") {
+              parts.push(await convertDrawingToHtml(child, zip, relationships));
+            }
+          }
+
+          return wrapRunHtml(run, parts.join(""));
+        }
+
+        async function convertHyperlinkToHtml(hyperlink, zip, relationships) {
+          const id = getAttr(hyperlink, "id");
+          const relationship = relationships.get(id);
+          const href = relationship ? relationship.target : "#";
+          const parts = [];
+
+          for (const run of getChildren(hyperlink, "r")) {
+            parts.push(await convertRunToHtml(run, zip, relationships));
+          }
+
+          return `<a href="${escapeHtml(href)}">${parts.join("")}</a>`;
+        }
+
+        async function convertParagraphToHtml(paragraph, zip, relationships) {
+          const tag = getParagraphTag(paragraph);
+          const parts = [];
+
+          for (const child of Array.from(paragraph.children)) {
+            const localName = getLocalName(child);
+
+            if (localName === "r") {
+              parts.push(await convertRunToHtml(child, zip, relationships));
+            }
+
+            if (localName === "hyperlink") {
+              parts.push(await convertHyperlinkToHtml(child, zip, relationships));
+            }
+          }
+
+          const content = parts.join("").trim();
+
+          if (!isValidText(content)) {
+            return "";
+          }
+
+          return `<${tag}>${content}</${tag}>`;
+        }
+
+        async function convertTableCellToHtml(cell, zip, relationships) {
+          const parts = [];
+
+          for (const child of Array.from(cell.children)) {
+            const localName = getLocalName(child);
+
+            if (localName === "p") {
+              parts.push(await convertParagraphToHtml(child, zip, relationships));
+            }
+
+            if (localName === "tbl") {
+              parts.push(await convertTableToHtml(child, zip, relationships));
+            }
+          }
+
+          return `<td>${parts.join("")}</td>`;
+        }
+
+        async function convertTableToHtml(table, zip, relationships) {
+          const rows = [];
+
+          for (const row of getChildren(table, "tr")) {
+            const cells = [];
+
+            for (const cell of getChildren(row, "tc")) {
+              cells.push(await convertTableCellToHtml(cell, zip, relationships));
+            }
+
+            rows.push(`<tr>${cells.join("")}</tr>`);
+          }
+
+          return `<table>${rows.join("")}</table>`;
+        }
+
+        async function convertDocxToHtml(file) {
+          if (!isValidJsZip()) {
+            throw new Error("JSZip did not load. Check the script tag or save JSZip locally.");
+          }
+
+          const zip = await JSZip.loadAsync(file);
+          const documentXml = await getZipText(zip, DOCX_DOCUMENT_PATH);
+          const relsXml = await getZipText(zip, DOCX_RELS_PATH);
+          const relationships = parseRelationships(relsXml);
+
+          if (!isValidText(documentXml)) {
+            throw new Error("Could not find word/document.xml inside this .docx file.");
+          }
+
+          const doc = parseXml(documentXml);
+          const body = Array.from(doc.getElementsByTagName("*")).find(function (node) {
+            return getLocalName(node) === "body";
+          });
+
+          if (!body) {
+            throw new Error("Could not find the Word document body.");
+          }
+
+          const parts = [];
+
+          for (const child of Array.from(body.children)) {
+            const localName = getLocalName(child);
+
+            if (localName === "p") {
+              parts.push(await convertParagraphToHtml(child, zip, relationships));
+            }
+
+            if (localName === "tbl") {
+              parts.push(await convertTableToHtml(child, zip, relationships));
+            }
+          }
+
+          return formatFullHtml(parts.filter(Boolean).join("\n"));
+        }
+
+        //
+        // DOM setters
+        //
+        function setStatus(message, isDanger) {
+          elems.status.textContent = message;
+          elems.status.classList.toggle("danger", isDanger);
+        }
+
+        function setHtml(value, fileName) {
+          state.html = value;
+          state.fileName = formatFileName(fileName);
+          render();
+        }
+
+        function clearAll() {
+          state.html = "";
+          state.fileName = DEFAULT_FILE_NAME;
+          elems.wordFile.value = "";
+          render();
+        }
+
+        function downloadHtml() {
+          if (!isValidHtml()) {
+            setStatus("Upload a .docx document before downloading.", true);
+            render();
+
+            return;
+          }
+
+          const blob = new Blob([state.html], {
+            type: HTML_MIME_TYPE,
+          });
+
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+
+          anchor.href = url;
+          anchor.download = state.fileName;
+          document.body.append(anchor);
+          anchor.click();
+          anchor.remove();
+
+          URL.revokeObjectURL(url);
+          setStatus(`Downloaded ${state.fileName}.`, false);
+        }
+
+        async function copyHtml() {
+          if (!isValidHtml()) {
+            setStatus("Upload a .docx document before copying.", true);
+            render();
+
+            return;
+          }
+
+          await navigator.clipboard.writeText(state.html);
+          setStatus("HTML copied to clipboard.", false);
+        }
+
+        function renderOutput() {
+          elems.htmlOutput.value = state.html;
+          elems.preview.innerHTML = state.html;
+        }
+
+        function renderButtons() {
+          const enabled = isValidHtml();
+
+          elems.downloadHtml.disabled = !enabled;
+          elems.copyHtml.disabled = !enabled;
+        }
+
+        function renderStatus() {
+          if (!isValidHtml()) {
+            setStatus("Upload a .docx file to begin.", false);
+          }
+        }
+
+        function render() {
+          renderOutput();
+          renderButtons();
+          renderStatus();
+        }
+
+        //
+        // DOM listeners
+        //
+        async function onChangeWordFile(event) {
+          const file = event.target.files[0];
+
+          if (!file) {
+            clearAll();
+            return;
+          }
+
+          if (!isValidDocxFile(file)) {
+            clearAll();
+            setStatus("Unsupported file. Please upload a .docx file.", true);
+            return;
+          }
+
+          try {
+            setStatus(`Reading ${file.name}...`, false);
+
+            const html = await convertDocxToHtml(file);
+
+            setHtml(html, file.name);
+            setStatus(`Converted ${file.name} to HTML.`, false);
+          } catch (error) {
+            state.html = "";
+            render();
+            setStatus(error.message, true);
+          }
+        }
+
+        function onInputHtmlOutput() {
+          state.html = elems.htmlOutput.value;
+          render();
+        }
+
+        function onClickDownloadHtml() {
+          downloadHtml();
+        }
+
+        function onClickCopyHtml() {
+          copyHtml();
+        }
+
+        function onClickClearAll() {
+          clearAll();
+        }
+
+        function addEventListeners() {
+          elems.wordFile.onchange = onChangeWordFile;
+          elems.htmlOutput.oninput = onInputHtmlOutput;
+          elems.downloadHtml.onclick = onClickDownloadHtml;
+          elems.copyHtml.onclick = onClickCopyHtml;
+          elems.clearAll.onclick = onClickClearAll;
+        }
+
+        addEventListeners();
+        render();
+      })();
+    </script>
+  </body>
+</html>

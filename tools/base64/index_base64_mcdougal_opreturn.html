@@ -1,0 +1,239 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>McDougal Base64 OP_RETURN Counter</title>
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 900px;
+      margin: 2rem auto;
+      background: #111;
+      color: #ddd;
+    }
+
+    textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      background: #222;
+      color: #eee;
+      border: 1px solid #555;
+      padding: 0.75rem;
+      font-family: monospace;
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-top: 1rem;
+      margin-bottom: 0.25rem;
+      color: #aaa;
+    }
+
+    .status {
+      padding: 0.75rem;
+      border: 1px solid #555;
+      background: #1b1b1b;
+      white-space: pre-wrap;
+    }
+
+    .bad {
+      color: #ff7777;
+    }
+
+    .ok {
+      color: #9be28f;
+    }
+
+    .note {
+      color: #aaa;
+      line-height: 1.4;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<h2>McDougal Base64 → OP_RETURN Hex Counter</h2>
+
+<div class="note">
+  Rules: space/tab = x, hyphen = y, enter/newline = /, padding = z.
+  This version is Base64-language-safe, not Base58-address-safe.
+</div>
+
+<label>OP_RETURN max bytes</label>
+<input id="maxBytes" value="80">
+
+<label>Input words</label>
+<textarea id="input" rows="5">domo arigato
+mr roboto</textarea>
+
+<label>McDougal / Base64-language text</label>
+<textarea id="mcdougal" rows="4" readonly></textarea>
+
+<label>Valid Base64 form</label>
+<textarea id="base64" rows="4" readonly></textarea>
+
+<label>Hex payload for OP_RETURN</label>
+<textarea id="hex" rows="6" readonly></textarea>
+
+<label>Status</label>
+<div id="status" class="status"></div>
+
+<script>
+(function () {
+  // Standard Base64 alphabet, excluding "=" because this system uses z-padding instead.
+  const BASE64_LANGUAGE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  const inputEl = document.getElementById("input");
+  const maxBytesEl = document.getElementById("maxBytes");
+  const mcdougalEl = document.getElementById("mcdougal");
+  const base64El = document.getElementById("base64");
+  const hexEl = document.getElementById("hex");
+  const statusEl = document.getElementById("status");
+
+  function byteToHex(n) {
+    return n.toString(16).padStart(2, "0");
+  }
+
+  function bytesToHex(bytes) {
+    let out = "";
+
+    for (let i = 0; i < bytes.length; i++) {
+      out += byteToHex(bytes[i]);
+    }
+
+    return out;
+  }
+
+  function base64ToBytes(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+
+    return bytes;
+  }
+
+  function normalizeToMcDougal(str) {
+    let out = "";
+
+    for (let i = 0; i < str.length; i++) {
+      let ch = str[i];
+
+      // Space/tab remains x.
+      if (ch === " " || ch === "\t") {
+        out += "x";
+        continue;
+      }
+
+      // Newline becomes slash.
+      // This is the Base64-specific break from Base58-address-safe mode.
+      if (ch === "\n" || ch === "\r") {
+        out += "/";
+        continue;
+      }
+
+      // Hyphen remains y.
+      if (ch === "-") {
+        out += "y";
+        continue;
+      }
+
+      // Preserve readable o/i.
+      // This keeps the old MacDougall visual bias against O/I confusion.
+      if (ch === "o" || ch === "O") {
+        out += "o";
+        continue;
+      }
+
+      if (ch === "i" || ch === "I") {
+        out += "i";
+        continue;
+      }
+
+      // Zero is valid Base64, but visually it collides with O/o.
+      // Keep the old language convention and map it to o.
+      if (ch === "0") {
+        out += "c";
+        continue;
+      }
+
+      // Lowercase l is visually risky. Force uppercase L.
+      if (ch === "l") {
+        out += "L";
+        continue;
+      }
+
+      // Ordinary letters become uppercase.
+      if (/[a-zA-Z]/.test(ch)) {
+        ch = ch.toUpperCase();
+      }
+
+      // Keep only Base64-language characters.
+      if (BASE64_LANGUAGE.indexOf(ch) !== -1) {
+        out += ch;
+      }
+    }
+
+    return out;
+  }
+
+  function makeValidBase64(str) {
+    // Standard Base64 requires length % 4 === 0.
+    // This system pads with z instead of = so the payload remains language-shaped.
+    while (str.length % 4 !== 0) {
+      str += "z";
+    }
+
+    return str;
+  }
+
+  function update() {
+    const maxBytes = parseInt(maxBytesEl.value, 10) || 80;
+
+    const mcdougal = normalizeToMcDougal(inputEl.value);
+    const b64 = makeValidBase64(mcdougal);
+    const bytes = base64ToBytes(b64);
+    const hex = bytesToHex(bytes);
+
+    const usedBytes = bytes.length;
+    const usedHexChars = hex.length;
+    const maxHexChars = maxBytes * 2;
+    const remainingBytes = maxBytes - usedBytes;
+    const remainingHexChars = maxHexChars - usedHexChars;
+
+    mcdougalEl.value = mcdougal;
+    base64El.value = b64;
+    hexEl.value = hex;
+
+    let status = "";
+    status += "Used bytes:        " + usedBytes + " / " + maxBytes + "\n";
+    status += "Remaining bytes:   " + remainingBytes + "\n";
+    status += "Used hex chars:    " + usedHexChars + " / " + maxHexChars + "\n";
+    status += "Remaining hex:     " + remainingHexChars + "\n";
+    status += "Base64 chars:      " + b64.length + "\n";
+    status += "McDougal chars:    " + mcdougal.length + "\n";
+
+    if (remainingBytes < 0) {
+      status += "\nOVER LIMIT by " + Math.abs(remainingBytes) + " byte(s).";
+      statusEl.className = "status bad";
+    } else {
+      status += "\nOK.";
+      statusEl.className = "status ok";
+    }
+
+    statusEl.textContent = status;
+  }
+
+  inputEl.addEventListener("input", update);
+  maxBytesEl.addEventListener("input", update);
+
+  update();
+})();
+</script>
+
+</body>
+</html>
