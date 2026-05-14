@@ -1,4 +1,0 @@
-txid="521c0496964bc74e14f09834cdf897ace9e1d0d9ced6171aa2e87247456e4c62";
-
-curl -s "https://litecoinspace.org/api/tx/$txid" | jq
-
