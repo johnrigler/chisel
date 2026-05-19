@@ -75,23 +75,6 @@
       align-items: start;
     }
 
-    .wifRow {
-      display: grid;
-      gap: 8px;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-    }
-
-    .iconButton {
-      width: 48px;
-      min-width: 48px;
-      padding: 12px 0;
-      text-align: center;
-      background: #1d2630;
-      color: #d7e2ee;
-      border: 1px solid #2c3642;
-    }
-
     label {
       color: #b8c7d6;
       padding-top: 10px;
@@ -312,9 +295,12 @@
         </select>
 
         <label for="senderWif">Sender WIF</label>
-        <div class="wifRow">
-          <input id="senderWif" type="password" autocomplete="off" spellcheck="false" />
-          <button id="wifScanButton" class="iconButton" type="button" title="Scan QR key labels" aria-label="Scan QR key labels">▣</button>
+        <input id="senderWif" type="password" autocomplete="off" spellcheck="false" />
+
+        <label for="wifScanButton">QR key scanner</label>
+        <div class="actions">
+          <button id="wifScanButton" class="secondaryButton" type="button">SCAN HEX STICKERS / WIF</button>
+          <span class="help">Opens qrScan.html. Four 16-hex QR stickers are assembled into one 64-hex private key, then converted to WIF.</span>
         </div>
 
         <label id="feeLabel" for="feeRvn">Fee (RVN)</label>
@@ -431,39 +417,20 @@
     </section>
   </main>
 
-  <script>
-    window.CHISEL_PATHS = {
-      VERSION: "2.4.1",
-      ASSETS_DIR: "assets",
-      TOOLS_DIR: "tools",
-      QR_SCAN_PAGE: "tools/qrScan.html",
-      HTML5_QRCODE_SRC: "assets/vendor/html5-qrcode/minified/html5-qrcode.min.js"
-    };
+  <script src="chisel.js?2g40899xx999"></script>
+  <script src="chisel.unspendable.js"></script>
+  <script src="chisel.sign.js?4599"></script>
+  <script src="chisel.ravencoin.js?2.3.9-multi-recipient"></script>
+  <script src="chisel.digibyte.js?2.3.9-multi-recipient"></script>
 
-    (function loadChiselFiles(paths) {
-      var toolsDir = String(paths.TOOLS_DIR || "tools").replace(/\/+$/, "");
-      var assetsDir = String(paths.ASSETS_DIR || "assets").replace(/\/+$/, "");
-      var version = encodeURIComponent(paths.VERSION || "dev");
-      var files = [
-        toolsDir + "/chisel.js?v=" + version,
-        toolsDir + "/chisel.unspendable.js?v=" + version,
-        toolsDir + "/chisel.sign.js?v=" + version,
-        toolsDir + "/chisel.ravencoin.js?v=" + version,
-        toolsDir + "/chisel.digibyte.js?v=" + version,
-        assetsDir + "/app.js?v=" + version
-      ];
+ <script>
+  window.CHISEL_DEBUG = {
+    CHISEL: window.CHISEL,
+    COINS: window.CHISEL ? window.CHISEL.getCoins() : []
+  };
+</script>
 
-      files.forEach(function writeScript(src) {
-        document.write('<script src="' + src + '"><\/script>');
-      });
-    })(window.CHISEL_PATHS);
-  </script>
-
-  <script>
-    window.CHISEL_DEBUG = {
-      CHISEL: window.CHISEL,
-      COINS: window.CHISEL ? window.CHISEL.getCoins() : []
-    };
-  </script>
+  <script src="assets/app.js?2.3.9-multi-recipient"></script>
 </body>
 </html>
+
