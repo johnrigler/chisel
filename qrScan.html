@@ -106,7 +106,7 @@
           <option value="0">Uncompressed public key WIF</option>
         </select>
       </div>
-      <p class="help">Ravencoin and Digibyte both use WIF prefix 128 on mainnet in this Chisel code path. The selected currency still matters because the derived address prefix differs. The QR stickers are treated as raw private-key hex fragments, not as complete WIFs.</p>
+      <p class="help">Ravencoin and Digibyte both use WIF prefix 128 on mainnet in this Chisel code path. The selected currency still matters because the derived address prefix differs. The QR stickers are normally raw private-key hex fragments, but a complete WIF is also accepted.</p>
     </section>
 
     <section class="panel">
@@ -165,6 +165,7 @@
   "use strict";
 
   var MAINNET_WIF_PREFIX = 128;
+  var BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   var html5QrCode = null;
   var cameraDevices = [];
   var activeCameraIndex = 0;
@@ -369,8 +370,44 @@
     return false;
   }
 
+  function isProbablyWif(value) {
+    var text = String(value || "").trim();
+    var i;
+
+    if (text.length < 50 || text.length > 53) {
+      return false;
+    }
+
+    for (i = 0; i < text.length; i += 1) {
+      if (BASE58_ALPHABET.indexOf(text.charAt(i)) === -1) {
+        return false;
+      }
+    }
+
+    return /^[5KL]/.test(text);
+  }
+
+  async function processCompleteQrPayload(raw, sourceLabel) {
+    var input = extractPayload(raw);
+    var text = String(raw || "").trim();
+
+    if (input.wif || isProbablyWif(text)) {
+      await processRawInput(raw);
+      await stopCamera({ silent: true });
+      throwConfetti();
+      setStatus((sourceLabel || "QR") + " accepted. Complete WIF ready for Chisel.", false);
+      return true;
+    }
+
+    return false;
+  }
+
   async function addFragment(raw, sourceLabel) {
     try {
+      if (await processCompleteQrPayload(raw, sourceLabel)) {
+        return;
+      }
+
       var parsed = extractHexFragment(raw);
       var fragment = parsed.fragment;
       var assembled;
@@ -742,7 +779,7 @@ function getPreferredCameraIndex() {
       return;
     }
 
-    if (isPrivateKeyHex(text) || /^[KL5]/.test(text)) {
+    if (isPrivateKeyHex(text) || isProbablyWif(text)) {
       processRawInput(text);
     }
   };
