@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.4.1";
+  const APP_VERSION = "2.4.1a";
   const DEFAULT_CURRENCY_KEY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -58,6 +58,7 @@
     changeRvn: document.querySelector("#changeRvn"),
     changeLabel: document.querySelector("#changeLabel"),
     sendButton: document.querySelector("#sendButton"),
+    wifScanButton: document.querySelector("#wifScanButton"),
     status: document.querySelector("#status"),
     version: document.querySelector("#version"),
     heroTitle: document.querySelector("#heroTitle"),
@@ -1120,8 +1121,116 @@ function onClickAddRecipientButton() {
   }
 
   function setCurrencyValue(currencyKey) {
-    elems.currency.value = currencyKey;
+    const normalized = String(currencyKey || "").trim();
+    const keys = Object.keys(CURRENCY_DEFINITIONS);
+    let matchedKey = normalized;
+    let i;
+    let j;
+
+    for (i = 0; i < keys.length; i += 1) {
+      const definition = CURRENCY_DEFINITIONS[keys[i]];
+
+      if (definition.key === normalized || definition.label === normalized) {
+        matchedKey = definition.key;
+        break;
+      }
+
+      for (j = 0; j < definition.aliases.length; j += 1) {
+        if (String(definition.aliases[j]).toLowerCase() === normalized.toLowerCase()) {
+          matchedKey = definition.key;
+          break;
+        }
+      }
+
+      if (matchedKey === definition.key) {
+        break;
+      }
+    }
+
+    elems.currency.value = matchedKey || DEFAULT_CURRENCY_KEY;
     elems.currency.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function getPendingQrPayload() {
+    let raw = "";
+
+    try {
+      raw = window.sessionStorage.getItem("chisel.pendingQrScan") || window.localStorage.getItem("chisel.pendingQrScan") || "";
+    } catch (error) {
+      raw = "";
+    }
+
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function clearPendingQrPayload() {
+    try {
+      window.sessionStorage.removeItem("chisel.pendingQrScan");
+      window.localStorage.removeItem("chisel.pendingQrScan");
+    } catch (error) {}
+  }
+
+  function loadPendingQrPayload(payload, sourceLabel) {
+    if (!payload || !payload.wif) {
+      return false;
+    }
+
+    if (payload.currency) {
+      setCurrencyValue(payload.currency);
+    }
+
+    setSenderWifValue(payload.wif);
+    clearOutputs();
+    setStatusMessage("Loaded scanned WIF from " + (sourceLabel || "QR scanner") + ". Review, then send.", false);
+
+    if (payload.autosend) {
+      elems.sendButton.click();
+    }
+
+    return true;
+  }
+
+  function loadPendingQrPayloadFromStorage() {
+    const payload = getPendingQrPayload();
+
+    if (loadPendingQrPayload(payload, "browser storage")) {
+      clearPendingQrPayload();
+    }
+  }
+
+  function handleQrScannerMessage(event) {
+    if (event.origin !== window.location.origin) {
+      return;
+    }
+
+    const data = event.data || {};
+
+    if (data.type !== "chisel.loadWif") {
+      return;
+    }
+
+    loadPendingQrPayload({
+      currency: data.currency,
+      wif: data.wif,
+      autosend: false
+    }, "scanner window");
+  }
+
+  function openQrScanner() {
+    const url = "qrScan.html?currency=" + encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
+    const popup = window.open(url, "chiselQrScan", "width=980,height=860");
+
+    if (!popup) {
+      window.location.href = url;
+    }
   }
 
   window.loadWifAndSend = function loadWifAndSend(wif) {
@@ -1165,6 +1274,13 @@ function init() {
     elems.opReturnHex.oninput = onInputOpReturnHex;
     elems.feeRvn.oninput = onInputFee;
     elems.addRecipientButton.onclick = onClickAddRecipientButton;
+
+    if (elems.wifScanButton) {
+      elems.wifScanButton.onclick = openQrScanner;
+    }
+
+    window.addEventListener("message", handleQrScannerMessage);
+    loadPendingQrPayloadFromStorage();
 
     updateRecipientCostPreview();
     render();
