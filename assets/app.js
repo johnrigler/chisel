@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.4.1c";
+  const APP_VERSION = "2.4.1d";
   const DEFAULT_CURRENCY_KEY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -1114,6 +1114,86 @@ function onClickAddRecipientButton() {
   //
   // Console tools
   //
+//
+
+function dispatchInputChange(elem) {
+  elem.dispatchEvent(new Event("input", { bubbles: true }));
+  elem.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function setOpReturnAsciiValue(ascii) {
+  elems.opReturnHex.value = "";
+  elems.opReturnAscii.value = String(ascii || "");
+  dispatchInputChange(elems.opReturnAscii);
+  setSuggestedFeeValue(true);
+}
+
+function setOpReturnHexValue(hex) {
+  elems.opReturnAscii.value = "";
+  elems.opReturnHex.value = normalizeHex(String(hex || ""));
+  dispatchInputChange(elems.opReturnHex);
+  setSuggestedFeeValue(true);
+}
+
+window.loadWif = function loadWif(wif) {
+  if (!wif) {
+    throw new Error("WIF is required.");
+  }
+
+  setSenderWifValue(wif);
+};
+
+window.loadCurrency = function loadCurrency(currencyKey) {
+  if (!currencyKey) {
+    throw new Error("Currency key is required.");
+  }
+
+  setCurrencyValue(currencyKey);
+};
+
+window.loadOpReturnAscii = function loadOpReturnAscii(ascii) {
+  setOpReturnAsciiValue(ascii);
+};
+
+window.loadOpReturnHex = function loadOpReturnHex(hex) {
+  const normalized = normalizeHex(String(hex || ""));
+
+  if (!isHex(normalized)) {
+    throw new Error("OP_RETURN HEX contains non-hex characters.");
+  }
+
+  if (normalized.length % 2 !== 0) {
+    throw new Error("OP_RETURN HEX must have an even number of characters.");
+  }
+
+  setOpReturnHexValue(normalized);
+};
+
+window.clearOpReturn = function clearOpReturn() {
+  elems.opReturnAscii.value = "";
+  elems.opReturnHex.value = "";
+  dispatchInputChange(elems.opReturnAscii);
+  dispatchInputChange(elems.opReturnHex);
+  setSuggestedFeeValue(true);
+};
+
+window.chiselSend = function chiselSend() {
+  elems.sendButton.click();
+};
+
+window.loadWifOpReturnAndSend = function loadWifOpReturnAndSend(wif, ascii) {
+  window.loadWif(wif);
+  window.loadOpReturnAscii(ascii);
+  window.chiselSend();
+};
+
+window.loadCurrencyWifOpReturnAndSend = function loadCurrencyWifOpReturnAndSend(currencyKey, wif, ascii) {
+  window.loadCurrency(currencyKey);
+  window.loadWif(wif);
+  window.loadOpReturnAscii(ascii);
+  window.chiselSend();
+};
+
   function setSenderWifValue(wif) {
     elems.senderWif.value = wif;
     elems.senderWif.dispatchEvent(new Event("input", { bubbles: true }));
