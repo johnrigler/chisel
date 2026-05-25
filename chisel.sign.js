@@ -252,10 +252,6 @@
     const version = payload[0];
     const compressed = payload.length === 34;
 
-    if (version !== MAINNET_WIF_PREFIX && version !== TESTNET_WIF_PREFIX) {
-      throw new Error("Unsupported WIF network prefix.");
-    }
-
     if (payload.length !== 33 && payload.length !== 34) {
       throw new Error("Unexpected WIF payload length.");
     }
