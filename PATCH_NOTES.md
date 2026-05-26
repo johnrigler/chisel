@@ -1,20 +1,20 @@
-# Chisel v2.4.3a patch
+# Chisel v2.4.3b patch
 
-GUI shell pass. No transaction-pipeline rewrite.
+Path-cleanup pass after the 2.4.3a GUI shell. No transaction-pipeline rewrite.
 
 ## Changes
 
-- Bumped app version to `2.4.3a`.
-- Added mode navigation to `index.html`: Broadcast, Review, Decode, Tools.
-- Broadcast mode keeps the existing build/sign/send form.
-- Review mode holds the raw engineering pipeline outputs.
-- Decode mode links to `decode.html`.
-- Tools mode links to `qrScan.html`, `boxLabels4.html`, and `decode.html`.
-- Added `setGuiMode(mode)` and URL query support: `?mode=broadcast`, `?mode=review`, `?mode=decode`, `?mode=tools`.
+- Bumped app version to `2.4.3b`.
+- Updated cache-busting script query strings in `index.html` from `2.4.3a` to `2.4.3b`.
+- Fixed GUI links for tools that actually live under `tools/`:
+  - `tools/boxLabels4.html`
+  - `tools/decoder/index.html`
+- Updated GitHub workflow file checks to match the current repository layout.
+- Kept root `qrScan.html` as-is because the main WIF scanner integration points at that root file.
 
 ## Non-goals
 
-- No new chain support.
-- No transaction signing changes.
-- No new RPC method assumptions.
-- No changes to QR scanner logic.
+- No chain support changes.
+- No signing changes.
+- No proxy/API changes.
+- No tool rewrites.

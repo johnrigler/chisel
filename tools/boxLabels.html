@@ -320,10 +320,13 @@
       margin-top: 0.030in;
       padding-top: 0.024in;
       border-top: 1px solid #111;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 5.15pt;
       line-height: 1.08;
       font-weight: 850;
-      word-break: break-word;
+      white-space: pre-line;
+      word-break: normal;
+      overflow-wrap: anywhere;
     }
 
     .empty-label {
@@ -538,7 +541,7 @@ RCxRENTxESCALATioNzzz</textarea>
 
         <div class="qr-box">
           <div class="qr-code" data-qr="txid"></div>
-          <div class="qr-caption">RVN TXID</div>
+          <div class="qr-caption">RVN</div>
         </div>
       </div>
 
@@ -552,7 +555,7 @@ RCxRENTxESCALATioNzzz</textarea>
     </article>
   </template>
 
-  <script src="qrField/lib/davidshimjs-qrcodejs-04f46c6/qrcode.min.js"></script>
+  <script src="../vendor/qrcode.min.js"></script>
   <script>
     (function () {
       //
@@ -700,12 +703,13 @@ RCxRENTxESCALATioNzzz</textarea>
           .filter(function (line) {
             return line.length > 0;
           })
-          .join(" / ");
+          .join("\n");
       }
 
       function expandDescriptor(value) {
-        return value
-          .split("/")
+        return String(value || "")
+          .replace(/\s+\/\s+/g, "\n")
+          .split("\n")
           .map(function (line) {
             return line.trim();
           })
