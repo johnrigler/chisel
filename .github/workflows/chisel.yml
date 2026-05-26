@@ -29,17 +29,26 @@ jobs:
         with:
           node-version: 20
 
-      - name: Verify required files exist
+     - name: Verify required files exist
         run: |
           test -f index.html
+          test -f app.js
           test -f chisel.js
           test -f chisel.sign.js
-          test -f app.js
+          test -f chisel.ravencoin.js
+          test -f chisel.digibyte.js
+          test -f chisel.unspendable.js
+          test -f qrScan.html
+          test -f decode.html
+          test -f README_PATCH.txt
 
       - name: Syntax check JavaScript
         run: |
           node --check chisel.js
           node --check chisel.sign.js
+          node --check chisel.ravencoin.js
+          node --check chisel.digibyte.js
+          node --check chisel.unspendable.js
           node --check app.js
 
       - name: Check for expected script references in index.html
@@ -51,7 +60,11 @@ jobs:
       - name: Build site directory
         run: |
           mkdir -p dist
-          cp -r index.html *.js *.css dist/ 2>/dev/null || true
+          rsync -av \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='dist' \
+            ./ dist/
 
       - name: Verify deploy entry file exists
         run: |
