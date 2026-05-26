@@ -275,6 +275,113 @@
     };
   };
 
+  CHISEL.providerAttemptSummary = function providerAttemptSummary(reports) {
+    return (reports || []).map(function summarize(report) {
+      return {
+        provider: report.provider,
+        ok: Boolean(report.ok),
+        url: report.url || "",
+        count: Array.isArray(report.result) ? report.result.length : undefined,
+        error: report.error || ""
+      };
+    });
+  };
+
+  CHISEL.utxoKey = function utxoKey(utxo) {
+    const normalized = CHISEL.normalizeUTXO(utxo);
+
+    return String(normalized.txid || "").toLowerCase() + ":" + String(normalized.vout);
+  };
+
+  CHISEL.normalizeUtxoList = function normalizeUtxoList(utxos) {
+    return (utxos || []).map(CHISEL.normalizeUTXO).filter(function filterUtxo(utxo) {
+      return utxo.txid && utxo.vout !== undefined && Number(utxo.satoshis) > 0;
+    }).sort(function sortUtxos(a, b) {
+      if (String(a.txid) !== String(b.txid)) {
+        return String(a.txid).localeCompare(String(b.txid));
+      }
+
+      return Number(a.vout) - Number(b.vout);
+    });
+  };
+
+  CHISEL.compareUtxoReports = function compareUtxoReports(reports) {
+    const successful = (reports || []).filter(function filterOk(report) {
+      return report.ok && Array.isArray(report.result);
+    });
+    const providerMaps = successful.map(function makeProviderMap(report) {
+      const utxos = CHISEL.normalizeUtxoList(report.result);
+      const map = new Map();
+
+      utxos.forEach(function addUtxo(utxo) {
+        map.set(CHISEL.utxoKey(utxo), utxo);
+      });
+
+      return {
+        provider: report.provider,
+        utxos: utxos,
+        map: map,
+        keys: Array.from(map.keys()).sort(),
+        count: utxos.length,
+        totalSatoshis: CHISEL.sumUtxoSatoshis(utxos)
+      };
+    });
+    const unionKeys = Array.from(new Set([].concat.apply([], providerMaps.map(function getKeys(item) {
+      return item.keys;
+    })))).sort();
+    const commonKeys = unionKeys.filter(function filterCommon(key) {
+      return providerMaps.length > 0 && providerMaps.every(function hasKey(item) {
+        return item.map.has(key);
+      });
+    });
+    const disagreementKeys = unionKeys.filter(function filterDisagreement(key) {
+      return commonKeys.indexOf(key) === -1;
+    });
+    const referenceMap = providerMaps.length > 0 ? providerMaps[0].map : new Map();
+    const commonUtxos = commonKeys.map(function getCommonUtxo(key) {
+      return referenceMap.get(key);
+    });
+    const unionUtxos = unionKeys.map(function getUnionUtxo(key) {
+      for (let i = 0; i < providerMaps.length; i += 1) {
+        if (providerMaps[i].map.has(key)) {
+          return providerMaps[i].map.get(key);
+        }
+      }
+
+      return null;
+    }).filter(Boolean);
+    const warnings = [];
+
+    if (successful.length === 0) {
+      warnings.push("No provider returned a usable UTXO list.");
+    } else if (successful.length === 1) {
+      warnings.push("Only one provider returned a usable UTXO list. Cross-check is informational only.");
+    } else if (disagreementKeys.length > 0) {
+      warnings.push("Provider UTXO sets disagree on " + disagreementKeys.length + " outpoint(s).");
+    }
+
+    return {
+      ok: warnings.length === 0,
+      successfulProviderCount: successful.length,
+      providerSummaries: providerMaps.map(function summarizeProvider(item) {
+        return {
+          provider: item.provider,
+          count: item.count,
+          totalSatoshis: item.totalSatoshis,
+          totalCoin: (Number(item.totalSatoshis) / 100000000).toFixed(8),
+          keys: item.keys
+        };
+      }),
+      commonCount: commonUtxos.length,
+      unionCount: unionUtxos.length,
+      disagreementCount: disagreementKeys.length,
+      commonUtxos: commonUtxos,
+      unionUtxos: unionUtxos,
+      disagreementKeys: disagreementKeys,
+      warnings: warnings
+    };
+  };
+
   CHISEL.reverseHex = function reverseHex(hex) {
     return String(hex || "").match(/../g).reverse().join("");
   };
@@ -583,7 +690,7 @@
   CHISEL.about = function about() {
     return {
       name: "chisel",
-      core: "2.4.2d",
+      core: "2.4.2e",
       coins: CHISEL.getCoins().map(function mapCoin(coin) {
         return coin.NAME;
       }),
@@ -742,7 +849,7 @@
       };
     }
 
-    async function getAddressUtxosWithReport(address, options) {
+    async function getAddressUtxoReports(address, options) {
       const opts = options || {};
       const providerNames = getProviderNames(opts);
       const reports = [];
@@ -758,13 +865,36 @@
         try {
           const result = await provider.getAddressUtxos(address, opts);
 
-          reports.push({ provider: provider.NAME, ok: true, result: result });
+          reports.push({
+            provider: provider.NAME,
+            ok: true,
+            url: provider.lastUrl || "",
+            result: result
+          });
         } catch (error) {
-          reports.push({ provider: provider.NAME, ok: false, error: error.message || String(error) });
+          reports.push({ provider: provider.NAME, ok: false, url: provider.lastUrl || "", error: error.message || String(error) });
         }
       }
 
+      return reports;
+    }
+
+    async function getAddressUtxosWithReport(address, options) {
+      const reports = await getAddressUtxoReports(address, options);
+
       return CHISEL.firstSuccessfulProviderResult(reports);
+    }
+
+    async function compareAddressUtxos(address, options) {
+      const reports = await getAddressUtxoReports(address, options);
+      const comparison = CHISEL.compareUtxoReports(reports);
+
+      return {
+        address: address,
+        network: normalizeNetwork(options && options.network),
+        attemptedProviders: CHISEL.providerAttemptSummary(reports),
+        comparison: comparison
+      };
     }
 
     async function getAddressUtxos(address, options) {
@@ -843,11 +973,26 @@
       const feeUnits = getRequiredFeeUnits(opts.feeUnits || opts.feeSats || DEFAULT_FEE_UNITS);
       const account = await wifToAccount(wif, { network: networkName });
       const utxoReport = await getAddressUtxosWithReport(account.address, opts);
-      const utxos = utxoReport.result.map(CHISEL.normalizeUTXO).filter(function filterUtxo(utxo) {
+      let providerComparison = null;
+      let utxos = utxoReport.result.map(CHISEL.normalizeUTXO).filter(function filterUtxo(utxo) {
         return utxo.txid && utxo.vout !== undefined && Number(utxo.satoshis) > 0;
       }).sort(function sortUtxos(a, b) {
         return Number(b.satoshis) - Number(a.satoshis);
       });
+
+      if (opts.crossCheckProviders || opts.requireProviderAgreement) {
+        providerComparison = await compareAddressUtxos(account.address, opts);
+
+        if (providerComparison.comparison.successfulProviderCount > 1) {
+          utxos = providerComparison.comparison.commonUtxos.slice().sort(function sortUtxos(a, b) {
+            return Number(b.satoshis) - Number(a.satoshis);
+          });
+        }
+
+        if (opts.requireProviderAgreement && !providerComparison.comparison.ok) {
+          throw new Error("Provider agreement required, but UTXO reports did not cleanly agree: " + JSON.stringify(providerComparison.comparison.warnings));
+        }
+      }
 
       if (utxos.length === 0) {
         throw new Error("No usable UTXOs found for " + account.address + ".");
@@ -908,6 +1053,7 @@
         compressed: account.compressed,
         selectedProvider: utxoReport.selectedProvider,
         attemptedProviders: utxoReport.attemptedProviders,
+        providerComparison: providerComparison,
         selectedUtxo: selectedUtxo,
         inputUnits: Number(selectedUtxo.satoshis),
         feeUnits: feeUnits,
@@ -1003,6 +1149,34 @@
       };
     }
 
+    function summarizePlan(plan) {
+      if (!plan || typeof plan !== "object") {
+        throw new Error("Plan object is required.");
+      }
+
+      return {
+        type: plan.type || "",
+        status: plan.status || "",
+        broadcasted: Boolean(plan.broadcasted),
+        currency: plan.currency || "",
+        network: plan.network || "",
+        address: plan.address || "",
+        selectedProvider: plan.selectedProvider || "",
+        attemptedProviders: plan.attemptedProviders || [],
+        selectedUtxo: plan.selectedUtxo || null,
+        inputCoin: plan.inputCoin || "",
+        feeCoin: plan.feeCoin || "",
+        sendBackCoin: plan.sendBackCoin || "",
+        opReturnBytes: plan.opReturnBytes || 0,
+        opReturnHex: plan.opReturnHex || "",
+        outputCount: plan.outputCount || 0,
+        signedBytes: plan.localSignedDecode ? plan.localSignedDecode.bytes : undefined,
+        warnings: plan.warnings || [],
+        providerComparison: plan.providerComparison || null,
+        nextStep: plan.nextStep || ""
+      };
+    }
+
     async function broadcastPlan(plan, options) {
       const opts = options || {};
 
@@ -1090,7 +1264,9 @@
       privateKeyHexToAddress: privateKeyHexToAddress,
       addressToP2pkhScript: addressToP2pkhScript,
       wifToAccount: wifToAccount,
+      getAddressUtxoReports: getAddressUtxoReports,
       getAddressUtxosWithReport: getAddressUtxosWithReport,
+      compareAddressUtxos: compareAddressUtxos,
       getAddressUtxos: getAddressUtxos,
       getTransactionWithReport: getTransactionWithReport,
       getTransaction: getTransaction,
@@ -1100,6 +1276,7 @@
       makeSelfSend: buildP2pkhSelfSend,
       makeOpReturnSelfSend: buildP2pkhSelfSend,
       verifySelfSendPlan: verifySelfSendPlan,
+      summarizePlan: summarizePlan,
       broadcastPlan: broadcastPlan,
       healthCheck: healthCheck
     };
@@ -1116,7 +1293,8 @@
     baseUrl: "https://litecoinspace.org/api",
     explorerTxUrl: "https://litecoinspace.org/tx/",
     getAddressUtxos: async function getAddressUtxos(address) {
-      const json = await CHISEL.fetchJson(this.baseUrl + "/address/" + encodeURIComponent(address) + "/utxo");
+      this.lastUrl = this.baseUrl + "/address/" + encodeURIComponent(address) + "/utxo";
+      const json = await CHISEL.fetchJson(this.lastUrl);
 
       if (!Array.isArray(json)) {
         throw new Error("Litecoinspace returned an unexpected UTXO payload.");
@@ -1135,10 +1313,12 @@
       });
     },
     getTransaction: async function getTransaction(txid) {
-      return CHISEL.fetchJson(this.baseUrl + "/tx/" + encodeURIComponent(txid));
+      this.lastUrl = this.baseUrl + "/tx/" + encodeURIComponent(txid);
+      return CHISEL.fetchJson(this.lastUrl);
     },
     broadcastRawTransaction: async function broadcastRawTransaction(rawHex) {
-      return CHISEL.fetchText(this.baseUrl + "/tx", {
+      this.lastUrl = this.baseUrl + "/tx";
+      return CHISEL.fetchText(this.lastUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: String(rawHex || "").trim()
@@ -1176,9 +1356,8 @@
     baseUrl: "https://api.blockcypher.com/v1/ltc/main",
     explorerTxUrl: "https://live.blockcypher.com/ltc/tx/",
     getAddressUtxos: async function getAddressUtxos(address) {
-      const json = await CHISEL.fetchJson(
-        this.baseUrl + "/addrs/" + encodeURIComponent(address) + "?unspentOnly=true&includeScript=true"
-      );
+      this.lastUrl = this.baseUrl + "/addrs/" + encodeURIComponent(address) + "?unspentOnly=true&includeScript=true";
+      const json = await CHISEL.fetchJson(this.lastUrl);
       const txrefs = (json.txrefs || []).concat(json.unconfirmed_txrefs || []);
 
       return txrefs.map(function normalize(utxo) {
@@ -1194,10 +1373,12 @@
       });
     },
     getTransaction: async function getTransaction(txid) {
-      return CHISEL.fetchJson(this.baseUrl + "/txs/" + encodeURIComponent(txid));
+      this.lastUrl = this.baseUrl + "/txs/" + encodeURIComponent(txid);
+      return CHISEL.fetchJson(this.lastUrl);
     },
     broadcastRawTransaction: async function broadcastRawTransaction(rawHex) {
-      return CHISEL.fetchJson(this.baseUrl + "/txs/push", {
+      this.lastUrl = this.baseUrl + "/txs/push";
+      return CHISEL.fetchJson(this.lastUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tx: String(rawHex || "").trim() })
@@ -1225,7 +1406,8 @@
     baseUrl: "https://api.blockchair.com/litecoin",
     explorerTxUrl: "https://blockchair.com/litecoin/transaction/",
     getTransaction: async function getTransaction(txid) {
-      return CHISEL.fetchJson(this.baseUrl + "/dashboards/transaction/" + encodeURIComponent(txid));
+      this.lastUrl = this.baseUrl + "/dashboards/transaction/" + encodeURIComponent(txid);
+      return CHISEL.fetchJson(this.lastUrl);
     },
     getTip: async function getTip() {
       return CHISEL.fetchJson(this.baseUrl + "/stats");
