@@ -291,6 +291,122 @@
     return output;
   };
 
+  CHISEL.isHex = function isHex(value) {
+    return /^[0-9a-fA-F]*$/.test(String(value || ""));
+  };
+
+  CHISEL.stringToHex = function stringToHex(value) {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(String(value || ""));
+
+    return Array.from(bytes, function mapByte(byte) {
+      return byte.toString(16).padStart(2, "0");
+    }).join("");
+  };
+
+  CHISEL.normalizePushDataHex = function normalizePushDataHex(hex) {
+    const normalized = String(hex || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
+
+    if (!normalized) {
+      return "";
+    }
+
+    if (!CHISEL.isHex(normalized)) {
+      throw new Error("Pushdata must be hex.");
+    }
+
+    if (normalized.length % 2 !== 0) {
+      throw new Error("Pushdata hex must have an even number of characters.");
+    }
+
+    return normalized;
+  };
+
+  CHISEL.resolveOpReturnHex = function resolveOpReturnHex(options) {
+    const opts = options || {};
+    const ascii = opts.opReturnAscii !== undefined ? String(opts.opReturnAscii) : "";
+    const text = opts.opReturnText !== undefined ? String(opts.opReturnText) : "";
+    const rawHex = opts.opReturnHex !== undefined ? String(opts.opReturnHex) : "";
+
+    if ((ascii || text) && rawHex) {
+      throw new Error("Use OP_RETURN ASCII/text or OP_RETURN hex, not both.");
+    }
+
+    if (ascii) {
+      return CHISEL.stringToHex(ascii);
+    }
+
+    if (text) {
+      return CHISEL.stringToHex(text);
+    }
+
+    return CHISEL.normalizePushDataHex(rawHex);
+  };
+
+  CHISEL.pushDataHex = function pushDataHex(payloadHex) {
+    const normalized = CHISEL.normalizePushDataHex(payloadHex);
+    const byteLength = normalized.length / 2;
+
+    if (byteLength <= 75) {
+      return CHISEL.byteHex(byteLength) + normalized;
+    }
+
+    if (byteLength <= 255) {
+      return "4c" + CHISEL.byteHex(byteLength) + normalized;
+    }
+
+    if (byteLength <= 65535) {
+      return "4d" + CHISEL.uint16LEHex(byteLength) + normalized;
+    }
+
+    throw new Error("Pushdata is too large.");
+  };
+
+  CHISEL.buildOpReturnScript = function buildOpReturnScript(payloadHex) {
+    const normalized = CHISEL.normalizePushDataHex(payloadHex);
+
+    if (!normalized) {
+      return "";
+    }
+
+    return "6a" + CHISEL.pushDataHex(normalized);
+  };
+
+  CHISEL.readOpReturnPushHex = function readOpReturnPushHex(scriptPubKeyHex) {
+    const hex = String(scriptPubKeyHex || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
+
+    if (hex.slice(0, 2) !== "6a") {
+      return "";
+    }
+
+    let cursor = 2;
+    let output = "";
+
+    while (cursor < hex.length) {
+      const opcode = parseInt(hex.slice(cursor, cursor + 2), 16);
+      let length = 0;
+
+      cursor += 2;
+
+      if (opcode >= 1 && opcode <= 75) {
+        length = opcode;
+      } else if (opcode === 76) {
+        length = parseInt(hex.slice(cursor, cursor + 2), 16);
+        cursor += 2;
+      } else if (opcode === 77) {
+        length = parseInt(hex.slice(cursor + 2, cursor + 4) + hex.slice(cursor, cursor + 2), 16);
+        cursor += 4;
+      } else {
+        break;
+      }
+
+      output += hex.slice(cursor, cursor + length * 2);
+      cursor += length * 2;
+    }
+
+    return output;
+  };
+
 
 
   CHISEL.readVarInt = function readVarInt(hex, cursor) {
@@ -429,7 +545,7 @@
         hash160 = scriptPubKey.slice(6, 46);
       } else if (scriptPubKey.slice(0, 2) === "6a") {
         type = "op_return";
-        opReturnHex = scriptPubKey.slice(2);
+        opReturnHex = CHISEL.readOpReturnPushHex(scriptPubKey);
       }
 
       vout.push({
@@ -467,7 +583,7 @@
   CHISEL.about = function about() {
     return {
       name: "chisel",
-      core: "2.4.2c",
+      core: "2.4.2d",
       coins: CHISEL.getCoins().map(function mapCoin(coin) {
         return coin.NAME;
       }),
@@ -722,6 +838,8 @@
     async function buildP2pkhSelfSend(wif, options) {
       const opts = options || {};
       const networkName = normalizeNetwork(opts.network);
+      const opReturnHex = CHISEL.resolveOpReturnHex(opts);
+      const opReturnScript = CHISEL.buildOpReturnScript(opReturnHex);
       const feeUnits = getRequiredFeeUnits(opts.feeUnits || opts.feeSats || DEFAULT_FEE_UNITS);
       const account = await wifToAccount(wif, { network: networkName });
       const utxoReport = await getAddressUtxosWithReport(account.address, opts);
@@ -743,6 +861,20 @@
       }
 
       const outputScript = await addressToP2pkhScript(account.address, { network: networkName });
+      const outputChunks = [
+        CHISEL.uint64LEHex(sendBackUnits) +
+        CHISEL.varInt(outputScript.length / 2) +
+        outputScript
+      ];
+
+      if (opReturnScript) {
+        outputChunks.push(
+          CHISEL.uint64LEHex(0) +
+          CHISEL.varInt(opReturnScript.length / 2) +
+          opReturnScript
+        );
+      }
+
       const unsignedHex =
         "01000000" +
         "01" +
@@ -750,10 +882,8 @@
         CHISEL.uint32LEHex(selectedUtxo.vout) +
         "00" +
         "ffffffff" +
-        "01" +
-        CHISEL.uint64LEHex(sendBackUnits) +
-        CHISEL.varInt(outputScript.length / 2) +
-        outputScript +
+        CHISEL.varInt(outputChunks.length) +
+        outputChunks.join("") +
         "00000000";
 
       const signedHex = await CHISEL.signRawTransaction(unsignedHex, [{
@@ -762,6 +892,11 @@
       }]);
       const decodedUnsignedLocal = CHISEL.parseRawTransactionDetailed(unsignedHex);
       const decodedSignedLocal = CHISEL.parseRawTransactionDetailed(signedHex);
+      const warnings = [];
+
+      if (opReturnHex && (opReturnHex.length / 2) > 80) {
+        warnings.push("OP_RETURN payload is " + (opReturnHex.length / 2) + " bytes. 80 bytes is the conservative standard-policy ceiling used by this Chisel path.");
+      }
 
       return {
         type: "p2pkh-self-send-plan",
@@ -777,6 +912,10 @@
         inputUnits: Number(selectedUtxo.satoshis),
         feeUnits: feeUnits,
         sendBackUnits: sendBackUnits,
+        opReturnHex: opReturnHex,
+        opReturnBytes: opReturnHex.length / 2,
+        opReturnScript: opReturnScript,
+        outputCount: outputChunks.length,
         inputCoin: unitsToCoin(selectedUtxo.satoshis).toFixed(8),
         feeCoin: unitsToCoin(feeUnits).toFixed(8),
         sendBackCoin: unitsToCoin(sendBackUnits).toFixed(8),
@@ -784,8 +923,8 @@
         localSignedDecode: decodedSignedLocal,
         unsignedHex: unsignedHex,
         signedHex: signedHex,
-        warnings: [],
-        nextStep: "Inspect this object. Broadcast with coin.broadcastPlan(plan, { confirmBroadcast: true })."
+        warnings: warnings,
+        nextStep: "Inspect this object. Run coin.verifySelfSendPlan(plan), then broadcast with coin.broadcastPlan(plan, { confirmBroadcast: true })."
       };
     }
 
@@ -818,8 +957,23 @@
         warnings.push("Expected one input, found " + decoded.vinCount + ".");
       }
 
-      if (decoded.voutCount !== 1) {
-        warnings.push("Expected one output, found " + decoded.voutCount + ".");
+      const expectedVoutCount = plan.opReturnHex ? 2 : 1;
+      const opReturnOutputs = decoded.vout.filter(function filterOpReturn(output) {
+        return output.type === "op_return";
+      });
+
+      if (decoded.voutCount !== expectedVoutCount) {
+        warnings.push("Expected " + expectedVoutCount + " output(s), found " + decoded.voutCount + ".");
+      }
+
+      if (plan.opReturnHex) {
+        if (opReturnOutputs.length !== 1) {
+          warnings.push("Expected one OP_RETURN output, found " + opReturnOutputs.length + ".");
+        } else if (opReturnOutputs[0].opReturnHex !== plan.opReturnHex) {
+          warnings.push("OP_RETURN payload mismatch.");
+        }
+      } else if (opReturnOutputs.length !== 0) {
+        warnings.push("Unexpected OP_RETURN output found.");
       }
 
       if (matchingOutputs.length !== 1) {
@@ -842,6 +996,8 @@
         inputUnits: expectedInputUnits,
         outputUnits: outputUnits,
         feeUnits: expectedInputUnits - outputUnits,
+        opReturnHex: plan.opReturnHex || "",
+        opReturnBytes: plan.opReturnBytes || 0,
         bytes: decoded.bytes,
         decoded: decoded
       };
@@ -856,8 +1012,10 @@
 
       const verification = await verifySelfSendPlan(plan, opts);
 
-      if (!verification.ok && !opts.allowWarnings) {
-        throw new Error("Refusing to broadcast plan with warnings: " + JSON.stringify(verification.warnings));
+      const planWarnings = Array.isArray(plan.warnings) ? plan.warnings : [];
+
+      if ((planWarnings.length > 0 || !verification.ok) && !opts.allowWarnings) {
+        throw new Error("Refusing to broadcast plan with warnings: " + JSON.stringify(planWarnings.concat(verification.warnings)));
       }
 
       const report = await broadcastRawTransactionWithReport(plan.signedHex, Object.assign({}, opts, {
@@ -940,6 +1098,7 @@
       broadcastRawTransaction: broadcastRawTransaction,
       buildP2pkhSelfSend: buildP2pkhSelfSend,
       makeSelfSend: buildP2pkhSelfSend,
+      makeOpReturnSelfSend: buildP2pkhSelfSend,
       verifySelfSendPlan: verifySelfSendPlan,
       broadcastPlan: broadcastPlan,
       healthCheck: healthCheck

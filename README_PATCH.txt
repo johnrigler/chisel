@@ -1,102 +1,50 @@
-Chisel 2.4.2c safety-console patch
-===================================
-
-Base: 2.4.2b provider/factory patch.
-
-Files:
-- chisel.js
-- chisel.sign.js
+Chisel 2.4.2d patch
+=====================
 
 Purpose
 -------
-2.4.2c keeps Litecoin console-first, but makes the self-send path safer and more inspectable before broadcast.
+2.4.2d keeps Litecoin console-first and adds conservative OP_RETURN support to the local Litecoin P2PKH self-send builder.
 
-Changes
--------
-
-1. CHISEL.about() now reports core: "2.4.2c".
-
-2. Added local raw transaction inspection helpers:
-
-   CHISEL.readVarInt(hex, cursor)
-   CHISEL.readUInt32LE(hex, cursor)
-   CHISEL.readUInt64LE(hex, cursor)
-   CHISEL.parseRawTransactionDetailed(rawTxHex)
-
-   This parser is intentionally conservative. It handles legacy non-SegWit transactions only.
-   That matches the current P2PKH-only Litecoin path.
-
-3. Litecoin makeSelfSend() now returns a plan object instead of a loose tx object:
-
-   const plan = await CHISEL.litecoin.makeSelfSend(WIF, {
-     network: "mainnet",
-     feeSats: 10000
-   });
-
-   New fields include:
-
-   type: "p2pkh-self-send-plan"
-   status: "built-not-broadcast"
-   broadcasted: false
-   localUnsignedDecode
-   localSignedDecode
-   warnings
-   nextStep
-
-4. Added explicit verification:
-
-   const check = await CHISEL.litecoin.verifySelfSendPlan(plan);
-   check;
-
-   It checks:
-   - exactly one input
-   - exactly one output
-   - output script matches the derived self-send address
-   - output total equals sendBackUnits
-   - input - output equals feeUnits
-
-5. Added guarded broadcast:
-
-   await CHISEL.litecoin.broadcastPlan(plan, {
-     confirmBroadcast: true,
-     network: "mainnet",
-     providers: ["litecoinspace", "blockcypherLitecoin"]
-   });
-
-   If confirmBroadcast is omitted, it refuses to broadcast.
-   If verification warnings exist, it refuses unless allowWarnings: true is passed.
+Files
+-----
+- chisel.js
+- chisel.sign.js
+- README_PATCH.txt
 
 Apply
 -----
+unzip chisel-2.4.2d-opreturn-console-patch.zip
+cp chisel-2.4.2d-opreturn-console-patch/chisel.js .
+cp chisel-2.4.2d-opreturn-console-patch/chisel.sign.js .
 
-unzip chisel-2.4.2c-safety-console-patch.zip
-cp chisel-2.4.2c-safety-console-patch/chisel.js .
-cp chisel-2.4.2c-safety-console-patch/chisel.sign.js .
+Then bump cache strings in index.html, for example:
 
-Then bump cache strings in index.html:
-
-<script src="chisel.js?2.4.2c"></script>
-<script src="chisel.sign.js?2.4.2c"></script>
+<script src="chisel.js?2.4.2d"></script>
+<script src="chisel.sign.js?2.4.2d"></script>
 
 Console smoke test
 ------------------
-
 CHISEL.about()
-CHISEL.litecoin
-CHISEL.parseRawTransactionDetailed
+CHISEL.buildOpReturnScript("68656c6c6f")
+CHISEL.readOpReturnPushHex(CHISEL.buildOpReturnScript("68656c6c6f"))
 
-Build, verify, then broadcast:
-
-const plan = await CHISEL.litecoin.makeSelfSend(LTC_WIF, {
+Build a Litecoin mainnet self-send with OP_RETURN ASCII
+-------------------------------------------------------
+const plan = await CHISEL.litecoin.makeOpReturnSelfSend(LTC_WIF, {
   network: "mainnet",
-  feeSats: 10000
+  feeSats: 10000,
+  opReturnAscii: "hello chisel"
 });
 
 plan;
 
+Verify before broadcast
+-----------------------
 const check = await CHISEL.litecoin.verifySelfSendPlan(plan);
 check;
 
+Broadcast only after inspection
+-------------------------------
 await CHISEL.litecoin.broadcastPlan(plan, {
   confirmBroadcast: true,
   network: "mainnet",
@@ -105,4 +53,8 @@ await CHISEL.litecoin.broadcastPlan(plan, {
 
 Notes
 -----
-This is still legacy P2PKH only. It does not support SegWit/P2SH/PSBT yet.
+- Legacy P2PKH only.
+- OP_RETURN output is zero-value.
+- OP_RETURN payloads over 80 bytes create a warning.
+- broadcastPlan refuses plans with warnings unless allowWarnings: true is passed.
+- No SegWit, P2SH, PSBT, dynamic fee estimation, or UI integration yet.
