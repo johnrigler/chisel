@@ -40,7 +40,7 @@ jobs:
           test -f chisel.unspendable.js
           test -f qrScan.html
           test -f decode.html
-          test -f README_PATCH.txt
+          test -f PATCH_NOTES.md
 
       - name: Syntax check JavaScript
         run: |
