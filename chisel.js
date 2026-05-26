@@ -690,7 +690,7 @@
   CHISEL.about = function about() {
     return {
       name: "chisel",
-      core: "2.4.2e",
+      core: "2.4.3c",
       coins: CHISEL.getCoins().map(function mapCoin(coin) {
         return coin.NAME;
       }),

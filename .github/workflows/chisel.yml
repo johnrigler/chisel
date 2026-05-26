@@ -43,11 +43,13 @@ jobs:
           test -f chisel.sign.js
           test -f chisel.ravencoin.js
           test -f chisel.digibyte.js
+          test -f chisel.litecoin.js
           test -f chisel.unspendable.js
           test -f qrScan.html
           test -f tools/decoder/index.html
           test -f tools/boxLabels.html
           test -f tools/qrField/index.html
+          test -f tools/unspendable/testLoop.js
           test -f tools/README_PATCH.txt
 
       - name: Syntax check JavaScript
@@ -56,8 +58,36 @@ jobs:
           node --check chisel.sign.js
           node --check chisel.ravencoin.js
           node --check chisel.digibyte.js
+          node --check chisel.litecoin.js
           node --check chisel.unspendable.js
+          node --check tools/unspendable/testLoop.js
           node --check app.js
+
+
+      - name: Run unspendable prefix loop
+        run: |
+          node - <<'NODE'
+          global.window = globalThis;
+          require('./chisel.unspendable.js');
+          require('./tools/unspendable/testLoop.js');
+          Promise.all([
+            CHISEL_UNSPENDABLE.testLoop(),
+            CHISEL_UNSPENDABLE.testAllSecondCharacters('L')
+          ]).then(function (reports) {
+            const rows = reports[0];
+            const litecoin = reports[1];
+            console.log(JSON.stringify(rows, null, 2));
+            console.log('L?x tested:', litecoin.tested);
+            console.log('L?x valid seconds:', litecoin.valid.join(''));
+            console.log('L?x invalid seconds:', litecoin.invalid.join(''));
+            if (litecoin.tested !== 58) {
+              throw new Error('Expected 58 L?x unspendable candidates.');
+            }
+          }).catch(function (error) {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
 
       - name: Check expected script references in index.html
         run: |
@@ -65,6 +95,7 @@ jobs:
           grep -q 'chisel.sign.js' index.html
           grep -q 'chisel.ravencoin.js' index.html
           grep -q 'chisel.digibyte.js' index.html
+          grep -q 'chisel.litecoin.js' index.html
           grep -q 'chisel.unspendable.js' index.html
           grep -q 'app.js' index.html
           grep -q 'tools/qrField/index.html' index.html

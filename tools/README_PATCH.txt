@@ -19,3 +19,20 @@ Changes:
 - Removed QR canvas borders/extra box whitespace.
 - Replaced the custom inline QR encoder with the shared qrcodejs package used by tools/qrField/index.html.
 - Fixed printed Ravencoin locator format to literal |RVN|:<block>:<pos>.
+
+2.4.3c cleanup:
+- Litecoin and Litecoin Testnet unspendable modifiers are now M,N,P,Q,R.
+- app.js rebuilds the unspendable modifier dropdown from the selected coin's UNSPENDABLE_MODIFIERS value.
+- chisel.unspendable.js now exposes CHISEL_UNSPENDABLE.testLoop().
+- tools/unspendable/testLoop.js provides a browser/Node helper for the same loop.
+- CI runs the general unspendable prefix loop for Ravencoin, Digibyte, Litecoin, and Litecoin Testnet.
+
+2.4.3c Litecoin unspendable scan update:
+- The five observed Litecoin modifiers M,N,P,Q,R are no longer treated as the full set.
+- chisel.unspendable.js now exposes CHISEL_UNSPENDABLE.testAllSecondCharacters(first, options).
+- For Litecoin, run: await CHISEL_UNSPENDABLE.testAllSecondCharacters("L")
+- tools/unspendable/testLoop.js now exposes CHISEL_UNSPENDABLE_TEST.scanLitecoinSecondCharacters().
+- The scan tests every Base58 character in L?x and reports valid and invalid rows without throwing on expected invalid prefixes.
+- Current L?x scan for phrase "domo arigato" found valid seconds: K,L,M,N,P,Q,R,S,T,U,V,W,X,Y,Z,a,b,c,d,e,f,g,h.
+- The Litecoin GUI modifier dropdown now uses that discovered valid set instead of the earlier five sampled values.
+

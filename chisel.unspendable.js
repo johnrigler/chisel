@@ -240,6 +240,111 @@
     return base58CheckEncode(payloadBytes, versionBytes);
   }
 
+
+  async function scanSecondCharacterSpace(first, options) {
+    const normalizedFirst = String(first || "").charAt(0);
+    const scanOptions = options || {};
+    const suffix = scanOptions.suffix === undefined ? "x" : String(scanOptions.suffix);
+    const phrase = scanOptions.phrase || "domo arigato";
+    const seconds = scanOptions.seconds && scanOptions.seconds.length
+      ? scanOptions.seconds
+      : B58.split("");
+    const rows = [];
+    const valid = [];
+    const invalid = [];
+
+    assert(normalizedFirst, "First character is required for second-character scan.");
+
+    for (let i = 0; i < seconds.length; i += 1) {
+      const second = String(seconds[i] || "").charAt(0);
+
+      if (!second) {
+        continue;
+      }
+
+      const prefix = normalizedFirst + second + suffix;
+      let address = "";
+      let error = "";
+      let passed = false;
+
+      try {
+        address = await generate(prefix, phrase);
+        passed = address.indexOf(prefix) === 0;
+      } catch (exception) {
+        error = exception && exception.message ? exception.message : String(exception);
+      }
+
+      const row = {
+        first: normalizedFirst,
+        second: second,
+        suffix: suffix,
+        prefix: prefix,
+        phrase: phrase,
+        address: address,
+        passed: passed,
+        error: error
+      };
+
+      rows.push(row);
+
+      if (passed) {
+        valid.push(second);
+      } else {
+        invalid.push(second);
+      }
+    }
+
+    return {
+      first: normalizedFirst,
+      suffix: suffix,
+      phrase: phrase,
+      tested: rows.length,
+      valid: valid,
+      invalid: invalid,
+      rows: rows
+    };
+  }
+
+  async function testAllSecondCharacters(first, options) {
+    return scanSecondCharacterSpace(first || "L", options);
+  }
+
+  async function testLoop(cases) {
+    const testCases = cases && cases.length ? cases : [
+      { name: "ravencoin", first: "R", seconds: ["A", "B", "C", "D", "E"], phrase: "domo arigato", requireAllPassed: true },
+      { name: "digibyte", first: "D", seconds: ["A", "B", "C", "D", "E"], phrase: "domo arigato", requireAllPassed: true },
+      { name: "litecoin", first: "L", seconds: B58.split(""), phrase: "domo arigato", requireAllPassed: false },
+      { name: "litecoinTestnet", first: "T", seconds: B58.split(""), phrase: "domo arigato", requireAllPassed: false }
+    ];
+    const results = [];
+
+    for (let i = 0; i < testCases.length; i += 1) {
+      const testCase = testCases[i];
+      const scan = await scanSecondCharacterSpace(testCase.first, {
+        suffix: testCase.suffix || "x",
+        phrase: testCase.phrase || "test",
+        seconds: testCase.seconds
+      });
+
+      scan.rows.forEach(function appendRow(row) {
+        results.push({
+          name: testCase.name || scan.first,
+          prefix: row.prefix,
+          phrase: row.phrase,
+          address: row.address,
+          passed: row.passed,
+          error: row.error
+        });
+      });
+
+      if (testCase.requireAllPassed !== false && scan.invalid.length) {
+        throw new Error("Unspendable test failed for " + testCase.name + ": " + scan.invalid.join(","));
+      }
+    }
+
+    return results;
+  }
+
   async function inspect(prefix, body) {
     const encodedBody = encodeMacDougal(body || "");
     const address = await generate(prefix, body || "");
@@ -260,6 +365,9 @@
     encodeMacDougal: encodeMacDougal,
     generate: generate,
     inspect: inspect,
+    testLoop: testLoop,
+    scanSecondCharacterSpace: scanSecondCharacterSpace,
+    testAllSecondCharacters: testAllSecondCharacters,
     bytesToHex: bytesToHex,
     hexToBytes: hexToBytes,
     base58ToBytes: base58ToBytes,

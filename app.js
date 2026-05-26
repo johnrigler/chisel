@@ -3,11 +3,16 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.4.3b";
+  const APP_VERSION = "2.4.3c-ltc-unspendable-ui";
   const DEFAULT_CURRENCY_KEY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
   const ENTER_KEY = "Enter";
+
+  const LITECOIN_UNSPENDABLE_MODIFIERS = [
+    "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    "a", "b", "c", "d", "e", "f", "g", "h"
+  ];
   console.log(APP_VERSION)
 
   //
@@ -23,6 +28,11 @@
       key: "digibyte",
       label: "Digibyte",
       aliases: ["digibyte", "Digibyte", "dgb", "DGB"]
+    },
+    litecoin: {
+      key: "litecoin",
+      label: "Litecoin",
+      aliases: ["litecoin", "Litecoin", "ltc", "LTC"]
     },
     litecoinTestnet: {
       key: "litecoinTestnet",
@@ -161,9 +171,15 @@
         }
         break;
 
+      case "litecoin":
+        if (window.LITECOIN && typeof CHISEL !== "undefined" && typeof CHISEL.getCoin === "function") {
+          return CHISEL.getCoin("litecoin");
+        }
+        break;
+
       case "litecoinTestnet":
-        if (typeof LITECOIN_TESTNET === "function") {
-          return new LITECOIN_TESTNET();
+        if (typeof CHISEL !== "undefined" && typeof CHISEL.getCoin === "function") {
+          return CHISEL.getCoin("litecoinTestnet");
         }
         break;
 
@@ -474,6 +490,66 @@ function addRecipientRow(address, amount, options) {
   setSuggestedFeeValue();
 }
 
+
+function isLitecoinCurrencyKey(currencyKey) {
+  return currencyKey === "litecoin" || currencyKey === "litecoinTestnet";
+}
+
+function getUnspendableModifierOptions() {
+  const currencyKey = getSelectedCurrencyKey() || DEFAULT_CURRENCY_KEY;
+  const coin = getCoin();
+
+  // Do not depend only on the coin plugin here. This pulldown is a GUI control,
+  // so make Litecoin explicit and deterministic even if a stale coin object or
+  // browser cache is in play. The set was discovered by scanning all 58 L?x
+  // Base58 second-character candidates.
+  if (isLitecoinCurrencyKey(currencyKey)) {
+    return LITECOIN_UNSPENDABLE_MODIFIERS.map(function mapLitecoinModifier(modifier) {
+      return { value: modifier, label: modifier + " - Litecoin L?x valid" };
+    });
+  }
+
+  if (coin.UNSPENDABLE_MODIFIERS && coin.UNSPENDABLE_MODIFIERS.length) {
+    return coin.UNSPENDABLE_MODIFIERS.map(function mapModifier(modifier) {
+      return { value: String(modifier), label: String(modifier) + " - chain-safe modifier" };
+    });
+  }
+
+  return [
+    { value: "A", label: "A - person / name" },
+    { value: "B", label: "B - transport / source" },
+    { value: "C", label: "C - subject / title" },
+    { value: "D", label: "D - IPFS first half" },
+    { value: "E", label: "E - IPFS second half" }
+  ];
+}
+
+function setUnspendableKindOptions() {
+  if (!elems.unspendableKind) {
+    return;
+  }
+
+  const previousValue = elems.unspendableKind.value;
+  const options = getUnspendableModifierOptions();
+  const preferredValue = options.some(function hasPrevious(option) {
+    return option.value === previousValue;
+  }) ? previousValue : options[0].value;
+
+  elems.unspendableKind.innerHTML = "";
+
+  options.forEach(function appendUnspendableOption(optionData) {
+    const option = document.createElement("option");
+
+    option.value = optionData.value;
+    option.textContent = optionData.label;
+
+    elems.unspendableKind.append(option);
+  });
+
+  elems.unspendableKind.value = preferredValue;
+  elems.unspendableKind.setAttribute("data-currency", getSelectedCurrencyKey() || DEFAULT_CURRENCY_KEY);
+}
+
 function getUnspendableFirstCharacter() {
   const coin = getCoin();
 
@@ -720,7 +796,7 @@ function setCurrencyForm() {
   elems.changeLabel.textContent = "Send-back amount (" + coin.TICKER + ")";
   elems.recipientTotalLabel.textContent = "Recipient total (" + coin.TICKER + ")";
   elems.estimatedCostLabel.textContent = "Recipients + fee (" + coin.TICKER + ")";
-  elems.rpcUrlLabel.textContent = coin.REQUIRES_EXPLORER ? "RPC URL" : "RPC / API URL";
+  elems.rpcUrlLabel.textContent = coin.USES_THIRD_PARTY_PROVIDERS ? "Provider list" : (coin.REQUIRES_EXPLORER ? "RPC URL" : "RPC / API URL");
 
  // setInputValue(elems.feeRvn, coin.DEFAULT_FEE || "");
   setSuggestedFeeValue(true);
@@ -746,6 +822,7 @@ function setCurrencyForm() {
       ".";
   }
 
+  setUnspendableKindOptions();
   setDefaultUnspendableAmount(true);
   updateRecipientCostPreview();
   render();
@@ -955,7 +1032,7 @@ function clearOutputs() {
       throw new Error("Sender WIF is required.");
     }
 
-    if (!values.rpcUrl) {
+    if (!values.rpcUrl && !coin.USES_THIRD_PARTY_PROVIDERS) {
       throw new Error("RPC URL is required.");
     }
 
@@ -1017,8 +1094,11 @@ function getMinimumRequiredFeeUnits(coin, values) {
 
     validateBuildSignSendValues(coin, values);
 
-    const client = new CHISEL(values.rpcUrl);
-    await client.load();
+    const client = coin.USES_THIRD_PARTY_PROVIDERS ? null : new CHISEL(values.rpcUrl);
+
+    if (client) {
+      await client.load();
+    }
 
     const minimumRequiredFeeUnits = getMinimumRequiredFeeUnits(coin, values);
     const requiredFeeUnits = Math.max(values.feeUnits, minimumRequiredFeeUnits);
@@ -1037,7 +1117,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
       privateKeyHex: account.privateKeyHex
     });
 
-    setStatusMessage("Fetching UTXOs for " + account.address + "...", false);
+    setStatusMessage("Fetching UTXOs for " + account.address + (coin.USES_THIRD_PARTY_PROVIDERS ? " via providers..." : "..."), false);
     const rawUtxos = await coin.getAddressUtxos(client, values, account.address);
     const utxos = rawUtxos.map(CHISEL.normalizeUTXO);
     setUtxoData(utxos);
@@ -1077,11 +1157,11 @@ function getMinimumRequiredFeeUnits(coin, values) {
       recipients: values.recipients
     });
 
-    setStatusMessage("Creating raw transaction...", false);
+    setStatusMessage(coin.USES_THIRD_PARTY_PROVIDERS ? "Creating raw transaction locally..." : "Creating raw transaction...", false);
     const rawHex = await coin.createRawTransaction(client, values, vin, vout);
     setRawHexData(rawHex);
 
-    setStatusMessage("Decoding unsigned raw transaction...", false);
+    setStatusMessage(coin.USES_THIRD_PARTY_PROVIDERS ? "Decoding unsigned raw transaction locally..." : "Decoding unsigned raw transaction...", false);
     const decodedUnsigned = await coin.decodeRawTransaction(client, values, rawHex);
     setDecodedUnsignedData(decodedUnsigned);
 
@@ -1111,7 +1191,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
     const signedHex = await context.coin.signRawTransaction(context.rawHex, signingInputs);
     setSignedHexData(signedHex);
 
-    setStatusMessage("Decoding signed raw transaction...", false);
+    setStatusMessage(context.coin.USES_THIRD_PARTY_PROVIDERS ? "Decoding signed raw transaction locally..." : "Decoding signed raw transaction...", false);
     const decodedSigned = await context.coin.decodeRawTransaction(context.client, context.values, signedHex);
     setDecodedSignedData(decodedSigned);
 
@@ -1127,7 +1207,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
   }
 
   async function sendTransactionContext(context) {
-    setStatusMessage("Broadcasting signed transaction...", false);
+    setStatusMessage(context.coin.USES_THIRD_PARTY_PROVIDERS ? "Broadcasting signed transaction through providers..." : "Broadcasting signed transaction...", false);
     const sendResult = await context.coin.sendRawTransaction(context.client, context.values, context.signedHex);
     setSendResultData(sendResult);
 
@@ -1482,6 +1562,7 @@ function init() {
     elems.sendButton.onclick = onClickSendButton;
     elems.senderWif.onkeydown = onKeydownSenderWif;
     elems.currency.onchange = onChangeCurrency;
+    elems.currency.addEventListener("change", setUnspendableKindOptions);
     elems.opReturnAscii.oninput = onInputOpReturnAscii;
     elems.opReturnHex.oninput = onInputOpReturnHex;
     if (elems.ipfsField) {
