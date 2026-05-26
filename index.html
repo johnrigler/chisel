@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.4.3b</title>
+  <title>Chisel 2.4.3c</title>
 
   <script src="vendor/elliptic-6-6-1.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
@@ -420,6 +420,8 @@
         <select id="currency">
           <option value="ravencoin">Ravencoin</option>
           <option value="digibyte">Digibyte</option>
+          <option value="litecoin">Litecoin</option>
+          <option value="litecoinTestnet">Litecoin Testnet</option>
         </select>
 
         <label for="senderWif">Sender WIF</label>
@@ -449,12 +451,8 @@
           <button id="addRecipientButton" class="secondaryButton" type="button">ADD RECIPIENT</button>
 
           <div class="inlineTool" id="unspendableTool">
-            <select id="unspendableKind">
-              <option value="A">A - person / name</option>
-              <option value="B">B - transport / source</option>
-              <option value="C" selected>C - subject / title</option>
-              <option value="D">D - IPFS first half</option>
-              <option value="E">E - IPFS second half</option>
+            <select id="unspendableKind" data-currency="">
+              <option value="">loading modifiers...</option>
             </select>
             <input id="unspendablePhrase" type="text" maxlength="24" placeholder="short phrase" />
             <input id="unspendableAmount" type="number" min="0" step="0.00000001" />
@@ -616,11 +614,12 @@
     </section>
   </main>
 
-  <script src="chisel.js?2.4.3b"></script>
-  <script src="chisel.unspendable.js?2.4.3b"></script>
-  <script src="chisel.sign.js?2.4.3b"></script>
-  <script src="chisel.ravencoin.js?2.4.3b"></script>
-  <script src="chisel.digibyte.js?2.4.3b"></script>
+  <script src="chisel.js?2.4.3c2"></script>
+  <script src="chisel.unspendable.js?2.4.3c2"></script>
+  <script src="chisel.sign.js?2.4.3c2"></script>
+  <script src="chisel.ravencoin.js?2.4.3c2"></script>
+  <script src="chisel.digibyte.js?2.4.3c2"></script>
+  <script src="chisel.litecoin.js?2.4.3c2"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -629,7 +628,7 @@
   };
 </script>
 
-  <script src="app.js?2.4.3b"></script>
+  <script src="app.js?2.4.3c2"></script>
 </body>
 </html>
 
