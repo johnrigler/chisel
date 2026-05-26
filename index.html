@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.4.3a</title>
+  <title>Chisel 2.4.3b</title>
 
   <script src="vendor/elliptic-6-6-1.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
@@ -582,7 +582,7 @@
         <h2>Decode ledger objects</h2>
         <p class="muted">Open the decoder when the txid is the durable object key and the outputs need to be read as OP_RETURN plus MacDougall indexed addresses.</p>
         <div class="actions">
-          <a class="toolCard" href="decode.html">
+          <a class="toolCard" href="tools/decoder/index.html">
             <strong>Open Chisel Transaction Decoder</strong>
             <span>Reads txid-named fixtures or live Ravencoin RPC, decodes OP_RETURN, and renders indexed address outputs.</span>
           </a>
@@ -599,24 +599,28 @@
             <strong>QR / WIF scanner</strong>
             <span>Scan four 16-hex stickers or a full WIF, then load it back into Chisel.</span>
           </a>
-          <a class="toolCard" href="boxLabels4.html">
+          <a class="toolCard" href="tools/boxLabels.html">
             <strong>2×2 label builder</strong>
             <span>Build printable CertLedger / RVN labels with SHA-256 Base64 and txid QR fields.</span>
           </a>
-          <a class="toolCard" href="decode.html">
+          <a class="toolCard" href="tools/decoder/index.html">
             <strong>Transaction decoder</strong>
             <span>Inspect social/ledger objects by txid and decode indexed outputs.</span>
+          </a>
+          <a class="toolCard" href="tools/qrField/index.html">
+            <strong>qrField label tool</strong>
+            <span>Generate printable QR-coded field identifiers and physical entry-point labels.</span>
           </a>
         </div>
       </section>
     </section>
   </main>
 
-  <script src="chisel.js?2.4.3a"></script>
-  <script src="chisel.unspendable.js?2.4.3a"></script>
-  <script src="chisel.sign.js?2.4.3a"></script>
-  <script src="chisel.ravencoin.js?2.4.3a"></script>
-  <script src="chisel.digibyte.js?2.4.3a"></script>
+  <script src="chisel.js?2.4.3b"></script>
+  <script src="chisel.unspendable.js?2.4.3b"></script>
+  <script src="chisel.sign.js?2.4.3b"></script>
+  <script src="chisel.ravencoin.js?2.4.3b"></script>
+  <script src="chisel.digibyte.js?2.4.3b"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -625,7 +629,7 @@
   };
 </script>
 
-  <script src="app.js?2.4.3a"></script>
+  <script src="app.js?2.4.3b"></script>
 </body>
 </html>
 

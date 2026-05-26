@@ -1,11 +1,15 @@
 Patch contents:
 
-- tools/boxLabels4.html
+- tools/qrField/index.html
+  Added to the main Chisel Tools panel.
+  Fixed nested vendor path to load ../../vendor/qrcode.min.js.
+
+- tools/boxLabels.html
   Chisel tools version of the 2x2 Base64/RVN label builder.
   It loads the shared qrcodejs library from:
-  tools/qrField/lib/davidshimjs-qrcodejs-04f46c6/qrcode.min.js
+  vendor/qrcode.min.js
 
-- tools/qrField/lib/davidshimjs-qrcodejs-04f46c6/qrcode.min.js
+- vendor/qrcode.min.js
   Included only so the path is present if your branch does not already have it.
 
 Changes:
