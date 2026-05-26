@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.4.2e";
+  const APP_VERSION = "2.4.3a";
   const DEFAULT_CURRENCY_KEY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -41,8 +41,15 @@
     feeLabel: document.querySelector("#feeLabel"),
     opReturnAscii: document.querySelector("#opReturnAscii"),
     opReturnHex: document.querySelector("#opReturnHex"),
+    ipfsField: document.querySelector("#ipfsField"),
     recipientRows: document.querySelector("#recipientRows"),
     addRecipientButton: document.querySelector("#addRecipientButton"),
+    unspendableKind: document.querySelector("#unspendableKind"),
+    unspendablePhrase: document.querySelector("#unspendablePhrase"),
+    unspendableAmount: document.querySelector("#unspendableAmount"),
+    addUnspendableButton: document.querySelector("#addUnspendableButton"),
+    commonAddressSelect: document.querySelector("#commonAddressSelect"),
+    addCommonAddressButton: document.querySelector("#addCommonAddressButton"),
     recipientTotalRvn: document.querySelector("#recipientTotalRvn"),
     recipientTotalLabel: document.querySelector("#recipientTotalLabel"),
     estimatedCostRvn: document.querySelector("#estimatedCostRvn"),
@@ -323,7 +330,9 @@ function getRecipientRowValues() {
     return {
       row: row,
       address: addressInput ? addressInput.value.trim() : "",
-      amountText: amountInput ? amountInput.value.trim() : ""
+      amountText: amountInput ? amountInput.value.trim() : "",
+      outputType: row.getAttribute("data-output-type") || "standard",
+      note: row.getAttribute("data-note") || ""
     };
   });
 }
@@ -372,7 +381,9 @@ function parseRecipients() {
       return {
         address: rowValues.address,
         amount: amountNumber,
-        amountUnits: coin.coinToUnits(rowValues.amountText)
+        amountUnits: coin.coinToUnits(rowValues.amountText),
+        outputType: rowValues.outputType,
+        note: rowValues.note
       };
     });
 }
@@ -412,13 +423,16 @@ function updateRecipientCostPreview() {
   }
 }
 
-function createRecipientRow(address, amount) {
+function createRecipientRow(address, amount, options) {
+  options = options || {};
   const row = document.createElement("div");
   const addressInput = document.createElement("input");
   const amountInput = document.createElement("input");
   const removeButton = document.createElement("button");
 
-  row.className = "recipientRow";
+  row.className = options.outputType === "unspendable" ? "recipientRow unspendableRecipient" : "recipientRow";
+  row.setAttribute("data-output-type", options.outputType || "standard");
+  row.setAttribute("data-note", options.note || "");
 
   addressInput.className = "recipientAddress";
   addressInput.type = "text";
@@ -455,9 +469,90 @@ function createRecipientRow(address, amount) {
   return row;
 }
 
-function addRecipientRow(address, amount) {
-  elems.recipientRows.append(createRecipientRow(address, amount));
+function addRecipientRow(address, amount, options) {
+  elems.recipientRows.append(createRecipientRow(address, amount, options));
   setSuggestedFeeValue();
+}
+
+function getUnspendableFirstCharacter() {
+  const coin = getCoin();
+
+  if (coin.NAME === "ravencoin") {
+    return "R";
+  }
+
+  if (coin.NAME === "digibyte") {
+    return "D";
+  }
+
+  return String(coin.UNSPENDABLE_PREFIX || "R").charAt(0) || "R";
+}
+
+function getDefaultUnspendableAmount() {
+  const coin = getCoin();
+
+  if (coin.NAME === "ravencoin") {
+    return "0.002";
+  }
+
+  if (coin.NAME === "digibyte") {
+    return "0.00001";
+  }
+
+  return coin.DEFAULT_BURN_AMOUNT || "0.00001";
+}
+
+function setDefaultUnspendableAmount(force) {
+  if (!elems.unspendableAmount) {
+    return;
+  }
+
+  if (force || !elems.unspendableAmount.value) {
+    elems.unspendableAmount.value = getDefaultUnspendableAmount();
+  }
+}
+
+async function addUnspendableRecipientFromTool() {
+  const second = elems.unspendableKind ? elems.unspendableKind.value : "C";
+  const phrase = elems.unspendablePhrase ? elems.unspendablePhrase.value.trim() : "";
+  const amount = elems.unspendableAmount ? elems.unspendableAmount.value.trim() : "";
+  const prefix = getUnspendableFirstCharacter() + second + "x";
+  let address;
+
+  if (!phrase) {
+    throw new Error("Unspendable phrase is required.");
+  }
+
+  if (!amount || Number(amount) <= 0) {
+    throw new Error("Unspendable burn amount must be greater than zero.");
+  }
+
+  if (!window.CHISEL_UNSPENDABLE || typeof window.CHISEL_UNSPENDABLE.generate !== "function") {
+    throw new Error("chisel.unspendable.js is required before unspendable addresses can be generated.");
+  }
+
+  address = await window.CHISEL_UNSPENDABLE.generate(prefix, phrase);
+  addRecipientRow(address, amount, {
+    outputType: "unspendable",
+    note: prefix + " " + phrase
+  });
+  elems.unspendablePhrase.value = "";
+}
+
+function addCommonAddressFromTool() {
+  const select = elems.commonAddressSelect;
+  const option = select && select.options ? select.options[select.selectedIndex] : null;
+  const address = select ? select.value : "";
+  const amount = option ? option.getAttribute("data-amount") || getDefaultUnspendableAmount() : getDefaultUnspendableAmount();
+
+  if (!address) {
+    throw new Error("Choose a suggested address first.");
+  }
+
+  addRecipientRow(address, amount, {
+    outputType: "unspendable",
+    note: option ? option.textContent : "suggested address"
+  });
 }
 
 function clearRecipientRows() {
@@ -511,9 +606,24 @@ function setFeeUnitsValue(feeUnits) {
     return "";
   }
 
+  function resolveIpfsField() {
+    const value = elems.ipfsField ? elems.ipfsField.value.trim() : "";
+
+    if (!value) {
+      return "";
+    }
+
+    if (/\s/.test(value)) {
+      throw new Error("IPFS field cannot contain whitespace.");
+    }
+
+    return value;
+  }
+
   function getFormValues() {
     const coin = getCoin();
     const recipients = parseRecipients();
+    const ipfsField = resolveIpfsField();
 
     return {
       rpcUrl: elems.rpcUrl.value.trim(),
@@ -521,6 +631,8 @@ function setFeeUnitsValue(feeUnits) {
       senderWif: elems.senderWif.value.trim(),
       feeUnits: coin.coinToUnits(elems.feeRvn.value),
       opReturnHex: resolveOpReturnHex(),
+      ipfsField: ipfsField,
+      hasIpfsField: Boolean(ipfsField),
       recipients: recipients,
       extraRecipientCount: recipients.length
     };
@@ -545,7 +657,7 @@ function getResolvedOpReturnHexForFee() {
   return "";
 }
 
-  function buildSendBackVout(address, changeUnits, opReturnHex, recipients) {
+  function buildSendBackVout(address, changeUnits, opReturnHex, ipfsField, recipients) {
     const coin = getCoin();
     const vout = {
       [address]: coin.unitsToCoin(changeUnits)
@@ -557,6 +669,10 @@ function getResolvedOpReturnHexForFee() {
 
     if (opReturnHex) {
       vout.data = opReturnHex;
+    }
+
+    if (ipfsField) {
+      vout.ipfs = ipfsField;
     }
 
     return vout;
@@ -630,6 +746,7 @@ function setCurrencyForm() {
       ".";
   }
 
+  setDefaultUnspendableAmount(true);
   updateRecipientCostPreview();
   render();
 }
@@ -720,7 +837,8 @@ function xxxxxxxxxxsetSuggestedFeeValue(force) {
     const opReturnHex = getResolvedOpReturnHexForFee();
     const computedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
       opReturnHex: opReturnHex,
-      extraRecipientCount: getRecipientDraftCountForFee()
+      extraRecipientCount: getRecipientDraftCountForFee(),
+      hasIpfsField: Boolean(elems.ipfsField && elems.ipfsField.value.trim())
     });
 
     if (Number.isFinite(computedFeeUnits) && computedFeeUnits > 0) {
@@ -752,7 +870,8 @@ function setSuggestedFeeValue(force) {
   if (typeof coin.getRequiredFeeUnits === "function") {
     const computedFeeUnits = coin.getRequiredFeeUnits(defaultFeeUnits, {
       opReturnHex: opReturnHex,
-      extraRecipientCount: getRecipientDraftCountForFee()
+      extraRecipientCount: getRecipientDraftCountForFee(),
+      hasIpfsField: Boolean(elems.ipfsField && elems.ipfsField.value.trim())
     });
 
     if (Number.isFinite(computedFeeUnits) && computedFeeUnits > 0) {
@@ -842,6 +961,10 @@ function clearOutputs() {
 
     if (coin.REQUIRES_EXPLORER && !values.explorerUrl) {
       throw new Error("Explorer URL is required for " + coin.DISPLAY_NAME + ".");
+    }
+
+    if (values.ipfsField && !coin.SUPPORTS_IPFS_FIELD) {
+      throw new Error("IPFS field is not enabled for " + coin.DISPLAY_NAME + ".");
     }
 
     if (values.feeUnits <= 0) {
@@ -937,7 +1060,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
 
     setChangeData(changeUnits);
 
-    const vout = buildSendBackVout(account.address, changeUnits, values.opReturnHex, values.recipients);
+    const vout = buildSendBackVout(account.address, changeUnits, values.opReturnHex, values.ipfsField, values.recipients);
     setVoutData(vout);
 
     setBuildPayloadData({
@@ -947,6 +1070,8 @@ function getMinimumRequiredFeeUnits(coin, values) {
       requestedFeeUnits: values.feeUnits,
       minimumRequiredFeeUnits: minimumRequiredFeeUnits,
       appliedFeeUnits: requiredFeeUnits,
+      ipfsField: values.ipfsField,
+      hasIpfsField: values.hasIpfsField,
       recipientTotalUnits: recipientTotalUnits,
       recipientTotal: coin.unitsToCoin(recipientTotalUnits),
       recipients: values.recipients
@@ -1102,6 +1227,10 @@ function onInputOpReturnHex() {
   setSuggestedFeeValue();
 }
 
+function onInputIpfsField() {
+  setSuggestedFeeValue();
+}
+
 function onInputFee() {
   updateRecipientCostPreview();
 }
@@ -1110,90 +1239,92 @@ function onClickAddRecipientButton() {
   addRecipientRow("", "");
 }
 
+async function onClickAddUnspendableButton() {
+  try {
+    await addUnspendableRecipientFromTool();
+    setStatusMessage("Unspendable burn/index output added.", false);
+  } catch (error) {
+    console.error(error);
+    setStatusMessage(error.message || String(error), true);
+  }
+}
+
+function onClickAddCommonAddressButton() {
+  try {
+    addCommonAddressFromTool();
+    setStatusMessage("Suggested burn/index output added.", false);
+  } catch (error) {
+    console.error(error);
+    setStatusMessage(error.message || String(error), true);
+  }
+}
+
+
+
+  //
+  // GUI mode shell
+  //
+  const MODE_HINTS = {
+    broadcast: "Broadcast mode builds, signs, decodes, and sends the transaction. Review mode shows the raw transaction pipeline after a build/send attempt.",
+    review: "Review mode exposes the transaction spine: account, UTXOs, VIN, VOUT, raw hex, signed hex, and broadcast result.",
+    decode: "Decode mode opens the ledger object viewer. Use it after a txid exists or when reading a txid-named fixture.",
+    tools: "Tools mode links to QR/WIF scanning, label generation, and transaction decoding without crowding the broadcaster."
+  };
+
+  function normalizeMode(value) {
+    if (value === "review" || value === "decode" || value === "tools") {
+      return value;
+    }
+
+    return "broadcast";
+  }
+
+  function setGuiMode(mode) {
+    const normalizedMode = normalizeMode(mode);
+    const buttons = Array.from(document.querySelectorAll("[data-mode-target]"));
+    const modeHint = document.querySelector("#modeHint");
+
+    document.body.dataset.mode = normalizedMode;
+
+    buttons.forEach(function markModeButton(button) {
+      button.classList.toggle("active", button.dataset.modeTarget === normalizedMode);
+    });
+
+    if (modeHint) {
+      modeHint.textContent = MODE_HINTS[normalizedMode] || MODE_HINTS.broadcast;
+    }
+
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("mode", normalizedMode);
+      window.history.replaceState(null, "", url.toString());
+    } catch (error) {
+      // Non-fatal. Some local/file contexts may not allow URL mutation.
+    }
+  }
+
+  function bindGuiModeShell() {
+    const buttons = Array.from(document.querySelectorAll("[data-mode-target]"));
+    let initialMode = "broadcast";
+
+    try {
+      initialMode = new URL(window.location.href).searchParams.get("mode") || "broadcast";
+    } catch (error) {
+      initialMode = "broadcast";
+    }
+
+    buttons.forEach(function bindModeButton(button) {
+      button.onclick = function onModeButtonClick() {
+        setGuiMode(button.dataset.modeTarget);
+      };
+    });
+
+    setGuiMode(initialMode);
+  }
 
   //
   // Console tools
   //
-//
-
-function dispatchInputChange(elem) {
-  elem.dispatchEvent(new Event("input", { bubbles: true }));
-  elem.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
-function setOpReturnAsciiValue(ascii) {
-  elems.opReturnHex.value = "";
-  elems.opReturnAscii.value = String(ascii || "");
-  dispatchInputChange(elems.opReturnAscii);
-  setSuggestedFeeValue(true);
-}
-
-function setOpReturnHexValue(hex) {
-  elems.opReturnAscii.value = "";
-  elems.opReturnHex.value = normalizeHex(String(hex || ""));
-  dispatchInputChange(elems.opReturnHex);
-  setSuggestedFeeValue(true);
-}
-
-window.loadWif = function loadWif(wif) {
-  if (!wif) {
-    throw new Error("WIF is required.");
-  }
-
-  setSenderWifValue(wif);
-};
-
-window.loadCurrency = function loadCurrency(currencyKey) {
-  if (!currencyKey) {
-    throw new Error("Currency key is required.");
-  }
-
-  setCurrencyValue(currencyKey);
-};
-
-window.loadOpReturnAscii = function loadOpReturnAscii(ascii) {
-  setOpReturnAsciiValue(ascii);
-};
-
-window.loadOpReturnHex = function loadOpReturnHex(hex) {
-  const normalized = normalizeHex(String(hex || ""));
-
-  if (!isHex(normalized)) {
-    throw new Error("OP_RETURN HEX contains non-hex characters.");
-  }
-
-  if (normalized.length % 2 !== 0) {
-    throw new Error("OP_RETURN HEX must have an even number of characters.");
-  }
-
-  setOpReturnHexValue(normalized);
-};
-
-window.clearOpReturn = function clearOpReturn() {
-  elems.opReturnAscii.value = "";
-  elems.opReturnHex.value = "";
-  dispatchInputChange(elems.opReturnAscii);
-  dispatchInputChange(elems.opReturnHex);
-  setSuggestedFeeValue(true);
-};
-
-window.chiselSend = function chiselSend() {
-  elems.sendButton.click();
-};
-
-window.loadWifOpReturnAndSend = function loadWifOpReturnAndSend(wif, ascii) {
-  window.loadWif(wif);
-  window.loadOpReturnAscii(ascii);
-  window.chiselSend();
-};
-
-window.loadCurrencyWifOpReturnAndSend = function loadCurrencyWifOpReturnAndSend(currencyKey, wif, ascii) {
-  window.loadCurrency(currencyKey);
-  window.loadWif(wif);
-  window.loadOpReturnAscii(ascii);
-  window.chiselSend();
-};
-
   function setSenderWifValue(wif) {
     elems.senderWif.value = wif;
     elems.senderWif.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1346,14 +1477,24 @@ function init() {
     setCurrencyOptions();
     setCurrencyForm();
     setStatusMessage(STATUS_IDLE, false);
+    bindGuiModeShell();
 
     elems.sendButton.onclick = onClickSendButton;
     elems.senderWif.onkeydown = onKeydownSenderWif;
     elems.currency.onchange = onChangeCurrency;
     elems.opReturnAscii.oninput = onInputOpReturnAscii;
     elems.opReturnHex.oninput = onInputOpReturnHex;
+    if (elems.ipfsField) {
+      elems.ipfsField.oninput = onInputIpfsField;
+    }
     elems.feeRvn.oninput = onInputFee;
     elems.addRecipientButton.onclick = onClickAddRecipientButton;
+    if (elems.addUnspendableButton) {
+      elems.addUnspendableButton.onclick = onClickAddUnspendableButton;
+    }
+    if (elems.addCommonAddressButton) {
+      elems.addCommonAddressButton.onclick = onClickAddCommonAddressButton;
+    }
 
     if (elems.wifScanButton) {
       elems.wifScanButton.onclick = openQrScanner;
@@ -1372,10 +1513,12 @@ function init() {
 
   init();
 
+  window.setGuiMode = setGuiMode;
   window.getCoin = getCoin;
   window.getCoinName = getCoinName;
   window.runBuildSignDecodeSend = runBuildSignDecodeSend;
   window.addRecipient = addRecipientRow;
+  window.addUnspendableRecipientFromTool = addUnspendableRecipientFromTool;
   window.clearRecipients = clearRecipientRows;
   window.buildTransactionContext = buildTransactionContext;
   window.signTransactionContext = signTransactionContext;

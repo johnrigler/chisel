@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel Broadcaster</title>
+  <title>Chisel 2.4.3a</title>
 
   <script src="vendor/elliptic-6-6-1.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
@@ -136,6 +136,45 @@
       align-items: center;
     }
 
+    .recipientRow.unspendableRecipient {
+      border: 1px solid #755c16;
+      border-radius: 12px;
+      padding: 8px;
+      background: rgba(255, 209, 102, 0.08);
+    }
+
+    .recipientRow.unspendableRecipient::before {
+      content: "BURN / UNSPENDABLE";
+      color: #ffd166;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      grid-column: 1 / -1;
+    }
+
+    .inlineTool {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 100px 1fr 120px auto;
+      align-items: center;
+    }
+
+    .suggestionBar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .suggestionBar select {
+      max-width: 420px;
+    }
+
+    @media (max-width: 760px) {
+      .inlineTool {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .secondaryButton,
     .removeRecipientButton {
       background: #1d2630;
@@ -259,6 +298,84 @@
       user-select: none;
     }
 
+
+    .modeNav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .modeButton {
+      background: #1d2630;
+      color: #d7e2ee;
+      border: 1px solid #2c3642;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+
+    .modeButton.active {
+      background: linear-gradient(180deg, #8b7bff 0%, #705dff 100%);
+      color: #fff;
+      border-color: #8b7bff;
+    }
+
+    .modePanel {
+      display: none;
+    }
+
+    body[data-mode="broadcast"] .modePanel[data-mode-panel="broadcast"],
+    body[data-mode="review"] .modePanel[data-mode-panel="review"],
+    body[data-mode="decode"] .modePanel[data-mode-panel="decode"],
+    body[data-mode="tools"] .modePanel[data-mode-panel="tools"] {
+      display: grid;
+    }
+
+    .toolGrid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .toolCard {
+      display: grid;
+      gap: 8px;
+      border: 1px solid #263241;
+      border-radius: 12px;
+      padding: 14px;
+      background: #0a0f14;
+      color: #d7e2ee;
+      text-decoration: none;
+      min-height: 130px;
+    }
+
+    .toolCard strong {
+      color: #e6edf3;
+      font-size: 15px;
+    }
+
+    .toolCard span {
+      color: #91a4b7;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .compactHint {
+      border: 1px solid #263241;
+      border-radius: 10px;
+      padding: 12px;
+      background: #0a0f14;
+      color: #91a4b7;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 900px) {
+      .toolGrid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 760px) {
       .grid {
         grid-template-columns: 1fr;
@@ -270,7 +387,7 @@
     }
   </style>
 </head>
-<body>
+<body data-mode="broadcast">
   <header>
     <div class="shell">
       <h1>Chisel</h1>
@@ -279,6 +396,17 @@
   </header>
 
   <main>
+    <section class="panel">
+      <div class="modeNav" aria-label="Chisel modes">
+        <button class="modeButton active" type="button" data-mode-target="broadcast">Broadcast</button>
+        <button class="modeButton" type="button" data-mode-target="review">Review</button>
+        <button class="modeButton" type="button" data-mode-target="decode">Decode</button>
+        <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
+      </div>
+      <div class="compactHint" id="modeHint">Broadcast mode builds, signs, decodes, and sends the transaction. Review mode shows the raw transaction pipeline after a build/send attempt.</div>
+    </section>
+
+    <section class="modePanel" data-mode-panel="broadcast">
     <section class="panel hero">
       <h2 id="heroTitle">One-step Ravencoin send-back + broadcast</h2>
       <p id="heroText">
@@ -312,11 +440,39 @@
         <label for="opReturnHex">OP_RETURN HEX</label>
         <input id="opReturnHex" type="text" />
 
+        <label for="ipfsField">IPFS field</label>
+        <input id="ipfsField" type="text" spellcheck="false" placeholder="CID / IPFS hash, optional" />
+
         <label for="recipientRows">Extra recipients</label>
         <div id="recipientEditor" class="recipientEditor">
           <div id="recipientRows" class="recipientRows"></div>
           <button id="addRecipientButton" class="secondaryButton" type="button">ADD RECIPIENT</button>
-          <div class="help">Optional fixed outputs. Change still returns to the sender after recipients and fee are subtracted.</div>
+
+          <div class="inlineTool" id="unspendableTool">
+            <select id="unspendableKind">
+              <option value="A">A - person / name</option>
+              <option value="B">B - transport / source</option>
+              <option value="C" selected>C - subject / title</option>
+              <option value="D">D - IPFS first half</option>
+              <option value="E">E - IPFS second half</option>
+            </select>
+            <input id="unspendablePhrase" type="text" maxlength="24" placeholder="short phrase" />
+            <input id="unspendableAmount" type="number" min="0" step="0.00000001" />
+            <button id="addUnspendableButton" class="secondaryButton" type="button">ADD BURN</button>
+          </div>
+
+          <div class="suggestionBar">
+            <select id="commonAddressSelect">
+              <option value="">Common Chisel address...</option>
+              <option value="RRRRRRRRRRRRRRRRRRRRRRRRRRRRTvmrjL" data-amount="0.002">Thunderword / universal marker</option>
+              <option value="RCxMoGWAixLiVESzzzzzzzzzzzzzXuGgQq" data-amount="0.002">Mogwai Lives</option>
+              <option value="RCxMoGWAixGiVESzzzzzzzzzzzzzaDhCVx" data-amount="0.002">Mogwai Gives</option>
+              <option value="RCxMoGWAixSHiVSzzzzzzzzzzzzzYvQb7x" data-amount="0.002">Mogwai Shivs</option>
+            </select>
+            <button id="addCommonAddressButton" class="secondaryButton" type="button">ADD SUGGESTED</button>
+          </div>
+
+          <div class="help">Optional fixed outputs. Unspendable rows are intentional burn/index outputs, not normal recipients. Change still returns to the sender after recipients and fee are subtracted.</div>
         </div>
 
         <label id="recipientTotalLabel" for="recipientTotalRvn">Recipient total (RVN)</label>
@@ -358,8 +514,13 @@
         </div>
       </details>
     </section>
+    </section>
 
-    <section class="steps">
+    <section class="modePanel steps" data-mode-panel="review">
+      <section class="panel">
+        <h2>Review transaction pipeline</h2>
+        <p class="muted">These are the raw objects Chisel uses internally. Keep this mode as the engineering microscope: account, UTXOs, VIN, VOUT, unsigned hex, signed hex, and broadcast result.</p>
+      </section>
       <section class="panel">
         <div class="stepTitle">1. Account</div>
         <pre id="accountJson" class="json"></pre>
@@ -415,13 +576,47 @@
         <pre id="sendResultJson" class="json"></pre>
       </section>
     </section>
+
+    <section class="modePanel" data-mode-panel="decode">
+      <section class="panel hero">
+        <h2>Decode ledger objects</h2>
+        <p class="muted">Open the decoder when the txid is the durable object key and the outputs need to be read as OP_RETURN plus MacDougall indexed addresses.</p>
+        <div class="actions">
+          <a class="toolCard" href="decode.html">
+            <strong>Open Chisel Transaction Decoder</strong>
+            <span>Reads txid-named fixtures or live Ravencoin RPC, decodes OP_RETURN, and renders indexed address outputs.</span>
+          </a>
+        </div>
+      </section>
+    </section>
+
+    <section class="modePanel" data-mode-panel="tools">
+      <section class="panel hero">
+        <h2>Tools</h2>
+        <p class="muted">The support tools stay separate. The main page should control transactions, not become a drawer full of knives.</p>
+        <div class="toolGrid">
+          <a class="toolCard" href="qrScan.html">
+            <strong>QR / WIF scanner</strong>
+            <span>Scan four 16-hex stickers or a full WIF, then load it back into Chisel.</span>
+          </a>
+          <a class="toolCard" href="boxLabels4.html">
+            <strong>2×2 label builder</strong>
+            <span>Build printable CertLedger / RVN labels with SHA-256 Base64 and txid QR fields.</span>
+          </a>
+          <a class="toolCard" href="decode.html">
+            <strong>Transaction decoder</strong>
+            <span>Inspect social/ledger objects by txid and decode indexed outputs.</span>
+          </a>
+        </div>
+      </section>
+    </section>
   </main>
 
-  <script src="chisel.js?2.4.2e"></script>
-  <script src="chisel.unspendable.js?2.4.2a"></script>
-  <script src="chisel.sign.js?2.4.2e"></script>
-  <script src="chisel.ravencoin.js?2.4.2a"></script>
-  <script src="chisel.digibyte.js?2.4.2a"></script>
+  <script src="chisel.js?2.4.3a"></script>
+  <script src="chisel.unspendable.js?2.4.3a"></script>
+  <script src="chisel.sign.js?2.4.3a"></script>
+  <script src="chisel.ravencoin.js?2.4.3a"></script>
+  <script src="chisel.digibyte.js?2.4.3a"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -430,7 +625,7 @@
   };
 </script>
 
-  <script src="app.js?2.4.2e"></script>
+  <script src="app.js?2.4.3a"></script>
 </body>
 </html>
 
