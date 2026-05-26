@@ -29,7 +29,7 @@ jobs:
         with:
           node-version: 20
 
-     - name: Verify required files exist
+      - name: Verify required files exist
         run: |
           test -f index.html
           test -f app.js
