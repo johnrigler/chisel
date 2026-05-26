@@ -1,77 +1,108 @@
-Chisel 2.4.2b provider/factory patch
-=====================================
+Chisel 2.4.2c safety-console patch
+===================================
 
-Purpose
--------
-This patch assumes 2.4.2a already works from the console. It keeps Litecoin
-console-first, but moves the Litecoin resource onto reusable rails:
+Base: 2.4.2b provider/factory patch.
 
-- CHISEL.providers registry
-- CHISEL.installProvider(name, provider)
-- CHISEL.getProvider(name)
-- CHISEL.getProviders()
-- CHISEL.createBitcoinLikeCoin(config)
-- CHISEL.about()
-- provider attempt reports for redundant third-party calls
-- Litecoin rebuilt as a generic bitcoinlike-p2pkh resource
-
-Files
------
+Files:
 - chisel.js
 - chisel.sign.js
 
-chisel.sign.js is included because WIF decoding must allow non-Bitcoin WIF
-prefixes. Coin/resource code validates the prefix after decoding.
+Purpose
+-------
+2.4.2c keeps Litecoin console-first, but makes the self-send path safer and more inspectable before broadcast.
+
+Changes
+-------
+
+1. CHISEL.about() now reports core: "2.4.2c".
+
+2. Added local raw transaction inspection helpers:
+
+   CHISEL.readVarInt(hex, cursor)
+   CHISEL.readUInt32LE(hex, cursor)
+   CHISEL.readUInt64LE(hex, cursor)
+   CHISEL.parseRawTransactionDetailed(rawTxHex)
+
+   This parser is intentionally conservative. It handles legacy non-SegWit transactions only.
+   That matches the current P2PKH-only Litecoin path.
+
+3. Litecoin makeSelfSend() now returns a plan object instead of a loose tx object:
+
+   const plan = await CHISEL.litecoin.makeSelfSend(WIF, {
+     network: "mainnet",
+     feeSats: 10000
+   });
+
+   New fields include:
+
+   type: "p2pkh-self-send-plan"
+   status: "built-not-broadcast"
+   broadcasted: false
+   localUnsignedDecode
+   localSignedDecode
+   warnings
+   nextStep
+
+4. Added explicit verification:
+
+   const check = await CHISEL.litecoin.verifySelfSendPlan(plan);
+   check;
+
+   It checks:
+   - exactly one input
+   - exactly one output
+   - output script matches the derived self-send address
+   - output total equals sendBackUnits
+   - input - output equals feeUnits
+
+5. Added guarded broadcast:
+
+   await CHISEL.litecoin.broadcastPlan(plan, {
+     confirmBroadcast: true,
+     network: "mainnet",
+     providers: ["litecoinspace", "blockcypherLitecoin"]
+   });
+
+   If confirmBroadcast is omitted, it refuses to broadcast.
+   If verification warnings exist, it refuses unless allowWarnings: true is passed.
 
 Apply
 -----
-Copy these files over the project root:
 
-  cp chisel.js /path/to/chisel/chisel.js
-  cp chisel.sign.js /path/to/chisel/chisel.sign.js
+unzip chisel-2.4.2c-safety-console-patch.zip
+cp chisel-2.4.2c-safety-console-patch/chisel.js .
+cp chisel-2.4.2c-safety-console-patch/chisel.sign.js .
 
-Then bump the cache string in index.html, for example:
+Then bump cache strings in index.html:
 
-  <script src="chisel.js?2.4.2b"></script>
-  <script src="chisel.sign.js?2.4.2b"></script>
+<script src="chisel.js?2.4.2c"></script>
+<script src="chisel.sign.js?2.4.2c"></script>
 
-Console checks
---------------
+Console smoke test
+------------------
 
-  CHISEL.about()
-  CHISEL.getProviders().map(p => p.NAME)
-  CHISEL.litecoin.healthCheck({ network: "mainnet" })
-  CHISEL.litecoin.healthCheck({ network: "testnet" })
+CHISEL.about()
+CHISEL.litecoin
+CHISEL.parseRawTransactionDetailed
 
-Backward-compatible 2.4.2a calls should still work:
+Build, verify, then broadcast:
 
-  await CHISEL.litecoin.wifToAccount(WIF, { network: "mainnet" })
-  await CHISEL.litecoin.getAddressUtxos(address, { network: "mainnet", provider: "litecoinspace" })
-  await CHISEL.litecoin.getAddressUtxos(address, { network: "mainnet", provider: "blockcypher" })
+const plan = await CHISEL.litecoin.makeSelfSend(LTC_WIF, {
+  network: "mainnet",
+  feeSats: 10000
+});
 
-New provider-report calls:
+plan;
 
-  await CHISEL.litecoin.getAddressUtxosWithReport(address, { network: "mainnet" })
-  await CHISEL.litecoin.getTransactionWithReport(txid, { network: "mainnet" })
-  await CHISEL.litecoin.broadcastRawTransactionWithReport(rawHex, { network: "mainnet" })
+const check = await CHISEL.litecoin.verifySelfSendPlan(plan);
+check;
 
-Simple self-send builder:
-
-  const tx = await CHISEL.litecoin.makeSelfSend(WIF, {
-    network: "mainnet",
-    feeSats: 10000
-  });
-
-  tx
-
-Broadcast only after inspecting tx.signedHex and tx.sendBackCoin:
-
-  await CHISEL.litecoin.broadcastRawTransactionWithReport(tx.signedHex, {
-    network: "mainnet",
-    providers: ["litecoinspace", "blockcypherLitecoin"]
-  });
+await CHISEL.litecoin.broadcastPlan(plan, {
+  confirmBroadcast: true,
+  network: "mainnet",
+  providers: ["litecoinspace", "blockcypherLitecoin"]
+});
 
 Notes
 -----
-This is still P2PKH-only. It does not claim SegWit, P2SH, PSBT, coin selection,
-change address selection, or fee estimation. That is deliberate.
+This is still legacy P2PKH only. It does not support SegWit/P2SH/PSBT yet.

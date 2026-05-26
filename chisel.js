@@ -291,10 +291,183 @@
     return output;
   };
 
+
+
+  CHISEL.readVarInt = function readVarInt(hex, cursor) {
+    const normalized = String(hex || "").toLowerCase();
+    const first = parseInt(normalized.slice(cursor, cursor + 2), 16);
+
+    if (!Number.isFinite(first)) {
+      throw new Error("Could not read varInt at cursor " + cursor + ".");
+    }
+
+    if (first < 253) {
+      return { value: first, cursor: cursor + 2 };
+    }
+
+    if (first === 253) {
+      return {
+        value: parseInt(normalized.slice(cursor + 4, cursor + 6) + normalized.slice(cursor + 2, cursor + 4), 16),
+        cursor: cursor + 6
+      };
+    }
+
+    if (first === 254) {
+      return {
+        value: parseInt(
+          normalized.slice(cursor + 8, cursor + 10) +
+          normalized.slice(cursor + 6, cursor + 8) +
+          normalized.slice(cursor + 4, cursor + 6) +
+          normalized.slice(cursor + 2, cursor + 4),
+          16
+        ),
+        cursor: cursor + 10
+      };
+    }
+
+    throw new Error("64-bit varInt parsing is intentionally not supported yet.");
+  };
+
+  CHISEL.readUInt32LE = function readUInt32LE(hex, cursor) {
+    const normalized = String(hex || "").toLowerCase();
+
+    return parseInt(
+      normalized.slice(cursor + 6, cursor + 8) +
+      normalized.slice(cursor + 4, cursor + 6) +
+      normalized.slice(cursor + 2, cursor + 4) +
+      normalized.slice(cursor, cursor + 2),
+      16
+    );
+  };
+
+  CHISEL.readUInt64LE = function readUInt64LE(hex, cursor) {
+    const normalized = String(hex || "").toLowerCase();
+    let value = 0n;
+
+    for (let i = 7; i >= 0; i -= 1) {
+      value = (value << 8n) + BigInt(parseInt(normalized.slice(cursor + i * 2, cursor + i * 2 + 2), 16));
+    }
+
+    return value;
+  };
+
+  CHISEL.parseRawTransactionDetailed = function parseRawTransactionDetailed(rawTxHex) {
+    const hex = String(rawTxHex || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
+
+    if (!hex || hex.length % 2 !== 0 || !/^[0-9a-f]+$/.test(hex)) {
+      throw new Error("Raw transaction must be even-length hex.");
+    }
+
+    let cursor = 0;
+    const version = CHISEL.readUInt32LE(hex, cursor);
+    cursor += 8;
+
+    const marker = hex.slice(cursor, cursor + 2);
+    let segwit = false;
+
+    if (marker === "00" && hex.slice(cursor + 2, cursor + 4) !== "00") {
+      segwit = true;
+      throw new Error("SegWit transaction parsing is not supported in this Chisel path yet.");
+    }
+
+    const vinVarInt = CHISEL.readVarInt(hex, cursor);
+    const vinCount = vinVarInt.value;
+    cursor = vinVarInt.cursor;
+
+    const vin = [];
+
+    for (let i = 0; i < vinCount; i += 1) {
+      const txidLE = hex.slice(cursor, cursor + 64);
+      cursor += 64;
+
+      const vout = CHISEL.readUInt32LE(hex, cursor);
+      cursor += 8;
+
+      const scriptLenVarInt = CHISEL.readVarInt(hex, cursor);
+      const scriptLen = scriptLenVarInt.value;
+      cursor = scriptLenVarInt.cursor;
+
+      const scriptSig = hex.slice(cursor, cursor + scriptLen * 2);
+      cursor += scriptLen * 2;
+
+      const sequence = hex.slice(cursor, cursor + 8);
+      cursor += 8;
+
+      vin.push({
+        txid: CHISEL.reverseHex(txidLE),
+        txidLE: txidLE,
+        vout: vout,
+        scriptSig: scriptSig,
+        scriptSigBytes: scriptLen,
+        sequence: sequence
+      });
+    }
+
+    const voutVarInt = CHISEL.readVarInt(hex, cursor);
+    const voutCount = voutVarInt.value;
+    cursor = voutVarInt.cursor;
+
+    const vout = [];
+
+    for (let n = 0; n < voutCount; n += 1) {
+      const valueSatsBig = CHISEL.readUInt64LE(hex, cursor);
+      cursor += 16;
+
+      const scriptLenVarInt = CHISEL.readVarInt(hex, cursor);
+      const scriptLen = scriptLenVarInt.value;
+      cursor = scriptLenVarInt.cursor;
+
+      const scriptPubKey = hex.slice(cursor, cursor + scriptLen * 2);
+      cursor += scriptLen * 2;
+
+      let type = "unknown";
+      let hash160 = "";
+      let opReturnHex = "";
+
+      if (/^76a914[0-9a-f]{40}88ac$/.test(scriptPubKey)) {
+        type = "p2pkh";
+        hash160 = scriptPubKey.slice(6, 46);
+      } else if (scriptPubKey.slice(0, 2) === "6a") {
+        type = "op_return";
+        opReturnHex = scriptPubKey.slice(2);
+      }
+
+      vout.push({
+        n: n,
+        valueSats: Number(valueSatsBig),
+        valueSatsBig: valueSatsBig.toString(),
+        scriptPubKey: scriptPubKey,
+        scriptPubKeyBytes: scriptLen,
+        type: type,
+        hash160: hash160,
+        opReturnHex: opReturnHex
+      });
+    }
+
+    const locktime = CHISEL.readUInt32LE(hex, cursor);
+    cursor += 8;
+
+    if (cursor !== hex.length) {
+      throw new Error("Raw transaction parser stopped before the end. Cursor " + cursor + " of " + hex.length + ".");
+    }
+
+    return {
+      version: version,
+      segwit: segwit,
+      vinCount: vinCount,
+      vin: vin,
+      voutCount: voutCount,
+      vout: vout,
+      locktime: locktime,
+      bytes: hex.length / 2,
+      hex: hex
+    };
+  };
+
   CHISEL.about = function about() {
     return {
       name: "chisel",
-      core: "2.4.2b",
+      core: "2.4.2c",
       coins: CHISEL.getCoins().map(function mapCoin(coin) {
         return coin.NAME;
       }),
@@ -587,8 +760,13 @@
         privateKeyHex: account.privateKeyHex,
         compressed: account.compressed
       }]);
+      const decodedUnsignedLocal = CHISEL.parseRawTransactionDetailed(unsignedHex);
+      const decodedSignedLocal = CHISEL.parseRawTransactionDetailed(signedHex);
 
       return {
+        type: "p2pkh-self-send-plan",
+        status: "built-not-broadcast",
+        broadcasted: false,
         currency: config.NAME,
         network: networkName,
         address: account.address,
@@ -602,8 +780,96 @@
         inputCoin: unitsToCoin(selectedUtxo.satoshis).toFixed(8),
         feeCoin: unitsToCoin(feeUnits).toFixed(8),
         sendBackCoin: unitsToCoin(sendBackUnits).toFixed(8),
+        localUnsignedDecode: decodedUnsignedLocal,
+        localSignedDecode: decodedSignedLocal,
         unsignedHex: unsignedHex,
-        signedHex: signedHex
+        signedHex: signedHex,
+        warnings: [],
+        nextStep: "Inspect this object. Broadcast with coin.broadcastPlan(plan, { confirmBroadcast: true })."
+      };
+    }
+
+    async function verifySelfSendPlan(plan, options) {
+      const opts = options || {};
+      const networkName = normalizeNetwork(opts.network || (plan && plan.network));
+
+      if (!plan || plan.type !== "p2pkh-self-send-plan") {
+        throw new Error("Expected a p2pkh-self-send-plan object.");
+      }
+
+      if (!plan.signedHex) {
+        throw new Error("Plan has no signedHex.");
+      }
+
+      const decoded = CHISEL.parseRawTransactionDetailed(plan.signedHex);
+      const outputScript = await addressToP2pkhScript(plan.address, { network: networkName });
+      const matchingOutputs = decoded.vout.filter(function filterOutput(output) {
+        return output.scriptPubKey === outputScript;
+      });
+      const outputUnits = decoded.vout.reduce(function reduceTotal(total, output) {
+        return total + Number(output.valueSats || 0);
+      }, 0);
+      const expectedSendBackUnits = Number(plan.sendBackUnits);
+      const expectedFeeUnits = Number(plan.feeUnits);
+      const expectedInputUnits = Number(plan.inputUnits);
+      const warnings = [];
+
+      if (decoded.vinCount !== 1) {
+        warnings.push("Expected one input, found " + decoded.vinCount + ".");
+      }
+
+      if (decoded.voutCount !== 1) {
+        warnings.push("Expected one output, found " + decoded.voutCount + ".");
+      }
+
+      if (matchingOutputs.length !== 1) {
+        warnings.push("Expected one self-send P2PKH output to " + plan.address + ".");
+      }
+
+      if (outputUnits !== expectedSendBackUnits) {
+        warnings.push("Output total " + outputUnits + " does not match plan sendBackUnits " + expectedSendBackUnits + ".");
+      }
+
+      if ((expectedInputUnits - outputUnits) !== expectedFeeUnits) {
+        warnings.push("Fee mismatch. input - output = " + (expectedInputUnits - outputUnits) + ", plan feeUnits = " + expectedFeeUnits + ".");
+      }
+
+      return {
+        ok: warnings.length === 0,
+        warnings: warnings,
+        network: networkName,
+        address: plan.address,
+        inputUnits: expectedInputUnits,
+        outputUnits: outputUnits,
+        feeUnits: expectedInputUnits - outputUnits,
+        bytes: decoded.bytes,
+        decoded: decoded
+      };
+    }
+
+    async function broadcastPlan(plan, options) {
+      const opts = options || {};
+
+      if (!opts.confirmBroadcast) {
+        throw new Error("Refusing to broadcast. Pass { confirmBroadcast: true } after inspecting the plan and verification result.");
+      }
+
+      const verification = await verifySelfSendPlan(plan, opts);
+
+      if (!verification.ok && !opts.allowWarnings) {
+        throw new Error("Refusing to broadcast plan with warnings: " + JSON.stringify(verification.warnings));
+      }
+
+      const report = await broadcastRawTransactionWithReport(plan.signedHex, Object.assign({}, opts, {
+        network: opts.network || plan.network
+      }));
+
+      return {
+        broadcasted: true,
+        verification: verification,
+        selectedProvider: report.selectedProvider,
+        attemptedProviders: report.attemptedProviders,
+        result: report.result
       };
     }
 
@@ -674,6 +940,8 @@
       broadcastRawTransaction: broadcastRawTransaction,
       buildP2pkhSelfSend: buildP2pkhSelfSend,
       makeSelfSend: buildP2pkhSelfSend,
+      verifySelfSendPlan: verifySelfSendPlan,
+      broadcastPlan: broadcastPlan,
       healthCheck: healthCheck
     };
   };
