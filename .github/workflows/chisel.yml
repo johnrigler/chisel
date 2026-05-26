@@ -24,6 +24,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug checkout
+        run: |
+          pwd
+          ls -la
+          find . -maxdepth 2 \( -name 'index.html' -o -name 'app.js' -o -name 'README_PATCH.txt' \) -print
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -40,7 +46,8 @@ jobs:
           test -f chisel.unspendable.js
           test -f qrScan.html
           test -f decode.html
-          test -f PATCH_NOTES.md
+          test -f boxLabels4.html
+          test -f README_PATCH.txt
 
       - name: Syntax check JavaScript
         run: |
@@ -51,10 +58,13 @@ jobs:
           node --check chisel.unspendable.js
           node --check app.js
 
-      - name: Check for expected script references in index.html
+      - name: Check expected script references in index.html
         run: |
           grep -q 'chisel.js' index.html
           grep -q 'chisel.sign.js' index.html
+          grep -q 'chisel.ravencoin.js' index.html
+          grep -q 'chisel.digibyte.js' index.html
+          grep -q 'chisel.unspendable.js' index.html
           grep -q 'app.js' index.html
 
       - name: Build site directory
@@ -64,11 +74,13 @@ jobs:
             --exclude='.git' \
             --exclude='.github' \
             --exclude='dist' \
+            --exclude='node_modules' \
             ./ dist/
 
       - name: Verify deploy entry file exists
         run: |
           test -f dist/index.html
+          test -f dist/app.js
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
@@ -82,6 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
+
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
