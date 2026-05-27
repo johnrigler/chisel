@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.4.3c</title>
+  <title>Chisel 2.5.2</title>
 
   <script src="vendor/elliptic-6-6-1.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
@@ -327,6 +327,7 @@
     body[data-mode="broadcast"] .modePanel[data-mode-panel="broadcast"],
     body[data-mode="review"] .modePanel[data-mode-panel="review"],
     body[data-mode="decode"] .modePanel[data-mode-panel="decode"],
+    body[data-mode="portal"] .modePanel[data-mode-panel="portal"],
     body[data-mode="tools"] .modePanel[data-mode-panel="tools"] {
       display: grid;
     }
@@ -370,6 +371,66 @@
       line-height: 1.5;
     }
 
+
+
+    .portalLayout {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      align-items: start;
+    }
+
+    .portalCanvasWrap {
+      display: grid;
+      gap: 8px;
+      overflow: auto;
+      border: 1px solid #263241;
+      border-radius: 12px;
+      padding: 12px;
+      background: #05080b;
+    }
+
+    #portalCanvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #000;
+      max-width: none;
+      width: auto;
+      height: auto;
+    }
+
+    .portalControls {
+      display: grid;
+      gap: 10px;
+    }
+
+    .portalSmallGrid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .portalRawBlocks {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .portalRawBlocks pre {
+      max-height: 320px;
+    }
+
+    .error {
+      color: #ff7b7b;
+    }
+
+    @media (max-width: 1000px) {
+      .portalLayout,
+      .portalRawBlocks {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 900px) {
       .toolGrid {
         grid-template-columns: 1fr;
@@ -401,6 +462,7 @@
         <button class="modeButton active" type="button" data-mode-target="broadcast">Broadcast</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
         <button class="modeButton" type="button" data-mode-target="decode">Decode</button>
+        <button class="modeButton" type="button" data-mode-target="portal">Portal</button>
         <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
       </div>
       <div class="compactHint" id="modeHint">Broadcast mode builds, signs, decodes, and sends the transaction. Review mode shows the raw transaction pipeline after a build/send attempt.</div>
@@ -588,6 +650,77 @@
       </section>
     </section>
 
+
+
+    <section class="modePanel" data-mode-panel="portal">
+      <section class="panel hero">
+        <h2>Display portal</h2>
+        <p class="muted">Render ledger image chords from a tx JSON file, pasted JSON, or a public Digibyte explorer transaction. This is the v1 display path folded back into the v2 shell without reviving the old multi-screen menu or eval hack.</p>
+      </section>
+
+      <section class="panel portalLayout">
+        <div class="portalCanvasWrap">
+          <canvas id="portalCanvas" width="1" height="1"></canvas>
+          <p id="portalImageStats" class="muted"></p>
+          <p id="portalBucketSummary" class="muted"></p>
+        </div>
+
+        <div class="portalControls">
+          <label for="portalJsonPath">JSON path</label>
+          <input id="portalJsonPath" type="text" spellcheck="false" placeholder="mogwai.json">
+          <button id="portalLoadFileButton" class="secondaryButton" type="button">LOAD JSON FILE</button>
+
+          <label for="portalTxid">Digibyte txid</label>
+          <input id="portalTxid" type="text" spellcheck="false">
+          <button id="portalLoadTxButton" class="secondaryButton" type="button">LOAD DGB TX</button>
+
+          <label for="portalColorPath">Color map</label>
+          <input id="portalColorPath" type="text" spellcheck="false" placeholder="b57.json">
+
+          <div class="portalSmallGrid">
+            <div>
+              <label for="portalScale">Scale</label>
+              <input id="portalScale" type="number" min="1" step="1">
+            </div>
+            <div>
+              <label for="portalSkipPrefix">Skip front</label>
+              <input id="portalSkipPrefix" type="number" min="0" step="1">
+            </div>
+            <div>
+              <label for="portalSkipSuffix">Skip back</label>
+              <input id="portalSkipSuffix" type="number" min="0" step="1">
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="portalRedrawButton" class="secondaryButton" type="button">REDRAW</button>
+            <button id="portalLoadSampleButton" class="secondaryButton" type="button">SAMPLE</button>
+          </div>
+
+          <label for="portalJsonPaste">Paste JSON</label>
+          <textarea id="portalJsonPaste" spellcheck="false" placeholder='Paste mogwai.json or { "lines": [...] }'></textarea>
+          <button id="portalLoadPasteButton" class="secondaryButton" type="button">LOAD PASTE</button>
+          <p id="portalStatus" class="muted"></p>
+        </div>
+      </section>
+
+      <section class="portalRawBlocks">
+        <section class="panel">
+          <div class="stepTitle">Address / chord lines</div>
+          <pre id="portalLineList" class="json"></pre>
+        </section>
+        <section class="panel">
+          <div class="stepTitle">MacDougall-readable pass</div>
+          <pre id="portalDecodedLines" class="json"></pre>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">Raw JSON</div>
+        <pre id="portalRawJson" class="json"></pre>
+      </section>
+    </section>
+
     <section class="modePanel" data-mode-panel="tools">
       <section class="panel hero">
         <h2>Tools</h2>
@@ -600,6 +733,10 @@
           <a class="toolCard" href="tools/boxLabels.html">
             <strong>2×2 label builder</strong>
             <span>Build printable CertLedger / RVN labels with SHA-256 Base64 and txid QR fields.</span>
+          </a>
+          <a class="toolCard" href="?mode=portal">
+            <strong>Display portal</strong>
+            <span>Render base58-color image chords from tx JSON, pasted JSON, or Digibyte explorer data.</span>
           </a>
           <a class="toolCard" href="tools/decoder/index.html">
             <strong>Transaction decoder</strong>
@@ -614,12 +751,13 @@
     </section>
   </main>
 
-  <script src="chisel.js?2.4.3c2"></script>
-  <script src="chisel.unspendable.js?2.4.3c2"></script>
-  <script src="chisel.sign.js?2.4.3c2"></script>
-  <script src="chisel.ravencoin.js?2.4.3c2"></script>
-  <script src="chisel.digibyte.js?2.4.3c2"></script>
-  <script src="chisel.litecoin.js?2.4.3c2"></script>
+  <script src="chisel.js?2.5.2a"></script>
+  <script src="chisel.unspendable.js?2.5.2a"></script>
+  <script src="chisel.sign.js?2.5.2a"></script>
+  <script src="chisel.ravencoin.js?2.5.2a"></script>
+  <script src="chisel.digibyte.js?2.5.2a"></script>
+  <script src="chisel.litecoin.js?2.5.2a"></script>
+  <script src="chisel.portal.js?2.5.2a"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -628,7 +766,7 @@
   };
 </script>
 
-  <script src="app.js?2.4.3c2"></script>
+  <script src="app.js?2.5.2a"></script>
 </body>
 </html>
 
