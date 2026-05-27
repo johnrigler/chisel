@@ -730,7 +730,17 @@
     <section class="modePanel" data-mode-panel="portal">
       <section class="panel hero">
         <h2>Portal explorer</h2>
-        <p class="muted">Browse default Thunderword indexes as transaction lists. Chisel renders the transaction locally, extracts readable titles from OP_RETURN or DCx/RCx subject lines, reconstructs DDx/DEx or RDx/REx IPFS CIDv0 pairs, and keeps third-party explorer links as verification exits.</p>
+        <p class="muted">Browse Thunderword indexes as transaction streams. Chisel renders transactions locally, extracts readable titles from OP_RETURN or DCx/RCx subject lines, reconstructs DDx/DEx or RDx/REx IPFS CIDv0 pairs, and keeps third-party explorer links as verification exits. The merged stream view treats Web3 as one conversation spread across several ledgers.</p>
+      </section>
+
+      <section class="panel portalControls">
+        <div class="stepTitle">Babel stream</div>
+        <p class="muted">Load all default general Thunderword indexes at once. If a root index transaction also contains a subject/person/transport MacDougall line, Portal registers it as a rabbit-trail index and merges those transactions into the same chronological list.</p>
+        <div class="actions">
+          <button id="portalLoadConversationButton" class="secondaryButton" type="button">LOAD ALL DEFAULT STREAMS</button>
+        </div>
+        <div id="portalConversationStatus" class="muted"></div>
+        <div id="portalConversationList" class="portalTransactionList muted">No merged stream loaded.</div>
       </section>
 
       <section class="panel portalControls">

@@ -856,6 +856,283 @@
     setStatus("Generated " + rows.length + " candidate indexes from installed coin prefixes.", false);
   }
 
+
+
+  function indexCanFetch(entry) {
+    return entry && entry.canFetchAddress && entry.canFetchTx;
+  }
+
+  function cloneIndexWithAddress(entry, address, labelSuffix) {
+    return Object.assign({}, entry, {
+      address: String(address || entry.address || "").trim(),
+      label: entry.label + (labelSuffix ? " / " + labelSuffix : "")
+    });
+  }
+
+  async function ensureGeneratedGeneralIndexes() {
+    const api = getThunderwords();
+    if (!api || typeof api.buildGeneratedIndexes !== "function") return [];
+    const existing = api.listIndexes().filter(function (entry) { return entry.generated; });
+    if (existing.length) return existing;
+    try { return await api.buildGeneratedIndexes(); }
+    catch (error) {
+      setStatus("Generated index scan failed: " + (error.message || String(error)), true);
+      return [];
+    }
+  }
+
+  function getGeneralConversationIndexes() {
+    const api = getThunderwords();
+    if (!api) return [];
+    return api.listIndexes().filter(function (entry) {
+      return entry.group === "general" || /general thunderword|generated general index/i.test(entry.label || "");
+    });
+  }
+
+  function compareStreamItems(a, b) {
+    const at = Number(a.summary && a.summary.blockTime) || 0;
+    const bt = Number(b.summary && b.summary.blockTime) || 0;
+    if (at !== bt) return at - bt;
+    const ah = Number(a.summary && a.summary.blockHeight) || 0;
+    const bh = Number(b.summary && b.summary.blockHeight) || 0;
+    if (ah !== bh) return ah - bh;
+    return String(a.txid).localeCompare(String(b.txid));
+  }
+
+  function txHasAddressLine(txJson, address) {
+    const needle = String(address || "").trim();
+    if (!needle) return false;
+    return extractLines(txJson).indexOf(needle) !== -1;
+  }
+
+  function findRabbitTrailTargets(txJson, sourceIndex) {
+    const sourceAddress = sourceIndex && sourceIndex.address;
+    const lines = extractLines(txJson);
+    const semantics = buildSemantics(txJson, lines);
+    const targets = [];
+    const hasSource = txHasAddressLine(txJson, sourceAddress);
+
+    if (!hasSource) return targets;
+
+    semantics.records.forEach(function (record) {
+      if (record.kind !== "subject" && record.kind !== "transport" && record.kind !== "person") return;
+      if (record.line === sourceAddress) return;
+      targets.push({
+        address: record.line,
+        title: record.payloadText || record.line,
+        kind: record.kind,
+        marker: record.marker,
+        sourceTxid: extractTxid(txJson)
+      });
+    });
+
+    return targets;
+  }
+
+  function renderConversationStatus(rows, trails) {
+    const box = $("#portalConversationStatus");
+    if (!box) return;
+    box.innerHTML = "";
+
+    const summary = document.createElement("p");
+    summary.className = "muted";
+    summary.textContent = "Merged " + rows.length + " transaction(s)" + (trails.length ? " with " + trails.length + " rabbit trail(s)." : ".");
+    box.appendChild(summary);
+
+    if (trails.length) {
+      const pre = document.createElement("pre");
+      pre.className = "json";
+      pre.textContent = pretty(trails.map(function (trail) {
+        return {
+          coin: trail.index && trail.index.ticker,
+          kind: trail.kind,
+          title: trail.title,
+          address: trail.address,
+          sourceTxid: trail.sourceTxid,
+          fetchable: trail.fetchable
+        };
+      }));
+      box.appendChild(pre);
+    }
+  }
+
+  function makeConversationCard(row) {
+    const entry = row.index;
+    const tx = row.raw;
+    const summary = row.summary;
+    const api = getThunderwords();
+    const card = document.createElement("article");
+    card.className = "portalTransactionCard";
+    card.dataset.txid = row.txid;
+
+    const h = document.createElement("h3");
+    renderTitleLink(h, summary.title || (entry.ticker + " transaction " + shortTxid(row.txid)), summary.primaryUrl);
+
+    const meta = document.createElement("p");
+    meta.className = "muted";
+    meta.textContent = [
+      entry.ticker || entry.coin || entry.name,
+      row.streamLabel || "root index",
+      summary.blockHeight ? "block " + summary.blockHeight : "unconfirmed/unknown block",
+      summary.opReturnUrls && summary.opReturnUrls.length ? "OP_RETURN URL" : "",
+      summary.imageLines ? summary.imageLines + " image lines" : ""
+    ].filter(Boolean).join(" | ");
+
+    const code = document.createElement("code");
+    code.textContent = row.txid;
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const renderButton = document.createElement("button");
+    renderButton.type = "button";
+    renderButton.className = "secondaryButton";
+    renderButton.textContent = "RENDER";
+    renderButton.onclick = async function () {
+      try {
+        await render(tx, (entry.ticker || entry.coin || entry.name) + " tx " + row.txid, entry);
+        Array.prototype.forEach.call(document.querySelectorAll(".portalTransactionCard"), function (el) {
+          el.classList.toggle("isSelected", el.dataset.txid === row.txid);
+        });
+      } catch (error) { setStatus(error.message || String(error), true); }
+    };
+    actions.appendChild(renderButton);
+
+    const verifyUrl = api ? api.getTxUrl(entry, row.txid) : "";
+    if (verifyUrl) {
+      const verify = document.createElement("a");
+      verify.className = "secondaryButton";
+      verify.href = verifyUrl;
+      verify.target = "_blank";
+      verify.rel = "noopener noreferrer";
+      verify.textContent = "verify";
+      actions.appendChild(verify);
+    }
+
+    card.appendChild(h);
+    card.appendChild(meta);
+    card.appendChild(code);
+    card.appendChild(actions);
+    return card;
+  }
+
+  function renderConversationRows(rows) {
+    const list = $("#portalConversationList");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!rows.length) {
+      list.textContent = "No merged stream transactions loaded.";
+      return;
+    }
+    rows.forEach(function (row) { list.appendChild(makeConversationCard(row)); });
+  }
+
+  async function fetchIndexRows(entry, streamLabel) {
+    const api = getThunderwords();
+    const rows = [];
+    const result = await api.fetchAddressTransactions(entry, entry.address);
+    const txs = result.transactions || [];
+
+    for (let i = 0; i < txs.length; i += 1) {
+      const tx = txs[i];
+      let json = tx.raw && tx.raw.vout ? tx.raw : null;
+      if (!json && indexCanFetch(entry)) {
+        try { json = (await api.fetchTransaction(entry, tx.txid)).json; }
+        catch (error) { json = null; }
+      }
+      if (!json) continue;
+      const summary = extractSummary(json, entry);
+      rows.push({
+        index: entry,
+        txid: tx.txid,
+        raw: json,
+        summary: summary,
+        streamLabel: streamLabel || entry.address
+      });
+    }
+
+    return rows;
+  }
+
+  async function loadConversationStreams() {
+    const api = getThunderwords();
+    if (!api) throw new Error("chisel.thunderwords.js is required for conversation streams.");
+
+    await ensureGeneratedGeneralIndexes();
+
+    const roots = getGeneralConversationIndexes();
+    const allRows = [];
+    const trails = [];
+    const seenTx = new Set();
+    const seenTrail = new Set();
+    const rawReport = [];
+
+    setStatus("Loading all default Thunderword streams across installed coins...", false);
+
+    for (let i = 0; i < roots.length; i += 1) {
+      const root = roots[i];
+      const rootReport = { index: root.label, address: root.address, coin: root.ticker || root.coin, fetched: false, error: "" };
+      rawReport.push(rootReport);
+
+      if (!indexCanFetch(root)) {
+        rootReport.error = "No browser-readable address/tx API configured.";
+        continue;
+      }
+
+      try {
+        const rows = await fetchIndexRows(root, "root index");
+        rootReport.fetched = true;
+        rootReport.transactions = rows.length;
+
+        rows.forEach(function (row) {
+          const key = (root.coin || root.name) + ":" + row.txid;
+          if (!seenTx.has(key)) {
+            seenTx.add(key);
+            allRows.push(row);
+          }
+
+          findRabbitTrailTargets(row.raw, root).forEach(function (trail) {
+            const trailKey = (root.coin || root.name) + ":" + trail.address;
+            if (seenTrail.has(trailKey)) return;
+            seenTrail.add(trailKey);
+            trails.push(Object.assign(trail, { index: root, fetchable: indexCanFetch(root) }));
+          });
+        });
+      } catch (error) {
+        rootReport.error = error.message || String(error);
+      }
+    }
+
+    for (let j = 0; j < trails.length; j += 1) {
+      const trail = trails[j];
+      if (!trail.fetchable) continue;
+      const child = cloneIndexWithAddress(trail.index, trail.address, trail.title);
+      try {
+        const childRows = await fetchIndexRows(child, "rabbit trail: " + trail.title);
+        trail.transactions = childRows.length;
+        childRows.forEach(function (row) {
+          const key = (child.coin || child.name) + ":" + row.txid;
+          if (!seenTx.has(key)) {
+            seenTx.add(key);
+            allRows.push(row);
+          }
+        });
+      } catch (error) {
+        trail.error = error.message || String(error);
+      }
+    }
+
+    allRows.sort(compareStreamItems);
+    state.conversationRows = allRows;
+    state.rabbitTrails = trails;
+    renderConversationRows(allRows);
+    renderConversationStatus(allRows, trails);
+    setText("#portalThunderwordRaw", pretty({ roots: rawReport, rabbitTrails: trails, merged: allRows.map(function (row) { return { coin: row.index.ticker || row.index.coin, txid: row.txid, title: row.summary.title, primaryUrl: row.summary.primaryUrl, stream: row.streamLabel, blockTime: row.summary.blockTime, blockHeight: row.summary.blockHeight }; }) }));
+    setStatus("Loaded Babel stream: " + allRows.length + " transaction(s), " + trails.length + " rabbit trail(s).", false);
+
+    if (allRows.length) await render(allRows[allRows.length - 1].raw, "latest merged transaction", allRows[allRows.length - 1].index);
+  }
+
   function bind() {
     const loadTx = $("#portalLoadTxButton");
     const redraw = $("#portalRedrawButton");
@@ -864,6 +1141,7 @@
     const generateThunderwords = $("#portalGenerateThunderwordsButton");
     const buildMac = $("#portalBuildMacButton");
     const useMac = $("#portalUseMacAsIndexButton");
+    const loadConversation = $("#portalLoadConversationButton");
 
     if (!loadThunderword) return;
 
@@ -920,6 +1198,11 @@
       catch (error) { setStatus(error.message || String(error), true); }
     };
 
+    if (loadConversation) loadConversation.onclick = async function () {
+      try { await loadConversationStreams(); }
+      catch (error) { setStatus(error.message || String(error), true); }
+    };
+
     loadColorMap(DEFAULT_COLOR_PATH).catch(function (error) {
       setStatus(error.message || String(error), true);
     });
@@ -942,6 +1225,8 @@
     titleFromSemantics: titleFromSemantics,
     describeOpReturnText: describeOpReturnText,
     buildPortalMacDougall: buildPortalMacDougall,
+    loadConversationStreams: loadConversationStreams,
+    findRabbitTrailTargets: findRabbitTrailTargets,
     state: state
   };
 })();
