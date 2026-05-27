@@ -238,6 +238,20 @@
     return /^[1-9A-HJ-NP-Za-km-z]{26,80}$/.test(String(line || ""));
   }
 
+  function isMacDougallFirst(value) {
+    return /^[1-9A-HJ-NP-Za-km-z]$/.test(String(value || ""));
+  }
+
+  function isRepeatedThunderword(value) {
+    const text = String(value || "");
+    if (!/^[1-9A-HJ-NP-Za-km-z]{30,40}$/.test(text)) return false;
+    const first = text.charAt(0);
+    if (!isMacDougallFirst(first) || first === "S") return false;
+    let run = 0;
+    while (text.charAt(run) === first) run += 1;
+    return run >= 16 && text.length - run <= CHECKSUM_LEN + 2;
+  }
+
   function classifyAddressLine(line, index) {
     const text = String(line || "");
     const marker = text.slice(0, 3);
@@ -257,14 +271,14 @@
       payloadBase58Candidate: macPayloadToBase58Candidate(payload)
     };
 
-    if ((first === "D" || first === "R") && modifier === "A" && spacer === "x") record.kind = "person";
-    else if ((first === "D" || first === "R") && modifier === "B" && spacer === "x") record.kind = "transport";
-    else if ((first === "D" || first === "R") && modifier === "C" && spacer === "x") record.kind = "subject";
-    else if ((first === "D" || first === "R") && modifier === "D" && spacer === "x") record.kind = "ipfs-v0-first-half";
-    else if ((first === "D" || first === "R") && modifier === "E" && spacer === "x") record.kind = "ipfs-v0-second-half";
-    else if ((first === "D" || first === "R") && modifier === "D" && spacer !== "x") record.kind = "free-verse";
-    else if (first === "S") record.kind = "image-chord-line";
-    else if (/^(D+|R+)\w{6}$/.test(text)) record.kind = "thunderword-index";
+    if (first === "S") record.kind = "image-chord-line";
+    else if (isMacDougallFirst(first) && modifier === "A" && spacer === "x") record.kind = "person";
+    else if (isMacDougallFirst(first) && modifier === "B" && spacer === "x") record.kind = "transport";
+    else if (isMacDougallFirst(first) && modifier === "C" && spacer === "x") record.kind = "subject";
+    else if (isMacDougallFirst(first) && modifier === "D" && spacer === "x") record.kind = "ipfs-v0-first-half";
+    else if (isMacDougallFirst(first) && modifier === "E" && spacer === "x") record.kind = "ipfs-v0-second-half";
+    else if (isMacDougallFirst(first) && modifier === "D" && spacer !== "x") record.kind = "free-verse";
+    else if (isRepeatedThunderword(text)) record.kind = "thunderword-index";
 
     return record;
   }
