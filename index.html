@@ -373,11 +373,77 @@
 
 
 
-    .portalLayout {
+    .portalExplorerShell {
       display: grid;
       gap: 16px;
-      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
       align-items: start;
+    }
+
+    .portalIndexBar {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 220px minmax(280px, 1fr) auto;
+      align-items: end;
+    }
+
+    .portalTransactionList {
+      display: grid;
+      gap: 10px;
+      min-height: 320px;
+      max-height: 70vh;
+      overflow: auto;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(0,0,0,0.22);
+    }
+
+    .portalTransactionCard {
+      display: grid;
+      gap: 7px;
+      padding: 12px;
+      border: 1px solid #263241;
+      border-radius: 12px;
+      background: #080d12;
+    }
+
+    .portalTransactionCard.isSelected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(58, 214, 255, 0.10);
+    }
+
+    .portalTransactionCard h3 {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.3;
+      color: var(--text);
+    }
+
+    .portalTransactionCard code,
+    .portalLinkRow code,
+    #portalSelectedTxid {
+      overflow-wrap: anywhere;
+      font-size: 0.82rem;
+    }
+
+    .portalDetailGrid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .portalSelectedHeader {
+      display: grid;
+      gap: 8px;
+      border: 1px solid #263241;
+      border-radius: 12px;
+      padding: 12px;
+      background: #080d12;
+    }
+
+    #portalSelectedTitle {
+      margin: 0;
+      font-size: 1.1rem;
     }
 
     .portalCanvasWrap {
@@ -410,6 +476,14 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
+    .portalLinkRow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
     .portalRawBlocks {
       display: grid;
       gap: 12px;
@@ -425,7 +499,8 @@
     }
 
     @media (max-width: 1000px) {
-      .portalLayout,
+      .portalExplorerShell,
+      .portalIndexBar,
       .portalRawBlocks {
         grid-template-columns: 1fr;
       }
@@ -654,54 +729,114 @@
 
     <section class="modePanel" data-mode-panel="portal">
       <section class="panel hero">
-        <h2>Display portal</h2>
-        <p class="muted">Render ledger image chords from a tx JSON file, pasted JSON, or a public Digibyte explorer transaction. This is the v1 display path folded back into the v2 shell without reviving the old multi-screen menu or eval hack.</p>
+        <h2>Portal explorer</h2>
+        <p class="muted">Browse default Thunderword indexes as transaction lists. Chisel renders the transaction locally, extracts readable titles from OP_RETURN or DCx/RCx subject lines, reconstructs DDx/DEx or RDx/REx IPFS CIDv0 pairs, and keeps third-party explorer links as verification exits.</p>
       </section>
 
-      <section class="panel portalLayout">
-        <div class="portalCanvasWrap">
-          <canvas id="portalCanvas" width="1" height="1"></canvas>
-          <p id="portalImageStats" class="muted"></p>
-          <p id="portalBucketSummary" class="muted"></p>
-        </div>
-
-        <div class="portalControls">
-          <label for="portalJsonPath">JSON path</label>
-          <input id="portalJsonPath" type="text" spellcheck="false" placeholder="mogwai.json">
-          <button id="portalLoadFileButton" class="secondaryButton" type="button">LOAD JSON FILE</button>
-
-          <label for="portalTxid">Digibyte txid</label>
-          <input id="portalTxid" type="text" spellcheck="false">
-          <button id="portalLoadTxButton" class="secondaryButton" type="button">LOAD DGB TX</button>
-
-          <label for="portalColorPath">Color map</label>
-          <input id="portalColorPath" type="text" spellcheck="false" placeholder="b57.json">
-
-          <div class="portalSmallGrid">
-            <div>
-              <label for="portalScale">Scale</label>
-              <input id="portalScale" type="number" min="1" step="1">
-            </div>
-            <div>
-              <label for="portalSkipPrefix">Skip front</label>
-              <input id="portalSkipPrefix" type="number" min="0" step="1">
-            </div>
-            <div>
-              <label for="portalSkipSuffix">Skip back</label>
-              <input id="portalSkipSuffix" type="number" min="0" step="1">
-            </div>
+      <section class="panel portalControls">
+        <div class="portalIndexBar">
+          <div>
+            <label for="portalThunderwordSelect">Currency index</label>
+            <select id="portalThunderwordSelect"></select>
           </div>
-
+          <div>
+            <label for="portalThunderwordAddress">Default index address / contract</label>
+            <input id="portalThunderwordAddress" type="text" spellcheck="false">
+          </div>
           <div class="actions">
-            <button id="portalRedrawButton" class="secondaryButton" type="button">REDRAW</button>
-            <button id="portalLoadSampleButton" class="secondaryButton" type="button">SAMPLE</button>
+            <button id="portalLoadThunderwordButton" class="secondaryButton" type="button">LOAD TRANSACTIONS</button>
+            <button id="portalGenerateThunderwordsButton" class="secondaryButton" type="button">GENERATE CANDIDATES</button>
+            <a id="portalThunderwordExplorerLink" class="secondaryButton" href="#">verify index address</a>
+          </div>
+        </div>
+        <p id="portalIndexCaption" class="muted"></p>
+        <p id="portalStatus" class="muted"></p>
+      </section>
+
+      <section class="panel portalControls">
+        <div class="stepTitle">Build MacDougall / Thunderword</div>
+        <div class="portalIndexBar">
+          <div>
+            <label for="portalMacKind">Marker</label>
+            <select id="portalMacKind">
+              <option value="A">A person</option>
+              <option value="B">B transport</option>
+              <option value="C" selected>C subject</option>
+              <option value="D">D IPFS first half / free verse</option>
+              <option value="E">E IPFS second half</option>
+            </select>
+          </div>
+          <div>
+            <label for="portalMacPhrase">Phrase</label>
+            <input id="portalMacPhrase" type="text" maxlength="40" spellcheck="false" placeholder="CHISEL INDEX">
+          </div>
+          <div class="actions">
+            <button id="portalBuildMacButton" class="secondaryButton" type="button">BUILD</button>
+            <button id="portalUseMacAsIndexButton" class="secondaryButton" type="button">USE AS INDEX</button>
+          </div>
+        </div>
+        <div class="portalBuilderResult">
+          <code id="portalMacPrefix"></code>
+          <code id="portalMacAddress"></code>
+          <span id="portalMacReadable" class="muted"></span>
+        </div>
+      </section>
+
+      <section class="portalExplorerShell">
+        <section class="panel">
+          <div class="stepTitle">Transactions</div>
+          <div id="portalTransactionList" class="portalTransactionList muted">Select a currency index and load transactions.</div>
+        </section>
+
+        <section class="panel portalDetailGrid">
+          <div class="portalSelectedHeader">
+            <h3 id="portalSelectedTitle">No transaction selected</h3>
+            <code id="portalSelectedTxid"></code>
+            <p id="portalSelectedMeta" class="muted"></p>
+            <div class="actions">
+              <a id="portalSelectedExplorerLink" class="secondaryButton" href="#">verify tx in explorer</a>
+            </div>
           </div>
 
-          <label for="portalJsonPaste">Paste JSON</label>
-          <textarea id="portalJsonPaste" spellcheck="false" placeholder='Paste mogwai.json or { "lines": [...] }'></textarea>
-          <button id="portalLoadPasteButton" class="secondaryButton" type="button">LOAD PASTE</button>
-          <p id="portalStatus" class="muted"></p>
-        </div>
+          <div class="portalCanvasWrap">
+            <canvas id="portalCanvas" width="1" height="1"></canvas>
+            <p id="portalImageStats" class="muted"></p>
+            <p id="portalBucketSummary" class="muted"></p>
+          </div>
+
+          <div class="portalControls">
+            <label for="portalColorPath">Color map</label>
+            <input id="portalColorPath" type="text" spellcheck="false" placeholder="b57.json">
+
+            <div class="portalSmallGrid">
+              <div>
+                <label for="portalScale">Scale</label>
+                <input id="portalScale" type="number" min="1" step="1">
+              </div>
+              <div>
+                <label for="portalSkipPrefix">Skip front</label>
+                <input id="portalSkipPrefix" type="number" min="0" step="1">
+              </div>
+              <div>
+                <label for="portalSkipSuffix">Skip back</label>
+                <input id="portalSkipSuffix" type="number" min="0" step="1">
+              </div>
+            </div>
+
+            <div class="actions">
+              <button id="portalRedrawButton" class="secondaryButton" type="button">REDRAW SELECTED</button>
+            </div>
+
+            <label for="portalTxid">Direct Digibyte txid</label>
+            <input id="portalTxid" type="text" spellcheck="false">
+            <button id="portalLoadTxButton" class="secondaryButton" type="button">LOAD DIRECT DGB TX</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">IPFS / semantic links</div>
+        <div id="portalSemanticLinks" class="muted">No transaction selected.</div>
       </section>
 
       <section class="portalRawBlocks">
@@ -716,7 +851,17 @@
       </section>
 
       <section class="panel">
-        <div class="stepTitle">Raw JSON</div>
+        <div class="stepTitle">Chisel semantic records</div>
+        <pre id="portalSemanticList" class="json"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">Index raw</div>
+        <pre id="portalThunderwordRaw" class="json"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">Selected raw transaction JSON</div>
         <pre id="portalRawJson" class="json"></pre>
       </section>
     </section>
@@ -751,13 +896,14 @@
     </section>
   </main>
 
-  <script src="chisel.js?2.5.2a"></script>
-  <script src="chisel.unspendable.js?2.5.2a"></script>
-  <script src="chisel.sign.js?2.5.2a"></script>
-  <script src="chisel.ravencoin.js?2.5.2a"></script>
-  <script src="chisel.digibyte.js?2.5.2a"></script>
-  <script src="chisel.litecoin.js?2.5.2a"></script>
-  <script src="chisel.portal.js?2.5.2a"></script>
+  <script src="chisel.js?2.5.2d"></script>
+  <script src="chisel.unspendable.js?2.5.2f"></script>
+  <script src="chisel.sign.js?2.5.2d"></script>
+  <script src="chisel.ravencoin.js?2.5.2d"></script>
+  <script src="chisel.digibyte.js?2.5.2d"></script>
+  <script src="chisel.litecoin.js?2.5.2d"></script>
+  <script src="chisel.thunderwords.js?2.5.2d"></script>
+  <script src="chisel.portal.js?2.5.2f"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -766,7 +912,7 @@
   };
 </script>
 
-  <script src="app.js?2.5.2a"></script>
+  <script src="app.js?2.5.2d"></script>
 </body>
 </html>
 
