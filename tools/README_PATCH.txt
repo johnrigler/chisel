@@ -36,3 +36,18 @@ Changes:
 - Current L?x scan for phrase "domo arigato" found valid seconds: K,L,M,N,P,Q,R,S,T,U,V,W,X,Y,Z,a,b,c,d,e,f,g,h.
 - The Litecoin GUI modifier dropdown now uses that discovered valid set instead of the earlier five sampled values.
 
+
+
+v2.6.0 elliptic integration smoke test
+--------------------------------------
+1. Load index.html from a local web server, GitHub Pages, or IPFS.
+2. Open the browser console.
+3. Confirm: window.elliptic && window.elliptic.version === "6.6.1"
+4. Confirm: window.elliptic && CHISEL && CHISEL.signRawTransaction
+5. Confirm no network request is made for vendor/elliptic-6-6-1.min.js.
+6. Run the existing WIF/signing smoke test from the previous 2.5.2j patch notes.
+
+Notes:
+- The runtime elliptic dependency is now embedded in chisel.js.
+- The vendor elliptic files remain for audit comparison and source visibility.
+- THIRD_PARTY_LICENSES/elliptic.txt remains the authoritative bundled license notice.

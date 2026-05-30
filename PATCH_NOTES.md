@@ -28,3 +28,12 @@ First Litecoin GUI bridge.
 - Bech32/P2SH inputs and outputs are not supported in this bridge.
 - Ravencoin IPFS output field is rejected for Litecoin.
 - Litecoin uses public providers, not the Ravencoin/Digibyte RPC proxy model.
+
+
+## v2.6.0 - elliptic dependency consolidation
+
+- Embedded elliptic 6.6.1 browser minified build directly into `chisel.js`.
+- Removed the separate `vendor/elliptic-6-6-1.min.js` script dependency from `index.html` and `qrScan.html`.
+- Preserved `vendor/elliptic-6-6-1.min.js` and `vendor/elliptic-6-6-1.js` as audit/source artifacts, not runtime dependencies for the main pages.
+- Preserved the MIT license notice in `THIRD_PARTY_LICENSES/elliptic.txt` and added an embedded-source banner in `chisel.js`.
+- Bumped the `chisel.js` cache token in `index.html` to `2.6.0`.
