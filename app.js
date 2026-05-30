@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.4.3c-ltc-unspendable-ui";
+  const APP_VERSION = "2.5.2j-babel-litecoin";
   const DEFAULT_CURRENCY_KEY = "ravencoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -1348,11 +1348,12 @@ function onClickAddCommonAddressButton() {
     broadcast: "Broadcast mode builds, signs, decodes, and sends the transaction. Review mode shows the raw transaction pipeline after a build/send attempt.",
     review: "Review mode exposes the transaction spine: account, UTXOs, VIN, VOUT, raw hex, signed hex, and broadcast result.",
     decode: "Decode mode opens the ledger object viewer. Use it after a txid exists or when reading a txid-named fixture.",
+    portal: "Portal mode is a Chisel-aware block explorer view over Thunderword indexes and transaction semantics.",
     tools: "Tools mode links to QR/WIF scanning, label generation, and transaction decoding without crowding the broadcaster."
   };
 
   function normalizeMode(value) {
-    if (value === "review" || value === "decode" || value === "tools") {
+    if (value === "review" || value === "decode" || value === "portal" || value === "tools") {
       return value;
     }
 
