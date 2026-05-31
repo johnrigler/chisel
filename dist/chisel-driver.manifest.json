@@ -1,0 +1,69 @@
+{
+  "name": "chisel-driver",
+  "version": "2.6.1",
+  "description": "Browser driver assembled from Chisel core, signing, unspendable, and coin extension modules. Elliptic is embedded; CryptoJS remains external in v2.6.1.",
+  "sourceFiles": [
+    {
+      "path": "chisel.js",
+      "sha256": "b7600708633ca6c4a724abd8843b3602a8fac5f3e8c91cfdc22e5515a1df0d8d",
+      "bytes": 182601
+    },
+    {
+      "path": "chisel.unspendable.js",
+      "sha256": "5d1adae57a57fdc79bc89cdc2efe5ce2f3e366a5d39e08755dbd7cf14f931d32",
+      "bytes": 16654
+    },
+    {
+      "path": "chisel.sign.js",
+      "sha256": "29db960548d19c15506d0c5c656e183fb1ac878ff0ec124f39070a1399196a12",
+      "bytes": 10905
+    },
+    {
+      "path": "chisel.ravencoin.js",
+      "sha256": "63af22ab00b7dd6e62a59ca946f444b1829c350a6775016dad7d42d50ef5ed95",
+      "bytes": 7106
+    },
+    {
+      "path": "chisel.digibyte.js",
+      "sha256": "294f8dbd7933024e9cd268b2b4b44db4568506eeefc6bc3d4725ebeb6d6ad6d3",
+      "bytes": 8558
+    },
+    {
+      "path": "chisel.litecoin.js",
+      "sha256": "9ac878d6b7f9cc2551e3d43fdf932d11ebad089ca4386d145e746c4d6a8e25cf",
+      "bytes": 7245
+    }
+  ],
+  "excludes": [
+    "app.js",
+    "index.html",
+    "qrScan.html",
+    "chisel.portal.js",
+    "chisel.thunderwords.js",
+    "tools/"
+  ],
+  "publicGlobals": [
+    "CHISEL",
+    "CHISEL_DRIVER"
+  ],
+  "coinExtensions": [
+    "ravencoin",
+    "digibyte",
+    "litecoin",
+    "litecoinTestnet"
+  ],
+  "transportModes": {
+    "proxy-rpc": "User runs a local or trusted proxy that forwards JSON-RPC/API methods to a coin node.",
+    "external-utxo": "Driver derives UTXOs from a public explorer/address transaction endpoint.",
+    "public-provider": "Driver uses one or more public provider APIs for UTXOs, transaction lookup, and broadcast."
+  },
+  "sha256": "f5eb6e2e0b16f5acb50b41bb74b58b7cf172b66633f73aec21d1f901bf495272",
+  "bytes": 236290,
+  "externalRuntimeDependencies": [
+    {
+      "name": "CryptoJS",
+      "version": "4.x",
+      "reason": "RIPEMD160 in chisel.sign.js"
+    }
+  ]
+}

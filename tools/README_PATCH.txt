@@ -1,3 +1,31 @@
+# v2.6.1 patch test notes
+
+This patch starts the `/dist` driver line for external integrations.
+
+Browser smoke test:
+
+```js
+window.elliptic.version
+typeof CHISEL.signRawTransaction
+CHISEL_DRIVER.VERSION
+CHISEL_DRIVER.getCoins()
+CHISEL.getCoin("digibyte").TRANSPORT_MODES
+CHISEL.getCoin("ravencoin").TRANSPORT_MODES
+CHISEL.getCoin("litecoin").TRANSPORT_MODES
+```
+
+Expected:
+
+- `window.elliptic.version` is `6.6.1`.
+- `CHISEL_DRIVER.VERSION` is `2.6.1`.
+- Digibyte reports `external-utxo` and `proxy-rpc`.
+- Ravencoin reports `proxy-rpc`.
+- Litecoin reports `public-provider`.
+
+The driver should load without `app.js`, `index.html`, or any separate elliptic script tag. It still requires CryptoJS to be loaded first because `chisel.sign.js` still uses CryptoJS.RIPEMD160.
+
+---
+
 Patch contents:
 
 - tools/qrField/index.html

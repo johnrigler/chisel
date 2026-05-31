@@ -1,3 +1,13 @@
+
+## v2.6.1 - dist driver + coin transport metadata
+
+- Added `dist/chisel-driver.js` as the first professional single-file browser driver for external projects.
+- The dist driver includes core Chisel, embedded elliptic, unspendable helpers, signing, and the Ravencoin/Digibyte/Litecoin coin extensions.
+- App/UI modules are intentionally excluded from dist.
+- Added `dist/chisel-driver.manifest.json` and `dist/chisel-driver.sha256` for auditability.
+- Added explicit coin extension transport metadata so external users can tell whether a coin uses proxy RPC, public providers, external explorer UTXO lookup, or legacy external broadcast behavior.
+- Documented the old v1 Digibyte external `sendtx` broadcast route as legacy, not default.
+
 # Chisel v2.4.3c patch
 
 First Litecoin GUI bridge.
