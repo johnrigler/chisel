@@ -1,10 +1,3 @@
-v2.6.4 QR scanner WIF-prefix smoke test
-
-1. Open qrScan.html. Confirm Ravencoin, Digibyte, Litecoin, and Litecoin Testnet appear in the currency selector.
-2. Select Litecoin. Paste or scan a 64-character private-key hex value. Confirm the generated WIF decodes as Litecoin prefix 176 and returns an L/M-style Litecoin address.
-3. Select Ravencoin or Digibyte with the same private-key hex. Confirm the generated WIF uses prefix 128 and returns that coin's address family.
-4. Scan a complete prefix-128 WIF while Litecoin is selected. Confirm the error explains that the WIF belongs to a different coin/network.
-
 v2.6.3 QR scanner registry smoke test
 
 1. Open index.html. Confirm the app version shows Chisel v2.6.3.
@@ -119,3 +112,16 @@ Notes:
 - The runtime elliptic dependency is now embedded in chisel.js.
 - The vendor elliptic files remain for audit comparison and source visibility.
 - THIRD_PARTY_LICENSES/elliptic.txt remains the authoritative bundled license notice.
+
+v2.6.4 key instaprint smoke test
+--------------------------------
+
+1. Open `tools/keyPrint/index.html` from the same origin as Chisel.
+2. Select a currency.
+3. Paste either a full WIF or a raw 64-hex private key.
+4. Click `Derive key packet`.
+5. Click `Create long PNG`.
+6. Confirm the PNG contains the expected QR/text sections.
+7. Optional: click `Save packet to this device`, refresh, and load the saved packet from localStorage.
+
+This tool stores private key material only when the user explicitly clicks save. The storage is browser localStorage, not encrypted custody.

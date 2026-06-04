@@ -1,7 +1,7 @@
 {
   "name": "chisel-driver",
   "version": "2.6.4",
-  "description": "Browser driver assembled from Chisel core, signing, unspendable, and coin extension modules. Elliptic and RIPEMD160 are embedded; no external runtime scripts are required in v2.6.4. Coin extensions expose WIF_PREFIX metadata for QR/raw-hex loaders.",
+  "description": "Browser driver assembled from Chisel core, signing, unspendable, and coin extension modules. Elliptic and RIPEMD160 are embedded; no external runtime scripts are required in v2.6.4.",
   "sourceFiles": [
     {
       "path": "chisel.js",
@@ -20,18 +20,18 @@
     },
     {
       "path": "chisel.ravencoin.js",
-      "sha256": "45d4310e69fe1d705fcf7f514e44850b8a4467759fa301ccaad2aee787e320f2",
-      "bytes": 7222
+      "sha256": "9f62c5dc3da823ee611412807479d8fe3efeed1ae9f4a3a103e38627eae309cb",
+      "bytes": 7202
     },
     {
       "path": "chisel.digibyte.js",
-      "sha256": "4dafd3399b27ad2d5ccf017ddcbdf85372c8f4fd527119e7bd7b24ccb02837aa",
-      "bytes": 8674
+      "sha256": "61b13b5b8b39101677098fffcbb3988df38d9cbab31e3ec1c301c6eecbab51a4",
+      "bytes": 8654
     },
     {
       "path": "chisel.litecoin.js",
-      "sha256": "91f0a642f95d5b3c1d3fee63109c117dc4255690d844b13d87e087f616250df0",
-      "bytes": 7479
+      "sha256": "7c0769bcfc6eb4ec0d42da357a3999b2cea217912a416db74568d1538fcc0a24",
+      "bytes": 7355
     }
   ],
   "excludes": [
@@ -57,11 +57,8 @@
     "external-utxo": "Driver derives UTXOs from a public explorer/address transaction endpoint.",
     "public-provider": "Driver uses one or more public provider APIs for UTXOs, transaction lookup, and broadcast."
   },
-  "coinMetadata": [
-    "WIF_PREFIX",
-    "WIF_PREFIXES"
-  ],
-  "sha256": "4ca3ae3f1b73c44196ed21b47fc73a58188230a2d7f2b826b34941076a426828",
-  "bytes": 239152,
+  "keyPrintTool": "tools/keyPrint/index.html",
+  "sha256": "8199bd487c24963045826652224dafcb969569cb0e8b39a4068c71453f17055d",
+  "bytes": 240773,
   "externalRuntimeDependencies": []
 }

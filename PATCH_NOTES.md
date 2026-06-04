@@ -1,11 +1,3 @@
-## v2.6.4 - QR scanner currency-specific WIF prefixes
-
-- QR scanner now derives WIFs from 64-hex private-key fragments using the selected coin extension's `WIF_PREFIX`.
-- Added `WIF_PREFIX` and `WIF_PREFIXES` metadata to Ravencoin, Digibyte, Litecoin, and Litecoin Testnet coin extensions.
-- Fixes Litecoin scanner failure where raw hex fragments were converted into Bitcoin/Ravencoin/Digibyte-style WIF prefix 128 instead of Litecoin mainnet prefix 176.
-- WIF mismatch errors now explain that a complete WIF QR may belong to a different selected coin/network.
-- Rebuilt `/dist/chisel-driver.js` and metadata for v2.6.4.
-
 ## v2.6.3 - QR scanner currency registry
 
 - qrScan.html now builds its currency dropdown from installed Chisel coin extensions instead of hard-coded Ravencoin/Digibyte options.
@@ -72,3 +64,11 @@ First Litecoin GUI bridge.
 - Preserved `vendor/elliptic-6-6-1.min.js` and `vendor/elliptic-6-6-1.js` as audit/source artifacts, not runtime dependencies for the main pages.
 - Preserved the MIT license notice in `THIRD_PARTY_LICENSES/elliptic.txt` and added an embedded-source banner in `chisel.js`.
 - Bumped the `chisel.js` cache token in `index.html` to `2.6.0`.
+
+## v2.6.4
+
+- Added `tools/keyPrint/index.html`, a long-PNG key instaprint tool for paper-wallet workflows.
+- The tool derives WIF/private-hex input into Chisel coin address/public-key packets.
+- The tool can render private WIF, private hex, address, compressed public key, and a public manifest as QR/text sections in one long PNG.
+- Added optional local device storage under `localStorage.chisel.keyPrint.records.v1` for repeat instaprinting.
+- Added the key instaprint tool to the main Tools page.

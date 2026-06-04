@@ -73,3 +73,8 @@ Expected:
 - `CHISEL.ripemd160Hex("616263")` is `8eb208f7e05d987a9b044a8e98c6b087f15a0bfc`.
 - `typeof window.CryptoJS` is `undefined`.
 - `CHISEL.signRawTransaction` is a function.
+
+
+## Related satellite tool
+
+`tools/keyPrint/index.html` uses the same Chisel key/address helpers to create long PNG receipts for private/public key packets. It is not included inside `/dist` because it is an operational browser UI, not the external driver itself.

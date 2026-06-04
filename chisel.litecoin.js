@@ -119,7 +119,6 @@
 
   function makeLitecoinCoin(config) {
     const network = config.network;
-    const networkConfig = CHISEL.litecoin.NETWORKS[network];
 
     return {
       NAME: config.name,
@@ -127,8 +126,6 @@
       TICKER: config.ticker,
       ORDER: config.order,
       BASE_UNITS: BASE_UNITS,
-      WIF_PREFIX: networkConfig.wifPrefix,
-      WIF_PREFIXES: { mainnet: CHISEL.litecoin.NETWORKS.mainnet.wifPrefix, testnet: CHISEL.litecoin.NETWORKS.testnet.wifPrefix },
       DEFAULT_RPC_URL: config.defaultProviders,
       DEFAULT_EXPLORER_URL: config.explorerUrl,
       DEFAULT_FEE: "0.00010000",
@@ -142,6 +139,8 @@
       UTXO_SOURCE: "public-provider-utxo",
       BROADCAST_SOURCE: "public-provider-broadcast",
       SUPPORTS_IPFS_FIELD: false,
+      WIF_PREFIX: network === "testnet" ? 239 : 176,
+      WIF_PREFIXES: [network === "testnet" ? 239 : 176],
       USES_THIRD_PARTY_PROVIDERS: true,
       HERO_TITLE: config.displayName + " provider send-back + broadcast",
       HERO_TEXT: "Paste one " + config.displayName + " WIF, optionally add OP_RETURN data, and broadcast a local P2PKH transaction through public providers. The WIF is decoded and signed locally.",

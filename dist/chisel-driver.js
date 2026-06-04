@@ -1,6 +1,24 @@
 /*
- * BEGIN chisel.js
+ * Chisel Browser Driver v2.6.4
+ *
+ * Browser driver for external tools.
+ * Built from source modules in the Chisel repository.
+ * No app GUI code is included. Load this file from /dist when another
+ * project needs local key handling, transaction building/signing, and
+ * installed coin adapters.
+ *
+ * Third-party code: elliptic 6.6.1 is embedded inside chisel.js.
+ * RIPEMD160 is implemented inside chisel.sign.js.
+ * No external runtime dependency scripts are required by this driver.
+ * License: MIT. See ../THIRD_PARTY_LICENSES/elliptic.txt.
  */
+
+
+/* ==========================================================================
+ * Source module: chisel.js
+ * SHA256: b7600708633ca6c4a724abd8843b3602a8fac5f3e8c91cfdc22e5515a1df0d8d
+ * ========================================================================== */
+
 /*
  * Embedded third-party dependency: elliptic 6.6.1
  * Source: https://github.com/indutny/elliptic
@@ -1481,13 +1499,13 @@
   window.CHISEL = CHISEL;
 })();
 
-/*
- * END chisel.js
- */
 
-/*
- * BEGIN chisel.unspendable.js
- */
+
+/* ==========================================================================
+ * Source module: chisel.unspendable.js
+ * SHA256: 5d1adae57a57fdc79bc89cdc2efe5ce2f3e366a5d39e08755dbd7cf14f931d32
+ * ========================================================================== */
+
 (function () {
   "use strict";
 
@@ -2148,13 +2166,13 @@
   window.un = generate;
 })();
 
-/*
- * END chisel.unspendable.js
- */
 
-/*
- * BEGIN chisel.sign.js
- */
+
+/* ==========================================================================
+ * Source module: chisel.sign.js
+ * SHA256: af2e8998acd87242637f3101cfec0af9f0aead3bf421c5d02befb841cdef2fe4
+ * ========================================================================== */
+
 (function () {
   //
   // Constants
@@ -2688,13 +2706,13 @@
   };
 })();
 
-/*
- * END chisel.sign.js
- */
 
-/*
- * BEGIN chisel.ravencoin.js
- */
+
+/* ==========================================================================
+ * Source module: chisel.ravencoin.js
+ * SHA256: 9f62c5dc3da823ee611412807479d8fe3efeed1ae9f4a3a103e38627eae309cb
+ * ========================================================================== */
+
 (function () {
   //
   // Constants
@@ -2911,8 +2929,6 @@ function getOpReturnFeeUnits(opReturnHex) {
     TICKER: TICKER,
     ORDER: ORDER,
     BASE_UNITS: BASE_UNITS,
-    WIF_PREFIX: MAINNET_WIF_PREFIX,
-    WIF_PREFIXES: { mainnet: MAINNET_WIF_PREFIX, testnet: TESTNET_WIF_PREFIX },
     DEFAULT_RPC_URL: DEFAULT_RPC_URL,
     DEFAULT_EXPLORER_URL: DEFAULT_EXPLORER_URL,
     DEFAULT_FEE: DEFAULT_FEE,
@@ -2922,6 +2938,8 @@ function getOpReturnFeeUnits(opReturnHex) {
     DEFAULT_TRANSPORT_MODE: "proxy-rpc",
     UTXO_SOURCE: "proxy-rpc-address-index",
     BROADCAST_SOURCE: "proxy-rpc-sendrawtransaction",
+    WIF_PREFIX: MAINNET_WIF_PREFIX,
+    WIF_PREFIXES: [MAINNET_WIF_PREFIX, TESTNET_WIF_PREFIX],
     UNSPENDABLE_PREFIX: "R",
     UNSPENDABLE_MODIFIERS: ["A", "B", "C", "D", "E"],
     HERO_TITLE: HERO_TITLE,
@@ -2941,13 +2959,13 @@ function getOpReturnFeeUnits(opReturnHex) {
   });
 })();
 
-/*
- * END chisel.ravencoin.js
- */
 
-/*
- * BEGIN chisel.digibyte.js
- */
+
+/* ==========================================================================
+ * Source module: chisel.digibyte.js
+ * SHA256: 61b13b5b8b39101677098fffcbb3988df38d9cbab31e3ec1c301c6eecbab51a4
+ * ========================================================================== */
+
 (function () {
   //
   // Constants
@@ -3184,8 +3202,6 @@ function getRequiredFeeUnits(feeUnits, values) {
     TICKER: TICKER,
     ORDER: ORDER,
     BASE_UNITS: BASE_UNITS,
-    WIF_PREFIX: MAINNET_WIF_PREFIX,
-    WIF_PREFIXES: { mainnet: MAINNET_WIF_PREFIX, testnet: TESTNET_WIF_PREFIX },
     DEFAULT_RPC_URL: DEFAULT_RPC_URL,
     DEFAULT_EXPLORER_URL: DEFAULT_EXPLORER_URL,
     DEFAULT_FEE: DEFAULT_FEE,
@@ -3197,6 +3213,8 @@ function getRequiredFeeUnits(feeUnits, values) {
     BROADCAST_SOURCE: "proxy-rpc-sendrawtransaction",
     LEGACY_EXTERNAL_BROADCAST_URL: "https://digibyteblockexplorer.com/sendtx",
     LEGACY_EXTERNAL_BROADCAST_NOTE: "v1 used this HTML form endpoint by POSTing hex=SIGNED_TX and scraping .message-body. It is intentionally not the default in v2.6.x because it is brittle and browser-CORS dependent.",
+    WIF_PREFIX: MAINNET_WIF_PREFIX,
+    WIF_PREFIXES: [MAINNET_WIF_PREFIX, TESTNET_WIF_PREFIX],
     UNSPENDABLE_PREFIX: "D",
     UNSPENDABLE_MODIFIERS: ["A", "B", "C", "D", "E"],
     MIN_FEE: MIN_FEE,
@@ -3219,13 +3237,13 @@ function getRequiredFeeUnits(feeUnits, values) {
   });
 })();
 
-/*
- * END chisel.digibyte.js
- */
 
-/*
- * BEGIN chisel.litecoin.js
- */
+
+/* ==========================================================================
+ * Source module: chisel.litecoin.js
+ * SHA256: 7c0769bcfc6eb4ec0d42da357a3999b2cea217912a416db74568d1538fcc0a24
+ * ========================================================================== */
+
 (function () {
   if (!window.CHISEL) {
     throw new Error("CHISEL must be loaded before chisel.litecoin.js.");
@@ -3347,7 +3365,6 @@ function getRequiredFeeUnits(feeUnits, values) {
 
   function makeLitecoinCoin(config) {
     const network = config.network;
-    const networkConfig = CHISEL.litecoin.NETWORKS[network];
 
     return {
       NAME: config.name,
@@ -3355,8 +3372,6 @@ function getRequiredFeeUnits(feeUnits, values) {
       TICKER: config.ticker,
       ORDER: config.order,
       BASE_UNITS: BASE_UNITS,
-      WIF_PREFIX: networkConfig.wifPrefix,
-      WIF_PREFIXES: { mainnet: CHISEL.litecoin.NETWORKS.mainnet.wifPrefix, testnet: CHISEL.litecoin.NETWORKS.testnet.wifPrefix },
       DEFAULT_RPC_URL: config.defaultProviders,
       DEFAULT_EXPLORER_URL: config.explorerUrl,
       DEFAULT_FEE: "0.00010000",
@@ -3370,6 +3385,8 @@ function getRequiredFeeUnits(feeUnits, values) {
       UTXO_SOURCE: "public-provider-utxo",
       BROADCAST_SOURCE: "public-provider-broadcast",
       SUPPORTS_IPFS_FIELD: false,
+      WIF_PREFIX: network === "testnet" ? 239 : 176,
+      WIF_PREFIXES: [network === "testnet" ? 239 : 176],
       USES_THIRD_PARTY_PROVIDERS: true,
       HERO_TITLE: config.displayName + " provider send-back + broadcast",
       HERO_TEXT: "Paste one " + config.displayName + " WIF, optionally add OP_RETURN data, and broadcast a local P2PKH transaction through public providers. The WIF is decoded and signed locally.",
@@ -3430,10 +3447,6 @@ function getRequiredFeeUnits(feeUnits, values) {
   }));
 })();
 
-/*
- * END chisel.litecoin.js
- */
-
 
 (function () {
   if (!window.CHISEL) {
@@ -3459,8 +3472,8 @@ function getRequiredFeeUnits(feeUnits, values) {
           broadcastSource: coin.BROADCAST_SOURCE || "",
           requiresExplorer: Boolean(coin.REQUIRES_EXPLORER),
           unspendablePrefix: coin.UNSPENDABLE_PREFIX || "",
-          wifPrefix: Number.isFinite(Number(coin.WIF_PREFIX)) ? Number(coin.WIF_PREFIX) : null,
-          wifPrefixes: coin.WIF_PREFIXES || null
+          wifPrefix: typeof coin.WIF_PREFIX === "number" ? coin.WIF_PREFIX : null,
+          wifPrefixes: coin.WIF_PREFIXES || []
         };
       });
     }
