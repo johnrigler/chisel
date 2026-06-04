@@ -1,3 +1,64 @@
+v2.6.3 QR scanner registry smoke test
+
+1. Open index.html. Confirm the app version shows Chisel v2.6.3.
+2. Choose Litecoin in the main currency selector. Click SCAN HEX STICKERS / WIF.
+3. Confirm qrScan.html opens with Litecoin selected.
+4. Confirm qrScan.html currency options include Ravencoin, Digibyte, Litecoin, and Litecoin Testnet.
+5. Paste a 64-hex private key or four 16-hex fragments. Confirm the derived address changes when switching currencies.
+6. Click LOAD INTO CHISEL and confirm the selected currency and WIF populate on index.html.
+
+# v2.6.2 patch test notes
+
+This patch removes the remaining CryptoJS runtime dependency.
+
+Browser smoke test:
+
+```js
+window.elliptic.version
+typeof window.CryptoJS
+CHISEL.ripemd160Hex("616263")
+typeof CHISEL.signRawTransaction
+CHISEL_DRIVER.VERSION
+```
+
+Expected:
+
+- `window.elliptic.version` is `6.6.1`.
+- `typeof window.CryptoJS` is `undefined`.
+- `CHISEL.ripemd160Hex("616263")` is `8eb208f7e05d987a9b044a8e98c6b087f15a0bfc`.
+- `CHISEL_DRIVER.VERSION` is `2.6.2`.
+- `CHISEL.signRawTransaction` is a function.
+
+---
+
+# v2.6.1 patch test notes
+
+This patch starts the `/dist` driver line for external integrations.
+
+Browser smoke test:
+
+```js
+window.elliptic.version
+typeof CHISEL.signRawTransaction
+CHISEL_DRIVER.VERSION
+CHISEL_DRIVER.getCoins()
+CHISEL.getCoin("digibyte").TRANSPORT_MODES
+CHISEL.getCoin("ravencoin").TRANSPORT_MODES
+CHISEL.getCoin("litecoin").TRANSPORT_MODES
+```
+
+Expected:
+
+- `window.elliptic.version` is `6.6.1`.
+- `CHISEL_DRIVER.VERSION` is `2.6.1`.
+- Digibyte reports `external-utxo` and `proxy-rpc`.
+- Ravencoin reports `proxy-rpc`.
+- Litecoin reports `public-provider`.
+
+The driver should load without `app.js`, `index.html`, any separate elliptic script tag, or CryptoJS.
+
+---
+
 Patch contents:
 
 - tools/qrField/index.html
@@ -51,3 +112,16 @@ Notes:
 - The runtime elliptic dependency is now embedded in chisel.js.
 - The vendor elliptic files remain for audit comparison and source visibility.
 - THIRD_PARTY_LICENSES/elliptic.txt remains the authoritative bundled license notice.
+
+v2.6.4 key instaprint smoke test
+--------------------------------
+
+1. Open `tools/keyPrint/index.html` from the same origin as Chisel.
+2. Select a currency.
+3. Paste either a full WIF or a raw 64-hex private key.
+4. Click `Derive key packet`.
+5. Click `Create long PNG`.
+6. Confirm the PNG contains the expected QR/text sections.
+7. Optional: click `Save packet to this device`, refresh, and load the saved packet from localStorage.
+
+This tool stores private key material only when the user explicitly clicks save. The storage is browser localStorage, not encrypted custody.

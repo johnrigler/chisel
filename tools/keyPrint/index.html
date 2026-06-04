@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <title>Chisel Key Instaprint Tool 2.6.4</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0b0d10;
+      color: #e6edf3;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    header, main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    header { border-bottom: 1px solid #222a33; }
+    h1, h2, h3, p { margin: 0; }
+    main { display: grid; gap: 16px; }
+    .panel {
+      background: #11161c;
+      border: 1px solid #222a33;
+      border-radius: 12px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .grid { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: start; }
+    label { color: #b8c7d6; padding-top: 10px; font-size: 14px; }
+    input, select, button, textarea { font: inherit; }
+    input, select, textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #2c3642;
+      border-radius: 10px;
+      background: #0a0f14;
+      color: #e6edf3;
+      outline: none;
+    }
+    textarea { min-height: 130px; resize: vertical; }
+    button, a.button {
+      border: 1px solid #3a4655;
+      border-radius: 10px;
+      background: #1b2430;
+      color: #e6edf3;
+      padding: 11px 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    button:hover, a.button:hover { background: #243143; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .checks { display: flex; flex-wrap: wrap; gap: 14px; }
+    .checks label { padding-top: 0; display: flex; gap: 8px; align-items: center; }
+    .checks input { width: auto; }
+    .muted { color: #9fb0c0; line-height: 1.5; }
+    .warn { color: #ffd37a; }
+    .bad { color: #ff8f8f; }
+    .ok { color: #9dffbd; }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+      background: #070a0e;
+      border: 1px solid #222a33;
+      border-radius: 10px;
+      padding: 12px;
+      overflow: auto;
+    }
+    #previewWrap {
+      background: #05070a;
+      border: 1px solid #222a33;
+      border-radius: 12px;
+      padding: 12px;
+      overflow: auto;
+    }
+    #previewImage {
+      max-width: 100%;
+      image-rendering: pixelated;
+      background: white;
+    }
+    .storedRow {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid #222a33;
+      border-radius: 10px;
+      background: #0a0f14;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chisel Key Instaprint Tool</h1>
+    <p class="muted">Creates a long PNG receipt for a private key, public key, WIF, and address. Designed for small photo/thermal-style printers and physical paper-wallet workflows.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Key input</h2>
+      <p class="muted warn">Private key material is handled locally in this browser page. Saving to device uses localStorage, not encryption. Treat it as convenient, not secure.</p>
+      <div class="grid">
+        <label for="currencySelect">Currency</label>
+        <select id="currencySelect"></select>
+
+        <label for="keyInput">WIF or 64-hex private key</label>
+        <textarea id="keyInput" spellcheck="false" placeholder="Paste WIF or 64 hex characters here"></textarea>
+
+        <label for="recordLabel">Record label</label>
+        <input id="recordLabel" placeholder="Example: constructed wallet / instaprinted wallet / event key 03" />
+
+        <label for="paperWidth">PNG width</label>
+        <input id="paperWidth" inputmode="numeric" value="576" />
+      </div>
+      <div class="checks">
+        <label><input id="includePrivate" type="checkbox" checked /> include private WIF QR/text</label>
+        <label><input id="includePrivateHex" type="checkbox" /> include raw private hex</label>
+        <label><input id="includePublic" type="checkbox" checked /> include address/public key</label>
+        <label><input id="includeManifest" type="checkbox" checked /> include JSON manifest</label>
+      </div>
+      <div class="actions">
+        <button id="deriveButton" type="button">Derive key packet</button>
+        <button id="printButton" type="button">Create long PNG</button>
+        <button id="saveButton" type="button">Save packet to this device</button>
+        <button id="clearInputButton" type="button">Clear input</button>
+      </div>
+      <pre id="status"></pre>
+    </section>
+
+    <section class="panel">
+      <h2>Derived packet</h2>
+      <pre id="packetOutput"></pre>
+    </section>
+
+    <section class="panel">
+      <h2>Instaprint image</h2>
+      <div class="actions">
+        <a id="downloadLink" class="button hidden" download="chisel-key-instaprint.png">Download PNG</a>
+        <a id="openLink" class="button hidden" target="_blank" rel="noopener">Open image</a>
+      </div>
+      <div id="previewWrap"><img id="previewImage" alt="Generated long PNG preview" /></div>
+    </section>
+
+    <section class="panel">
+      <h2>Device-stored packets</h2>
+      <p class="muted">These records live under <code>localStorage.chisel.keyPrint.records.v1</code> for this browser origin. They are useful for repeated instaprinting, not for strong custody.</p>
+      <div id="storedList"></div>
+      <div class="actions">
+        <button id="refreshStoredButton" type="button">Refresh stored list</button>
+        <button id="clearStoredButton" type="button">Clear all stored packets</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="qrScratch" class="hidden"></div>
+
+  <script src="../../vendor/qrcode.min.js"></script>
+  <script src="../../chisel.js?2.6.4"></script>
+  <script src="../../chisel.unspendable.js?2.5.2f"></script>
+  <script src="../../chisel.sign.js?2.5.2d"></script>
+  <script src="../../chisel.ravencoin.js?2.5.2d"></script>
+  <script src="../../chisel.digibyte.js?2.5.2d"></script>
+  <script src="../../chisel.litecoin.js?2.5.2j"></script>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = "chisel.keyPrint.records.v1";
+      const currencySelect = document.getElementById("currencySelect");
+      const keyInput = document.getElementById("keyInput");
+      const recordLabel = document.getElementById("recordLabel");
+      const paperWidth = document.getElementById("paperWidth");
+      const includePrivate = document.getElementById("includePrivate");
+      const includePrivateHex = document.getElementById("includePrivateHex");
+      const includePublic = document.getElementById("includePublic");
+      const includeManifest = document.getElementById("includeManifest");
+      const status = document.getElementById("status");
+      const packetOutput = document.getElementById("packetOutput");
+      const previewImage = document.getElementById("previewImage");
+      const downloadLink = document.getElementById("downloadLink");
+      const openLink = document.getElementById("openLink");
+      const storedList = document.getElementById("storedList");
+      const qrScratch = document.getElementById("qrScratch");
+
+      let currentPacket = null;
+
+      function setStatus(message, className) {
+        status.className = className || "";
+        status.textContent = message || "";
+      }
+
+      function normalizeHex(value) {
+        return String(value || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
+      }
+
+      function chunkText(value, size) {
+        const text = String(value || "");
+        const chunks = [];
+
+        for (let i = 0; i < text.length; i += size) {
+          chunks.push(text.slice(i, i + size));
+        }
+
+        return chunks.join("\n");
+      }
+
+      function getCoin() {
+        return CHISEL.getCoin(currencySelect.value);
+      }
+
+      function getWifPrefix(coin) {
+        if (typeof coin.WIF_PREFIX === "number") {
+          return coin.WIF_PREFIX;
+        }
+
+        if (coin.NAME === "litecoin") {
+          return 176;
+        }
+
+        if (coin.NAME === "litecoinTestnet") {
+          return 239;
+        }
+
+        return 128;
+      }
+
+      async function privateHexToWif(privateKeyHex, coin, compressed) {
+        const prefix = getWifPrefix(coin);
+        const prefixBytes = new Uint8Array([prefix]);
+        const keyBytes = CHISEL.hexToUint8Array(privateKeyHex);
+        const flagBytes = compressed ? new Uint8Array([1]) : new Uint8Array([]);
+
+        return CHISEL.base58CheckEncode(CHISEL.concatBytes(prefixBytes, keyBytes, flagBytes));
+      }
+
+      async function parseInputToWifAndHex(raw, coin) {
+        const text = String(raw || "").trim();
+        const possibleHex = normalizeHex(text);
+
+        if (/^[0-9a-f]{64}$/.test(possibleHex)) {
+          const wif = await privateHexToWif(possibleHex, coin, true);
+          return {
+            inputType: "private-hex",
+            wif: wif,
+            privateKeyHex: possibleHex,
+            compressed: true
+          };
+        }
+
+        const account = await coin.wifToAccount(text);
+        return {
+          inputType: "wif",
+          wif: text,
+          privateKeyHex: account.privateKeyHex,
+          compressed: account.compressed
+        };
+      }
+
+      async function derivePacket() {
+        const coin = getCoin();
+
+        if (!coin || typeof coin.wifToAccount !== "function") {
+          throw new Error("Selected currency does not expose wifToAccount().");
+        }
+
+        const parsed = await parseInputToWifAndHex(keyInput.value, coin);
+        const account = await coin.wifToAccount(parsed.wif);
+        const compressedPublicKeyHex = CHISEL.privateKeyHexToPublicKeyHex(account.privateKeyHex, true);
+        const uncompressedPublicKeyHex = CHISEL.privateKeyHexToPublicKeyHex(account.privateKeyHex, false);
+        const createdAt = new Date().toISOString();
+        const label = String(recordLabel.value || "").trim() || "Chisel key packet";
+
+        currentPacket = {
+          schema: "chisel-key-instaprint-v1",
+          chiselVersion: "2.6.4",
+          createdAt: createdAt,
+          label: label,
+          currency: coin.NAME,
+          displayName: coin.DISPLAY_NAME,
+          ticker: coin.TICKER,
+          network: account.network || "mainnet",
+          inputType: parsed.inputType,
+          wif: parsed.wif,
+          privateKeyHex: account.privateKeyHex,
+          compressed: account.compressed,
+          address: account.address,
+          compressedAddress: account.compressedAddress,
+          uncompressedAddress: account.uncompressedAddress,
+          compressedPublicKeyHex: compressedPublicKeyHex,
+          uncompressedPublicKeyHex: uncompressedPublicKeyHex,
+          warning: "This object contains private key material if wif/privateKeyHex are present."
+        };
+
+        packetOutput.textContent = JSON.stringify(currentPacket, null, 2);
+        setStatus("Derived packet for " + currentPacket.displayName + " address " + currentPacket.address + ".", "ok");
+        return currentPacket;
+      }
+
+      function makeQrCanvas(text, size) {
+        qrScratch.innerHTML = "";
+        new QRCode(qrScratch, {
+          text: String(text),
+          width: size,
+          height: size,
+          correctLevel: QRCode.CorrectLevel.M
+        });
+
+        const canvas = qrScratch.querySelector("canvas");
+        if (!canvas) {
+          throw new Error("QR library did not produce a canvas.");
+        }
+
+        return canvas;
+      }
+
+      function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+        const value = String(text || "");
+        const hardLines = value.split("\n");
+        let cursorY = y;
+
+        hardLines.forEach(function drawHardLine(line) {
+          let current = "";
+
+          for (let i = 0; i < line.length; i += 1) {
+            const test = current + line[i];
+            if (ctx.measureText(test).width > maxWidth && current) {
+              ctx.fillText(current, x, cursorY);
+              cursorY += lineHeight;
+              current = line[i];
+            } else {
+              current = test;
+            }
+          }
+
+          ctx.fillText(current, x, cursorY);
+          cursorY += lineHeight;
+        });
+
+        return cursorY;
+      }
+
+      function measureWrappedText(ctx, text, maxWidth, lineHeight) {
+        const probe = document.createElement("canvas");
+        const probeCtx = probe.getContext("2d");
+        probeCtx.font = ctx.font;
+        let lines = 0;
+
+        String(text || "").split("\n").forEach(function countHardLine(line) {
+          let current = "";
+
+          for (let i = 0; i < line.length; i += 1) {
+            const test = current + line[i];
+            if (probeCtx.measureText(test).width > maxWidth && current) {
+              lines += 1;
+              current = line[i];
+            } else {
+              current = test;
+            }
+          }
+          lines += 1;
+        });
+
+        return lines * lineHeight;
+      }
+
+      function addSection(sections, title, text, qrText) {
+        sections.push({ title: title, text: String(text || ""), qrText: qrText || text });
+      }
+
+      async function createImage() {
+        const packet = currentPacket || await derivePacket();
+        const width = Math.max(320, Math.min(1400, Number(paperWidth.value || 576)));
+        const margin = 24;
+        const qrSize = Math.min(280, width - margin * 2);
+        const lineHeight = 18;
+        const sections = [];
+        const manifest = JSON.stringify({
+          schema: packet.schema,
+          label: packet.label,
+          currency: packet.currency,
+          network: packet.network,
+          address: packet.address,
+          compressed: packet.compressed,
+          createdAt: packet.createdAt
+        }, null, 2);
+
+        addSection(sections, "CHISEL KEY PACKET", packet.label + "\n" + packet.displayName + " / " + packet.network + "\n" + packet.createdAt, manifest);
+
+        if (includePrivate.checked) {
+          addSection(sections, "PRIVATE WIF", chunkText(packet.wif, 32), packet.wif);
+        }
+
+        if (includePrivateHex.checked) {
+          addSection(sections, "PRIVATE HEX", chunkText(packet.privateKeyHex, 32), packet.privateKeyHex);
+        }
+
+        if (includePublic.checked) {
+          addSection(sections, "ADDRESS", chunkText(packet.address, 32), packet.address);
+          addSection(sections, "COMPRESSED PUBLIC KEY", chunkText(packet.compressedPublicKeyHex, 32), packet.compressedPublicKeyHex);
+        }
+
+        if (includeManifest.checked) {
+          addSection(sections, "PUBLIC MANIFEST", manifest, manifest);
+        }
+
+        const measureCanvas = document.createElement("canvas");
+        const measureCtx = measureCanvas.getContext("2d");
+        measureCtx.font = "16px ui-monospace, Menlo, Consolas, monospace";
+
+        let height = margin;
+        sections.forEach(function measureSection(section) {
+          height += 34;
+          height += qrSize + 12;
+          height += measureWrappedText(measureCtx, section.text, width - margin * 2, lineHeight);
+          height += 24;
+        });
+        height += margin;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = "#000000";
+        ctx.textBaseline = "top";
+        ctx.font = "bold 20px ui-monospace, Menlo, Consolas, monospace";
+
+        let y = margin;
+        sections.forEach(function drawSection(section) {
+          ctx.font = "bold 20px ui-monospace, Menlo, Consolas, monospace";
+          ctx.fillText(section.title, margin, y);
+          y += 34;
+
+          const qrCanvas = makeQrCanvas(section.qrText, qrSize);
+          ctx.drawImage(qrCanvas, Math.floor((width - qrSize) / 2), y, qrSize, qrSize);
+          y += qrSize + 12;
+
+          ctx.font = "16px ui-monospace, Menlo, Consolas, monospace";
+          y = wrapCanvasText(ctx, section.text, margin, y, width - margin * 2, lineHeight);
+          y += 24;
+        });
+
+        const dataUrl = canvas.toDataURL("image/png");
+        previewImage.src = dataUrl;
+        downloadLink.href = dataUrl;
+        openLink.href = dataUrl;
+        downloadLink.classList.remove("hidden");
+        openLink.classList.remove("hidden");
+        setStatus("Created PNG: " + width + " × " + height + " pixels.", "ok");
+      }
+
+      function readRecords() {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function writeRecords(records) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      }
+
+      function renderStoredList() {
+        const records = readRecords();
+        storedList.innerHTML = "";
+
+        if (!records.length) {
+          storedList.innerHTML = "<p class=\"muted\">No stored key packets.</p>";
+          return;
+        }
+
+        records.forEach(function renderRecord(record, index) {
+          const row = document.createElement("div");
+          row.className = "storedRow";
+
+          const title = document.createElement("div");
+          title.textContent = record.label + " | " + record.displayName + " | " + record.address;
+
+          const load = document.createElement("button");
+          load.type = "button";
+          load.textContent = "Load";
+          load.addEventListener("click", function loadRecord() {
+            currentPacket = record;
+            currencySelect.value = record.currency;
+            recordLabel.value = record.label;
+            keyInput.value = record.wif || record.privateKeyHex || "";
+            packetOutput.textContent = JSON.stringify(record, null, 2);
+            setStatus("Loaded stored packet: " + record.label + ".", "ok");
+          });
+
+          const del = document.createElement("button");
+          del.type = "button";
+          del.textContent = "Delete";
+          del.addEventListener("click", function deleteRecord() {
+            const next = readRecords();
+            next.splice(index, 1);
+            writeRecords(next);
+            renderStoredList();
+          });
+
+          row.appendChild(title);
+          row.appendChild(load);
+          row.appendChild(del);
+          storedList.appendChild(row);
+        });
+      }
+
+      async function saveCurrentPacket() {
+        const packet = currentPacket || await derivePacket();
+        const records = readRecords();
+        records.unshift(packet);
+        writeRecords(records.slice(0, 50));
+        renderStoredList();
+        setStatus("Saved packet to this browser origin.", "ok");
+      }
+
+      function populateCurrencies() {
+        const coins = CHISEL.getCoins().filter(function supportsWif(coin) {
+          return typeof coin.wifToAccount === "function";
+        });
+
+        currencySelect.innerHTML = "";
+        coins.forEach(function addOption(coin) {
+          const option = document.createElement("option");
+          option.value = coin.NAME;
+          option.textContent = coin.DISPLAY_NAME + " (" + coin.TICKER + ")";
+          currencySelect.appendChild(option);
+        });
+      }
+
+      document.getElementById("deriveButton").addEventListener("click", function onDerive() {
+        derivePacket().catch(function onError(error) {
+          setStatus(error.message, "bad");
+        });
+      });
+
+      document.getElementById("printButton").addEventListener("click", function onPrint() {
+        createImage().catch(function onError(error) {
+          setStatus(error.message, "bad");
+        });
+      });
+
+      document.getElementById("saveButton").addEventListener("click", function onSave() {
+        saveCurrentPacket().catch(function onError(error) {
+          setStatus(error.message, "bad");
+        });
+      });
+
+      document.getElementById("clearInputButton").addEventListener("click", function onClearInput() {
+        keyInput.value = "";
+        packetOutput.textContent = "";
+        currentPacket = null;
+        setStatus("Input cleared.");
+      });
+
+      document.getElementById("refreshStoredButton").addEventListener("click", renderStoredList);
+      document.getElementById("clearStoredButton").addEventListener("click", function onClearStored() {
+        localStorage.removeItem(STORAGE_KEY);
+        renderStoredList();
+        setStatus("Stored packets cleared.");
+      });
+
+      populateCurrencies();
+      renderStoredList();
+      setStatus("Ready. Paste a WIF or 64-hex private key.");
+    })();
+  </script>
+</body>
+</html>

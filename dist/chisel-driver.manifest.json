@@ -1,0 +1,64 @@
+{
+  "name": "chisel-driver",
+  "version": "2.6.4",
+  "description": "Browser driver assembled from Chisel core, signing, unspendable, and coin extension modules. Elliptic and RIPEMD160 are embedded; no external runtime scripts are required in v2.6.4.",
+  "sourceFiles": [
+    {
+      "path": "chisel.js",
+      "sha256": "b7600708633ca6c4a724abd8843b3602a8fac5f3e8c91cfdc22e5515a1df0d8d",
+      "bytes": 182601
+    },
+    {
+      "path": "chisel.unspendable.js",
+      "sha256": "5d1adae57a57fdc79bc89cdc2efe5ce2f3e366a5d39e08755dbd7cf14f931d32",
+      "bytes": 16654
+    },
+    {
+      "path": "chisel.sign.js",
+      "sha256": "af2e8998acd87242637f3101cfec0af9f0aead3bf421c5d02befb841cdef2fe4",
+      "bytes": 14916
+    },
+    {
+      "path": "chisel.ravencoin.js",
+      "sha256": "9f62c5dc3da823ee611412807479d8fe3efeed1ae9f4a3a103e38627eae309cb",
+      "bytes": 7202
+    },
+    {
+      "path": "chisel.digibyte.js",
+      "sha256": "61b13b5b8b39101677098fffcbb3988df38d9cbab31e3ec1c301c6eecbab51a4",
+      "bytes": 8654
+    },
+    {
+      "path": "chisel.litecoin.js",
+      "sha256": "7c0769bcfc6eb4ec0d42da357a3999b2cea217912a416db74568d1538fcc0a24",
+      "bytes": 7355
+    }
+  ],
+  "excludes": [
+    "app.js",
+    "index.html",
+    "qrScan.html",
+    "chisel.portal.js",
+    "chisel.thunderwords.js",
+    "tools/"
+  ],
+  "publicGlobals": [
+    "CHISEL",
+    "CHISEL_DRIVER"
+  ],
+  "coinExtensions": [
+    "ravencoin",
+    "digibyte",
+    "litecoin",
+    "litecoinTestnet"
+  ],
+  "transportModes": {
+    "proxy-rpc": "User runs a local or trusted proxy that forwards JSON-RPC/API methods to a coin node.",
+    "external-utxo": "Driver derives UTXOs from a public explorer/address transaction endpoint.",
+    "public-provider": "Driver uses one or more public provider APIs for UTXOs, transaction lookup, and broadcast."
+  },
+  "keyPrintTool": "tools/keyPrint/index.html",
+  "sha256": "8199bd487c24963045826652224dafcb969569cb0e8b39a4068c71453f17055d",
+  "bytes": 240773,
+  "externalRuntimeDependencies": []
+}

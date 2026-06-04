@@ -6,7 +6,7 @@
 <script>
   installChiselSigner(CHISEL, {
     elliptic: window.elliptic,
-    CryptoJS: window.CryptoJS
+    internalRipemd160: Boolean(window.CHISEL && window.CHISEL.ripemd160Hex)
   });
 
   installChiselRavencoin(CHISEL);
