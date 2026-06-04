@@ -1,3 +1,43 @@
+v2.6.4 QR scanner WIF-prefix smoke test
+
+1. Open qrScan.html. Confirm Ravencoin, Digibyte, Litecoin, and Litecoin Testnet appear in the currency selector.
+2. Select Litecoin. Paste or scan a 64-character private-key hex value. Confirm the generated WIF decodes as Litecoin prefix 176 and returns an L/M-style Litecoin address.
+3. Select Ravencoin or Digibyte with the same private-key hex. Confirm the generated WIF uses prefix 128 and returns that coin's address family.
+4. Scan a complete prefix-128 WIF while Litecoin is selected. Confirm the error explains that the WIF belongs to a different coin/network.
+
+v2.6.3 QR scanner registry smoke test
+
+1. Open index.html. Confirm the app version shows Chisel v2.6.3.
+2. Choose Litecoin in the main currency selector. Click SCAN HEX STICKERS / WIF.
+3. Confirm qrScan.html opens with Litecoin selected.
+4. Confirm qrScan.html currency options include Ravencoin, Digibyte, Litecoin, and Litecoin Testnet.
+5. Paste a 64-hex private key or four 16-hex fragments. Confirm the derived address changes when switching currencies.
+6. Click LOAD INTO CHISEL and confirm the selected currency and WIF populate on index.html.
+
+# v2.6.2 patch test notes
+
+This patch removes the remaining CryptoJS runtime dependency.
+
+Browser smoke test:
+
+```js
+window.elliptic.version
+typeof window.CryptoJS
+CHISEL.ripemd160Hex("616263")
+typeof CHISEL.signRawTransaction
+CHISEL_DRIVER.VERSION
+```
+
+Expected:
+
+- `window.elliptic.version` is `6.6.1`.
+- `typeof window.CryptoJS` is `undefined`.
+- `CHISEL.ripemd160Hex("616263")` is `8eb208f7e05d987a9b044a8e98c6b087f15a0bfc`.
+- `CHISEL_DRIVER.VERSION` is `2.6.2`.
+- `CHISEL.signRawTransaction` is a function.
+
+---
+
 # v2.6.1 patch test notes
 
 This patch starts the `/dist` driver line for external integrations.
@@ -22,7 +62,7 @@ Expected:
 - Ravencoin reports `proxy-rpc`.
 - Litecoin reports `public-provider`.
 
-The driver should load without `app.js`, `index.html`, or any separate elliptic script tag. It still requires CryptoJS to be loaded first because `chisel.sign.js` still uses CryptoJS.RIPEMD160.
+The driver should load without `app.js`, `index.html`, any separate elliptic script tag, or CryptoJS.
 
 ---
 

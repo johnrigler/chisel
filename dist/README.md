@@ -6,11 +6,10 @@ It is deliberately separate from the Chisel app UI.
 Current load order:
 
 ```html
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 <script src="dist/chisel-driver.js"></script>
 ```
 
-`elliptic` is no longer an external dependency. `CryptoJS` is still external in this patch because `chisel.sign.js` uses it for RIPEMD160. The next clean tech-debt cut should either vendor CryptoJS into `/vendor` + `/dist`, or replace the RIPEMD160 call with a small internal implementation.
+There are no required external runtime scripts in v2.6.4. `elliptic` 6.6.1 is embedded in `chisel.js`, and RIPEMD160 is now implemented inside `chisel.sign.js`.
 
 This exposes:
 
@@ -21,7 +20,7 @@ Included source modules:
 
 1. `chisel.js`, including embedded `elliptic` 6.6.1.
 2. `chisel.unspendable.js`.
-3. `chisel.sign.js`.
+3. `chisel.sign.js`, including internal RIPEMD160.
 4. `chisel.ravencoin.js`.
 5. `chisel.digibyte.js`.
 6. `chisel.litecoin.js`.
@@ -37,7 +36,7 @@ Excluded on purpose:
 
 ## Coin transport model
 
-Chisel now labels each installed coin extension with transport metadata. This is the line between the reusable driver and the app shell.
+Chisel labels each installed coin extension with transport metadata. This is the line between the reusable driver and the app shell.
 
 ### Ravencoin
 
@@ -63,9 +62,14 @@ Open a browser console after loading the driver:
 ```js
 CHISEL_DRIVER.VERSION
 CHISEL_DRIVER.getCoins()
-CHISEL.getCoin("digibyte").TRANSPORT_MODES
-CHISEL.getCoin("ravencoin").TRANSPORT_MODES
-CHISEL.getCoin("litecoin").TRANSPORT_MODES
+CHISEL.ripemd160Hex("616263")
+typeof window.CryptoJS
+typeof CHISEL.signRawTransaction
 ```
 
-For a no-network signing sanity check, verify that `window.elliptic.version` is `6.6.1`, `window.CryptoJS` exists, and `CHISEL.signRawTransaction` is a function.
+Expected:
+
+- `CHISEL_DRIVER.VERSION` is `2.6.4`.
+- `CHISEL.ripemd160Hex("616263")` is `8eb208f7e05d987a9b044a8e98c6b087f15a0bfc`.
+- `typeof window.CryptoJS` is `undefined`.
+- `CHISEL.signRawTransaction` is a function.

@@ -1,23 +1,6 @@
 /*
- * Chisel Browser Driver v2.6.1
- *
- * Browser driver for external tools.
- * Built from source modules in the Chisel repository.
- * No app GUI code is included. Load this file from /dist when another
- * project needs local key handling, transaction building/signing, and
- * installed coin adapters.
- *
- * Third-party code: elliptic 6.6.1 is embedded inside chisel.js.
- * Remaining external runtime dependency: CryptoJS 4.x for RIPEMD160 in chisel.sign.js.
- * License: MIT. See ../THIRD_PARTY_LICENSES/elliptic.txt.
+ * BEGIN chisel.js
  */
-
-
-/* ==========================================================================
- * Source module: chisel.js
- * SHA256: b7600708633ca6c4a724abd8843b3602a8fac5f3e8c91cfdc22e5515a1df0d8d
- * ========================================================================== */
-
 /*
  * Embedded third-party dependency: elliptic 6.6.1
  * Source: https://github.com/indutny/elliptic
@@ -1498,12 +1481,13 @@
   window.CHISEL = CHISEL;
 })();
 
+/*
+ * END chisel.js
+ */
 
-/* ==========================================================================
- * Source module: chisel.unspendable.js
- * SHA256: 5d1adae57a57fdc79bc89cdc2efe5ce2f3e366a5d39e08755dbd7cf14f931d32
- * ========================================================================== */
-
+/*
+ * BEGIN chisel.unspendable.js
+ */
 (function () {
   "use strict";
 
@@ -2164,12 +2148,13 @@
   window.un = generate;
 })();
 
+/*
+ * END chisel.unspendable.js
+ */
 
-/* ==========================================================================
- * Source module: chisel.sign.js
- * SHA256: 29db960548d19c15506d0c5c656e183fb1ac878ff0ec124f39070a1399196a12
- * ========================================================================== */
-
+/*
+ * BEGIN chisel.sign.js
+ */
 (function () {
   //
   // Constants
@@ -2181,7 +2166,6 @@
   const TESTNET_WIF_PREFIX = 239;
 
   const ELLIPTIC = window.elliptic;
-  const CRYPTO_JS = window.CryptoJS;
 
   if (!window.CHISEL) {
     throw new Error("CHISEL must be loaded before chisel.sign.js.");
@@ -2191,9 +2175,6 @@
     throw new Error("elliptic dependency is required.");
   }
 
-  if (!CRYPTO_JS || !CRYPTO_JS.RIPEMD160 || !CRYPTO_JS.enc || !CRYPTO_JS.lib) {
-    throw new Error("CryptoJS dependency is required.");
-  }
 
   CHISEL.hexToBytes = function hexToBytes(hex) {
     const normalized = hex.trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
@@ -2285,11 +2266,164 @@
     return CHISEL.bytesToHex(new Uint8Array(hashBuffer));
   };
 
-  CHISEL.ripemd160Hex = function ripemd160Hex(hex) {
-    const normalized = CHISEL.normalizeHex(hex);
-    const wordArray = CRYPTO_JS.enc.Hex.parse(normalized);
+  CHISEL.ripemd160Bytes = function ripemd160Bytes(bytes) {
+    const ZL = [
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+      7, 4, 13, 1, 10, 6, 15, 3, 12, 0, 9, 5, 2, 14, 11, 8,
+      3, 10, 14, 4, 9, 15, 8, 1, 2, 7, 0, 6, 13, 11, 5, 12,
+      1, 9, 11, 10, 0, 8, 12, 4, 13, 3, 7, 15, 14, 5, 6, 2,
+      4, 0, 5, 9, 7, 12, 2, 10, 14, 1, 3, 8, 11, 6, 15, 13
+    ];
+    const ZR = [
+      5, 14, 7, 0, 9, 2, 11, 4, 13, 6, 15, 8, 1, 10, 3, 12,
+      6, 11, 3, 7, 0, 13, 5, 10, 14, 15, 8, 12, 4, 9, 1, 2,
+      15, 5, 1, 3, 7, 14, 6, 9, 11, 8, 12, 2, 10, 0, 4, 13,
+      8, 6, 4, 1, 3, 11, 15, 0, 5, 12, 2, 13, 9, 7, 10, 14,
+      12, 15, 10, 4, 1, 5, 8, 7, 6, 2, 13, 14, 0, 3, 9, 11
+    ];
+    const SL = [
+      11, 14, 15, 12, 5, 8, 7, 9, 11, 13, 14, 15, 6, 7, 9, 8,
+      7, 6, 8, 13, 11, 9, 7, 15, 7, 12, 15, 9, 11, 7, 13, 12,
+      11, 13, 6, 7, 14, 9, 13, 15, 14, 8, 13, 6, 5, 12, 7, 5,
+      11, 12, 14, 15, 14, 15, 9, 8, 9, 14, 5, 6, 8, 6, 5, 12,
+      9, 15, 5, 11, 6, 8, 13, 12, 5, 12, 13, 14, 11, 8, 5, 6
+    ];
+    const SR = [
+      8, 9, 9, 11, 13, 15, 15, 5, 7, 7, 8, 11, 14, 14, 12, 6,
+      9, 13, 15, 7, 12, 8, 9, 11, 7, 7, 12, 7, 6, 15, 13, 11,
+      9, 7, 15, 11, 8, 6, 6, 14, 12, 13, 5, 14, 13, 13, 7, 5,
+      15, 5, 8, 11, 14, 14, 6, 14, 6, 9, 12, 9, 12, 5, 15, 8,
+      8, 5, 12, 9, 12, 5, 14, 6, 8, 13, 6, 5, 15, 13, 11, 11
+    ];
 
-    return CRYPTO_JS.RIPEMD160(wordArray).toString(CRYPTO_JS.enc.Hex);
+    function rotl(value, bits) {
+      return ((value << bits) | (value >>> (32 - bits))) >>> 0;
+    }
+
+    function f(round, x, y, z) {
+      if (round <= 15) {
+        return (x ^ y ^ z) >>> 0;
+      }
+      if (round <= 31) {
+        return ((x & y) | (~x & z)) >>> 0;
+      }
+      if (round <= 47) {
+        return ((x | ~y) ^ z) >>> 0;
+      }
+      if (round <= 63) {
+        return ((x & z) | (y & ~z)) >>> 0;
+      }
+      return (x ^ (y | ~z)) >>> 0;
+    }
+
+    function kl(round) {
+      if (round <= 15) {
+        return 0x00000000;
+      }
+      if (round <= 31) {
+        return 0x5a827999;
+      }
+      if (round <= 47) {
+        return 0x6ed9eba1;
+      }
+      if (round <= 63) {
+        return 0x8f1bbcdc;
+      }
+      return 0xa953fd4e;
+    }
+
+    function kr(round) {
+      if (round <= 15) {
+        return 0x50a28be6;
+      }
+      if (round <= 31) {
+        return 0x5c4dd124;
+      }
+      if (round <= 47) {
+        return 0x6d703ef3;
+      }
+      if (round <= 63) {
+        return 0x7a6d76e9;
+      }
+      return 0x00000000;
+    }
+
+    const message = Array.from(bytes);
+    const bitLength = message.length * 8;
+    message.push(0x80);
+
+    while ((message.length % 64) !== 56) {
+      message.push(0);
+    }
+
+    for (let i = 0; i < 8; i++) {
+      message.push((bitLength / Math.pow(2, 8 * i)) & 255);
+    }
+
+    let h0 = 0x67452301;
+    let h1 = 0xefcdab89;
+    let h2 = 0x98badcfe;
+    let h3 = 0x10325476;
+    let h4 = 0xc3d2e1f0;
+
+    for (let offset = 0; offset < message.length; offset += 64) {
+      const words = new Array(16);
+
+      for (let i = 0; i < 16; i++) {
+        const j = offset + (i * 4);
+        words[i] = (message[j] | (message[j + 1] << 8) | (message[j + 2] << 16) | (message[j + 3] << 24)) >>> 0;
+      }
+
+      let al = h0;
+      let bl = h1;
+      let cl = h2;
+      let dl = h3;
+      let el = h4;
+      let ar = h0;
+      let br = h1;
+      let cr = h2;
+      let dr = h3;
+      let er = h4;
+
+      for (let i = 0; i < 80; i++) {
+        const tl = (rotl((((al + f(i, bl, cl, dl)) >>> 0) + words[ZL[i]] + kl(i)) >>> 0, SL[i]) + el) >>> 0;
+        al = el;
+        el = dl;
+        dl = rotl(cl, 10);
+        cl = bl;
+        bl = tl;
+
+        const rr = 79 - i;
+        const tr = (rotl((((ar + f(rr, br, cr, dr)) >>> 0) + words[ZR[i]] + kr(i)) >>> 0, SR[i]) + er) >>> 0;
+        ar = er;
+        er = dr;
+        dr = rotl(cr, 10);
+        cr = br;
+        br = tr;
+      }
+
+      const t = (h1 + cl + dr) >>> 0;
+      h1 = (h2 + dl + er) >>> 0;
+      h2 = (h3 + el + ar) >>> 0;
+      h3 = (h4 + al + br) >>> 0;
+      h4 = (h0 + bl + cr) >>> 0;
+      h0 = t;
+    }
+
+    const result = [];
+
+    [h0, h1, h2, h3, h4].forEach(function appendWord(word) {
+      result.push(word & 255);
+      result.push((word >>> 8) & 255);
+      result.push((word >>> 16) & 255);
+      result.push((word >>> 24) & 255);
+    });
+
+    return new Uint8Array(result);
+  };
+
+  CHISEL.ripemd160Hex = function ripemd160Hex(hex) {
+    return CHISEL.bytesToHex(CHISEL.ripemd160Bytes(CHISEL.hexToUint8Array(hex)));
   };
 
   CHISEL.hash160Hex = async function hash160Hex(hex) {
@@ -2554,12 +2688,13 @@
   };
 })();
 
+/*
+ * END chisel.sign.js
+ */
 
-/* ==========================================================================
- * Source module: chisel.ravencoin.js
- * SHA256: 63af22ab00b7dd6e62a59ca946f444b1829c350a6775016dad7d42d50ef5ed95
- * ========================================================================== */
-
+/*
+ * BEGIN chisel.ravencoin.js
+ */
 (function () {
   //
   // Constants
@@ -2776,6 +2911,8 @@ function getOpReturnFeeUnits(opReturnHex) {
     TICKER: TICKER,
     ORDER: ORDER,
     BASE_UNITS: BASE_UNITS,
+    WIF_PREFIX: MAINNET_WIF_PREFIX,
+    WIF_PREFIXES: { mainnet: MAINNET_WIF_PREFIX, testnet: TESTNET_WIF_PREFIX },
     DEFAULT_RPC_URL: DEFAULT_RPC_URL,
     DEFAULT_EXPLORER_URL: DEFAULT_EXPLORER_URL,
     DEFAULT_FEE: DEFAULT_FEE,
@@ -2804,12 +2941,13 @@ function getOpReturnFeeUnits(opReturnHex) {
   });
 })();
 
+/*
+ * END chisel.ravencoin.js
+ */
 
-/* ==========================================================================
- * Source module: chisel.digibyte.js
- * SHA256: 294f8dbd7933024e9cd268b2b4b44db4568506eeefc6bc3d4725ebeb6d6ad6d3
- * ========================================================================== */
-
+/*
+ * BEGIN chisel.digibyte.js
+ */
 (function () {
   //
   // Constants
@@ -3046,6 +3184,8 @@ function getRequiredFeeUnits(feeUnits, values) {
     TICKER: TICKER,
     ORDER: ORDER,
     BASE_UNITS: BASE_UNITS,
+    WIF_PREFIX: MAINNET_WIF_PREFIX,
+    WIF_PREFIXES: { mainnet: MAINNET_WIF_PREFIX, testnet: TESTNET_WIF_PREFIX },
     DEFAULT_RPC_URL: DEFAULT_RPC_URL,
     DEFAULT_EXPLORER_URL: DEFAULT_EXPLORER_URL,
     DEFAULT_FEE: DEFAULT_FEE,
@@ -3079,12 +3219,13 @@ function getRequiredFeeUnits(feeUnits, values) {
   });
 })();
 
+/*
+ * END chisel.digibyte.js
+ */
 
-/* ==========================================================================
- * Source module: chisel.litecoin.js
- * SHA256: 9ac878d6b7f9cc2551e3d43fdf932d11ebad089ca4386d145e746c4d6a8e25cf
- * ========================================================================== */
-
+/*
+ * BEGIN chisel.litecoin.js
+ */
 (function () {
   if (!window.CHISEL) {
     throw new Error("CHISEL must be loaded before chisel.litecoin.js.");
@@ -3206,6 +3347,7 @@ function getRequiredFeeUnits(feeUnits, values) {
 
   function makeLitecoinCoin(config) {
     const network = config.network;
+    const networkConfig = CHISEL.litecoin.NETWORKS[network];
 
     return {
       NAME: config.name,
@@ -3213,6 +3355,8 @@ function getRequiredFeeUnits(feeUnits, values) {
       TICKER: config.ticker,
       ORDER: config.order,
       BASE_UNITS: BASE_UNITS,
+      WIF_PREFIX: networkConfig.wifPrefix,
+      WIF_PREFIXES: { mainnet: CHISEL.litecoin.NETWORKS.mainnet.wifPrefix, testnet: CHISEL.litecoin.NETWORKS.testnet.wifPrefix },
       DEFAULT_RPC_URL: config.defaultProviders,
       DEFAULT_EXPLORER_URL: config.explorerUrl,
       DEFAULT_FEE: "0.00010000",
@@ -3286,6 +3430,10 @@ function getRequiredFeeUnits(feeUnits, values) {
   }));
 })();
 
+/*
+ * END chisel.litecoin.js
+ */
+
 
 (function () {
   if (!window.CHISEL) {
@@ -3294,7 +3442,7 @@ function getRequiredFeeUnits(feeUnits, values) {
 
   window.CHISEL_DRIVER = {
     NAME: "chisel-driver",
-    VERSION: "2.6.1",
+    VERSION: "2.6.4",
     BUILD: "manual-dist",
     SOURCE_MODULES: ["chisel.js", "chisel.unspendable.js", "chisel.sign.js", "chisel.ravencoin.js", "chisel.digibyte.js", "chisel.litecoin.js"],
     getCoins: function getCoins() {
@@ -3310,7 +3458,9 @@ function getRequiredFeeUnits(feeUnits, values) {
           utxoSource: coin.UTXO_SOURCE || "",
           broadcastSource: coin.BROADCAST_SOURCE || "",
           requiresExplorer: Boolean(coin.REQUIRES_EXPLORER),
-          unspendablePrefix: coin.UNSPENDABLE_PREFIX || ""
+          unspendablePrefix: coin.UNSPENDABLE_PREFIX || "",
+          wifPrefix: Number.isFinite(Number(coin.WIF_PREFIX)) ? Number(coin.WIF_PREFIX) : null,
+          wifPrefixes: coin.WIF_PREFIXES || null
         };
       });
     }

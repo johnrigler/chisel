@@ -3,9 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel QR WIF Loader</title>
+  <title>Chisel 2.6.4 QR WIF Loader</title>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
   <script src="vendor/html5-qrcode.min.js"></script>
 
   <style>
@@ -95,8 +94,7 @@
       <div class="grid">
         <label for="currency">Currency</label>
         <select id="currency">
-          <option value="ravencoin">Ravencoin</option>
-          <option value="digibyte">Digibyte</option>
+          <option value="">loading currencies...</option>
         </select>
 
         <label for="compressed">WIF style</label>
@@ -105,7 +103,7 @@
           <option value="0">Uncompressed public key WIF</option>
         </select>
       </div>
-      <p class="help">Ravencoin and Digibyte both use WIF prefix 128 on mainnet in this Chisel code path. The selected currency still matters because the derived address prefix differs. The QR stickers are normally raw private-key hex fragments, but a complete WIF is also accepted.</p>
+      <p class="help">The scanner builds this list from installed Chisel coin extensions. The scanner builds WIFs from raw private-key hex using the selected currency's WIF prefix. Ravencoin and Digibyte mainnet use prefix 128; Litecoin mainnet uses 176. Complete WIF QRs are also accepted, but they must match the selected coin/network.</p>
     </section>
 
     <section class="panel">
@@ -158,13 +156,72 @@
   <script src="chisel.sign.js"></script>
   <script src="chisel.ravencoin.js"></script>
   <script src="chisel.digibyte.js"></script>
+  <script src="chisel.litecoin.js"></script>
 
   <script>
 (function () {
   "use strict";
 
-  var MAINNET_WIF_PREFIX = 128;
   var BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+  function getInitialCurrencyKey() {
+    var url;
+
+    try {
+      url = new URL(window.location.href);
+      return url.searchParams.get("currency") || url.searchParams.get("coin") || "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function getQrScannerCurrencies() {
+    if (!window.CHISEL || typeof CHISEL.getCoins !== "function") {
+      return [];
+    }
+
+    return CHISEL.getCoins().filter(function filterWifCoin(coin) {
+      return coin && coin.NAME && typeof coin.wifToAccount === "function";
+    });
+  }
+
+  function setCurrencyOptions() {
+    var requested = getInitialCurrencyKey();
+    var coins = getQrScannerCurrencies();
+    var selected = requested;
+    var foundSelected = false;
+
+    elems.currency.innerHTML = "";
+
+    coins.forEach(function appendCoinOption(coin) {
+      var option = document.createElement("option");
+
+      option.value = coin.NAME;
+      option.textContent = coin.DISPLAY_NAME || coin.NAME;
+
+      if (coin.NAME === selected) {
+        foundSelected = true;
+      }
+
+      elems.currency.appendChild(option);
+    });
+
+    if (!coins.length) {
+      var emptyOption = document.createElement("option");
+      emptyOption.value = "";
+      emptyOption.textContent = "No Chisel currencies installed";
+      elems.currency.appendChild(emptyOption);
+      elems.currency.disabled = true;
+      return;
+    }
+
+    if (!selected || !foundSelected) {
+      selected = coins[0].NAME;
+    }
+
+    elems.currency.disabled = false;
+    elems.currency.value = selected;
+  }
   var html5QrCode = null;
   var cameraDevices = [];
   var activeCameraIndex = 0;
@@ -259,11 +316,32 @@
     }).join("");
   }
 
-  async function privateKeyHexToWif(privateKeyHex, compressed) {
+  function getSelectedCoin() {
+    var currency = elems.currency.value;
+    var coin = CHISEL.getCoin(currency);
+
+    if (!coin) {
+      throw new Error("Unknown Chisel currency: " + currency);
+    }
+
+    return coin;
+  }
+
+  function getSelectedWifPrefix(coin) {
+    var prefix = Number(coin && coin.WIF_PREFIX);
+
+    if (!Number.isFinite(prefix)) {
+      throw new Error("Selected Chisel currency does not expose WIF_PREFIX: " + (coin && coin.NAME ? coin.NAME : "unknown"));
+    }
+
+    return prefix;
+  }
+
+  async function privateKeyHexToWif(privateKeyHex, compressed, coin) {
     var payload = new Uint8Array(compressed ? 34 : 33);
     var keyBytes = CHISEL.hexToUint8Array(normalizeHex(privateKeyHex));
 
-    payload[0] = MAINNET_WIF_PREFIX;
+    payload[0] = getSelectedWifPrefix(coin);
     payload.set(keyBytes, 1);
 
     if (compressed) {
@@ -295,7 +373,7 @@
     var url;
 
     if (!text) {
-      return { currency: elems.currency.value, wif: "", privateKeyHex: "" };
+      return { currency: elems.currency.value, wif: "", privateKeyHex: "", fragment: "" };
     }
 
     json = tryParseJson(text);
@@ -542,14 +620,22 @@
     var account;
 
     if (input.privateKeyHex) {
-      wif = await privateKeyHexToWif(input.privateKeyHex, compressed);
+      wif = await privateKeyHexToWif(input.privateKeyHex, compressed, coin);
     }
 
     if (!wif) {
       throw new Error("No WIF or private key hex found.");
     }
 
-    account = await coin.wifToAccount(wif);
+    try {
+      account = await coin.wifToAccount(wif);
+    } catch (error) {
+      if (/WIF prefix/.test(error.message || "")) {
+        throw new Error((error.message || String(error)) + " If this was assembled from raw hex fragments, confirm the currency dropdown before scanning. If this was a complete WIF QR, the WIF belongs to a different coin/network than the selected currency.");
+      }
+
+      throw error;
+    }
 
     return {
       currency: coin.NAME,
@@ -786,7 +872,7 @@ function getPreferredCameraIndex() {
       window.localStorage.removeItem("chisel.pendingQrScan");
     } catch (error) {}
     renderFragments();
-  setStatus("Idle", false);
+    setStatus("Idle", false);
   }
 
   function loadIntoChisel() {
@@ -850,6 +936,7 @@ function getPreferredCameraIndex() {
     }
   };
 
+  setCurrencyOptions();
   renderFragments();
   setStatus("Idle", false);
 })();

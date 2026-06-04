@@ -119,6 +119,7 @@
 
   function makeLitecoinCoin(config) {
     const network = config.network;
+    const networkConfig = CHISEL.litecoin.NETWORKS[network];
 
     return {
       NAME: config.name,
@@ -126,6 +127,8 @@
       TICKER: config.ticker,
       ORDER: config.order,
       BASE_UNITS: BASE_UNITS,
+      WIF_PREFIX: networkConfig.wifPrefix,
+      WIF_PREFIXES: { mainnet: CHISEL.litecoin.NETWORKS.mainnet.wifPrefix, testnet: CHISEL.litecoin.NETWORKS.testnet.wifPrefix },
       DEFAULT_RPC_URL: config.defaultProviders,
       DEFAULT_EXPLORER_URL: config.explorerUrl,
       DEFAULT_FEE: "0.00010000",

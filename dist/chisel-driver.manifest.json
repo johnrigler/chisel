@@ -1,7 +1,7 @@
 {
   "name": "chisel-driver",
-  "version": "2.6.1",
-  "description": "Browser driver assembled from Chisel core, signing, unspendable, and coin extension modules. Elliptic is embedded; CryptoJS remains external in v2.6.1.",
+  "version": "2.6.4",
+  "description": "Browser driver assembled from Chisel core, signing, unspendable, and coin extension modules. Elliptic and RIPEMD160 are embedded; no external runtime scripts are required in v2.6.4. Coin extensions expose WIF_PREFIX metadata for QR/raw-hex loaders.",
   "sourceFiles": [
     {
       "path": "chisel.js",
@@ -15,23 +15,23 @@
     },
     {
       "path": "chisel.sign.js",
-      "sha256": "29db960548d19c15506d0c5c656e183fb1ac878ff0ec124f39070a1399196a12",
-      "bytes": 10905
+      "sha256": "af2e8998acd87242637f3101cfec0af9f0aead3bf421c5d02befb841cdef2fe4",
+      "bytes": 14916
     },
     {
       "path": "chisel.ravencoin.js",
-      "sha256": "63af22ab00b7dd6e62a59ca946f444b1829c350a6775016dad7d42d50ef5ed95",
-      "bytes": 7106
+      "sha256": "45d4310e69fe1d705fcf7f514e44850b8a4467759fa301ccaad2aee787e320f2",
+      "bytes": 7222
     },
     {
       "path": "chisel.digibyte.js",
-      "sha256": "294f8dbd7933024e9cd268b2b4b44db4568506eeefc6bc3d4725ebeb6d6ad6d3",
-      "bytes": 8558
+      "sha256": "4dafd3399b27ad2d5ccf017ddcbdf85372c8f4fd527119e7bd7b24ccb02837aa",
+      "bytes": 8674
     },
     {
       "path": "chisel.litecoin.js",
-      "sha256": "9ac878d6b7f9cc2551e3d43fdf932d11ebad089ca4386d145e746c4d6a8e25cf",
-      "bytes": 7245
+      "sha256": "91f0a642f95d5b3c1d3fee63109c117dc4255690d844b13d87e087f616250df0",
+      "bytes": 7479
     }
   ],
   "excludes": [
@@ -57,13 +57,11 @@
     "external-utxo": "Driver derives UTXOs from a public explorer/address transaction endpoint.",
     "public-provider": "Driver uses one or more public provider APIs for UTXOs, transaction lookup, and broadcast."
   },
-  "sha256": "f5eb6e2e0b16f5acb50b41bb74b58b7cf172b66633f73aec21d1f901bf495272",
-  "bytes": 236290,
-  "externalRuntimeDependencies": [
-    {
-      "name": "CryptoJS",
-      "version": "4.x",
-      "reason": "RIPEMD160 in chisel.sign.js"
-    }
-  ]
+  "coinMetadata": [
+    "WIF_PREFIX",
+    "WIF_PREFIXES"
+  ],
+  "sha256": "4ca3ae3f1b73c44196ed21b47fc73a58188230a2d7f2b826b34941076a426828",
+  "bytes": 239152,
+  "externalRuntimeDependencies": []
 }

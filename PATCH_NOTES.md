@@ -1,3 +1,28 @@
+## v2.6.4 - QR scanner currency-specific WIF prefixes
+
+- QR scanner now derives WIFs from 64-hex private-key fragments using the selected coin extension's `WIF_PREFIX`.
+- Added `WIF_PREFIX` and `WIF_PREFIXES` metadata to Ravencoin, Digibyte, Litecoin, and Litecoin Testnet coin extensions.
+- Fixes Litecoin scanner failure where raw hex fragments were converted into Bitcoin/Ravencoin/Digibyte-style WIF prefix 128 instead of Litecoin mainnet prefix 176.
+- WIF mismatch errors now explain that a complete WIF QR may belong to a different selected coin/network.
+- Rebuilt `/dist/chisel-driver.js` and metadata for v2.6.4.
+
+## v2.6.3 - QR scanner currency registry
+
+- qrScan.html now builds its currency dropdown from installed Chisel coin extensions instead of hard-coded Ravencoin/Digibyte options.
+- Added Litecoin and Litecoin Testnet support to qrScan.html by loading chisel.litecoin.js.
+- qrScan.html now honors ?currency=... / ?coin=... after the dynamic currency list is built.
+- Updated index.html scanner copy to describe the registry-driven scanner.
+- Left the scanner as a separate page for now. Full inline integration into index.html would drag camera lifecycle, html5-qrcode, and sticker-state code into the transaction shell. That should wait until the /dist driver boundary is stable.
+
+## v2.6.2 - internal RIPEMD160 + sealed dist driver
+
+- Added a small internal RIPEMD160 implementation to `chisel.sign.js`.
+- Replaced the previous `CryptoJS.RIPEMD160` call with `CHISEL.ripemd160Bytes()` and `CHISEL.ripemd160Hex()`.
+- Removed the CryptoJS CDN script tag from `index.html` and `qrScan.html`.
+- Rebuilt `dist/chisel-driver.js` so the driver no longer has CryptoJS or elliptic runtime dependencies.
+- Updated `dist/chisel-driver.manifest.json`, `dist/chisel-driver.sha256`, and `dist/README.md`.
+- Verified RIPEMD160 against standard test vectors and confirmed `CHISEL.signRawTransaction` loads without `window.CryptoJS`.
+
 
 ## v2.6.1 - dist driver + coin transport metadata
 
