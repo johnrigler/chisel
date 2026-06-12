@@ -2,220 +2,93 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Chisel Transaction Decoder</title>
+  <title>Chisel Decode Explorer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <style>
-    body {
-      margin: 0;
-      background: #0b0f14;
-      color: #e6edf3;
-      font-family: system-ui, sans-serif;
-    }
-
-    main {
-      max-width: 1040px;
-      margin: 0 auto;
-      padding: 28px;
-      display: grid;
-      gap: 18px;
-    }
-
-    .card {
-      background: #121923;
-      border: 1px solid #263241;
-      border-radius: 16px;
-      padding: 18px;
-      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32);
-    }
-
-    h1, h2, h3, p {
-      margin: 0;
-    }
-
-    h1 {
-      margin-bottom: 8px;
-    }
-
-    p {
-      line-height: 1.5;
-    }
-
-    input, button {
-      font: inherit;
-    }
-
-    input {
-      width: 100%;
-      border: 1px solid #2c3642;
-      border-radius: 10px;
-      background: #06090d;
-      color: #e6edf3;
-      padding: 12px 14px;
-      outline: none;
-    }
-
-    button {
-      width: fit-content;
-      padding: 12px 16px;
-      border: 0;
-      border-radius: 10px;
-      background: #7c6dff;
-      color: white;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    button.secondary {
-      background: #263241;
-      color: #d7e2ee;
-    }
-
-    button:disabled {
-      opacity: 0.55;
-      cursor: default;
-    }
-
-    pre {
-      white-space: pre-wrap;
-      word-break: break-word;
-      background: #06090d;
-      border: 1px solid #1e2936;
-      border-radius: 12px;
-      padding: 14px;
-      overflow-x: auto;
-      line-height: 1.45;
-    }
-
-    a {
-      color: #8bd3ff;
-    }
-
-    .muted {
-      color: #91a4b7;
-    }
-
-    .error {
-      color: #ff7b7b;
-    }
-
-    .grid {
-      display: grid;
-      gap: 12px;
-    }
-
-    .grid2 {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .preview {
-      display: grid;
-      gap: 14px;
-    }
-
-    .preview img {
-      width: 100%;
-      max-height: 420px;
-      object-fit: cover;
-      border-radius: 14px;
-      border: 1px solid #263241;
-      background: #06090d;
-    }
-
-    .row {
-      display: grid;
-      gap: 6px;
-    }
-
-    .label {
-      color: #91a4b7;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .pillRow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .pill {
-      display: inline-block;
-      border: 1px solid #344253;
-      background: #0b1118;
-      color: #c7d5e2;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 13px;
-    }
-
-    .callout {
-      border-left: 4px solid #7c6dff;
-      padding-left: 12px;
-    }
-
-    @media (max-width: 760px) {
-      .grid2 {
-        grid-template-columns: 1fr;
-      }
-    }
+    body { margin:0; background:#0b0f14; color:#e6edf3; font-family:system-ui,sans-serif; }
+    main { max-width:1120px; margin:0 auto; padding:28px; display:grid; gap:18px; }
+    .card { background:#121923; border:1px solid #263241; border-radius:16px; padding:18px; box-shadow:0 12px 34px rgba(0,0,0,.32); }
+    h1,h2,h3,p { margin:0; }
+    p { line-height:1.5; }
+    input,select,button { font:inherit; }
+    input,select { width:100%; box-sizing:border-box; border:1px solid #2c3642; border-radius:10px; background:#06090d; color:#e6edf3; padding:12px 14px; outline:none; }
+    button,.buttonLink { width:fit-content; padding:12px 16px; border:0; border-radius:10px; background:#7c6dff; color:white; font-weight:700; cursor:pointer; text-decoration:none; display:inline-flex; }
+    button.secondary,.buttonLink.secondary { background:#263241; color:#d7e2ee; }
+    button:disabled { opacity:.55; cursor:default; }
+    pre { white-space:pre-wrap; word-break:break-word; background:#06090d; border:1px solid #1e2936; border-radius:12px; padding:14px; overflow-x:auto; line-height:1.45; }
+    canvas,img { width:100%; max-height:460px; object-fit:contain; border-radius:14px; border:1px solid #263241; background:#06090d; }
+    a { color:#8bd3ff; }
+    .muted { color:#91a4b7; }
+    .error { color:#ff7b7b; }
+    .grid { display:grid; gap:12px; }
+    .grid2 { display:grid; gap:12px; grid-template-columns:1fr auto; align-items:end; }
+    .grid3 { display:grid; gap:12px; grid-template-columns:1fr 1fr 1fr; align-items:end; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .row { display:grid; gap:6px; }
+    .label { color:#91a4b7; font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+    .pillRow { display:flex; flex-wrap:wrap; gap:8px; }
+    .pill { display:inline-block; border:1px solid #344253; background:#0b1118; color:#c7d5e2; border-radius:999px; padding:6px 10px; font-size:13px; }
+    .txList { display:grid; gap:10px; }
+    .txCard { border:1px solid #263241; border-radius:12px; padding:12px; background:#0b1118; display:grid; gap:8px; }
+    .txCard code { word-break:break-all; }
+    @media (max-width:760px) { .grid2,.grid3 { grid-template-columns:1fr; } }
   </style>
 </head>
-
 <body>
 <main>
-  <section class="card">
-    <h1>Chisel Transaction Decoder</h1>
-    <p class="muted">This page reads a Ravencoin transaction as a small social object: OP_RETURN stores a direct payload, while selected burn-style outputs store indexed MacDougall / Mogwai labels as unspendable-looking addresses.</p>
-  </section>
-
-  <section class="card callout">
-    <h2>Special txid solution</h2>
-    <p class="muted">The txid is the durable lookup key. A txid-named JSON file can be kept beside this page as a frozen fixture, while the same txid can also be fetched live from the Ravencoin RPC proxy. That gives the viewer two paths: local artifact for demos and tests, live ledger query for the real chain. The output addresses then act like searchable tags, not spendable recipients.</p>
+  <section class="card grid">
+    <h1>Chisel Decode Explorer</h1>
+    <p class="muted">Reads a transaction as a local ledger object: txid-named fixture, optional live RPC, OP_RETURN payload, address labels, split IPFS pointers, change outputs, and base57 image rows. The filesystem path is first-class now, not just a demo afterthought.</p>
   </section>
 
   <section class="card grid">
-    <div class="grid2">
-      <input id="txidInput" spellcheck="false" autocomplete="off">
-      <button id="loadButton">Load transaction</button>
+    <div class="grid3">
+      <div>
+        <label for="fileProxyUrl">fileProxy URL</label>
+        <input id="fileProxyUrl" spellcheck="false" value="http://127.0.0.1:7799">
+      </div>
+      <div>
+        <label for="coinInput">Coin folder</label>
+        <input id="coinInput" spellcheck="false" placeholder="litecoin / ravencoin / digibyte / blank">
+      </div>
+      <div>
+        <label for="txidInput">TXID</label>
+        <input id="txidInput" spellcheck="false" autocomplete="off">
+      </div>
     </div>
     <div class="actions">
-      <button class="secondary" id="exampleNamesButton" type="button">Names / title tx</button>
-      <button class="secondary" id="exampleIpfsButton" type="button">IPFS pointer tx</button>
-      <button class="secondary" id="loadFixtureButton" type="button">Load txid-named file</button>
-      <button class="secondary" id="loadRpcButton" type="button">Load live RPC</button>
+      <button id="loadAutoButton" type="button">LOAD AUTO</button>
+      <button class="secondary" id="loadFileProxyButton" type="button">LOAD FILEPROXY</button>
+      <button class="secondary" id="listLocalButton" type="button">LIST LOCAL TXIDS</button>
+      <button class="secondary" id="loadRpcButton" type="button">LOAD RVN RPC</button>
+      <button class="secondary" id="exampleNamesButton" type="button">NAMES TX</button>
+      <button class="secondary" id="exampleIpfsButton" type="button">IPFS TX</button>
+      <a id="explorerLink" class="buttonLink secondary" href="#" target="_blank" rel="noopener">explorer</a>
     </div>
     <p id="status" class="muted"></p>
   </section>
 
-  <section class="card preview" id="previewCard">
-    <h2 id="previewTitle">No preview loaded</h2>
-    <img id="previewImage" alt="" style="display:none">
-    <p id="previewDescription" class="muted"></p>
+  <section class="card grid">
+    <h2 id="titleText">No transaction loaded</h2>
     <div class="pillRow" id="summaryPills"></div>
-    <p><a id="previewLink" href="#" target="_blank" rel="noopener" style="display:none">Open OP_RETURN URL</a></p>
-    <p><a id="explorerLink" href="#" target="_blank" rel="noopener">Open Ravencoin explorer</a></p>
+    <p id="descriptionText" class="muted"></p>
+    <canvas id="base57Canvas" width="1" height="1" style="display:none"></canvas>
+    <div id="localAssets" class="grid muted"></div>
   </section>
 
   <section class="card row">
-    <div class="label">Decoded Chisel / Mogwai summary</div>
+    <div class="label">Local txid fixtures</div>
+    <div id="localTxList" class="txList muted">No local list loaded.</div>
+  </section>
+
+  <section class="card row">
+    <div class="label">Decoded summary</div>
     <pre id="summaryText"></pre>
   </section>
 
   <section class="card row">
-    <div class="label">Indexed address outputs</div>
-    <pre id="addressText"></pre>
+    <div class="label">Outputs: data / labels / change</div>
+    <pre id="outputsText"></pre>
   </section>
 
   <section class="card row">
@@ -224,13 +97,8 @@
   </section>
 
   <section class="card row">
-    <div class="label">Decoded transaction JSON</div>
+    <div class="label">Transaction JSON</div>
     <pre id="txJson"></pre>
-  </section>
-
-  <section class="card row">
-    <div class="label">Methods endpoint</div>
-    <pre id="methodsJson"></pre>
   </section>
 </main>
 
@@ -241,579 +109,289 @@
   var RPC_URL = "https://rigler.org:8769";
   var TX_NAMES = "3bb3a2d200b5d281cb1c23602d5deedcd761400977a9b8d4381dc48377a473d6";
   var TX_IPFS = "41b61850b594bcf961e7d79e3c15ff40e693df3ecf5b475a7b2179f2ee1f3b6a";
-  var EXPLORER_BASE_URL = "https://rvn.tokenview.io/en/tx/";
-
-  function getQueryParam(name) {
-    try {
-      return new URLSearchParams(window.location.search).get(name) || "";
-    } catch (error) {
-      return "";
-    }
-  }
-
-  function getQueryTxid() {
-    var txid = String(getQueryParam("txid") || "").trim().toLowerCase();
-
-    if (/^[0-9a-f]{64}$/.test(txid)) {
-      return txid;
-    }
-
-    return "";
-  }
-
-  function getQueryMode() {
-    var mode = String(getQueryParam("mode") || "").trim().toLowerCase();
-
-    if (mode === "fixture" || mode === "rpc" || mode === "auto") {
-      return mode;
-    }
-
-    return "auto";
-  }
-
-  var DEFAULT_TXID = getQueryTxid() || TX_NAMES;
-  var DEFAULT_MODE = getQueryMode();
-
-  var elems = {
-    txidInput: document.getElementById("txidInput"),
-    loadButton: document.getElementById("loadButton"),
-    loadFixtureButton: document.getElementById("loadFixtureButton"),
-    loadRpcButton: document.getElementById("loadRpcButton"),
-    exampleNamesButton: document.getElementById("exampleNamesButton"),
-    exampleIpfsButton: document.getElementById("exampleIpfsButton"),
-    status: document.getElementById("status"),
-    methodsJson: document.getElementById("methodsJson"),
-    txJson: document.getElementById("txJson"),
-    summaryText: document.getElementById("summaryText"),
-    addressText: document.getElementById("addressText"),
-    opReturnText: document.getElementById("opReturnText"),
-    previewTitle: document.getElementById("previewTitle"),
-    previewImage: document.getElementById("previewImage"),
-    previewDescription: document.getElementById("previewDescription"),
-    previewLink: document.getElementById("previewLink"),
-    explorerLink: document.getElementById("explorerLink"),
-    summaryPills: document.getElementById("summaryPills")
+  var RVN_EXPLORER = "https://explorer.rvn.zelcore.io/tx/";
+  var TXID_RE = /^[0-9a-fA-F]{64}$/;
+  var CIDV0_RE = /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/;
+  var colorMap = {
+    M:[0,0,0],W:[0,0,255],B:[51,51,51],H:[128,0,128],"8":[0,100,0],E:[47,79,79],D:[72,61,139],N:[0,128,0],
+    R:[255,0,0],A:[165,42,42],Q:[139,69,19],G:[199,21,133],U:[0,128,128],Y:[34,139,34],Z:[0,139,139],C:[153,50,204],
+    P:[102,102,102],F:[255,20,147],T:[106,90,205],"9":[255,69,0],L:[70,130,180],V:[123,104,238],K:[112,128,144],X:[205,92,92],
+    S:[210,105,30],J:[186,85,211],"7":[147,112,219],"5":[60,179,113],"6":[95,158,160],"4":[0,191,255],"3":[255,99,71],"2":[100,149,237],
+    "1":[0,206,209],y:[153,153,153],n:[218,112,214],m:[255,105,180],o:[255,140,0],a:[250,128,114],e:[72,209,204],i:[255,255,255],
+    p:[224,224,224],r:[192,192,192],u:[160,160,160],z:[255,0,255]
   };
 
-  function setStatus(text, isError) {
-    elems.status.textContent = text;
-    elems.status.className = isError ? "error" : "muted";
-  }
+  function $(id) { return document.getElementById(id); }
+  function pretty(value) { return JSON.stringify(value, null, 2); }
+  function setStatus(text, isError) { $("status").textContent = text || ""; $("status").className = isError ? "error" : "muted"; }
+  function getQueryParam(name) { try { return new URLSearchParams(location.search).get(name) || ""; } catch (e) { return ""; } }
+  function cleanBase() { return String($("fileProxyUrl").value || "http://127.0.0.1:7799").replace(/\/+$/, ""); }
+  function coin() { return String($("coinInput").value || "").trim(); }
+  function txid() { return String($("txidInput").value || "").trim().toLowerCase(); }
+  function assertTxid(value) { if (!TXID_RE.test(value)) throw new Error("TXID must be 64 hex characters."); }
+  function safeArray(value) { return Array.isArray(value) ? value : []; }
 
-  function pretty(value) {
-    return JSON.stringify(value, null, 2);
-  }
-
-  function normalizeTxid(value) {
-    return String(value || "").trim().toLowerCase();
-  }
-
-  function assertTxid(txid) {
-    if (!/^[0-9a-f]{64}$/.test(txid)) {
-      throw new Error("TXID must be 64 hex characters.");
-    }
-  }
-
-  function setDisabled(disabled) {
-    elems.loadButton.disabled = disabled;
-    elems.loadFixtureButton.disabled = disabled;
-    elems.loadRpcButton.disabled = disabled;
-    elems.exampleNamesButton.disabled = disabled;
-    elems.exampleIpfsButton.disabled = disabled;
-  }
-
-  async function fetchMethods() {
-    var response = await fetch(RPC_URL + "/methods");
-    if (!response.ok) {
-      throw new Error("Could not fetch /methods: HTTP " + response.status);
-    }
-    return response.json();
+  async function fileProxyJson(path, params) {
+    var q = new URLSearchParams(params || {});
+    var url = cleanBase() + path + (String(q) ? "?" + String(q) : "");
+    var response = await fetch(url, { cache:"no-store" });
+    var json = await response.json().catch(function () { return null; });
+    if (!response.ok || !json || json.ok === false) throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
+    return json;
   }
 
   async function rpc(method, params) {
-    var response = await fetch(RPC_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        jsonrpc: "1.0",
-        id: "chisel-decode",
-        method: method,
-        params: params
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error("RPC HTTP error: " + response.status);
-    }
-
+    var response = await fetch(RPC_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({jsonrpc:"1.0", id:"chisel-decode", method:method, params:params || []}) });
+    if (!response.ok) throw new Error("RPC HTTP error: " + response.status);
     var payload = await response.json();
-
-    if (payload.error) {
-      throw new Error(payload.error.message || pretty(payload.error));
-    }
-
+    if (payload.error) throw new Error(payload.error.message || pretty(payload.error));
     return payload.result;
   }
 
-  async function fetchLocalTxFile(txid) {
-    var response = await fetch("txids/" + txid, { cache: "no-store" });
-
-    if (!response.ok) {
-      throw new Error("Could not load local txid-named file: HTTP " + response.status);
-    }
-
-    return response.json();
+  async function loadFileProxyTx(id) {
+    var loaded = await fileProxyJson("/tx", { txid:id, coin:coin() });
+    return loaded.json || JSON.parse(loaded.text);
   }
 
-  async function loadTx(txid, mode) {
-    if (mode === "fixture") {
-      return fetchLocalTxFile(txid);
-    }
-
-    if (mode === "rpc") {
-      return rpc("getrawtransaction", [txid, 1]);
-    }
-
-    try {
-      return await fetchLocalTxFile(txid);
-    } catch (fixtureError) {
-      return rpc("getrawtransaction", [txid, 1]);
+  async function loadAuto(id) {
+    try { return await loadFileProxyTx(id); }
+    catch (localError) {
+      try { return await fetch("../../txids/" + id, { cache:"no-store" }).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }); }
+      catch (relativeError) { return rpc("getrawtransaction", [id, true]); }
     }
   }
 
-  function isHex(value) {
-    return /^[0-9a-fA-F]+$/.test(String(value || ""));
+  function getOutputAddress(vout) {
+    if (!vout) return "";
+    if (vout.scriptpubkey_address) return vout.scriptpubkey_address;
+    var spk = vout.scriptPubKey || {};
+    if (spk.address) return spk.address;
+    if (Array.isArray(spk.addresses) && spk.addresses.length) return spk.addresses[0];
+    return "";
   }
 
-  function hexToUtf8(hex) {
-    var clean = String(hex || "").trim();
+  function getOutputType(vout) {
+    return (vout && (vout.scriptpubkey_type || (vout.scriptPubKey && vout.scriptPubKey.type))) || "unknown";
+  }
 
-    if (!clean || clean.length % 2 !== 0 || !isHex(clean)) {
-      return "";
-    }
+  function getOutputValue(vout) {
+    if (!vout) return "";
+    if (typeof vout.value !== "undefined") return vout.value;
+    if (typeof vout.valueSat !== "undefined") return vout.valueSat;
+    if (typeof vout.satoshis !== "undefined") return vout.satoshis;
+    return "";
+  }
 
-    var bytes = new Uint8Array(clean.length / 2);
-    var i;
-
-    for (i = 0; i < clean.length; i += 2) {
-      bytes[i / 2] = parseInt(clean.slice(i, i + 2), 16);
-    }
-
-    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  function getOpReturnHex(vout) {
+    var asm = (vout && (vout.scriptpubkey_asm || (vout.scriptPubKey && vout.scriptPubKey.asm))) || "";
+    var parts = String(asm).trim().split(/\s+/).filter(Boolean);
+    if (parts[0] === "OP_RETURN" && parts.length > 1) return parts.slice(1).filter(function (x) { return /^[0-9a-fA-F]+$/.test(x); }).join("");
+    var hex = (vout && (vout.scriptpubkey || (vout.scriptPubKey && vout.scriptPubKey.hex))) || "";
+    if (/^6a/i.test(hex)) return readPushDataFromScriptHex(hex);
+    return "";
   }
 
   function readPushDataFromScriptHex(scriptHex) {
     var hex = String(scriptHex || "").toLowerCase();
-
-    if (hex.slice(0, 2) !== "6a") {
-      return "";
-    }
-
-    var i = 2;
-    var out = "";
-
+    if (hex.slice(0, 2) !== "6a") return "";
+    var i = 2, out = "";
     while (i < hex.length) {
-      var opcode = parseInt(hex.slice(i, i + 2), 16);
-      var len = 0;
-
+      var opcode = parseInt(hex.slice(i, i + 2), 16), len = 0;
       i += 2;
-
-      if (opcode >= 1 && opcode <= 75) {
-        len = opcode;
-      } else if (opcode === 76) {
-        len = parseInt(hex.slice(i, i + 2), 16);
-        i += 2;
-      } else if (opcode === 77) {
-        len = parseInt(hex.slice(i + 2, i + 4) + hex.slice(i, i + 2), 16);
-        i += 4;
-      } else if (opcode === 78) {
-        len = parseInt(
-          hex.slice(i + 6, i + 8) +
-          hex.slice(i + 4, i + 6) +
-          hex.slice(i + 2, i + 4) +
-          hex.slice(i, i + 2),
-          16
-        );
-        i += 8;
-      } else {
-        break;
-      }
-
-      out += hex.slice(i, i + (len * 2));
+      if (opcode >= 1 && opcode <= 75) len = opcode;
+      else if (opcode === 76) { len = parseInt(hex.slice(i, i + 2), 16); i += 2; }
+      else if (opcode === 77) { len = parseInt(hex.slice(i + 2, i + 4) + hex.slice(i, i + 2), 16); i += 4; }
+      else break;
+      out += hex.slice(i, i + len * 2);
       i += len * 2;
     }
-
     return out;
   }
 
-  function findOpReturnHex(tx) {
-    var vout = tx && tx.vout ? tx.vout : [];
-    var i;
+  function hexToUtf8(hex) {
+    var clean = String(hex || "").replace(/\s+/g, "");
+    if (!clean || clean.length % 2 || !/^[0-9a-fA-F]+$/.test(clean)) return "";
+    var bytes = new Uint8Array(clean.length / 2);
+    for (var i = 0; i < clean.length; i += 2) bytes[i / 2] = parseInt(clean.slice(i, i + 2), 16);
+    return new TextDecoder("utf-8", { fatal:false }).decode(bytes).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  }
 
-    for (i = 0; i < vout.length; i += 1) {
-      var scriptPubKey = vout[i].scriptPubKey || {};
-      var asm = scriptPubKey.asm || "";
-      var scriptHex = scriptPubKey.hex || "";
+  function stripChecksum(address) { return String(address || "").length > 6 ? String(address).slice(0, -6) : String(address || ""); }
+  function payload(address) { var s = stripChecksum(address); return s.length >= 3 ? s.slice(3) : ""; }
+  function macText(body) { return String(body || "").replace(/z+$/g, "").replace(/[xz]/g, " ").replace(/y/g, "-").replace(/v/g, ".").replace(/i/g, "I").replace(/o/g, "O").replace(/\s+/g, " ").trim(); }
+  function base58Candidate(body) { return String(body || "").replace(/z+$/g, "").replace(/x/g, ""); }
 
-      if (asm.indexOf("OP_RETURN") === 0) {
-        var parts = asm.split(/\s+/).slice(1);
-        var hexParts = parts.filter(isHex);
+  function classifyAddress(address, n, value) {
+    var text = String(address || "");
+    var second = text.charAt(1), third = text.charAt(2), body = payload(text);
+    var kind = "standard/change";
+    if (/^[1-9A-HJ-NP-Za-km-z]{26,80}$/.test(text)) {
+      if (/^S/.test(text)) kind = "base57 image row";
+      else if (second === "A" && third === "x") kind = "person";
+      else if (second === "B" && third === "x") kind = "transport";
+      else if (second === "C" && third === "x") kind = "subject";
+      else if (second === "D" && third === "x") kind = "ipfs first half";
+      else if (second === "E" && third === "x") kind = "ipfs second half";
+      else if (new RegExp("^" + text.charAt(0) + "{16,}").test(text)) kind = "thunderword index";
+    }
+    return { n:n, value:value, address:text, kind:kind, marker:text.slice(0,3), payload:body, readable:macText(body), base58:base58Candidate(body) };
+  }
 
-        if (hexParts.length > 0) {
-          return hexParts.join("");
-        }
+  function extract(tx) {
+    var realTx = tx && tx.tx && Array.isArray(tx.tx.vout) ? tx.tx : tx;
+    var vout = safeArray(realTx && realTx.vout);
+    var outputs = [];
+    var op = [];
+    vout.forEach(function (out, index) {
+      var n = typeof out.n === "number" ? out.n : index;
+      var opHex = getOpReturnHex(out);
+      if (opHex) op.push({ n:n, hex:opHex, text:hexToUtf8(opHex) });
+      var addr = getOutputAddress(out);
+      outputs.push({ n:n, type:getOutputType(out), value:getOutputValue(out), address:addr, opReturnHex:opHex, opReturnText:opHex ? hexToUtf8(opHex) : "", label:addr ? classifyAddress(addr, n, getOutputValue(out)) : null, raw:out });
+    });
+    var labels = outputs.map(function (x) { return x.label; }).filter(Boolean);
+    var cids = pairIpfs(labels);
+    return { tx:realTx || tx, outputs:outputs, labels:labels, opReturns:op, cids:cids };
+  }
+
+  function pairIpfs(labels) {
+    var out = [], pending = null;
+    labels.forEach(function (row) {
+      if (row.kind === "ipfs first half") { pending = row; return; }
+      if (row.kind === "ipfs second half" && pending && pending.address.charAt(0) === row.address.charAt(0)) {
+        var cid = pending.base58 + row.base58;
+        out.push({ cid:cid, valid:CIDV0_RE.test(cid), first:pending.address, second:row.address, gateway:"https://ipfs.io/ipfs/" + cid });
+        pending = null;
       }
-
-      if (scriptHex.slice(0, 2).toLowerCase() === "6a") {
-        return readPushDataFromScriptHex(scriptHex);
-      }
-    }
-
-    return "";
-  }
-
-  function findFirstUrl(text) {
-    var match = String(text || "").match(/https?:\/\/[^\s<>"'`]+/i);
-
-    if (!match) {
-      return "";
-    }
-
-    return match[0].replace(/[)\].,;!?]+$/, "");
-  }
-
-  function getOutputAddresses(output) {
-    var scriptPubKey = output && output.scriptPubKey ? output.scriptPubKey : {};
-
-    if (Array.isArray(scriptPubKey.addresses)) {
-      return scriptPubKey.addresses.slice();
-    }
-
-    if (scriptPubKey.address) {
-      return [scriptPubKey.address];
-    }
-
-    return [];
-  }
-
-  function isThunderword(address) {
-    return /^R{10,}/.test(String(address || ""));
-  }
-
-  function getMacDougallKind(prefix) {
-    var second = prefix.charAt(1);
-
-    if (second === "A") {
-      return "person / name";
-    }
-
-    if (second === "B") {
-      return "transport / source";
-    }
-
-    if (second === "C") {
-      return "subject / title";
-    }
-
-    if (second === "D" || second === "E") {
-      return "split IPFS pointer";
-    }
-
-    return "free text / unassigned";
-  }
-
-  function decodeMacDougallAddress(address) {
-    var value = String(address || "");
-
-    if (isThunderword(value)) {
-      return {
-        address: value,
-        isIndexed: true,
-        prefix: "RRR",
-        kind: "Thunderword / universal marker",
-        stem: value.slice(0, 28),
-        checksum: value.slice(28),
-        encodedBody: "",
-        readable: "Universal marker",
-        note: "Used like a universal null-ish Chisel marker, comparable to 0x000... or 0x111... in EVM-style systems."
-      };
-    }
-
-    if (!/^R[A-E]x/.test(value) || value.length < 34) {
-      return {
-        address: value,
-        isIndexed: false
-      };
-    }
-
-    var stem = value.slice(0, 28);
-    var prefix = stem.slice(0, 3);
-    var encodedBody = stem.slice(3).replace(/z+$/, "");
-    var readable = encodedBody
-      .replace(/x/g, " ")
-      .replace(/y/g, "-")
-      .replace(/v/g, ".");
-
-    return {
-      address: value,
-      isIndexed: true,
-      prefix: prefix,
-      kind: getMacDougallKind(prefix),
-      stem: stem,
-      checksum: value.slice(28),
-      encodedBody: encodedBody,
-      readable: readable,
-      note: "First 28 Base58 characters carry the visible message stem. Last 6 characters are the Base58Check-derived suffix."
-    };
-  }
-
-  function collectAddressOutputs(tx) {
-    var out = [];
-    var vout = tx && tx.vout ? tx.vout : [];
-    var i;
-
-    for (i = 0; i < vout.length; i += 1) {
-      var addresses = getOutputAddresses(vout[i]);
-      var j;
-
-      for (j = 0; j < addresses.length; j += 1) {
-        var decoded = decodeMacDougallAddress(addresses[j]);
-
-        out.push({
-          n: vout[i].n,
-          value: vout[i].value,
-          valueSat: vout[i].valueSat,
-          address: addresses[j],
-          indexed: decoded.isIndexed,
-          prefix: decoded.prefix || "",
-          kind: decoded.kind || "standard spend/change address",
-          readable: decoded.readable || "",
-          stem: decoded.stem || "",
-          checksum: decoded.checksum || "",
-          note: decoded.note || ""
-        });
-      }
-    }
-
+    });
     return out;
   }
 
-  function getMeta(doc, selector) {
-    var elem = doc.querySelector(selector);
-    return elem ? elem.getAttribute("content") : "";
+  function titleOf(parsed, id) {
+    var subject = parsed.labels.find(function (row) { return row.kind === "subject" && row.readable; });
+    if (subject) return subject.readable;
+    var op = parsed.opReturns.find(function (row) { return row.text; });
+    if (op) return op.text.slice(0, 96);
+    return id ? "transaction " + id.slice(0, 10) + "…" + id.slice(-10) : "decoded transaction";
   }
 
-  function getPageTitle(doc) {
-    return (
-      getMeta(doc, 'meta[property="og:title"]') ||
-      getMeta(doc, 'meta[name="twitter:title"]') ||
-      (doc.querySelector("title") ? doc.querySelector("title").textContent : "")
-    ).trim();
+  function drawBase57(labels) {
+    var rows = labels.filter(function (row) { return row.kind === "base57 image row"; }).map(function (row) { return payload(row.address); });
+    var canvas = $("base57Canvas");
+    if (!rows.length) { canvas.style.display = "none"; return; }
+    var scale = 10;
+    var cols = rows.reduce(function (m, row) { return Math.max(m, row.length); }, 0);
+    canvas.width = Math.max(1, cols * scale);
+    canvas.height = Math.max(1, rows.length * scale);
+    var ctx = canvas.getContext("2d");
+    ctx.fillStyle = "rgb(0,0,0)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    rows.forEach(function (row, y) {
+      for (var x = 0; x < row.length; x += 1) {
+        var rgb = colorMap[row.charAt(x)] || [255,0,255];
+        ctx.fillStyle = "rgb(" + rgb.join(",") + ")";
+        ctx.fillRect(x * scale, y * scale, scale, scale);
+      }
+    });
+    canvas.style.display = "block";
   }
 
-  function getPageImage(doc, baseUrl) {
-    var image = (
-      getMeta(doc, 'meta[property="og:image"]') ||
-      getMeta(doc, 'meta[name="twitter:image"]')
-    ).trim();
-
-    if (!image) {
-      return "";
-    }
-
+  async function renderLocalAssets(id, parsed) {
+    var box = $("localAssets");
+    box.innerHTML = "";
+    var assets = [];
     try {
-      return new URL(image, baseUrl).href;
-    } catch (error) {
-      return image;
+      var direct = await fileProxyJson("/find-assets", { txid:id });
+      assets = assets.concat(direct.assets || []);
+      for (var i = 0; i < parsed.cids.length; i += 1) {
+        var found = await fileProxyJson("/find-assets", { cid:parsed.cids[i].cid }).catch(function () { return { assets:[] }; });
+        assets = assets.concat(found.assets || []);
+      }
+    } catch (e) {
+      box.textContent = "fileProxy asset lookup skipped: " + (e.message || e);
+      return;
     }
-  }
-
-  function getPageDescription(doc) {
-    return (
-      getMeta(doc, 'meta[property="og:description"]') ||
-      getMeta(doc, 'meta[name="twitter:description"]') ||
-      getMeta(doc, 'meta[name="description"]')
-    ).trim();
-  }
-
-  async function fetchPagePreview(url) {
-    var response = await fetch(url, {
-      method: "GET",
-      redirect: "follow"
-    });
-
-    if (!response.ok) {
-      throw new Error("URL fetch failed: HTTP " + response.status);
-    }
-
-    var html = await response.text();
-    var doc = new DOMParser().parseFromString(html, "text/html");
-
-    return {
-      url: url,
-      title: getPageTitle(doc) || url,
-      image: getPageImage(doc, url),
-      description: getPageDescription(doc)
-    };
-  }
-
-  function clearPreviewImage() {
-    elems.previewImage.removeAttribute("src");
-    elems.previewImage.style.display = "none";
-  }
-
-  function renderPreview(preview, url) {
-    elems.previewTitle.textContent = preview.title || url;
-    elems.previewDescription.textContent = preview.description || "";
-    elems.previewLink.href = url;
-    elems.previewLink.style.display = "inline";
-
-    if (preview.image) {
-      elems.previewImage.src = preview.image;
-      elems.previewImage.alt = preview.title || "Preview image";
-      elems.previewImage.style.display = "block";
-    } else {
-      clearPreviewImage();
-    }
-  }
-
-  function renderPreviewBlocked(url, error) {
-    elems.previewTitle.textContent = "URL found, preview blocked by browser CORS";
-    elems.previewDescription.textContent =
-      "URL: " + url + "\n\n" +
-      "The ledger decode worked. Browser-side metadata scraping did not. " +
-      "Use a tiny metadata proxy if title/image extraction needs to work against YouTube, IPFS gateways, or other CORS-hostile targets.\n\n" +
-      String(error.message || error);
-
-    elems.previewLink.href = url;
-    elems.previewLink.style.display = "inline";
-    clearPreviewImage();
-  }
-
-  function renderPills(addressOutputs, url, sourceMode) {
-    var indexedCount = addressOutputs.filter(function filterIndexed(item) {
-      return item.indexed;
-    }).length;
-
-    elems.summaryPills.innerHTML = "";
-
-    [
-      "source: " + sourceMode,
-      "indexed outputs: " + indexedCount,
-      "OP_RETURN URL: " + (url ? "yes" : "no")
-    ].forEach(function appendPill(text) {
-      var span = document.createElement("span");
-      span.className = "pill";
-      span.textContent = text;
-      elems.summaryPills.appendChild(span);
+    var seen = {};
+    assets.filter(function (a) { if (!a || !a.path || seen[a.path]) return false; seen[a.path] = true; return true; }).forEach(function (asset) {
+      var img = document.createElement("img");
+      img.src = cleanBase() + asset.url;
+      img.alt = asset.path;
+      box.appendChild(img);
     });
   }
 
-  function renderDecodedSummary(tx, opReturnHex, opReturnText, url, addressOutputs, sourceMode) {
-    var indexed = addressOutputs.filter(function filterIndexed(item) {
-      return item.indexed;
+  function render(tx, sourceMode) {
+    var id = String(tx.txid || tx.hash || txid() || "").toLowerCase();
+    var parsed = extract(tx);
+    var opText = parsed.opReturns.map(function (row) { return "vout " + row.n + "\nhex: " + row.hex + "\ntext: " + row.text; }).join("\n\n");
+    var url = (opText.match(/https?:\/\/[^\s"'<>]+/i) || [""])[0];
+    var title = titleOf(parsed, id);
+
+    $("titleText").textContent = title;
+    $("descriptionText").textContent = [sourceMode, id ? "txid " + id : "", parsed.cids.length ? parsed.cids.length + " IPFS CID pair(s)" : "", parsed.labels.filter(function (x) { return x.kind === "base57 image row"; }).length ? "base57 image rows detected" : ""].filter(Boolean).join(" | ");
+    $("txJson").textContent = pretty(tx);
+    $("outputsText").textContent = pretty(parsed.outputs.map(function (out) { return { n:out.n, type:out.type, value:out.value, address:out.address, opReturnText:out.opReturnText, label:out.label }; }));
+    $("opReturnText").textContent = opText || "No OP_RETURN output found.";
+    $("summaryText").textContent = pretty({ txid:id, source:sourceMode, title:title, opReturnUrl:url || "", labels:parsed.labels, ipfs:parsed.cids });
+    $("explorerLink").href = RVN_EXPLORER + id;
+    renderPills(parsed, sourceMode);
+    drawBase57(parsed.labels);
+    renderLocalAssets(id, parsed);
+  }
+
+  function renderPills(parsed, sourceMode) {
+    var box = $("summaryPills");
+    box.innerHTML = "";
+    ["source: " + sourceMode, "outputs: " + parsed.outputs.length, "labels: " + parsed.labels.filter(function (x) { return x.kind !== "standard/change"; }).length, "ipfs: " + parsed.cids.length].forEach(function (text) {
+      var span = document.createElement("span"); span.className = "pill"; span.textContent = text; box.appendChild(span);
     });
-
-    var lines = [];
-    lines.push("txid: " + tx.txid);
-    lines.push("source: " + sourceMode);
-    lines.push("height: " + (tx.height || "unconfirmed / unknown"));
-    lines.push("confirmations: " + (tx.confirmations !== undefined ? tx.confirmations : "unknown"));
-    lines.push("");
-    lines.push("meaning:");
-    lines.push("- TXID is the permanent lookup key.");
-    lines.push("- OP_RETURN is the direct payload channel.");
-    lines.push("- MacDougall-style outputs are the indexed/searchable label channel.");
-    lines.push("- Thunderword output is a universal marker, not a normal recipient in the social layer.");
-    lines.push("");
-    lines.push("decoded OP_RETURN URL: " + (url || "(none)"));
-    lines.push("indexed address labels:");
-
-    if (indexed.length === 0) {
-      lines.push("- (none found)");
-    } else {
-      indexed.forEach(function appendIndexed(item) {
-        lines.push("- vout " + item.n + ": " + item.kind + " => " + (item.readable || item.address));
-      });
-    }
-
-    elems.summaryText.textContent = lines.join("\n");
-    elems.addressText.textContent = pretty(addressOutputs);
-    elems.opReturnText.textContent =
-      "hex:\n" + (opReturnHex || "") + "\n\n" +
-      "text:\n" + (opReturnText || "") + "\n\n" +
-      "url:\n" + (url || "(none found)");
   }
 
   async function load(mode) {
-    var txid = normalizeTxid(elems.txidInput.value || DEFAULT_TXID);
-    var sourceMode = mode || "auto";
-
+    var id = txid();
     setStatus("Loading...", false);
-    setDisabled(true);
-
     try {
-      assertTxid(txid);
-      elems.explorerLink.href = EXPLORER_BASE_URL + txid;
-
-      fetchMethods().then(function onMethods(methods) {
-        elems.methodsJson.textContent = pretty(methods);
-      }).catch(function onMethodsError(error) {
-        elems.methodsJson.textContent = "methods fetch skipped/failed: " + String(error.message || error);
-      });
-
-      var tx = await loadTx(txid, sourceMode);
-      elems.txJson.textContent = pretty(tx);
-
-      var opReturnHex = findOpReturnHex(tx);
-      var opReturnText = hexToUtf8(opReturnHex);
-      var url = findFirstUrl(opReturnText);
-      var addressOutputs = collectAddressOutputs(tx);
-
-      renderDecodedSummary(tx, opReturnHex, opReturnText, url, addressOutputs, sourceMode);
-      renderPills(addressOutputs, url, sourceMode);
-
-      if (!url) {
-        elems.previewTitle.textContent = "No URL found in OP_RETURN";
-        elems.previewDescription.textContent = "This transaction may still carry indexed meaning in its address outputs.";
-        elems.previewLink.style.display = "none";
-        clearPreviewImage();
-        setStatus("Transaction loaded. No OP_RETURN URL found.", false);
-        return;
-      }
-
-      try {
-        var preview = await fetchPagePreview(url);
-        renderPreview(preview, url);
-        setStatus("Transaction loaded. Preview rendered.", false);
-      } catch (previewError) {
-        renderPreviewBlocked(url, previewError);
-        setStatus("Transaction loaded. URL found, but preview fetch was blocked.", true);
-      }
-    } catch (error) {
-      console.error(error);
-      setStatus(error.message || String(error), true);
-    } finally {
-      setDisabled(false);
+      assertTxid(id);
+      var tx;
+      if (mode === "fileproxy") tx = await loadFileProxyTx(id);
+      else if (mode === "rpc") tx = await rpc("getrawtransaction", [id, true]);
+      else tx = await loadAuto(id);
+      render(tx, mode || "auto");
+      setStatus("Loaded " + id + ".", false);
+    } catch (e) {
+      console.error(e);
+      setStatus(e.message || String(e), true);
     }
   }
 
-  elems.txidInput.value = DEFAULT_TXID;
-  elems.loadButton.onclick = function onLoadAuto() { load("auto"); };
-  elems.loadFixtureButton.onclick = function onLoadFixture() { load("fixture"); };
-  elems.loadRpcButton.onclick = function onLoadRpc() { load("rpc"); };
-  elems.exampleNamesButton.onclick = function onExampleNames() {
-    elems.txidInput.value = TX_NAMES;
-    load(DEFAULT_MODE);
-  };
-  elems.exampleIpfsButton.onclick = function onExampleIpfs() {
-    elems.txidInput.value = TX_IPFS;
-    load(DEFAULT_MODE);
-  };
+  async function listLocal() {
+    setStatus("Listing local transactions...", false);
+    try {
+      var json = await fileProxyJson("/txids", { coin:coin() });
+      var box = $("localTxList");
+      box.innerHTML = "";
+      if (!json.transactions.length) { box.textContent = "No txids found."; return; }
+      json.transactions.forEach(function (row) {
+        var card = document.createElement("div"); card.className = "txCard";
+        var title = document.createElement("strong"); title.textContent = (row.coin ? row.coin + " " : "") + row.txid.slice(0, 12) + "…" + row.txid.slice(-12);
+        var code = document.createElement("code"); code.textContent = row.path;
+        var button = document.createElement("button"); button.className = "secondary"; button.type = "button"; button.textContent = "LOAD";
+        button.onclick = function () { $("txidInput").value = row.txid; if (row.coin) $("coinInput").value = row.coin; load("fileproxy"); };
+        card.appendChild(title); card.appendChild(code); card.appendChild(button); box.appendChild(card);
+      });
+      setStatus("Found " + json.transactions.length + " txid fixture(s).", false);
+    } catch (e) { setStatus(e.message || String(e), true); }
+  }
 
-  load(DEFAULT_MODE);
+  $("txidInput").value = (getQueryParam("txid") && TXID_RE.test(getQueryParam("txid"))) ? getQueryParam("txid") : TX_NAMES;
+  $("coinInput").value = getQueryParam("coin") || "";
+  $("loadAutoButton").onclick = function () { load("auto"); };
+  $("loadFileProxyButton").onclick = function () { load("fileproxy"); };
+  $("loadRpcButton").onclick = function () { load("rpc"); };
+  $("listLocalButton").onclick = listLocal;
+  $("exampleNamesButton").onclick = function () { $("txidInput").value = TX_NAMES; load("auto"); };
+  $("exampleIpfsButton").onclick = function () { $("txidInput").value = TX_IPFS; load("auto"); };
+  load("auto");
 })();
 </script>
 </body>

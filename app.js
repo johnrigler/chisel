@@ -3,8 +3,8 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.6.4";
-  const DEFAULT_CURRENCY_KEY = "ravencoin";
+  const APP_VERSION = "2.6.8c";
+  const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
   const ENTER_KEY = "Enter";
@@ -58,6 +58,9 @@
     unspendablePhrase: document.querySelector("#unspendablePhrase"),
     unspendableAmount: document.querySelector("#unspendableAmount"),
     addUnspendableButton: document.querySelector("#addUnspendableButton"),
+    spendableAddress: document.querySelector("#spendableAddress"),
+    spendableAmount: document.querySelector("#spendableAmount"),
+    addSpendableButton: document.querySelector("#addSpendableButton"),
     commonAddressSelect: document.querySelector("#commonAddressSelect"),
     addCommonAddressButton: document.querySelector("#addCommonAddressButton"),
     recipientTotalRvn: document.querySelector("#recipientTotalRvn"),
@@ -613,6 +616,27 @@ async function addUnspendableRecipientFromTool() {
     note: prefix + " " + phrase
   });
   elems.unspendablePhrase.value = "";
+}
+
+function addSpendableRecipientFromTool() {
+  const address = elems.spendableAddress ? elems.spendableAddress.value.trim() : "";
+  const amount = elems.spendableAmount ? elems.spendableAmount.value.trim() : "";
+
+  if (!address) {
+    throw new Error("Spendable recipient address is required.");
+  }
+
+  if (!amount || Number(amount) <= 0) {
+    throw new Error("Spendable recipient amount must be greater than zero.");
+  }
+
+  addRecipientRow(address, amount, {
+    outputType: "standard",
+    note: "spendable recipient"
+  });
+
+  if (elems.spendableAddress) elems.spendableAddress.value = "";
+  if (elems.spendableAmount) elems.spendableAmount.value = "";
 }
 
 function addCommonAddressFromTool() {
@@ -1319,6 +1343,16 @@ function onClickAddRecipientButton() {
   addRecipientRow("", "");
 }
 
+function onClickAddSpendableButton() {
+  try {
+    addSpendableRecipientFromTool();
+    setStatusMessage("Spendable output added.", false);
+  } catch (error) {
+    console.error(error);
+    setStatusMessage(error.message || String(error), true);
+  }
+}
+
 async function onClickAddUnspendableButton() {
   try {
     await addUnspendableRecipientFromTool();
@@ -1571,6 +1605,9 @@ function init() {
     }
     elems.feeRvn.oninput = onInputFee;
     elems.addRecipientButton.onclick = onClickAddRecipientButton;
+    if (elems.addSpendableButton) {
+      elems.addSpendableButton.onclick = onClickAddSpendableButton;
+    }
     if (elems.addUnspendableButton) {
       elems.addUnspendableButton.onclick = onClickAddUnspendableButton;
     }

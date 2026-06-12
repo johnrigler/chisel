@@ -374,8 +374,18 @@
     .portalExplorerShell {
       display: grid;
       gap: 16px;
-      grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+      grid-template-columns: minmax(0, 1fr);
       align-items: start;
+      width: 100%;
+    }
+
+    body[data-mode="portal"] main {
+      max-width: none;
+      width: calc(100vw - 32px);
+    }
+
+    body[data-mode="portal"] .panel.hero {
+      max-width: none;
     }
 
     .portalIndexBar {
@@ -385,16 +395,145 @@
       align-items: end;
     }
 
+    .portalStreamPanel {
+      min-height: 72vh;
+    }
+
+    .portalStreamHeader {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 10px;
+    }
+
     .portalTransactionList {
       display: grid;
-      gap: 10px;
-      min-height: 320px;
-      max-height: 70vh;
+      min-height: 420px;
+      max-height: 76vh;
       overflow: auto;
-      padding: 10px;
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: rgba(0,0,0,0.22);
+      background: #f7f7f7;
+      color: #111820;
+    }
+
+    .portalStreamTable {
+      gap: 0;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    .portalStreamRow {
+      display: grid;
+      grid-template-columns: 112px 128px 70px minmax(320px, 1.5fr) minmax(220px, 0.8fr) 150px 84px;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      min-height: 72px;
+      border: 0;
+      border-bottom: 1px solid #c9ced4;
+      color: #111820;
+      background: #ffffff;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }
+
+    .portalStreamRow:nth-child(even) {
+      background: #e9ecef;
+    }
+
+    .portalStreamRow.isSelected {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+      background: #dff6ff;
+    }
+
+    .portalStreamRow:hover,
+    .portalStreamRow:focus {
+      background: #eef8fc;
+      outline: 2px solid rgba(58, 214, 255, 0.35);
+      outline-offset: -2px;
+    }
+
+    .portalStreamRow.hasDirectTarget {
+      cursor: alias;
+    }
+
+    .portalStreamRow.hasDirectTarget .portalStreamTitle::after {
+      content: " ↗";
+      font-weight: 700;
+    }
+
+    .portalStreamRow code {
+      color: #111820;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+
+    .portalStreamThumb {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 104px;
+      height: 56px;
+      overflow: hidden;
+      border: 1px solid #aeb7c0;
+      border-radius: 8px;
+      background: #0a0e13;
+    }
+
+    .portalStreamThumb.isEmpty {
+      border-color: transparent;
+      background: transparent;
+    }
+
+    .portalStreamThumbCanvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .portalStreamCoin {
+      display: inline-block;
+      min-width: 42px;
+      padding: 3px 6px;
+      border: 1px solid #9ea8b2;
+      border-radius: 999px;
+      text-align: center;
+      font-weight: 700;
+      background: #ffffff;
+    }
+
+    .portalStreamTitle {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-weight: 650;
+    }
+
+    .portalStreamMeta,
+    .portalStreamFlags,
+    .portalStreamTime {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: #3b4652;
+    }
+
+    .portalStreamVerify {
+      color: #064f75;
+      text-decoration: none;
+      font-weight: 700;
+      margin-right: 8px;
+    }
+
+    .portalStreamVerify:hover {
+      text-decoration: underline;
     }
 
     .portalTransactionCard {
@@ -452,6 +591,8 @@
       border-radius: 12px;
       padding: 12px;
       background: #05080b;
+      min-height: 120px;
+      max-height: 46vh;
     }
 
     #portalCanvas {
@@ -490,6 +631,27 @@
 
     .portalRawBlocks pre {
       max-height: 320px;
+    }
+
+    .isHidden {
+      display: none !important;
+    }
+
+    .portalDrawer {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: var(--panel);
+    }
+
+    .portalDrawer > summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .portalHiddenList {
+      display: none;
     }
 
     .error {
@@ -583,16 +745,22 @@
         <label for="recipientRows">Extra recipients</label>
         <div id="recipientEditor" class="recipientEditor">
           <div id="recipientRows" class="recipientRows"></div>
-          <button id="addRecipientButton" class="secondaryButton" type="button">ADD RECIPIENT</button>
+          <div class="inlineTool" id="spendableTool">
+            <input id="spendableAddress" type="text" spellcheck="false" placeholder="spendable recipient address" />
+            <input id="spendableAmount" type="number" min="0" step="0.00000001" placeholder="amount" />
+            <button id="addSpendableButton" class="secondaryButton" type="button">ADD SPENDABLE OUTPUT</button>
+          </div>
 
           <div class="inlineTool" id="unspendableTool">
             <select id="unspendableKind" data-currency="">
               <option value="">loading modifiers...</option>
             </select>
-            <input id="unspendablePhrase" type="text" maxlength="24" placeholder="short phrase" />
+            <input id="unspendablePhrase" type="text" maxlength="24" placeholder="MacDougal phrase" />
             <input id="unspendableAmount" type="number" min="0" step="0.00000001" />
-            <button id="addUnspendableButton" class="secondaryButton" type="button">ADD BURN</button>
+            <button id="addUnspendableButton" class="secondaryButton" type="button">ADD UNSPENDABLE / INDEX OUTPUT</button>
           </div>
+
+          <button id="addRecipientButton" class="secondaryButton" type="button">ADD BLANK OUTPUT ROW</button>
 
           <div class="suggestionBar">
             <select id="commonAddressSelect">
@@ -728,41 +896,140 @@
     <section class="modePanel" data-mode-panel="portal">
       <section class="panel hero">
         <h2>Portal explorer</h2>
-        <p class="muted">Browse Thunderword indexes as transaction streams. Chisel renders transactions locally, extracts readable titles from OP_RETURN or DCx/RCx subject lines, reconstructs DDx/DEx or RDx/REx IPFS CIDv0 pairs, and keeps third-party explorer links as verification exits. The merged stream view treats Web3 as one conversation spread across several ledgers.</p>
+        <p class="muted">Cross-chain transaction stream. Local filesystem records are loaded first, then live index lookups can add new transactions as they are discovered. The table is the main object: one row per transaction, newest first, with decoded data hints and verification exits.</p>
       </section>
 
-      <section class="panel portalControls">
-        <div class="stepTitle">Babel stream</div>
-        <p class="muted">Load all default general Thunderword indexes at once. If a root index transaction also contains a subject/person/transport MacDougall line, Portal registers it as a rabbit-trail index and merges those transactions into the same chronological list.</p>
-        <div class="actions">
-          <button id="portalLoadConversationButton" class="secondaryButton" type="button">LOAD ALL DEFAULT STREAMS</button>
+      <section class="portalExplorerShell">
+        <section class="panel portalDetailGrid">
+          <div class="portalSelectedHeader">
+            <h3 id="portalSelectedTitle">No transaction selected</h3>
+            <code id="portalSelectedTxid"></code>
+            <p id="portalSelectedMeta" class="muted"></p>
+            <div class="actions">
+              <a id="portalSelectedExplorerLink" class="secondaryButton" href="#">verify tx in explorer</a>
+              <button id="portalSaveCurrentTxButton" class="secondaryButton" type="button">SAVE SELECTED JSON</button>
+            </div>
+          </div>
+
+          <div id="portalImageCanvasWrap" class="portalCanvasWrap">
+            <canvas id="portalCanvas" width="1" height="1"></canvas>
+            <p id="portalImageStats" class="muted"></p>
+            <p id="portalBucketSummary" class="muted"></p>
+            <div id="portalLocalAssets" class="muted"></div>
+          </div>
+
+          <details id="portalImageDrawer" class="portalDrawer">
+            <summary>Base57 image render controls</summary>
+            <div class="portalControls">
+              <label for="portalColorPath">Color map</label>
+              <input id="portalColorPath" type="text" spellcheck="false" placeholder="b57.json">
+
+              <div class="portalSmallGrid">
+                <div>
+                  <label for="portalScale">Scale</label>
+                  <input id="portalScale" type="number" min="1" step="1">
+                </div>
+                <div>
+                  <label for="portalSkipPrefix">Skip front</label>
+                  <input id="portalSkipPrefix" type="number" min="0" step="1">
+                </div>
+                <div>
+                  <label for="portalSkipSuffix">Skip back</label>
+                  <input id="portalSkipSuffix" type="number" min="0" step="1">
+                </div>
+              </div>
+
+              <div class="actions">
+                <button id="portalRedrawButton" class="secondaryButton" type="button">REDRAW SELECTED</button>
+              </div>
+
+              <label for="portalTxid">Direct txid</label>
+              <input id="portalTxid" type="text" spellcheck="false" placeholder="64-hex transaction id">
+              <button id="portalLoadTxButton" class="secondaryButton" type="button">LOAD SELECTED-COIN TXID</button>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel portalStreamPanel">
+          <div class="portalStreamHeader">
+            <div>
+              <div class="stepTitle">Transaction stream</div>
+              <p id="portalExplorerCount" class="muted">No transactions loaded.</p>
+            </div>
+            <div class="actions">
+              <button id="portalLoadLocalTxidsButton" class="secondaryButton" type="button">LOAD LOCAL</button>
+              <button id="portalLoadConversationButton" class="secondaryButton" type="button">LOAD ALL DEFAULT STREAMS</button>
+            </div>
+          </div>
+          <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">Local transactions will load here when fileProxy is running.</div>
+        </section>
+      </section>
+
+      <details class="panel portalDrawer">
+        <summary>Sources and write options</summary>
+        <div class="portalControls">
+          <label class="inlineOption">
+            <input id="portalAutoSaveFetchedTxs" type="checkbox">
+            Auto-save fetched tx JSON
+          </label>
+          <div class="portalIndexBar">
+            <div>
+              <label for="portalFileProxyUrl">fileProxy URL</label>
+              <input id="portalFileProxyUrl" type="text" spellcheck="false" value="http://127.0.0.1:7799">
+            </div>
+            <div>
+              <label for="portalLocalCoin">Coin folder</label>
+              <input id="portalLocalCoin" type="text" spellcheck="false" placeholder="blank = all local coins">
+            </div>
+            <div class="actions">
+              <button id="portalLoadSelectedLocalButton" class="secondaryButton" type="button">LOAD SELECTED LOCAL</button>
+            </div>
+          </div>
+          <p class="muted">Config is read from <code>chisel.portal.config.json</code>. Saved transactions are pretty jq-style JSON under <code>data/transactions/&lt;coin&gt;/</code>.</p>
+          <div id="portalSaveTxResult" class="muted"></div>
+          <div id="portalLocalTxList" class="portalHiddenList muted">Local transaction list is merged into the main stream.</div>
+          <div id="portalConversationStatus" class="muted"></div>
+          <div id="portalConversationList" class="portalHiddenList muted">Merged stream list is rendered in the main stream.</div>
         </div>
-        <div id="portalConversationStatus" class="muted"></div>
-        <div id="portalConversationList" class="portalTransactionList muted">No merged stream loaded.</div>
-      </section>
+      </details>
 
-      <section class="panel portalControls">
-        <div class="portalIndexBar">
+      <details class="panel portalDrawer" open>
+        <summary>Address / rabbit-trail lookup</summary>
+        <div class="portalIndexBar portalAddressSearchBar">
           <div>
-            <label for="portalThunderwordSelect">Currency index</label>
+            <label for="portalThunderwordSelect">Currency / explorer profile</label>
             <select id="portalThunderwordSelect"></select>
           </div>
           <div>
-            <label for="portalThunderwordAddress">Default index address / contract</label>
-            <input id="portalThunderwordAddress" type="text" spellcheck="false">
+            <label for="portalThunderwordAddress">Address, contract, or Chisel index marker</label>
+            <input id="portalThunderwordAddress" type="text" spellcheck="false" placeholder="normal address, vanity address, thunderword, or contract">
           </div>
           <div class="actions">
-            <button id="portalLoadThunderwordButton" class="secondaryButton" type="button">LOAD TRANSACTIONS</button>
-            <button id="portalGenerateThunderwordsButton" class="secondaryButton" type="button">GENERATE CANDIDATES</button>
-            <a id="portalThunderwordExplorerLink" class="secondaryButton" href="#">verify index address</a>
+            <button id="portalLoadThunderwordButton" class="secondaryButton" type="button">LOAD ADDRESS STREAM</button>
+            <button id="portalGenerateThunderwordsButton" class="secondaryButton" type="button">GENERATE INDEX CANDIDATES</button>
+            <a id="portalThunderwordExplorerLink" class="secondaryButton" href="#">verify address</a>
           </div>
         </div>
         <p id="portalIndexCaption" class="muted"></p>
         <p id="portalStatus" class="muted"></p>
-      </section>
+      </details>
 
-      <section class="panel portalControls">
-        <div class="stepTitle">Build MacDougall / Thunderword</div>
+      <details class="panel portalDrawer">
+        <summary>Build address helper</summary>
+        <div class="portalIndexBar">
+          <div>
+            <label for="portalSpendableAddress">Spendable address</label>
+            <input id="portalSpendableAddress" type="text" spellcheck="false" placeholder="paste normal address, for example DDiaz...">
+          </div>
+          <div>
+            <label for="portalSpendableNote">Trail note</label>
+            <input id="portalSpendableNote" type="text" spellcheck="false" placeholder="optional label for this trail">
+          </div>
+          <div class="actions">
+            <button id="portalUseSpendableAsIndexButton" class="secondaryButton" type="button">USE SPENDABLE AS STREAM</button>
+          </div>
+        </div>
+        <hr>
         <div class="portalIndexBar">
           <div>
             <label for="portalMacKind">Marker</label>
@@ -788,90 +1055,39 @@
           <code id="portalMacAddress"></code>
           <span id="portalMacReadable" class="muted"></span>
         </div>
-      </section>
+      </details>
 
-      <section class="portalExplorerShell">
-        <section class="panel">
-          <div class="stepTitle">Transactions</div>
-          <div id="portalTransactionList" class="portalTransactionList muted">Select a currency index and load transactions.</div>
-        </section>
-
-        <section class="panel portalDetailGrid">
-          <div class="portalSelectedHeader">
-            <h3 id="portalSelectedTitle">No transaction selected</h3>
-            <code id="portalSelectedTxid"></code>
-            <p id="portalSelectedMeta" class="muted"></p>
-            <div class="actions">
-              <a id="portalSelectedExplorerLink" class="secondaryButton" href="#">verify tx in explorer</a>
-            </div>
-          </div>
-
-          <div class="portalCanvasWrap">
-            <canvas id="portalCanvas" width="1" height="1"></canvas>
-            <p id="portalImageStats" class="muted"></p>
-            <p id="portalBucketSummary" class="muted"></p>
-          </div>
-
-          <div class="portalControls">
-            <label for="portalColorPath">Color map</label>
-            <input id="portalColorPath" type="text" spellcheck="false" placeholder="b57.json">
-
-            <div class="portalSmallGrid">
-              <div>
-                <label for="portalScale">Scale</label>
-                <input id="portalScale" type="number" min="1" step="1">
-              </div>
-              <div>
-                <label for="portalSkipPrefix">Skip front</label>
-                <input id="portalSkipPrefix" type="number" min="0" step="1">
-              </div>
-              <div>
-                <label for="portalSkipSuffix">Skip back</label>
-                <input id="portalSkipSuffix" type="number" min="0" step="1">
-              </div>
-            </div>
-
-            <div class="actions">
-              <button id="portalRedrawButton" class="secondaryButton" type="button">REDRAW SELECTED</button>
-            </div>
-
-            <label for="portalTxid">Direct Digibyte txid</label>
-            <input id="portalTxid" type="text" spellcheck="false">
-            <button id="portalLoadTxButton" class="secondaryButton" type="button">LOAD DIRECT DGB TX</button>
-          </div>
-        </section>
-      </section>
-
-      <section class="panel">
-        <div class="stepTitle">IPFS / semantic links</div>
+      <details class="panel portalDrawer">
+        <summary>Decoded links and drill-down targets</summary>
         <div id="portalSemanticLinks" class="muted">No transaction selected.</div>
-      </section>
+      </details>
 
-      <section class="portalRawBlocks">
+      <details class="portalRawBlocks portalDrawer">
+        <summary>Decoded lines</summary>
         <section class="panel">
           <div class="stepTitle">Address / chord lines</div>
           <pre id="portalLineList" class="json"></pre>
         </section>
         <section class="panel">
-          <div class="stepTitle">MacDougall-readable pass</div>
+          <div class="stepTitle">MacDougal-readable pass</div>
           <pre id="portalDecodedLines" class="json"></pre>
         </section>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">Chisel semantic records</div>
+      <details class="panel portalDrawer">
+        <summary>Chisel semantic records</summary>
         <pre id="portalSemanticList" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">Index raw</div>
+      <details class="panel portalDrawer">
+        <summary>Index raw</summary>
         <pre id="portalThunderwordRaw" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">Selected raw transaction JSON</div>
+      <details class="panel portalDrawer">
+        <summary>Selected raw transaction JSON</summary>
         <pre id="portalRawJson" class="json"></pre>
-      </section>
+      </details>
     </section>
 
     <section class="modePanel" data-mode-panel="tools">
@@ -916,7 +1132,7 @@
   <script src="chisel.digibyte.js?2.5.2d"></script>
   <script src="chisel.litecoin.js?2.5.2j"></script>
   <script src="chisel.thunderwords.js?2.5.2j"></script>
-  <script src="chisel.portal.js?2.5.2j"></script>
+  <script src="chisel.portal.js?2.6.8d"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -925,7 +1141,7 @@
   };
 </script>
 
-  <script src="app.js?2.6.4"></script>
+  <script src="app.js?2.6.7"></script>
 </body>
 </html>
 
