@@ -72,3 +72,25 @@ First Litecoin GUI bridge.
 - The tool can render private WIF, private hex, address, compressed public key, and a public manifest as QR/text sections in one long PNG.
 - Added optional local device storage under `localStorage.chisel.keyPrint.records.v1` for repeat instaprinting.
 - Added the key instaprint tool to the main Tools page.
+
+## 2.6.6 local explorer / fileProxy decode-portal patch
+
+- Reworked `tools/fileProxy/proxy.py` into a ledger-object filesystem bridge.
+- Added txid fixture lookup through `/txids` and `/tx`.
+- Added IPFS fixture lookup through `/ipfs`.
+- Added local image/base57 asset lookup through `/find-assets` and raw serving through `/raw`.
+- Portal now has a `Local fileProxy ledger store` panel.
+- Portal can list txid fixtures, render selected local transactions, and show local image assets tied to a txid or reconstructed CID.
+- Portal still supports live Thunderword indexes and Babel/rabbit-trail stream loading.
+- Decode was rebuilt as a small local block-explorer page instead of a Ravencoin-only fixture viewer.
+- Decode now tries fileProxy first, then relative `../../txids/<txid>`, then live Ravencoin RPC.
+- Decode classifies standard/change outputs separately from Chisel label outputs and renders base57 image rows automatically.
+
+Test path:
+
+```bash
+cd v265
+python3 tools/fileProxy/proxy.py
+# open index.html?mode=portal
+# open tools/decoder/index.html
+```
