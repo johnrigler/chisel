@@ -424,24 +424,27 @@
       font-size: 13px;
     }
 
+    .portalStreamItem {
+      border-bottom: 1px solid #c9ced4;
+      background: #ffffff;
+    }
+
+    .portalStreamItem:nth-child(even) {
+      background: #e9ecef;
+    }
+
     .portalStreamRow {
       display: grid;
-      grid-template-columns: 112px 128px 70px minmax(320px, 1.5fr) minmax(220px, 0.8fr) 150px 84px;
+      grid-template-columns: 40px 112px 128px 70px minmax(320px, 1.5fr) minmax(220px, 0.8fr) 150px 110px;
       align-items: center;
       gap: 8px;
       padding: 8px 10px;
       min-height: 72px;
       border: 0;
-      border-bottom: 1px solid #c9ced4;
       color: #111820;
-      background: #ffffff;
-      cursor: pointer;
+      background: transparent;
       text-align: left;
       font: inherit;
-    }
-
-    .portalStreamRow:nth-child(even) {
-      background: #e9ecef;
     }
 
     .portalStreamRow.isSelected {
@@ -457,13 +460,18 @@
       outline-offset: -2px;
     }
 
-    .portalStreamRow.hasDirectTarget {
-      cursor: alias;
+    .portalStreamTitle a {
+      color: #064f75;
+      text-decoration: none;
     }
 
-    .portalStreamRow.hasDirectTarget .portalStreamTitle::after {
+    .portalStreamTitle a::after {
       content: " ↗";
       font-weight: 700;
+    }
+
+    .portalStreamTitle a:hover {
+      text-decoration: underline;
     }
 
     .portalStreamRow code {
@@ -490,12 +498,21 @@
       background: transparent;
     }
 
-    .portalStreamThumbCanvas {
+    .portalStreamThumbCanvas,
+    .portalStreamThumbImage {
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
+    }
+
+    .portalStreamThumbImage {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 6px;
+      background: #05080b;
     }
 
     .portalStreamCoin {
@@ -534,6 +551,282 @@
 
     .portalStreamVerify:hover {
       text-decoration: underline;
+    }
+
+
+    .compactOption {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-right: 2px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .portalFilterBar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px 0;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.68);
+    }
+
+    .portalFilterBar .filterLabel {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .portalFilterBar input[type=search] {
+      min-width: 220px;
+      width: min(340px, 100%);
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #111820;
+    }
+
+    .portalEvmDecodedBlock {
+      display: grid;
+      gap: 8px;
+      border: 1px solid #ccd5df;
+      border-radius: 12px;
+      padding: 10px;
+      background: #ffffff;
+    }
+
+    .portalWordChips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .portalWordChip {
+      display: inline-block;
+      padding: 3px 8px;
+      border: 1px solid #9ea8b2;
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #111820;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .portalEvmMediaBlock {
+      display: grid;
+      gap: 10px;
+      border: 1px solid #ccd5df;
+      border-radius: 12px;
+      padding: 10px;
+      background: #ffffff;
+    }
+
+    .portalEvmMediaGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+    }
+
+    .portalEvmMediaCard {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      border: 1px solid #d6dde5;
+      border-radius: 12px;
+      padding: 8px;
+      background: #f8fafc;
+      color: #111820;
+      text-decoration: none;
+    }
+
+    .portalEvmMediaCard:hover strong {
+      text-decoration: underline;
+    }
+
+    .portalEvmMediaThumb {
+      width: 150px;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border: 1px solid #aeb7c0;
+      border-radius: 8px;
+      background: #05080b;
+      color: #d7e2ee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .portalEvmMediaBody {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .portalEvmMediaBody strong {
+      color: #111820;
+      overflow-wrap: anywhere;
+    }
+
+    .portalEvmMediaBody p {
+      margin: 0;
+      color: #3b4652;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .portalMiniTable {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12px;
+    }
+
+    .portalMiniTable th,
+    .portalMiniTable td {
+      border: 1px solid #ccd5df;
+      padding: 5px 7px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .portalPageControls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .portalPageButton {
+      padding: 6px 9px;
+      font-size: 12px;
+    }
+
+    .portalPageButton.active {
+      border-color: var(--accent);
+      color: #fff;
+      background: #1f3b48;
+    }
+
+    .portalExpandButton {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border-radius: 999px;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .portalInlineDetails {
+      display: grid;
+      gap: 12px;
+      margin: 0 10px 10px 50px;
+      padding: 12px;
+      border: 1px solid #b8c2cc;
+      border-radius: 12px;
+      background: #f8fafc;
+      color: #111820;
+    }
+
+    .portalInlineHeader {
+      display: grid;
+      gap: 6px;
+    }
+
+    .portalInlineHeader h4 {
+      margin: 0;
+      color: #111820;
+    }
+
+    .portalInlineHeader code,
+    .portalInlineDetails code {
+      color: #111820;
+      overflow-wrap: anywhere;
+    }
+
+    .portalInlineDetails .json {
+      background: #05080b;
+      color: #d7e2ee;
+      max-height: 340px;
+    }
+
+    .portalInlineDrawer {
+      border-top: 1px solid #d2d8df;
+      padding-top: 10px;
+    }
+
+    .portalInlineLinks {
+      display: grid;
+      gap: 8px;
+    }
+
+    .portalInlineImageBlock {
+      display: grid;
+      gap: 8px;
+      border: 1px solid #ccd5df;
+      border-radius: 12px;
+      padding: 10px;
+      background: #ffffff;
+    }
+
+    .portalInlineImageCanvasWrap {
+      display: block;
+      overflow: auto;
+      border: 1px solid #263241;
+      border-radius: 10px;
+      padding: 10px;
+      background: #05080b;
+      max-height: 58vh;
+    }
+
+    .portalInlineImageCanvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      background: #000;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .portalInlineEvmImageFrame {
+      display: grid;
+      gap: 6px;
+    }
+
+    .portalInlineEvmImage {
+      display: block;
+      max-width: min(100%, 720px);
+      max-height: 70vh;
+      object-fit: contain;
+      border: 1px solid #263241;
+      border-radius: 10px;
+      background: #05080b;
+      image-rendering: auto;
+    }
+
+    .portalInlineDataDrawer > summary {
+      cursor: pointer;
+      display: inline-block;
+      width: fit-content;
+      padding: 7px 10px;
+      border: 1px solid #8b98a5;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #111820;
+      font-weight: 700;
+    }
+
+    .portalLegacyViewport {
+      display: none !important;
     }
 
     .portalTransactionCard {
@@ -900,7 +1193,7 @@
       </section>
 
       <section class="portalExplorerShell">
-        <section class="panel portalDetailGrid">
+        <section class="panel portalDetailGrid portalLegacyViewport" aria-hidden="true">
           <div class="portalSelectedHeader">
             <h3 id="portalSelectedTitle">No transaction selected</h3>
             <code id="portalSelectedTxid"></code>
@@ -957,10 +1250,34 @@
               <p id="portalExplorerCount" class="muted">No transactions loaded.</p>
             </div>
             <div class="actions">
+              <label class="inlineOption compactOption">
+                <input id="portalIncludeEvmGomez" type="checkbox">
+                Gomez EVM
+              </label>
+              <label class="inlineOption compactOption">
+                <input id="portalIncludeEvmJethro" type="checkbox">
+                Jethro EVM
+              </label>
+              <button id="portalLoadEvmCatalogButton" class="secondaryButton" type="button">LOAD EVM LOCAL</button>
               <button id="portalLoadLocalTxidsButton" class="secondaryButton" type="button">LOAD LOCAL</button>
               <button id="portalLoadConversationButton" class="secondaryButton" type="button">LOAD ALL DEFAULT STREAMS</button>
             </div>
           </div>
+          <div class="portalFilterBar" aria-label="Portal stream filters">
+            <span class="filterLabel">show</span>
+            <label class="inlineOption compactOption"><input id="portalFilterDigibyte" type="checkbox"> DGB</label>
+            <label class="inlineOption compactOption"><input id="portalFilterRavencoin" type="checkbox"> RVN</label>
+            <label class="inlineOption compactOption"><input id="portalFilterLitecoin" type="checkbox"> LTC</label>
+            <label class="inlineOption compactOption"><input id="portalFilterBitcoin" type="checkbox"> BTC</label>
+            <label class="inlineOption compactOption"><input id="portalFilterEvmGomez" type="checkbox"> Gomez</label>
+            <label class="inlineOption compactOption"><input id="portalFilterEvmJethro" type="checkbox"> Jethro</label>
+            <label class="inlineOption compactOption"><input id="portalFilterOther" type="checkbox"> Other</label>
+            <input id="portalEvmWordSearch" type="search" spellcheck="false" placeholder="search words / title, e.g. apocalypse">
+            <button id="portalFocusGomezButton" class="secondaryButton portalPageButton" type="button">only Gomez</button>
+            <button id="portalFocusJethroButton" class="secondaryButton portalPageButton" type="button">only Jethro</button>
+            <button id="portalShowAllSourcesButton" class="secondaryButton portalPageButton" type="button">show all</button>
+          </div>
+          <div id="portalPageControls" class="portalPageControls muted"></div>
           <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">Local transactions will load here when fileProxy is running.</div>
         </section>
       </section>
@@ -985,7 +1302,7 @@
               <button id="portalLoadSelectedLocalButton" class="secondaryButton" type="button">LOAD SELECTED LOCAL</button>
             </div>
           </div>
-          <p class="muted">Config is read from <code>chisel.portal.config.json</code>. Saved transactions are pretty jq-style JSON under <code>data/transactions/&lt;coin&gt;/</code>.</p>
+          <p class="muted">Config is read from <code>chisel.portal.config.json</code>. Saved transactions are pretty jq-style JSON under <code>data/transactions/&lt;coin&gt;/ and EVM split feeds under data/transactions/evm/&lt;chainid&gt;/&lt;contract&gt;/</code>.</p>
           <div id="portalSaveTxResult" class="muted"></div>
           <div id="portalLocalTxList" class="portalHiddenList muted">Local transaction list is merged into the main stream.</div>
           <div id="portalConversationStatus" class="muted"></div>
@@ -1131,8 +1448,8 @@
   <script src="chisel.ravencoin.js?2.5.2d"></script>
   <script src="chisel.digibyte.js?2.5.2d"></script>
   <script src="chisel.litecoin.js?2.5.2j"></script>
-  <script src="chisel.thunderwords.js?2.5.2j"></script>
-  <script src="chisel.portal.js?2.6.8d"></script>
+  <script src="chisel.thunderwords.js?2.6.9i"></script>
+  <script src="chisel.portal.js?2.6.9m"></script>
 
  <script>
   window.CHISEL_DEBUG = {

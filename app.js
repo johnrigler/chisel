@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.6.8c";
+  const APP_VERSION = "2.6.9m";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";

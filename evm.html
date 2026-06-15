@@ -1,0 +1,1358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chisel EVM / Gomez + Jethro Etherscan v2 Reader</title>
+<style>
+    :root {
+        --bg: #101214;
+        --panel: #181c20;
+        --panel2: #20262c;
+        --text: #e8edf2;
+        --muted: #9aa7b2;
+        --border: #39434d;
+        --bad: #ff8f8f;
+        --good: #9ff0b0;
+        --warn: #ffd48a;
+    }
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.45;
+    }
+    header, main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 18px;
+    }
+    header {
+        border-bottom: 1px solid var(--border);
+    }
+    h1 {
+        font-size: 22px;
+        margin: 0 0 6px 0;
+        font-weight: 650;
+    }
+    p {
+        margin: 7px 0;
+        color: var(--muted);
+    }
+    .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+    }
+    .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 14px;
+    }
+    label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin: 10px 0 4px;
+    }
+    input, select, textarea, button {
+        box-sizing: border-box;
+        font: inherit;
+    }
+    input, select, textarea {
+        width: 100%;
+        background: #0b0d0f;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 8px 10px;
+    }
+    textarea {
+        min-height: 170px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+    }
+    button {
+        background: var(--panel2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin: 8px 6px 0 0;
+        cursor: pointer;
+    }
+    button:hover {
+        border-color: #687786;
+    }
+    button.primary {
+        background: #263342;
+    }
+    .row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+    .status {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        white-space: pre-wrap;
+        color: var(--muted);
+        font-size: 12px;
+    }
+    .profileStatus {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .profileCard {
+        background: #0b0d0f;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 9px;
+        font-size: 12px;
+    }
+    .profileCard b {
+        color: var(--text);
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    th, td {
+        border-bottom: 1px solid var(--border);
+        padding: 8px 6px;
+        vertical-align: top;
+    }
+    th {
+        color: var(--muted);
+        text-align: left;
+        font-weight: 600;
+    }
+    .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        overflow-wrap: anywhere;
+    }
+    .ok { color: var(--good); }
+    .bad { color: var(--bad); }
+    .warn { color: var(--warn); }
+    .payloadBox {
+        max-height: 260px;
+        overflow: auto;
+        background: #0b0d0f;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px;
+        white-space: pre-wrap;
+    }
+    img.preview {
+        max-width: 100%;
+        max-height: 260px;
+        background: #000;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        display: block;
+    }
+
+    .embedCard {
+        background: #0b0d0f;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+        margin: 10px 0;
+    }
+    .embedThumb {
+        display: block;
+        max-width: 100%;
+        max-height: 300px;
+        object-fit: contain;
+        background: #000;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin: 8px 0;
+    }
+    .embedActions a, .embedActions button {
+        display: inline-block;
+        margin: 6px 6px 0 0;
+    }
+    .liveFrameWrap {
+        margin-top: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #000;
+    }
+    .liveFrameWrap iframe {
+        width: 100%;
+        min-height: 360px;
+        border: 0;
+        display: block;
+    }
+    @media (max-width: 820px) {
+        .grid, .row { grid-template-columns: 1fr; }
+    }
+</style>
+</head>
+<body>
+<header>
+    <h1>Chisel EVM / Gomez + Jethro Reader</h1>
+    <p>Static Etherscan v2 account fetcher for Polygon. Checks saved split archives, starts after the newest local block, and writes new EVM transactions into persistent Chisel data.</p>
+</header>
+<main>
+    <section class="panel">
+        <div class="grid">
+            <div>
+                <label for="apiKey">Etherscan API key</label>
+                <input id="apiKey" autocomplete="off" placeholder="Do not commit this key into GitHub">
+            </div>
+            <div>
+                <label for="chainId">Chain</label>
+                <select id="chainId">
+                    <option value="137" selected>Polygon Mainnet / chainid 137</option>
+                    <option value="80002">Polygon Amoy / chainid 80002</option>
+                    <option value="1">Ethereum Mainnet / chainid 1</option>
+                    <option value="11155111">Sepolia / chainid 11155111</option>
+                </select>
+            </div>
+        </div>
+        <label for="contractProfile">Saved contract profile</label>
+        <select id="contractProfile">
+            <option value="gomez" selected>Gomez / 0x5a2220d56f56...</option>
+            <option value="jethro">Jethro / 0x0076416C84c7...</option>
+            <option value="custom">Custom / manual address</option>
+        </select>
+        <label for="address">Address to query</label>
+        <input id="address" value="0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2">
+        <div class="grid">
+            <div>
+                <label for="contractName">Contract / stream name</label>
+                <input id="contractName" value="gomez" placeholder="gomez, jethro, or another local name">
+            </div>
+            <div>
+                <label for="fileProxyUrl">fileProxy URL for saving split tx files</label>
+                <input id="fileProxyUrl" value="http://127.0.0.1:7799">
+            </div>
+        </div>
+        <div class="row">
+            <div>
+                <label for="startBlock">Start block</label>
+                <input id="startBlock" value="0">
+            </div>
+            <div>
+                <label for="endBlock">End block</label>
+                <input id="endBlock" value="99999999">
+            </div>
+            <div>
+                <label for="sort">Sort</label>
+                <select id="sort"><option value="asc">asc</option><option value="desc" selected>desc</option></select>
+            </div>
+            <div>
+                <label for="offset">Offset / page size</label>
+                <input id="offset" value="1000">
+            </div>
+        </div>
+        <button class="primary" id="checkSelectedBtn">Check selected + save new</button>
+        <button id="checkGomezBtn">Check Gomez</button>
+        <button id="checkJethroBtn">Check Jethro</button>
+        <button id="refreshStatusBtn">Refresh saved status</button>
+        <button id="fetchBtn">Fetch txlist only</button>
+        <button id="thunderBtn">Use EVM Thunderword</button>
+        <button id="gomezBtn">Use Gomez</button>
+        <button id="jethroBtn">Use Jethro</button>
+        <button id="parseRawBtn">Parse raw textarea</button>
+        <button id="saveSplitBtn">Save split tx files to data/</button>
+        <button id="saveRawBtn">Save raw JSON</button>
+        <button id="saveNormBtn">Save normalized JSON</button>
+        <button id="clearBtn">Clear</button>
+        <p class="status" id="status">Idle.</p>
+        <div class="profileStatus" id="profileStatus"></div>
+    </section>
+
+    <section class="panel">
+        <h2>Legacy Gomez image recovery</h2>
+        <p>Imports the old easyBase Gomez image files named <span class="mono">137_block_pos</span> into the persistent Chisel data catalog. This preserves the quirky C2/C3 repair path, but stores the result as normal image assets from then on.</p>
+        <div class="grid">
+            <div>
+                <label for="legacySourceDir">Legacy easyBase/server directory</label>
+                <input id="legacySourceDir" value="../easyBase/server">
+            </div>
+            <div>
+                <label for="legacySourceTar">Legacy easyBase.tar, optional</label>
+                <input id="legacySourceTar" placeholder="../easyBase.tar">
+            </div>
+        </div>
+        <button id="legacyScanBtn">Scan legacy images</button>
+        <button class="primary" id="legacyImportBtn">Import legacy Gomez images</button>
+        <button id="legacyCatalogBtn">Show Gomez image catalog</button>
+        <p class="status" id="legacyStatus">Legacy image importer idle.</p>
+        <div id="legacyCatalog" class="status"></div>
+    </section>
+
+    <section class="grid">
+        <div class="panel">
+            <h2>Decoded / normalized</h2>
+            <div id="summary"></div>
+            <div id="tableWrap"></div>
+        </div>
+        <div class="panel">
+            <h2>Selected transaction</h2>
+            <div id="detail" class="status">Click a row after fetching.</div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Raw response</h2>
+        <textarea id="rawOut" spellcheck="false"></textarea>
+    </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.16.0/dist/ethers.umd.min.js"></script>
+<script>
+(function () {
+    "use strict";
+
+    const ETHERSCAN_V2 = "https://api.etherscan.io/v2/api";
+    const GOMEZ = "0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2";
+    const JETHRO = "0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0";
+    const EVM_THUNDERWORD = "0x1111111111111111111111111111111111111111";
+
+    const CONTRACT_PROFILES = {
+        gomez: {
+            key: "gomez",
+            label: "Gomez",
+            name: "gomez",
+            chainId: "137",
+            address: GOMEZ
+        },
+        jethro: {
+            key: "jethro",
+            label: "Jethro",
+            name: "jethro",
+            chainId: "137",
+            address: JETHRO
+        }
+    };
+
+    const EVM_ABI = [
+        "function tell(string message,address receiver1,uint256 amount1,address receiver2,uint256 amount2,address receiver3,uint256 amount3,address receiver4,uint256 amount4)",
+        "function mapArtifact(string artifact,string body)"
+    ];
+
+    const evmIface = new ethers.Interface(EVM_ABI);
+
+    let rawResponse = null;
+    let normalized = [];
+    let streamStatuses = {};
+
+    const el = function (id) {
+        return document.getElementById(id);
+    };
+
+    function setStatus(message, cls) {
+        el("status").className = "status" + (cls ? " " + cls : "");
+        el("status").textContent = message;
+    }
+
+    function shortHash(s) {
+        if (!s || s.length < 18) return s || "";
+        return s.slice(0, 10) + "…" + s.slice(-8);
+    }
+
+    function isHex(s) {
+        return typeof s === "string" && /^0x[0-9a-fA-F]*$/.test(s);
+    }
+
+    function hexToBytes(hex) {
+        if (!isHex(hex)) return new Uint8Array();
+        const clean = hex.slice(2);
+        const out = new Uint8Array(clean.length / 2);
+        for (let i = 0; i < out.length; i += 1) {
+            out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+        }
+        return out;
+    }
+
+    function bytesToText(bytes) {
+        try {
+            return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+        } catch (e) {
+            return "";
+        }
+    }
+
+    function looksPrintable(text) {
+        if (!text) return false;
+        const sample = text.slice(0, 512);
+        let printable = 0;
+        for (let i = 0; i < sample.length; i += 1) {
+            const c = sample.charCodeAt(i);
+            if (c === 9 || c === 10 || c === 13 || (c >= 32 && c <= 126) || c > 160) printable += 1;
+        }
+        return printable / sample.length > 0.82;
+    }
+
+    function magicMime(bytes) {
+        if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+        if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+        if (bytes.length >= 6 && bytesToText(bytes.slice(0, 6)) === "GIF89a") return "image/gif";
+        if (bytes.length >= 6 && bytesToText(bytes.slice(0, 6)) === "GIF87a") return "image/gif";
+        if (bytes.length >= 12 && bytesToText(bytes.slice(0, 4)) === "RIFF" && bytesToText(bytes.slice(8, 12)) === "WEBP") return "image/webp";
+        if (bytes.length >= 5 && bytesToText(bytes.slice(0, 5)).toLowerCase() === "<svg ") return "image/svg+xml";
+        return "";
+    }
+
+    function blobUrlFromBytes(bytes, mime) {
+        return URL.createObjectURL(new Blob([bytes], { type: mime || "application/octet-stream" }));
+    }
+
+    function bytesToBase64(bytes) {
+        let binary = "";
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+            binary += String.fromCharCode.apply(null, bytes.slice(i, i + chunk));
+        }
+        return btoa(binary);
+    }
+
+    function decodeLegacyGomezImageFromInput(input) {
+        if (!isHex(input)) return null;
+        const clean = input.slice(2).toLowerCase();
+        const start = 8 + (32 * 20);
+        if (clean.length <= start) return null;
+        const payload = clean.slice(start);
+        const repaired = [];
+        for (let i = 0; i + 1 < payload.length;) {
+            const target = payload.slice(i, i + 2);
+            const next = payload.slice(i + 2, i + 4);
+            if (target === "c2") {
+                i += 2;
+                continue;
+            }
+            if (target === "c3" && next.length === 2) {
+                if (next[0] === "8") repaired.push("c" + next[1]);
+                else if (next[0] === "9") repaired.push("d" + next[1]);
+                else if (next[0] === "a") repaired.push("e" + next[1]);
+                else if (next[0] === "b") repaired.push("f" + next[1]);
+                i += 4;
+                continue;
+            }
+            repaired.push(target);
+            i += 2;
+        }
+        if (!repaired.length) return null;
+        const bytes = hexToBytes("0x" + repaired.join(""));
+        const mime = magicMime(bytes);
+        if (!mime) return null;
+        return {
+            kind: "gomez.legacyImage",
+            mime,
+            binary: bytes,
+            byteLength: bytes.length,
+            message: "",
+            text: "",
+            words: [],
+            repair: "legacy c2/c3 mojibake repair"
+        };
+    }
+
+    function getAttrFromTag(tag, attr) {
+        const re = new RegExp(attr + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))", "i");
+        const m = String(tag || "").match(re);
+        return m ? (m[1] || m[2] || m[3] || "") : "";
+    }
+
+    function isSafeEmbedUrl(raw) {
+        try {
+            const u = new URL(raw, window.location.href);
+            return u.protocol === "https:" || u.protocol === "http:" || u.protocol === "ipfs:";
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function extractEmbedsFromText(text) {
+        const out = [];
+        const html = String(text || "");
+        const iframeRe = /<iframe\b[\s\S]*?<\/iframe>|<iframe\b[^>]*>/gi;
+        let m;
+        while ((m = iframeRe.exec(html)) !== null) {
+            const tag = m[0];
+            const src = getAttrFromTag(tag, "src");
+            if (!src || !isSafeEmbedUrl(src)) continue;
+            out.push({
+                type: "iframe",
+                src,
+                title: getAttrFromTag(tag, "title") || "embedded frame",
+                width: getAttrFromTag(tag, "width") || "",
+                height: getAttrFromTag(tag, "height") || "",
+                raw: tag
+            });
+        }
+        return out;
+    }
+
+    function youtubeIdFromUrl(raw) {
+        try {
+            const u = new URL(raw, window.location.href);
+            const host = u.hostname.toLowerCase().replace(/^www\./, "");
+            if (host === "youtu.be") return u.pathname.split("/").filter(Boolean)[0] || "";
+            if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+                if (u.pathname.indexOf("/embed/") === 0) return u.pathname.split("/")[2] || "";
+                if (u.pathname.indexOf("/shorts/") === 0) return u.pathname.split("/")[2] || "";
+                return u.searchParams.get("v") || "";
+            }
+        } catch (e) {}
+        return "";
+    }
+
+    function embedDescriptorHtml(embed, n) {
+        const ytid = youtubeIdFromUrl(embed.src);
+        const thumb = ytid ? "https://i.ytimg.com/vi/" + encodeURIComponent(ytid) + "/hqdefault.jpg" : "";
+        let html = `<div class="embedCard" data-embed-n="${n}">`;
+        html += `<p><b>Embedded iframe detected</b><br><span class="mono">${escapeHtml(embed.src)}</span></p>`;
+        if (thumb) {
+            html += `<a href="${escapeHtml(embed.src)}" target="_blank" rel="noopener noreferrer"><img class="embedThumb" src="${escapeHtml(thumb)}" alt="YouTube thumbnail"></a>`;
+        } else {
+            html += `<p class="warn">No browser-safe thumbnail is available. This is rendered as a dormant link card.</p>`;
+        }
+        html += `<div class="embedActions">`;
+        html += `<a href="${escapeHtml(embed.src)}" target="_blank" rel="noopener noreferrer">Open link</a>`;
+        html += `<button data-live-iframe="${n}">Open live iframe here</button>`;
+        html += `<button data-save-iframe="${n}">Save iframe HTML</button>`;
+        html += `<button data-save-embed-json="${n}">Save embed JSON</button>`;
+        html += `</div><div class="liveTarget"></div></div>`;
+        return html;
+    }
+
+    async function saveTextFile(filename, text, type) {
+        const blob = new Blob([text], { type: type || "text/plain" });
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: filename,
+                    types: [{ description: type || "text/plain", accept: { [type || "text/plain"]: ["." + filename.split(".").pop()] } }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                return;
+            } catch (e) {
+                if (e && e.name === "AbortError") return;
+            }
+        }
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
+    function wordHexToAddress(word) {
+        const bytes = [];
+        for (let i = 0; i < word.length && bytes.length < 20; i += 1) {
+            bytes.push(word.charCodeAt(i));
+        }
+        while (bytes.length < 20) bytes.push(0);
+        return ethers.getAddress("0x" + bytes.map(b => b.toString(16).padStart(2, "0")).join(""));
+    }
+
+    function addressToWord(address) {
+        if (!ethers.isAddress(address)) return "";
+        const bytes = hexToBytes(address);
+        let s = "";
+        for (let i = 0; i < bytes.length; i += 1) {
+            if (bytes[i] === 0) break;
+            s += String.fromCharCode(bytes[i]);
+        }
+        return s;
+    }
+
+    function decodeEvmInput(tx) {
+        const input = tx.input || "0x";
+        if (!input || input === "0x") {
+            return { kind: "empty", message: "", words: [], binary: null, text: "" };
+        }
+
+        try {
+            const parsed = evmIface.parseTransaction({ data: input, value: tx.value || 0 });
+            if (parsed && parsed.name === "tell") {
+                const message = parsed.args[0];
+                const receivers = [parsed.args[1], parsed.args[3], parsed.args[5], parsed.args[7]];
+                const amounts = [parsed.args[2], parsed.args[4], parsed.args[6], parsed.args[8]].map(x => x.toString());
+                const words = receivers.map(addressToWord);
+                const bytes = new TextEncoder().encode(message);
+                const mime = magicMime(bytes);
+                const legacyImage = decodeLegacyGomezImageFromInput(input);
+                if (legacyImage) {
+                    legacyImage.receivers = receivers;
+                    legacyImage.words = words;
+                    legacyImage.amounts = amounts;
+                    legacyImage.rawMessageLength = String(message || "").length;
+                    return legacyImage;
+                }
+                return { kind: mime ? "gomez.tell.image" : "gomez.tell", message, receivers, words, amounts, mime, binary: mime ? bytes : null, text: message };
+            }
+            if (parsed && parsed.name === "mapArtifact") {
+                const artifact = String(parsed.args[0] || "");
+                const body = String(parsed.args[1] || "");
+                const text = artifact + (body ? "\n" + body : "");
+                const bytes = new TextEncoder().encode(body || artifact);
+                const mime = magicMime(bytes);
+                return { kind: "jethro.mapArtifact", artifact, body, message: body, words: [artifact], amounts: [], mime, binary: null, text };
+            }
+        } catch (e) {}
+
+        const legacyImage = decodeLegacyGomezImageFromInput(input);
+        if (legacyImage) return legacyImage;
+
+        const bytes = hexToBytes(input);
+        const text = bytesToText(bytes);
+        const mime = magicMime(bytes);
+        return {
+            kind: mime ? "raw.image" : (looksPrintable(text) ? "raw.text" : "raw.binary"),
+            message: looksPrintable(text) ? text : "",
+            words: [],
+            mime,
+            byteLength: bytes.length,
+            binary: bytes,
+            text: looksPrintable(text) ? text : ""
+        };
+    }
+
+    function normalizeTx(tx, idx) {
+        const decoded = decodeEvmInput(tx);
+        return {
+            i: idx,
+            hash: tx.hash,
+            blockNumber: Number(tx.blockNumber || 0),
+            timeStamp: Number(tx.timeStamp || 0),
+            date: tx.timeStamp ? new Date(Number(tx.timeStamp) * 1000).toISOString() : "",
+            from: tx.from,
+            to: tx.to,
+            value: tx.value,
+            gasUsed: tx.gasUsed,
+            isError: tx.isError,
+            functionName: tx.functionName || "",
+            methodId: tx.methodId || (tx.input ? tx.input.slice(0, 10) : ""),
+            inputBytes: tx.input && tx.input !== "0x" ? Math.floor((tx.input.length - 2) / 2) : 0,
+            decoded
+        };
+    }
+
+
+    function strip0x(value) {
+        return String(value || "").trim().replace(/^0x/i, "").toLowerCase();
+    }
+
+    function isEvmTxid(value) {
+        return /^[0-9a-f]{64}$/.test(strip0x(value));
+    }
+
+    function chainLabel() {
+        const sel = el("chainId");
+        return sel && sel.options && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : String(el("chainId").value || "");
+    }
+
+    function inferContractName(address) {
+        const a = String(address || "").toLowerCase();
+        if (a === GOMEZ.toLowerCase()) return "gomez";
+        if (a === JETHRO.toLowerCase()) return "jethro";
+        if (a === EVM_THUNDERWORD.toLowerCase()) return "evm-thunderword";
+        return "contract";
+    }
+
+    function profileForAddress(address) {
+        const a = String(address || "").toLowerCase();
+        return Object.values(CONTRACT_PROFILES).find(function (profile) {
+            return profile.address.toLowerCase() === a;
+        }) || null;
+    }
+
+    function setAddressAndName(address, name) {
+        const profile = profileForAddress(address);
+        if (profile) {
+            el("contractProfile").value = profile.key;
+            el("chainId").value = profile.chainId;
+        } else {
+            el("contractProfile").value = "custom";
+        }
+        el("address").value = address;
+        el("contractName").value = name || inferContractName(address);
+    }
+
+    function setContractProfile(key) {
+        const profile = CONTRACT_PROFILES[key];
+        if (!profile) return;
+        el("contractProfile").value = key;
+        el("chainId").value = profile.chainId;
+        el("address").value = profile.address;
+        el("contractName").value = profile.name;
+        el("sort").value = "asc";
+        el("offset").value = "10000";
+        if (!el("endBlock").value || el("endBlock").value === "latest") {
+            el("endBlock").value = "99999999";
+        }
+    }
+
+    function selectedProfileKey() {
+        const value = el("contractProfile").value;
+        if (CONTRACT_PROFILES[value]) return value;
+        const profile = profileForAddress(el("address").value);
+        return profile ? profile.key : "custom";
+    }
+
+    function contractAddressForTx(tx) {
+        const queried = el("address").value.trim();
+        return tx.contractAddress || tx.to || queried || "";
+    }
+
+    function explorerTxUrl(hash) {
+        const h = String(hash || "");
+        const chain = String(el("chainId").value || "137");
+        if (chain === "1") return "https://etherscan.io/tx/" + encodeURIComponent(h);
+        if (chain === "11155111") return "https://sepolia.etherscan.io/tx/" + encodeURIComponent(h);
+        if (chain === "80002") return "https://amoy.polygonscan.com/tx/" + encodeURIComponent(h);
+        return "https://polygonscan.com/tx/" + encodeURIComponent(h);
+    }
+
+    function titleFromNormalizedTx(n) {
+        const d = n.decoded || {};
+        if (d.artifact || d.body) return [d.artifact, d.body].filter(Boolean).join(" / ").replace(/\s+/g, " ").trim().slice(0, 120);
+        const msg = d.message || d.text || "";
+        if (msg && looksPrintable(String(msg))) return String(msg).replace(/\s+/g, " ").trim().slice(0, 120);
+        if (n.functionName) return n.functionName.split("(")[0] || n.functionName;
+        if (n.methodId === "0x" || n.inputBytes === 0) return "EVM value transfer";
+        if (!n.to && n.methodId === "0x60806040") return "EVM contract deployment";
+        return "EVM tx " + shortHash(n.hash);
+    }
+
+    function applyRawResponse(json, updateTextarea) {
+        rawResponse = json;
+        if (updateTextarea) el("rawOut").value = JSON.stringify(json, null, 2);
+
+        if (!json) {
+            throw new Error("Etherscan response is empty.");
+        }
+        if (json.status !== "1" && !Array.isArray(json.result)) {
+            const resultText = String(json.result || "").toLowerCase();
+            const messageText = String(json.message || "").toLowerCase();
+            if (resultText.indexOf("no transactions") >= 0 || messageText.indexOf("no transactions") >= 0) {
+                normalized = [];
+                renderTable();
+                return normalized;
+            }
+            throw new Error(((json && json.message) || "Etherscan error") + ": " + String((json && json.result) || ""));
+        }
+
+        const txs = Array.isArray(json.result) ? json.result : [];
+        normalized = txs.map(normalizeTx);
+        renderTable();
+        return normalized;
+    }
+
+    function parseRawTextarea() {
+        const text = el("rawOut").value.trim();
+        if (!text) throw new Error("Raw response textarea is empty.");
+        const json = JSON.parse(text);
+        applyRawResponse(json, false);
+        setStatus("Parsed " + normalized.length + " transaction(s) from raw textarea.", "ok");
+        return normalized;
+    }
+
+    function decodedForPacket(decoded) {
+        const out = stripBinary(decoded || {});
+        if (decoded && decoded.binary && decoded.mime && decoded.mime.indexOf("image/") === 0) {
+            out.image = {
+                mime: decoded.mime,
+                encoding: "base64",
+                data: bytesToBase64(decoded.binary),
+                byteLength: decoded.binary.length,
+                sourceKind: decoded.kind || "evm.image"
+            };
+        }
+        return out;
+    }
+
+    function makeEvmTransactionPacket(rawTx, idx) {
+        const norm = normalizeTx(rawTx, idx);
+        const txid = strip0x(rawTx.hash || norm.hash);
+        const contractAddress = contractAddressForTx(rawTx);
+        const title = titleFromNormalizedTx(norm);
+        return {
+            txid: txid,
+            hash: rawTx.hash || (txid ? "0x" + txid : ""),
+            coin: "evm",
+            chainId: String(el("chainId").value || ""),
+            chainName: chainLabel(),
+            contract: {
+                name: String(el("contractName").value || inferContractName(contractAddress)).trim() || "contract",
+                address: contractAddress,
+                queriedAddress: el("address").value.trim()
+            },
+            source: {
+                kind: "etherscan-v2-account-txlist",
+                generatedBy: "evm2.html",
+                savedAt: new Date().toISOString(),
+                sort: el("sort").value,
+                startBlock: el("startBlock").value,
+                endBlock: el("endBlock").value
+            },
+            tx: rawTx,
+            decoded: decodedForPacket(norm.decoded),
+            summary: {
+                txid: txid,
+                hash: rawTx.hash || (txid ? "0x" + txid : ""),
+                title: title,
+                methodId: norm.methodId,
+                functionName: norm.functionName,
+                from: norm.from,
+                to: norm.to,
+                contractAddress: contractAddress,
+                blockNumber: norm.blockNumber,
+                blockHeight: norm.blockNumber,
+                blockTime: norm.timeStamp,
+                date: norm.date,
+                value: norm.value,
+                gasUsed: norm.gasUsed,
+                inputBytes: norm.inputBytes,
+                kind: norm.decoded && norm.decoded.kind ? norm.decoded.kind : "evm",
+                imageMime: norm.decoded && norm.decoded.mime && norm.decoded.mime.indexOf("image/") === 0 ? norm.decoded.mime : "",
+                imageBytes: norm.decoded && norm.decoded.binary ? norm.decoded.binary.length : 0,
+                transactionIndex: Number(rawTx.transactionIndex || 0),
+                explorerUrl: explorerTxUrl(rawTx.hash || (txid ? "0x" + txid : ""))
+            }
+        };
+    }
+
+    function splitEtherscanFeed() {
+        if (!rawResponse) parseRawTextarea();
+        const txs = rawResponse && Array.isArray(rawResponse.result) ? rawResponse.result : [];
+        return txs.filter(function (tx) { return tx && isEvmTxid(tx.hash); }).map(makeEvmTransactionPacket);
+    }
+
+    function fileProxyBaseUrl() {
+        return String(el("fileProxyUrl").value || "http://127.0.0.1:7799").replace(/\/+$/, "");
+    }
+
+    async function fileProxyGetJson(path, params) {
+        const url = new URL(fileProxyBaseUrl() + path);
+        Object.entries(params || {}).forEach(function (entry) {
+            url.searchParams.set(entry[0], entry[1]);
+        });
+        const res = await fetch(url.toString());
+        const json = await res.json().catch(function () { return null; });
+        if (!res.ok || !json || json.ok === false) {
+            throw new Error((json && json.error) || ("fileProxy HTTP " + res.status));
+        }
+        return json;
+    }
+
+    async function loadEvmStreamStatusForProfile(key) {
+        const profile = CONTRACT_PROFILES[key];
+        if (!profile) return null;
+        const status = await fileProxyGetJson("/evm-stream-status", {
+            chainId: profile.chainId,
+            contractName: profile.name,
+            contractAddress: profile.address
+        });
+        streamStatuses[key] = status;
+        return status;
+    }
+
+    async function refreshProfileStatuses() {
+        const keys = Object.keys(CONTRACT_PROFILES);
+        const out = {};
+        for (const key of keys) {
+            try {
+                out[key] = await loadEvmStreamStatusForProfile(key);
+            } catch (e) {
+                out[key] = { ok: false, error: e.message || String(e), contractName: key };
+            }
+        }
+        streamStatuses = out;
+        renderProfileStatuses();
+        return out;
+    }
+
+    function renderProfileStatuses() {
+        const wrap = el("profileStatus");
+        if (!wrap) return;
+        let html = "";
+        Object.keys(CONTRACT_PROFILES).forEach(function (key) {
+            const profile = CONTRACT_PROFILES[key];
+            const status = streamStatuses[key] || {};
+            const latest = Number(status.latestBlock || 0);
+            const next = Number(status.nextStartBlock || 0);
+            html += `<div class="profileCard">`;
+            html += `<b>${escapeHtml(profile.label)}</b><br>`;
+            html += `<span class="mono">${escapeHtml(profile.address)}</span><br>`;
+            if (status.ok === false) {
+                html += `<span class="bad">status unavailable: ${escapeHtml(status.error || "unknown")}</span>`;
+            } else {
+                html += `saved txs: <span class="ok">${Number(status.count || 0)}</span><br>`;
+                html += `latest block: <span class="mono">${latest || "none"}</span><br>`;
+                html += `next start: <span class="mono">${next || 0}</span>`;
+            }
+            html += `</div>`;
+        });
+        wrap.innerHTML = html;
+    }
+
+    async function loadNextStartBlockForProfile(key) {
+        const status = await loadEvmStreamStatusForProfile(key);
+        renderProfileStatuses();
+        const next = Number(status && status.nextStartBlock ? status.nextStartBlock : 0);
+        el("startBlock").value = String(next || 0);
+        return status;
+    }
+
+    async function fileProxyPostJson(path, payload) {
+        const base = fileProxyBaseUrl();
+        const res = await fetch(base + path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json().catch(function () { return null; });
+        if (!res.ok || !json || json.ok === false) {
+            throw new Error((json && json.error) || ("fileProxy HTTP " + res.status));
+        }
+        return json;
+    }
+
+    async function saveSplitTransactionsToFileProxy() {
+        const packets = splitEtherscanFeed();
+        if (!packets.length) throw new Error("No EVM transactions with valid 0x transaction hashes were found.");
+        const saved = await fileProxyPostJson("/save-evm-batch", {
+            chainId: String(el("chainId").value || ""),
+            chainName: chainLabel(),
+            contractName: String(el("contractName").value || "contract"),
+            contractAddress: el("address").value.trim(),
+            source: {
+                kind: "etherscan-v2-account-txlist",
+                generatedBy: "evm2.html",
+                savedAt: new Date().toISOString()
+            },
+            transactions: packets,
+            filenameMode: "base58"
+        });
+        setStatus("Saved " + saved.saved + " split EVM tx file(s) under " + saved.directory + ". Reindex to surface them in the portal later.", "ok");
+        return saved;
+    }
+
+    function buildUrl(page) {
+        const params = new URLSearchParams();
+        params.set("chainid", el("chainId").value.trim());
+        params.set("module", "account");
+        params.set("action", "txlist");
+        params.set("address", el("address").value.trim());
+        params.set("startblock", el("startBlock").value.trim() || "0");
+        params.set("endblock", el("endBlock").value.trim() || "99999999");
+        params.set("page", String(page || 1));
+        params.set("offset", el("offset").value.trim() || "1000");
+        params.set("sort", el("sort").value.trim() || "desc");
+        params.set("apikey", el("apiKey").value.trim());
+        return ETHERSCAN_V2 + "?" + params.toString();
+    }
+
+    async function fetchTxList() {
+        const key = el("apiKey").value.trim();
+        const address = el("address").value.trim();
+
+        if (!key) throw new Error("Missing Etherscan API key.");
+        if (!ethers.isAddress(address)) throw new Error("Invalid EVM address.");
+
+        setStatus("Fetching page 1…");
+        const url = buildUrl(1);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("HTTP " + res.status + " from Etherscan.");
+
+        const json = await res.json();
+        applyRawResponse(json, true);
+        setStatus("Fetched " + normalized.length + " transaction(s).", normalized.length ? "ok" : "warn");
+        return normalized;
+    }
+
+    async function checkProfileForNewTransactions(key) {
+        const profileKey = key || selectedProfileKey();
+        if (!CONTRACT_PROFILES[profileKey]) throw new Error("Choose Gomez or Jethro before checking for new transactions.");
+        setContractProfile(profileKey);
+        setStatus("Checking local split archive for " + CONTRACT_PROFILES[profileKey].label + "…");
+        const before = await loadNextStartBlockForProfile(profileKey);
+        el("sort").value = "asc";
+        el("offset").value = "10000";
+        if (!el("endBlock").value) el("endBlock").value = "99999999";
+        setStatus("Pulling new " + CONTRACT_PROFILES[profileKey].label + " rows from block " + el("startBlock").value + "…");
+        await fetchTxList();
+        if (!normalized.length) {
+            setStatus(CONTRACT_PROFILES[profileKey].label + ": no new transactions after block " + Number(before.latestBlock || 0) + ".", "ok");
+            await refreshProfileStatuses();
+            return { checked: profileKey, fetched: 0, saved: 0 };
+        }
+        setStatus(CONTRACT_PROFILES[profileKey].label + ": fetched " + normalized.length + " new transaction(s); saving split files…");
+        const saved = await saveSplitTransactionsToFileProxy();
+        await refreshProfileStatuses();
+        setStatus(CONTRACT_PROFILES[profileKey].label + ": saved " + saved.saved + " split EVM transaction file(s).", "ok");
+        return { checked: profileKey, fetched: normalized.length, saved: saved.saved, response: saved };
+    }
+
+    function renderTable() {
+        const totalBytes = normalized.reduce((n, tx) => n + tx.inputBytes, 0);
+        const gomezCount = normalized.filter(tx => tx.decoded.kind === "gomez.tell").length;
+        const jethroCount = normalized.filter(tx => tx.decoded.kind === "jethro.mapArtifact").length;
+        const imageCount = normalized.filter(tx => tx.decoded.mime && tx.decoded.mime.indexOf("image/") === 0).length;
+
+        el("summary").innerHTML = `<p><span class="ok">${normalized.length}</span> txs, <span class="ok">${gomezCount}</span> Gomez calls, <span class="ok">${jethroCount}</span> Jethro maps, <span class="warn">${imageCount}</span> image-like payloads, <span class="mono">${totalBytes}</span> input bytes.</p>`;
+
+        let html = "<table><thead><tr><th>Block</th><th>Hash</th><th>Kind</th><th>Words</th><th>Bytes</th><th>Date</th></tr></thead><tbody>";
+        normalized.forEach(tx => {
+            const words = tx.decoded.words && tx.decoded.words.length ? tx.decoded.words.filter(Boolean).join(" / ") : "";
+            html += `<tr data-i="${tx.i}">`;
+            html += `<td class="mono">${tx.blockNumber}</td>`;
+            html += `<td class="mono">${shortHash(tx.hash)}</td>`;
+            html += `<td>${escapeHtml(tx.decoded.kind)}${tx.decoded.mime ? `<br><span class="warn">${escapeHtml(tx.decoded.mime)}</span>` : ""}</td>`;
+            html += `<td>${escapeHtml(words)}</td>`;
+            html += `<td class="mono">${tx.inputBytes}</td>`;
+            html += `<td class="mono">${escapeHtml(tx.date)}</td>`;
+            html += "</tr>";
+        });
+        html += "</tbody></table>";
+        el("tableWrap").innerHTML = html;
+
+        el("tableWrap").querySelectorAll("tr[data-i]").forEach(tr => {
+            tr.addEventListener("click", function () {
+                showDetail(Number(this.getAttribute("data-i")));
+            });
+        });
+    }
+
+    function showDetail(i) {
+        const tx = normalized[i];
+        if (!tx) return;
+        const d = tx.decoded;
+        let html = "";
+        html += `<p><b>Hash</b><br><span class="mono">${escapeHtml(tx.hash)}</span></p>`;
+        html += `<p><b>From</b><br><span class="mono">${escapeHtml(tx.from || "")}</span></p>`;
+        html += `<p><b>To</b><br><span class="mono">${escapeHtml(tx.to || "")}</span></p>`;
+        html += `<p><b>Block</b> <span class="mono">${tx.blockNumber}</span> &nbsp; <b>Method</b> <span class="mono">${escapeHtml(tx.methodId || "")}</span></p>`;
+
+        if (d.receivers) {
+            html += "<p><b>Gomez receiver words</b></p><table><tbody>";
+            d.receivers.forEach((addr, n) => {
+                html += `<tr><td>${n + 1}</td><td>${escapeHtml(d.words[n] || "")}</td><td class="mono">${escapeHtml(addr)}</td><td class="mono">${escapeHtml(d.amounts[n] || "")}</td></tr>`;
+            });
+            html += "</tbody></table>";
+        }
+
+        if (d.kind === "jethro.mapArtifact") {
+            html += `<p><b>Jethro artifact</b><br><span class="mono">${escapeHtml(d.artifact || "")}</span></p>`;
+            html += `<p><b>Jethro body</b></p><div class="payloadBox mono">${escapeHtml(d.body || "")}</div>`;
+        }
+
+        if (d.mime && d.mime.indexOf("image/") === 0) {
+            const bytes = d.binary || new TextEncoder().encode(d.message || d.text || "");
+            const url = blobUrlFromBytes(bytes, d.mime);
+            html += `<p><b>Image preview</b> <span class="mono">${escapeHtml(d.kind || "")}</span></p><img class="preview" src="${url}">`;
+        }
+
+        const payloadText = d.text || d.message || "";
+        const embeds = extractEmbedsFromText(payloadText);
+        if (embeds.length) {
+            html += `<p><b>Dormant browser embeds</b><br><span class="warn">Not auto-executed. Thumbnails/links are rendered first; live frames require a click.</span></p>`;
+            embeds.forEach((embed, n) => {
+                html += embedDescriptorHtml(embed, n);
+            });
+        }
+
+        if (payloadText) {
+            html += `<p><b>Payload text</b></p><div class="payloadBox mono">${escapeHtml(payloadText)}</div>`;
+        } else {
+            html += `<p><b>Payload</b><br><span class="warn">Binary or undecoded. Saved in raw/normalized JSON metadata, not displayed as text.</span></p>`;
+        }
+
+        html += `<p><button data-save-one="${i}">Save this normalized tx</button> <button data-save-payload="${i}">Save payload as file</button></p>`;
+        el("detail").className = "";
+        el("detail").innerHTML = html;
+        const btn = el("detail").querySelector("button[data-save-one]");
+        if (btn) btn.addEventListener("click", () => saveJson("evm_tx_" + tx.blockNumber + "_" + tx.hash + ".json", stripBinary(tx)));
+        const payloadBtn = el("detail").querySelector("button[data-save-payload]");
+        if (payloadBtn) payloadBtn.addEventListener("click", () => {
+            const ext = payloadText.trim().toLowerCase().startsWith("<") ? ".html" : ".txt";
+            saveTextFile("evm_payload_" + tx.blockNumber + "_" + tx.hash + ext, payloadText, ext === ".html" ? "text/html" : "text/plain");
+        });
+        el("detail").querySelectorAll("button[data-live-iframe]").forEach(button => {
+            button.addEventListener("click", function () {
+                const n = Number(this.getAttribute("data-live-iframe"));
+                const embed = embeds[n];
+                if (!embed || !isSafeEmbedUrl(embed.src)) return;
+                const target = this.closest(".embedCard").querySelector(".liveTarget");
+                target.innerHTML = `<div class="liveFrameWrap"><iframe src="${escapeHtml(embed.src)}" title="${escapeHtml(embed.title)}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer"></iframe></div>`;
+                this.disabled = true;
+                this.textContent = "Live iframe opened";
+            });
+        });
+        el("detail").querySelectorAll("button[data-save-iframe]").forEach(button => {
+            button.addEventListener("click", function () {
+                const n = Number(this.getAttribute("data-save-iframe"));
+                const embed = embeds[n];
+                if (!embed) return;
+                const doc = `<!doctype html>\n<meta charset="utf-8">\n<title>${escapeHtml(embed.title)}</title>\n${embed.raw}`;
+                saveTextFile("evm_iframe_" + tx.blockNumber + "_" + tx.hash + "_" + n + ".html", doc, "text/html");
+            });
+        });
+        el("detail").querySelectorAll("button[data-save-embed-json]").forEach(button => {
+            button.addEventListener("click", function () {
+                const n = Number(this.getAttribute("data-save-embed-json"));
+                const embed = embeds[n];
+                if (!embed) return;
+                saveJson("evm_embed_" + tx.blockNumber + "_" + tx.hash + "_" + n + ".json", embed);
+            });
+        });
+    }
+
+    function stripBinary(obj) {
+        return JSON.parse(JSON.stringify(obj, function (k, v) {
+            if (v instanceof Uint8Array) return { byteLength: v.length, note: "binary omitted from JSON view" };
+            return v;
+        }));
+    }
+
+    function escapeHtml(s) {
+        return String(s || "").replace(/[&<>'"]/g, function (c) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" }[c];
+        });
+    }
+
+    function saveJson(filename, data) {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
+    function setLegacyStatus(message, cls) {
+        const node = el("legacyStatus");
+        if (!node) return;
+        node.className = "status" + (cls ? " " + cls : "");
+        node.textContent = message;
+    }
+
+    async function importLegacyGomezImages(dryRun) {
+        const sourceDir = String(el("legacySourceDir").value || "").trim();
+        const sourceTar = String(el("legacySourceTar").value || "").trim();
+        setLegacyStatus((dryRun ? "Scanning" : "Importing") + " legacy Gomez images…");
+        const payload = await fileProxyPostJson("/import-legacy-evm-images", {
+            chainId: "137",
+            contractName: "gomez",
+            contractAddress: GOMEZ,
+            sourceDir,
+            sourceTar,
+            dryRun: !!dryRun
+        });
+        setLegacyStatus((dryRun ? "Found " : "Imported ") + payload.count + " legacy Gomez image(s); skipped " + payload.skippedCount + ".", payload.count ? "ok" : "warn");
+        el("legacyCatalog").textContent = JSON.stringify({ count: payload.count, skippedCount: payload.skippedCount, imported: payload.imported }, null, 2);
+        return payload;
+    }
+
+    async function loadLegacyGomezCatalog() {
+        const payload = await fileProxyGetJson("/evm-image-catalog", {
+            chainId: "137",
+            contractName: "gomez",
+            contractAddress: GOMEZ
+        });
+        const images = payload.images || [];
+        setLegacyStatus("Gomez image catalog has " + images.length + " image asset(s).", images.length ? "ok" : "warn");
+        el("legacyCatalog").textContent = JSON.stringify(payload, null, 2);
+        return payload;
+    }
+
+    el("legacyScanBtn").addEventListener("click", async function () {
+        try {
+            await importLegacyGomezImages(true);
+        } catch (e) {
+            setLegacyStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("legacyImportBtn").addEventListener("click", async function () {
+        try {
+            await importLegacyGomezImages(false);
+            await loadLegacyGomezCatalog();
+        } catch (e) {
+            setLegacyStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("legacyCatalogBtn").addEventListener("click", async function () {
+        try {
+            await loadLegacyGomezCatalog();
+        } catch (e) {
+            setLegacyStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("fetchBtn").addEventListener("click", async function () {
+        try {
+            await fetchTxList();
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("checkSelectedBtn").addEventListener("click", async function () {
+        try {
+            await checkProfileForNewTransactions();
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("checkGomezBtn").addEventListener("click", async function () {
+        try {
+            await checkProfileForNewTransactions("gomez");
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("checkJethroBtn").addEventListener("click", async function () {
+        try {
+            await checkProfileForNewTransactions("jethro");
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("refreshStatusBtn").addEventListener("click", async function () {
+        try {
+            await refreshProfileStatuses();
+            const key = selectedProfileKey();
+            if (CONTRACT_PROFILES[key]) await loadNextStartBlockForProfile(key);
+            setStatus("Refreshed saved EVM stream status.", "ok");
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("contractProfile").addEventListener("change", async function () {
+        try {
+            const key = this.value;
+            if (CONTRACT_PROFILES[key]) {
+                setContractProfile(key);
+                await loadNextStartBlockForProfile(key);
+                setStatus("Loaded " + CONTRACT_PROFILES[key].label + " profile. Start block is the next unsaved block.", "ok");
+            }
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("apiKey").addEventListener("change", function () {
+        try { localStorage.setItem("chisel.evm2.etherscanApiKey", this.value); } catch (e) {}
+    });
+
+    el("thunderBtn").addEventListener("click", function () {
+        setAddressAndName(EVM_THUNDERWORD, "evm-thunderword");
+    });
+
+    el("gomezBtn").addEventListener("click", async function () {
+        try {
+            setContractProfile("gomez");
+            await loadNextStartBlockForProfile("gomez");
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("jethroBtn").addEventListener("click", async function () {
+        try {
+            setContractProfile("jethro");
+            await loadNextStartBlockForProfile("jethro");
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("parseRawBtn").addEventListener("click", function () {
+        try {
+            parseRawTextarea();
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("saveSplitBtn").addEventListener("click", async function () {
+        try {
+            await saveSplitTransactionsToFileProxy();
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
+    el("saveRawBtn").addEventListener("click", function () {
+        if (!rawResponse) return setStatus("No raw response loaded.", "bad");
+        saveJson("etherscan_v2_raw_" + el("chainId").value + "_" + el("address").value + ".json", rawResponse);
+    });
+
+    el("saveNormBtn").addEventListener("click", function () {
+        if (!normalized.length) return setStatus("No normalized data loaded.", "bad");
+        saveJson("chisel_evm_normalized_" + el("chainId").value + "_" + el("address").value + ".json", normalized.map(stripBinary));
+    });
+
+    el("clearBtn").addEventListener("click", function () {
+        rawResponse = null;
+        normalized = [];
+        el("rawOut").value = "";
+        el("summary").innerHTML = "";
+        el("tableWrap").innerHTML = "";
+        el("detail").className = "status";
+        el("detail").textContent = "Click a row after fetching.";
+        setStatus("Cleared.");
+    });
+
+    (async function initEvm2() {
+        try {
+            const savedKey = localStorage.getItem("chisel.evm2.etherscanApiKey");
+            if (savedKey && !el("apiKey").value) el("apiKey").value = savedKey;
+        } catch (e) {}
+        try {
+            setContractProfile("gomez");
+            await refreshProfileStatuses();
+            await loadNextStartBlockForProfile("gomez");
+            setStatus("Loaded Gomez/Jethro profiles. Start block reflects the newest saved local split archive.", "ok");
+        } catch (e) {
+            renderProfileStatuses();
+            setStatus("Loaded profiles, but fileProxy status is unavailable: " + (e.message || String(e)), "warn");
+        }
+    }());
+
+    window.ChiselEvmGomez = {
+        wordHexToAddress,
+        addressToWord,
+        decodeEvmInput,
+        decodeLegacyGomezImageFromInput,
+        importLegacyGomezImages,
+        loadLegacyGomezCatalog,
+        extractEmbedsFromText,
+        fetchTxList,
+        checkProfileForNewTransactions,
+        refreshProfileStatuses,
+        loadEvmStreamStatusForProfile,
+        parseRawTextarea,
+        splitEtherscanFeed,
+        saveSplitTransactionsToFileProxy,
+        get raw() { return rawResponse; },
+        get normalized() { return normalized; }
+    };
+}());
+</script>
+</body>
+</html>

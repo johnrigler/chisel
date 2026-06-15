@@ -1,0 +1,28 @@
+{
+  "kind": "chisel-evm-media-overrides",
+  "version": 1,
+  "notes": "Copy to /home/john/daisy/2026/chisel-data/overrides/evm-media-overrides.json. Keys may be bare hashes or 0x-prefixed hashes. byWord is a convenient post-production shortcut for Gomez address-word records.",
+  "byHash": {
+    "0xf14ec76fcbeb4851fec106af59bf92cb6d5d0ad3dc48d0bbf0b02d8c86c66934": {
+      "title": "Apocalypse Newscast",
+      "primaryUrl": "https://www.youtube.com/watch?v=7kdzA1sY0mI",
+      "words": ["apocalypse", "newscast", "doom", "youtube"],
+      "mediaCards": [
+        {
+          "kind": "youtube",
+          "title": "Apocalypse Newscast",
+          "url": "https://www.youtube.com/watch?v=7kdzA1sY0mI",
+          "videoId": "7kdzA1sY0mI",
+          "thumbnailUrl": "https://i.ytimg.com/vi/7kdzA1sY0mI/hqdefault.jpg",
+          "text": "BaratsAndBereta"
+        }
+      ]
+    }
+  },
+  "byWord": {
+    "nancy fraser": {
+      "title": "Nancy Fraser",
+      "words": ["Nancy Fraser", "youtube.com"]
+    }
+  }
+}
