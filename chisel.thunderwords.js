@@ -61,6 +61,25 @@
     return tx.txid || tx.hash || tx.id || tx.tx_hash || "";
   }
 
+  function firstValue(values) {
+    for (let i = 0; i < values.length; i += 1) {
+      if (values[i] !== undefined && values[i] !== null && values[i] !== "") return values[i];
+    }
+    return undefined;
+  }
+
+  function normalizeUnixTime(value) {
+    if (value === undefined || value === null || value === "") return 0;
+    let n = Number(value);
+    if (!Number.isFinite(n)) {
+      const parsed = Date.parse(String(value));
+      if (!Number.isNaN(parsed)) n = parsed / 1000;
+    }
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    if (n > 1000000000000) n = n / 1000;
+    return Math.floor(n);
+  }
+
   function normalizeAddressTxs(json) {
     if (Array.isArray(json)) return json;
     if (json && Array.isArray(json.txs)) return json.txs;
@@ -78,12 +97,13 @@
       const txid = normalizeTxid(item);
       if (!TXID_RE.test(txid) || seen.has(txid)) return;
       seen.add(txid);
+      const status = item && item.status && typeof item.status === "object" ? item.status : {};
       out.push({
         txid: txid,
         raw: item,
         confirmed: item && item.status ? Boolean(item.status.confirmed) : undefined,
-        blockHeight: item && item.status ? item.status.block_height : item.block_height,
-        blockTime: item && item.status ? item.status.block_time : item.block_time
+        blockHeight: firstValue([status.block_height, status.blockHeight, item && item.block_height, item && item.blockHeight, item && item.blockheight, item && item.height]),
+        blockTime: normalizeUnixTime(firstValue([status.block_time, status.blockTime, status.time, status.timestamp, item && item.block_time, item && item.blockTime, item && item.blocktime, item && item.time, item && item.timestamp]))
       });
     });
 
@@ -194,6 +214,11 @@
       if (!out.scriptpubkey && out.scriptPubKey.hex) out.scriptpubkey = out.scriptPubKey.hex;
       if (!out.scriptpubkey_type && out.scriptPubKey.type) out.scriptpubkey_type = out.scriptPubKey.type;
     });
+
+    if (!tx.block_time && (tx.blocktime || tx.time || tx.timestamp)) {
+      tx.block_time = normalizeUnixTime(firstValue([tx.blocktime, tx.time, tx.timestamp]));
+    }
+    if (!tx.block_height && !tx.blockHeight && tx.height) tx.block_height = tx.height;
 
     return tx;
   }

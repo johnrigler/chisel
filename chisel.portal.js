@@ -12,18 +12,59 @@
   const CIDV0_RE = /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/;
   const TXID_RE = /^[0-9a-fA-F]{64}$/;
   const DEFAULT_CONFIG_PATH = "chisel.portal.config.json";
+  const PORTAL_ANNOTATIONS_STORAGE_KEY = "chisel.portal.annotations.v1";
   const DEFAULT_PORTAL_CONFIG = {
     fileProxyUrl: DEFAULT_FILE_PROXY_URL,
     autoSaveFetchedTransactions: true,
     localFirstTransactions: true,
-    autoLoadLocalTransactions: true,
-    pollLocalTransactionsMs: 5000,
-    autoSelectNewest: true,
+    autoLoadLocalTransactions: false,
+    pollLocalTransactionsMs: 0,
+    autoSelectNewest: false,
+    autoLoadConversationStreams: true,
+    backgroundHydrateTransactions: true,
     saveDiscoveredLinks: true,
-    rabbitTrailSenders: true,
+    rabbitTrailSenders: false,
+    autoFetchRabbitTrails: false,
     maxRabbitTrails: 24,
-    maxTransactionsPerStream: 80
+    maxTransactionsPerStream: 80,
+    portalPageSize: 20,
+    inlineImageScale: 4,
+    inlineImageThumbScale: 2,
+    inlineImageExpandedScale: 8,
+    includeEvmGomez: false,
+    includeEvmJethro: false,
+    autoLoadEvmCatalog: false,
+    portalFilterDigibyte: true,
+    portalFilterRavencoin: true,
+    portalFilterLitecoin: true,
+    portalFilterBitcoin: true,
+    portalFilterEvmGomez: true,
+    portalFilterEvmJethro: true,
+    portalFilterOther: true
   };
+
+  const EVM_PROFILES = [
+    {
+      id: "gomez",
+      label: "Gomez",
+      coin: "evm",
+      ticker: "EVM",
+      chainId: "137",
+      chainName: "Polygon Mainnet",
+      contractName: "gomez",
+      contractAddress: "0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2"
+    },
+    {
+      id: "jethro",
+      label: "Jethro",
+      coin: "evm",
+      ticker: "EVM",
+      chainId: "137",
+      chainName: "Polygon Mainnet",
+      contractName: "jethro",
+      contractAddress: "0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0"
+    }
+  ];
 
   const fallbackColors = {
     M: [0, 0, 0], W: [0, 0, 255], B: [51, 51, 51], H: [128, 0, 128],
@@ -54,8 +95,19 @@
     portalRows: [],
     portalRowKeys: Object.create(null),
     selectedRowKey: "",
+    portalPage: 1,
+    portalPageSize: 20,
+    expandedRowKeys: Object.create(null),
+    pendingHydration: Object.create(null),
+    portalBatchDepth: 0,
+    portalRenderQueued: false,
+    portalLoadGeneration: 0,
+    conversationAutoLoaded: false,
     config: Object.assign({}, DEFAULT_PORTAL_CONFIG),
-    localPollTimer: null
+    localPollTimer: null,
+    evmCatalogLoaded: Object.create(null),
+    portalSourceFilters: Object.create(null),
+    portalAnnotations: Object.create(null)
   };
 
   function $(selector) { return document.querySelector(selector); }
@@ -74,6 +126,73 @@
 
   function pretty(value) { return JSON.stringify(value, null, 2); }
   function safeArray(value) { return Array.isArray(value) ? value : []; }
+
+  function normalizePortalAnnotation(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      category: printableText(source.category || "").slice(0, 80),
+      note: String(source.note || "").trim().slice(0, 5000),
+      fix: String(source.fix || "").trim().slice(0, 5000),
+      updatedAt: Number(source.updatedAt || 0) || 0
+    };
+  }
+
+  function portalAnnotationHasContent(annotation) {
+    const a = normalizePortalAnnotation(annotation);
+    return !!(a.category || a.note || a.fix);
+  }
+
+  function loadPortalAnnotations() {
+    const next = Object.create(null);
+    try {
+      const raw = window.localStorage ? window.localStorage.getItem(PORTAL_ANNOTATIONS_STORAGE_KEY) : "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      Object.keys(parsed || {}).forEach(function (key) {
+        const annotation = normalizePortalAnnotation(parsed[key]);
+        if (portalAnnotationHasContent(annotation)) next[key] = annotation;
+      });
+    } catch (error) {
+      setStatus("Local annotation store could not be read: " + (error.message || String(error)), true);
+    }
+    state.portalAnnotations = next;
+  }
+
+  function savePortalAnnotations() {
+    try {
+      if (!window.localStorage) throw new Error("localStorage is not available");
+      window.localStorage.setItem(PORTAL_ANNOTATIONS_STORAGE_KEY, JSON.stringify(state.portalAnnotations));
+      return true;
+    } catch (error) {
+      setStatus("Local annotation store could not be saved: " + (error.message || String(error)), true);
+      return false;
+    }
+  }
+
+  function portalAnnotationKey(row) {
+    if (!row) return "";
+    return row.key || rowKey(row);
+  }
+
+  function getPortalAnnotation(row) {
+    const key = portalAnnotationKey(row);
+    return normalizePortalAnnotation(key ? state.portalAnnotations[key] : null);
+  }
+
+  function setPortalAnnotation(row, annotation) {
+    const key = portalAnnotationKey(row);
+    if (!key) return false;
+    const clean = normalizePortalAnnotation(Object.assign({}, annotation, { updatedAt: Date.now() }));
+    if (portalAnnotationHasContent(clean)) state.portalAnnotations[key] = clean;
+    else delete state.portalAnnotations[key];
+    return savePortalAnnotations();
+  }
+
+  function clearPortalAnnotation(row) {
+    const key = portalAnnotationKey(row);
+    if (!key) return false;
+    delete state.portalAnnotations[key];
+    return savePortalAnnotations();
+  }
 
   function shortTxid(txid) {
     const value = String(txid || "");
@@ -290,9 +409,62 @@
     }
   }
 
+  function cleanTxid(value) {
+    const text = String(value || "").trim();
+    const stripped = text.replace(/^0x/i, "").toLowerCase();
+    return /^[0-9a-f]{64}$/.test(stripped) ? stripped : text;
+  }
+
   function extractTxid(value) {
     if (!value || typeof value !== "object") return "";
-    return value.txid || value.hash || value.id || (value.tx && (value.tx.txid || value.tx.hash || value.tx.id)) || "";
+    return cleanTxid(value.txid || value.hash || value.id || (value.tx && (value.tx.txid || value.tx.hash || value.tx.id)) || "");
+  }
+
+  function firstValue(values) {
+    for (let i = 0; i < values.length; i += 1) {
+      if (values[i] !== undefined && values[i] !== null && values[i] !== "") return values[i];
+    }
+    return undefined;
+  }
+
+  function normalizeUnixTime(value) {
+    if (value === undefined || value === null || value === "") return 0;
+    let n = Number(value);
+    if (!Number.isFinite(n)) {
+      const parsed = Date.parse(String(value));
+      if (!Number.isNaN(parsed)) n = parsed / 1000;
+    }
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    if (n > 1000000000000) n = n / 1000;
+    return Math.floor(n);
+  }
+
+  function txObject(value) {
+    return value && value.tx && typeof value.tx === "object" ? value.tx : value;
+  }
+
+  function extractBlockTime(value) {
+    const tx = txObject(value);
+    const status = tx && tx.status && typeof tx.status === "object" ? tx.status : {};
+    const summary = value && value.summary && typeof value.summary === "object" ? value.summary : {};
+    return normalizeUnixTime(firstValue([
+      summary.blockTime, summary.timeStamp, summary.timestamp,
+      status.block_time, status.blockTime, status.time, status.timestamp,
+      tx && tx.block_time, tx && tx.blockTime, tx && tx.blocktime, tx && tx.time, tx && tx.timestamp, tx && tx.received_time,
+      tx && tx.timeStamp
+    ]));
+  }
+
+  function extractBlockHeight(value) {
+    const tx = txObject(value);
+    const status = tx && tx.status && typeof tx.status === "object" ? tx.status : {};
+    const summary = value && value.summary && typeof value.summary === "object" ? value.summary : {};
+    const height = Number(firstValue([
+      summary.blockHeight, summary.blockNumber,
+      status.block_height, status.blockHeight,
+      tx && tx.block_height, tx && tx.blockHeight, tx && tx.blockheight, tx && tx.height, tx && tx.blockNumber
+    ]));
+    return Number.isFinite(height) && height > 0 ? height : undefined;
   }
 
   function extractOutputs(value) {
@@ -524,7 +696,292 @@
     return [];
   }
 
+  function isEvmTransactionJson(value) {
+    if (!value || typeof value !== "object") return false;
+    if (String(value.coin || "").toLowerCase() === "evm") return true;
+    if (value.tx && value.tx.hash && value.tx.input !== undefined) return true;
+    return !!(value.hash && value.input !== undefined && value.timeStamp !== undefined);
+  }
+
+  function evmHashForExplorer(value, txid) {
+    const tx = txObject(value);
+    const hash = (value && value.hash) || (tx && tx.hash) || txid || "";
+    return String(hash || "").match(/^0x/i) ? String(hash) : (hash ? "0x" + hash : "");
+  }
+
+  function evmExplorerUrl(value, txid) {
+    const chainId = String((value && value.chainId) || "137");
+    const hash = evmHashForExplorer(value, txid);
+    if (!hash) return "";
+    if (chainId === "1") return "https://etherscan.io/tx/" + encodeURIComponent(hash);
+    if (chainId === "11155111") return "https://sepolia.etherscan.io/tx/" + encodeURIComponent(hash);
+    if (chainId === "80002") return "https://amoy.polygonscan.com/tx/" + encodeURIComponent(hash);
+    return "https://polygonscan.com/tx/" + encodeURIComponent(hash);
+  }
+
+  function imageAssetFromSummary(summary) {
+    const s = summary || {};
+    if (!s.imageAssetPath) return null;
+    return {
+      assetId: s.imageAssetId || "",
+      path: s.imageAssetPath,
+      mime: s.imageMime || "",
+      bytes: s.imageBytes || 0,
+      width: s.imageWidth || 0,
+      height: s.imageHeight || 0
+    };
+  }
+
+  function collectEvmImageAssets(row) {
+    const out = [];
+    const seen = Object.create(null);
+    function add(asset) {
+      if (!asset || !asset.path) return;
+      const key = String(asset.path);
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(asset);
+    }
+    if (row && row.imageAsset) add(row.imageAsset);
+    if (row && row.summary) add(imageAssetFromSummary(row.summary));
+    const raw = row && row.raw ? row.raw : row;
+    if (raw && raw.summary) add(imageAssetFromSummary(raw.summary));
+    const assets = raw && raw.assets && typeof raw.assets === "object" ? raw.assets : {};
+    safeArray(assets.images).forEach(add);
+    return out;
+  }
+
+  function mediaUrlFromYoutubeId(id, start) {
+    const vid = String(id || "").trim();
+    if (!vid) return "";
+    return "https://www.youtube.com/watch?v=" + encodeURIComponent(vid) + (start ? "&t=" + encodeURIComponent(start) + "s" : "");
+  }
+
+  function youtubeIdFromUrl(url) {
+    const u = decodeHtmlEntities(String(url || "")).trim();
+    const patterns = [
+      /(?:youtube\.com|youtube-nocookie\.com)\/embed\/([A-Za-z0-9_-]{6,})/i,
+      /(?:youtube\.com|youtube-nocookie\.com)\/shorts\/([A-Za-z0-9_-]{6,})/i,
+      /(?:youtube\.com|youtube-nocookie\.com)\/live\/([A-Za-z0-9_-]{6,})/i,
+      /youtu\.be\/([A-Za-z0-9_-]{6,})/i,
+      /[?&]v=([A-Za-z0-9_-]{6,})/i
+    ];
+    for (let i = 0; i < patterns.length; i += 1) {
+      const match = u.match(patterns[i]);
+      if (match) return match[1];
+    }
+    return "";
+  }
+
+  function secondsFromYoutubeTime(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    if (/^\d+$/.test(text)) return text;
+    let total = 0;
+    let matched = false;
+    text.replace(/(\d+)([hms])/gi, function (_all, number, unit) {
+      matched = true;
+      const n = Number(number) || 0;
+      const u = String(unit).toLowerCase();
+      if (u === "h") total += n * 3600;
+      else if (u === "m") total += n * 60;
+      else total += n;
+      return _all;
+    });
+    return matched ? String(total) : "";
+  }
+
+  function youtubeStartFromUrl(url) {
+    const u = decodeHtmlEntities(String(url || ""));
+    const match = u.match(/[?&](?:start|t)=([0-9hms]+)/i);
+    return match ? secondsFromYoutubeTime(match[1]) : "";
+  }
+
+  function normalizeMediaUrl(url) {
+    let u = decodeHtmlEntities(String(url || "")).trim().replace(/[),.;]+$/g, "");
+    if (!u) return "";
+    const vid = youtubeIdFromUrl(u);
+    if (vid) return mediaUrlFromYoutubeId(vid, youtubeStartFromUrl(u));
+    const spotify = u.match(/open\.spotify\.com\/embed\/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/i);
+    if (spotify) return "https://open.spotify.com/" + spotify[1].toLowerCase() + "/" + spotify[2];
+    return u;
+  }
+
+  function mediaKindForUrl(url) {
+    const u = String(url || "").toLowerCase();
+    if (youtubeIdFromUrl(u)) return "youtube";
+    if (u.indexOf("open.spotify.com") >= 0) return "spotify";
+    if (u.indexOf("archive.org") >= 0) return "archive";
+    if (u.indexOf("voca.ro") >= 0 || u.indexOf("vocaroo.com") >= 0) return "audio";
+    if (/\.(mp3|flac|wav|ogg|m4a)(?:[?#].*)?$/i.test(u)) return "audio";
+    return "link";
+  }
+
+  function youtubeThumbnailUrl(videoId) {
+    const vid = String(videoId || "").trim();
+    return vid ? "https://i.ytimg.com/vi/" + encodeURIComponent(vid) + "/hqdefault.jpg" : "";
+  }
+
+  function htmlAttributeUrls(text) {
+    const raw = decodeHtmlEntities(String(text || ""));
+    const out = [];
+    raw.replace(/\b(?:href|src)\s*=\s*(?:["'])?([^"'\s>]+)/gi, function (_all, url) {
+      const clean = String(url || "").replace(/[),.;]+$/g, "");
+      if (/^https?:\/\//i.test(clean)) out.push(clean);
+      return _all;
+    });
+    extractUrlsFromText(raw).forEach(function (url) { out.push(url); });
+    return uniqueStrings(out);
+  }
+
+  function anchorTextsFromHtml(text) {
+    const raw = decodeHtmlEntities(String(text || ""));
+    const out = [];
+    raw.replace(/<a\b[^>]*>(.*?)<\/a>/gis, function (_all, inner) {
+      const clean = cleanHtmlishText(inner);
+      if (clean) out.push(clean);
+      return _all;
+    });
+    return uniqueStrings(out);
+  }
+
+  function isRawHtmlTitle(value) {
+    const text = String(value || "");
+    return /<\s*(a|iframe|div|span|p|img)\b/i.test(text) || /href\s*=|src\s*=/i.test(text);
+  }
+
+  function compactMediaTitle(value) {
+    const clean = cleanHtmlishText(value).replace(/^>+\s*/, "");
+    return clean.length > 140 ? clean.slice(0, 137) + "…" : clean;
+  }
+
+  function buildEvmMediaCardsFromValues(values, words) {
+    const rawText = values.map(function (item) { return String(item || ""); }).filter(Boolean).join("\n");
+    const urls = htmlAttributeUrls(rawText);
+    const anchors = anchorTextsFromHtml(rawText);
+    const wordTitle = uniqueStrings(words || []).slice(0, 3).join(" | ");
+    const cards = [];
+    urls.forEach(function (url, index) {
+      const normalized = normalizeMediaUrl(url);
+      if (!normalized) return;
+      const videoId = youtubeIdFromUrl(url);
+      const title = compactMediaTitle(anchors[index] || wordTitle || rawText || normalized);
+      const card = {
+        kind: mediaKindForUrl(url),
+        url: normalized,
+        sourceUrl: url,
+        title: title || normalized,
+        text: compactMediaTitle(rawText)
+      };
+      if (videoId) {
+        card.videoId = videoId;
+        card.thumbnailUrl = youtubeThumbnailUrl(videoId);
+      }
+      cards.push(card);
+    });
+    return cards;
+  }
+
+  function collectEvmMediaCards(row) {
+    const out = [];
+    const seen = Object.create(null);
+    function add(card) {
+      if (!card || typeof card !== "object") return;
+      const normalizedUrl = normalizeMediaUrl(card.url || card.sourceUrl || "");
+      const url = normalizedUrl || String(card.url || card.sourceUrl || "").trim();
+      const thumb = String(card.thumbnailUrl || "").trim();
+      const title = String(card.title || "").trim();
+      if (!url && !thumb && !title) return;
+      const copy = Object.assign({}, card);
+      if (normalizedUrl) copy.url = normalizedUrl;
+      if (!copy.kind && url) copy.kind = mediaKindForUrl(url);
+      const vid = copy.videoId || youtubeIdFromUrl(copy.sourceUrl || copy.url || url);
+      if (vid) {
+        copy.videoId = vid;
+        copy.thumbnailUrl = copy.thumbnailUrl || youtubeThumbnailUrl(vid);
+      }
+      const key = [String(copy.kind || "link"), String(copy.url || copy.sourceUrl || "").toLowerCase(), String(copy.thumbnailUrl || "").toLowerCase(), String(copy.title || "").toLowerCase()].join("|");
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(copy);
+    }
+    const raw = row && row.raw ? row.raw : row;
+    const summary = row && row.summary ? row.summary : {};
+    const rawSummary = raw && raw.summary && typeof raw.summary === "object" ? raw.summary : {};
+    const decoded = raw && raw.decoded && typeof raw.decoded === "object" ? raw.decoded : {};
+    safeArray(summary.mediaCards).forEach(add);
+    safeArray(rawSummary.mediaCards).forEach(add);
+    safeArray(decoded.mediaCards).forEach(add);
+    const words = safeArray(summary.evmWords).concat(safeArray(rawSummary.evmWords), safeArray(decoded.words), decoded.artifact ? [decoded.artifact] : []);
+    const values = [
+      summary.primaryUrl, summary.title, summary.cleanText,
+      rawSummary.primaryUrl, rawSummary.title, rawSummary.cleanText,
+      decoded.message, decoded.text, decoded.body, decoded.artifact
+    ].concat(safeArray(summary.opReturnUrls), safeArray(rawSummary.opReturnUrls));
+    buildEvmMediaCardsFromValues(values, words).forEach(add);
+    return out;
+  }
+
+  function firstMediaThumbnail(row) {
+    const cards = collectEvmMediaCards(row);
+    for (let i = 0; i < cards.length; i += 1) {
+      if (cards[i].thumbnailUrl) return cards[i].thumbnailUrl;
+    }
+    return "";
+  }
+
+  function extractEvmSummary(value, indexEntry) {
+    if (!isEvmTransactionJson(value)) return null;
+    const tx = txObject(value);
+    const txid = extractTxid(value);
+    const existing = value && value.summary && typeof value.summary === "object" ? value.summary : {};
+    const decoded = value && value.decoded && typeof value.decoded === "object" ? value.decoded : {};
+    const assets = value && value.assets && typeof value.assets === "object" ? value.assets : {};
+    const imageAssets = safeArray(assets.images).filter(function (asset) { return asset && asset.path; });
+    const firstImage = imageAssets[0] || imageAssetFromSummary(existing) || {};
+    const valuesForCards = [
+      existing.primaryUrl, existing.title, existing.cleanText,
+      decoded.message, decoded.text, decoded.body, decoded.artifact
+    ].concat(safeArray(existing.opReturnUrls));
+    const mediaCards = [];
+    safeArray(existing.mediaCards).forEach(function (card) { mediaCards.push(card); });
+    buildEvmMediaCardsFromValues(valuesForCards, safeArray(existing.evmWords).concat(safeArray(decoded.words), decoded.artifact ? [decoded.artifact] : [])).forEach(function (card) { mediaCards.push(card); });
+    const firstMedia = mediaCards[0] || {};
+    const cleanTitle = compactMediaTitle(decoded.message || decoded.text || decoded.body || existing.cleanText || "");
+    const existingTitle = isRawHtmlTitle(existing.title) ? "" : printableText(existing.title || "");
+    const title = existingTitle || firstMedia.title || cleanTitle || (tx && (tx.functionName || tx.methodId)) || (txid ? "EVM transaction " + shortTxid(txid) : "EVM transaction");
+    return {
+      txid: txid,
+      hash: evmHashForExplorer(value, txid),
+      title: title,
+      primaryUrl: existing.primaryUrl || firstMedia.url || "",
+      lines: 0,
+      imageLines: 0,
+      imageChordLines: [],
+      ipfsCount: 0,
+      opReturnText: "",
+      opReturnUrls: existing.opReturnUrls || [],
+      imageCount: Number(existing.imageCount || imageAssets.length || (firstImage.path ? 1 : 0)) || 0,
+      imageAssetPath: existing.imageAssetPath || firstImage.path || "",
+      imageMime: existing.imageMime || firstImage.mime || "",
+      imageBytes: existing.imageBytes || firstImage.bytes || 0,
+      imageWidth: existing.imageWidth || firstImage.width || 0,
+      imageHeight: existing.imageHeight || firstImage.height || 0,
+      imageAssetId: existing.imageAssetId || firstImage.assetId || "",
+      mediaCards: mediaCards,
+      blockHeight: extractBlockHeight(value),
+      blockTime: extractBlockTime(value),
+      methodId: existing.methodId || (tx && tx.methodId) || "",
+      functionName: existing.functionName || (tx && tx.functionName) || "",
+      contractName: existing.contractName || (value.contract && value.contract.name) || "",
+      contractAddress: existing.contractAddress || (value.contract && value.contract.address) || (tx && (tx.to || tx.contractAddress)) || "",
+      explorerUrl: existing.explorerUrl || evmExplorerUrl(value, txid) || (indexEntry && txid && window.CHISEL_THUNDERWORDS ? window.CHISEL_THUNDERWORDS.getTxUrl(indexEntry, txid) : "")
+    };
+  }
+
   function extractSummary(value, indexEntry) {
+    const evmSummary = extractEvmSummary(value, indexEntry);
+    if (evmSummary) return evmSummary;
     const txid = extractTxid(value);
     const lines = extractLines(value);
     const semantics = buildSemantics(value, lines);
@@ -545,8 +1002,8 @@
       ipfsCount: ipfsCount,
       opReturnText: opText,
       opReturnUrls: opUrls,
-      blockHeight: value && value.status ? value.status.block_height : value.block_height,
-      blockTime: value && value.status ? value.status.block_time : value.block_time,
+      blockHeight: extractBlockHeight(value),
+      blockTime: extractBlockTime(value),
       explorerUrl: indexEntry && txid && window.CHISEL_THUNDERWORDS ? window.CHISEL_THUNDERWORDS.getTxUrl(indexEntry, txid) : ""
     };
   }
@@ -798,6 +1255,31 @@
   }
 
   function appendRowThumbnail(cell, row) {
+    const evmImages = collectEvmImageAssets(row);
+    if (evmImages.length) {
+      const img = document.createElement("img");
+      img.className = "portalStreamThumbImage";
+      img.alt = "EVM image thumbnail";
+      img.title = evmImages[0].assetId || "EVM image asset";
+      img.loading = "lazy";
+      img.src = fileProxyRawUrl(evmImages[0].path);
+      cell.appendChild(img);
+      return;
+    }
+
+    const mediaThumb = firstMediaThumbnail(row);
+    if (mediaThumb) {
+      const img = document.createElement("img");
+      img.className = "portalStreamThumbImage portalStreamThumbRemote";
+      img.alt = "media thumbnail";
+      img.title = (row.summary && row.summary.title) || "media thumbnail";
+      img.loading = "lazy";
+      img.referrerPolicy = "no-referrer";
+      img.src = mediaThumb;
+      cell.appendChild(img);
+      return;
+    }
+
     const lines = imageChordLinesFromRow(row);
     if (!lines.length) {
       cell.className += " isEmpty";
@@ -807,7 +1289,8 @@
     const canvas = document.createElement("canvas");
     canvas.className = "portalStreamThumbCanvas";
     canvas.title = "Base57 image carried by this transaction";
-    paintChordCanvas(canvas, lines, { scale: 2, skipPrefix: DEFAULT_SKIP_PREFIX, skipSuffix: DEFAULT_SKIP_SUFFIX });
+    const scale = Math.max(1, Number(configValue("inlineImageThumbScale", 2)) || 2);
+    paintChordCanvas(canvas, lines, { scale: scale, skipPrefix: DEFAULT_SKIP_PREFIX, skipSuffix: DEFAULT_SKIP_SUFFIX });
     cell.appendChild(canvas);
   }
 
@@ -934,6 +1417,19 @@
     return out;
   }
 
+  function uniqueStrings(items) {
+    const seen = new Set();
+    const out = [];
+    safeArray(items).forEach(function (item) {
+      const value = String(item || "").trim();
+      const key = value.toLowerCase();
+      if (!value || seen.has(key)) return;
+      seen.add(key);
+      out.push(value);
+    });
+    return out;
+  }
+
 
 
   function configValue(name, fallback) {
@@ -972,6 +1468,7 @@
     if (proxy && state.config.fileProxyUrl) proxy.value = String(state.config.fileProxyUrl);
     const auto = $("#portalAutoSaveFetchedTxs");
     if (auto) auto.checked = configBool("autoSaveFetchedTransactions", true);
+    applyPortalFilterConfig();
   }
 
   function getFileProxyUrl() {
@@ -1008,6 +1505,11 @@
       throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
     }
     return json;
+  }
+
+  function fileProxyRawUrl(path) {
+    if (!path) return "";
+    return getFileProxyUrl() + "/raw?path=" + encodeURIComponent(String(path));
   }
 
   function getCurrentCoinName(indexEntry) {
@@ -1088,7 +1590,7 @@
 
   function rowTime(row) {
     const summary = row.summary || {};
-    return Number(summary.blockTime || row.blockTime || row.modified || 0) || 0;
+    return Number(summary.blockTime || row.blockTime || extractBlockTime(row.raw) || row.modified || 0) || 0;
   }
 
   function formatRowTime(row) {
@@ -1111,12 +1613,137 @@
     const flags = [];
     if (s.opReturnUrls && s.opReturnUrls.length) flags.push("url");
     if (s.primaryUrl) flags.push("media");
+    if (s.mediaCards && s.mediaCards.length) flags.push("card:" + s.mediaCards.length);
     if (s.ipfsCount) flags.push("ipfs:" + s.ipfsCount);
     if (s.imageLines) flags.push("img:" + s.imageLines);
+    if (s.imageCount) flags.push("asset-img:" + s.imageCount);
+    if (s.evmWords && s.evmWords.length) flags.push("words:" + s.evmWords.length);
     if (s.lines) flags.push("addr:" + s.lines);
     if (row.localPath) flags.push("local");
+    const annotation = getPortalAnnotation(row);
+    if (annotation.category) flags.push("cat:" + annotation.category);
+    if (annotation.note) flags.push("note");
+    if (annotation.fix) flags.push("fix");
     if (!row.raw) flags.push("txid-only");
     return flags.join(" ");
+  }
+
+  const PORTAL_FILTER_IDS = [
+    "digibyte", "ravencoin", "litecoin", "bitcoin", "evmGomez", "evmJethro", "other"
+  ];
+
+  function portalFilterConfigKey(id) {
+    return "portalFilter" + id.charAt(0).toUpperCase() + id.slice(1);
+  }
+
+  function portalFilterCheckbox(id) {
+    return $("#portalFilter" + id.charAt(0).toUpperCase() + id.slice(1));
+  }
+
+  function sourceIdForRow(row) {
+    const s = row && row.summary ? row.summary : {};
+    const entry = row && row.index ? row.index : {};
+    const raw = row && row.raw && typeof row.raw === "object" ? row.raw : {};
+    const rawContract = raw.contract && typeof raw.contract === "object" ? raw.contract : {};
+    const coin = String((entry.coin || entry.ticker || row.coin || s.coin || "")).toLowerCase();
+    const contractName = String(s.contractName || entry.contractName || rawContract.name || "").toLowerCase();
+    const contractAddress = String(s.contractAddress || entry.contractAddress || rawContract.address || "").toLowerCase();
+
+    if (coin === "evm" || contractName || contractAddress.match(/^0x/)) {
+      if (contractName.indexOf("gomez") !== -1 || contractAddress.indexOf("5a2220d56f56") !== -1) return "evmGomez";
+      if (contractName.indexOf("jethro") !== -1 || contractAddress.indexOf("0076416c84c7") !== -1) return "evmJethro";
+      return "other";
+    }
+    if (coin.indexOf("digibyte") !== -1 || coin === "dgb") return "digibyte";
+    if (coin.indexOf("ravencoin") !== -1 || coin === "rvn") return "ravencoin";
+    if (coin.indexOf("litecoin") !== -1 || coin === "ltc" || coin.indexOf("litecointestnet") !== -1) return "litecoin";
+    if (coin.indexOf("bitcoin") !== -1 || coin === "btc" || coin === "tbtc") return "bitcoin";
+    return "other";
+  }
+
+  function getPortalFilterValue(id) {
+    const box = portalFilterCheckbox(id);
+    if (box) return !!box.checked;
+    if (Object.prototype.hasOwnProperty.call(state.portalSourceFilters, id)) return !!state.portalSourceFilters[id];
+    return configBool(portalFilterConfigKey(id), true);
+  }
+
+  function setPortalFilterValue(id, value) {
+    state.portalSourceFilters[id] = !!value;
+    const box = portalFilterCheckbox(id);
+    if (box) box.checked = !!value;
+  }
+
+  function getPortalSearchText() {
+    const box = $("#portalEvmWordSearch");
+    return String(box && box.value ? box.value : "").trim().toLowerCase();
+  }
+
+  function rawDecodedForRow(row) {
+    const raw = row && row.raw && typeof row.raw === "object" ? row.raw : {};
+    return raw.decoded && typeof raw.decoded === "object" ? raw.decoded : {};
+  }
+
+  function summaryWordsForRow(row) {
+    const s = row && row.summary ? row.summary : {};
+    const d = rawDecodedForRow(row);
+    const words = [];
+    function add(value) {
+      if (Array.isArray(value)) value.forEach(add);
+      else if (value !== undefined && value !== null && String(value).trim()) words.push(String(value).trim());
+    }
+    add(s.evmWords);
+    add(s.words);
+    add(d.words);
+    add(d.artifact);
+    add(d.receiversDecoded);
+    return uniqueStrings(words);
+  }
+
+  function searchableTextForRow(row) {
+    const s = row && row.summary ? row.summary : {};
+    const d = rawDecodedForRow(row);
+    const parts = [
+      row && row.txid,
+      s.hash, s.title, s.cleanText, s.primaryUrl, s.functionName, s.methodId, s.contractName, s.contractAddress,
+      d.kind, d.message, d.text, d.artifact, d.body
+    ];
+    safeArray(s.evmReceivers).forEach(function (x) { parts.push(x); });
+    safeArray(d.receivers).forEach(function (x) { parts.push(x); });
+    collectEvmMediaCards(row).forEach(function (card) {
+      parts.push(card.title, card.text, card.url, card.sourceUrl, card.videoId, card.kind);
+    });
+    summaryWordsForRow(row).forEach(function (x) { parts.push(x); });
+    return parts.filter(Boolean).join(" ").toLowerCase();
+  }
+
+  function portalRowMatchesSearch(row) {
+    const needle = getPortalSearchText();
+    if (!needle) return true;
+    const hay = searchableTextForRow(row);
+    return needle.split(/\s+/).filter(Boolean).every(function (part) { return hay.indexOf(part) !== -1; });
+  }
+
+  function portalRowIsVisible(row) {
+    return getPortalFilterValue(sourceIdForRow(row)) && portalRowMatchesSearch(row);
+  }
+
+  function getFilteredPortalRows() {
+    return state.portalRows.filter(portalRowIsVisible);
+  }
+
+  function applyPortalFilterConfig() {
+    PORTAL_FILTER_IDS.forEach(function (id) {
+      setPortalFilterValue(id, configBool(portalFilterConfigKey(id), true));
+    });
+  }
+
+  function focusPortalSources(ids) {
+    const allowed = Object.create(null);
+    ids.forEach(function (id) { allowed[id] = true; });
+    PORTAL_FILTER_IDS.forEach(function (id) { setPortalFilterValue(id, !!allowed[id]); });
+    state.portalPage = 1;
+    requestPortalRender();
   }
 
   function makeBasicSummary(txid, tx, entry) {
@@ -1126,8 +1753,8 @@
       lines: 0,
       imageLines: 0,
       ipfsCount: 0,
-      blockHeight: tx && tx.blockHeight,
-      blockTime: tx && tx.blockTime,
+      blockHeight: extractBlockHeight(tx),
+      blockTime: extractBlockTime(tx),
       explorerUrl: entry && getThunderwords() ? getThunderwords().getTxUrl(entry, txid) : ""
     };
   }
@@ -1142,6 +1769,139 @@
       if (ah !== bh) return bh - ah;
       return String(b.txid || "").localeCompare(String(a.txid || ""));
     });
+  }
+
+  function getPortalPageSize() {
+    const configured = Number(configValue("portalPageSize", state.portalPageSize || 20)) || 20;
+    return Math.max(1, Math.min(200, configured));
+  }
+
+  function getPortalPageCount() {
+    return Math.max(1, Math.ceil(getFilteredPortalRows().length / getPortalPageSize()));
+  }
+
+  function clampPortalPage() {
+    const count = getPortalPageCount();
+    state.portalPage = Math.max(1, Math.min(count, Number(state.portalPage) || 1));
+    return state.portalPage;
+  }
+
+  function getPortalPageRows() {
+    const rows = getFilteredPortalRows();
+    const size = getPortalPageSize();
+    const page = clampPortalPage();
+    return rows.slice((page - 1) * size, page * size);
+  }
+
+  function isVisiblePortalRow(row) {
+    const key = row && row.key;
+    if (!key) return false;
+    return getPortalPageRows().some(function (candidate) { return candidate.key === key; });
+  }
+
+  function beginPortalBatch() {
+    state.portalBatchDepth += 1;
+  }
+
+  function endPortalBatch() {
+    state.portalBatchDepth = Math.max(0, state.portalBatchDepth - 1);
+    if (!state.portalBatchDepth && state.portalRenderQueued) {
+      state.portalRenderQueued = false;
+      renderPortalRows();
+    }
+  }
+
+  function requestPortalRender() {
+    if (state.portalBatchDepth) {
+      state.portalRenderQueued = true;
+      return;
+    }
+    renderPortalRows();
+  }
+
+  function setPortalPage(page) {
+    const previousPage = clampPortalPage();
+    state.portalPage = Math.max(1, Number(page) || 1);
+    const nextPage = clampPortalPage();
+    if (nextPage !== previousPage) {
+      state.expandedRowKeys = Object.create(null);
+      state.selectedRowKey = "";
+    }
+    renderPortalRows();
+    const list = $("#portalTransactionList");
+    if (list) list.scrollTop = 0;
+  }
+
+  function resetPortalRowsForNewLoad() {
+    state.portalLoadGeneration += 1;
+    state.portalRows = [];
+    state.portalRowKeys = Object.create(null);
+    state.expandedRowKeys = Object.create(null);
+    state.pendingHydration = Object.create(null);
+    state.selectedRowKey = "";
+    state.selectedTxid = "";
+    state.conversationRows = [];
+    state.rabbitTrails = [];
+    state.portalPage = 1;
+    requestPortalRender();
+    return state.portalLoadGeneration;
+  }
+
+  function renderPortalPageControls() {
+    const box = $("#portalPageControls");
+    if (!box) return;
+    box.innerHTML = "";
+
+    const filteredRows = getFilteredPortalRows();
+    if (!state.portalRows.length || !filteredRows.length) {
+      box.textContent = "";
+      return;
+    }
+
+    const count = getPortalPageCount();
+    const page = clampPortalPage();
+    const size = getPortalPageSize();
+    const start = ((page - 1) * size) + 1;
+    const end = Math.min(filteredRows.length, page * size);
+
+    const label = document.createElement("span");
+    label.textContent = "page " + page + " of " + count + " | showing " + start + "-" + end + " of " + filteredRows.length + " visible / " + state.portalRows.length + " loaded";
+    box.appendChild(label);
+
+    function addButton(text, targetPage, disabled) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondaryButton portalPageButton";
+      button.textContent = text;
+      button.disabled = !!disabled;
+      button.onclick = function () { setPortalPage(targetPage); };
+      box.appendChild(button);
+    }
+
+    addButton("‹", page - 1, page <= 1);
+
+    const around = [];
+    for (let p = 1; p <= count; p += 1) {
+      if (p === 1 || p === count || Math.abs(p - page) <= 2) around.push(p);
+    }
+    let last = 0;
+    around.forEach(function (p) {
+      if (last && p > last + 1) {
+        const gap = document.createElement("span");
+        gap.textContent = "…";
+        box.appendChild(gap);
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondaryButton portalPageButton" + (p === page ? " active" : "");
+      button.textContent = "page" + p;
+      button.disabled = p === page;
+      button.onclick = function () { setPortalPage(p); };
+      box.appendChild(button);
+      last = p;
+    });
+
+    addButton("›", page + 1, page >= count);
   }
 
   function upsertPortalRow(row, opts) {
@@ -1162,13 +1922,791 @@
     }
 
     sortPortalRows();
-    renderPortalRows();
+    if (!(opts && opts.silent)) requestPortalRender();
 
-    if ((opts && opts.select) || (!state.selectedRowKey && configBool("autoSelectNewest", true))) {
+    if (opts && opts.select) {
       selectPortalRow(key).catch(function (error) { setStatus(error.message || String(error), true); });
     }
 
     return merged;
+  }
+
+  function appendPortalInlineLinks(container, semantics, indexEntry) {
+    const records = semantics && semantics.records ? semantics.records : [];
+    container.innerHTML = "";
+
+    records.filter(function (record) { return record.kind === "op-return-url"; }).forEach(function (record) {
+      const row = document.createElement("div");
+      row.className = "portalLinkRow";
+
+      const label = document.createElement("code");
+      label.textContent = record.url;
+
+      const a = document.createElement("a");
+      a.className = "secondaryButton";
+      a.href = record.url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = record.url.indexOf("spotify.com") >= 0 ? "open Spotify" : (record.url.indexOf("youtu") >= 0 ? "open YouTube" : "open URL");
+
+      row.appendChild(label);
+      row.appendChild(a);
+      container.appendChild(row);
+    });
+
+    records.filter(function (record) { return record.kind === "ipfs-v0-cid"; }).forEach(function (record) {
+      const row = document.createElement("div");
+      row.className = "portalLinkRow";
+
+      const label = document.createElement("code");
+      label.textContent = record.cid + (record.validCidV0Shape ? "" : "  [shape warning]");
+
+      const a = document.createElement("a");
+      a.className = "secondaryButton";
+      a.href = record.ipfsUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "IPFS gateway";
+
+      const local = document.createElement("a");
+      local.className = "secondaryButton";
+      local.href = record.localIpfsUrl;
+      local.target = "_blank";
+      local.rel = "noopener noreferrer";
+      local.textContent = "local gateway";
+
+      row.appendChild(label);
+      row.appendChild(a);
+      row.appendChild(local);
+      container.appendChild(row);
+    });
+
+    records.filter(function (record) {
+      return record.line && looksLikeAddressLine(record.line) && record.kind !== "image-chord-line";
+    }).forEach(function (record) {
+      const row = document.createElement("div");
+      row.className = "portalLinkRow";
+
+      const label = document.createElement("code");
+      const decoded = printableText(record.displayText || record.payloadText || "");
+      const rawDecoded = printableText(record.payloadText || "");
+      label.textContent = record.kind + ": " + record.line + (decoded ? "  =>  " + decoded : "") + (rawDecoded && rawDecoded !== decoded ? "  [raw: " + rawDecoded + "]" : "");
+
+      const targetEntry = inferIndexForAddress(record.line, indexEntry);
+      row.appendChild(label);
+      row.appendChild(makeDrillButton(record.line, targetEntry, decoded || record.line));
+      row.appendChild(makeAddressExplorerLink(record.line, targetEntry));
+      container.appendChild(row);
+    });
+
+    if (!container.childNodes.length) {
+      container.textContent = "No OP_RETURN URL, IPFS pair, or non-image address target found in this transaction.";
+    }
+  }
+
+  function makeInlinePre(title, text, open) {
+    const details = document.createElement("details");
+    details.className = "portalInlineDrawer";
+    if (open) details.open = true;
+
+    const summary = document.createElement("summary");
+    summary.textContent = title;
+    details.appendChild(summary);
+
+    const pre = document.createElement("pre");
+    pre.className = "json";
+    pre.textContent = text || "";
+    details.appendChild(pre);
+    return details;
+  }
+
+  function makeInlineDrawer(title, open) {
+    const details = document.createElement("details");
+    details.className = "portalInlineDrawer portalInlineDataDrawer";
+    if (open) details.open = true;
+
+    const summary = document.createElement("summary");
+    summary.textContent = title;
+    details.appendChild(summary);
+    return details;
+  }
+
+  function decodeHtmlEntities(text) {
+    return String(text || "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '\"')
+      .replace(/&#39;/g, "'");
+  }
+
+  function cleanHtmlishText(text) {
+    let out = String(text || "");
+    out = out.replace(/<\s*br\s*\/?\s*>/gi, " ");
+    out = out.replace(/<\s*\/?\s*[a-z][^>]*>/gi, " ");
+    out = out.replace(/https?:\/\/[^\s'"<>]+/gi, " ");
+    out = decodeHtmlEntities(out);
+    return printableText(out).replace(/\s+/g, " ").trim();
+  }
+
+  function extractUrlsFromText(text) {
+    const out = [];
+    String(text || "").replace(/https?:\/\/[^\s'"<>]+/gi, function (url) {
+      out.push(url.replace(/[),.;]+$/, ""));
+      return url;
+    });
+    return uniqueStrings(out);
+  }
+
+  function makeRecordLink(url, text) {
+    const a = document.createElement("a");
+    a.className = "secondaryButton";
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = text || "open record target";
+    return a;
+  }
+
+  function appendWordChips(container, words) {
+    const chips = document.createElement("div");
+    chips.className = "portalWordChips";
+    uniqueStrings(words).forEach(function (word) {
+      const chip = document.createElement("span");
+      chip.className = "portalWordChip";
+      chip.textContent = word;
+      chips.appendChild(chip);
+    });
+    if (chips.childNodes.length) container.appendChild(chips);
+  }
+
+  function appendPortalEvmMediaCards(container, row) {
+    const cards = collectEvmMediaCards(row);
+    if (!cards.length) return null;
+
+    const block = document.createElement("div");
+    block.className = "portalEvmMediaBlock";
+
+    const title = document.createElement("div");
+    title.className = "stepTitle";
+    title.textContent = "Gomez media card" + (cards.length > 1 ? "s" : "");
+    block.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "portalEvmMediaGrid";
+
+    cards.forEach(function (card) {
+      const url = String(card.url || card.sourceUrl || "").trim();
+      const media = document.createElement(url ? "a" : "div");
+      media.className = "portalEvmMediaCard";
+      if (url) {
+        media.href = url;
+        media.target = "_blank";
+        media.rel = "noopener noreferrer";
+      }
+
+      const thumb = String(card.thumbnailUrl || "").trim();
+      if (thumb) {
+        const img = document.createElement("img");
+        img.className = "portalEvmMediaThumb";
+        img.alt = card.title || card.kind || "media thumbnail";
+        img.loading = "lazy";
+        img.referrerPolicy = "no-referrer";
+        img.src = thumb;
+        media.appendChild(img);
+      } else {
+        const fallback = document.createElement("div");
+        fallback.className = "portalEvmMediaThumb portalEvmMediaThumbFallback";
+        fallback.textContent = String(card.kind || "link").toUpperCase();
+        media.appendChild(fallback);
+      }
+
+      const body = document.createElement("div");
+      body.className = "portalEvmMediaBody";
+
+      const h = document.createElement("strong");
+      h.textContent = card.title || url || "media record";
+      body.appendChild(h);
+
+      if (card.kind || card.videoId) {
+        const meta = document.createElement("span");
+        meta.className = "muted";
+        meta.textContent = [card.kind || "link", card.videoId ? "YouTube " + card.videoId : ""].filter(Boolean).join(" | ");
+        body.appendChild(meta);
+      }
+
+      const text = cleanHtmlishText(card.text || "");
+      if (text) {
+        const p = document.createElement("p");
+        p.textContent = text.length > 280 ? text.slice(0, 277) + "…" : text;
+        body.appendChild(p);
+      }
+
+      media.appendChild(body);
+      grid.appendChild(media);
+    });
+
+    block.appendChild(grid);
+    container.appendChild(block);
+    return block;
+  }
+
+  function appendPortalEvmDecodedBlock(container, row) {
+    const sourceId = sourceIdForRow(row);
+    if (sourceId.indexOf("evm") !== 0) return null;
+
+    const summary = row.summary || {};
+    const decoded = rawDecodedForRow(row);
+    const words = summaryWordsForRow(row);
+    const receivers = safeArray(summary.evmReceivers && summary.evmReceivers.length ? summary.evmReceivers : decoded.receivers);
+    const amounts = safeArray(summary.evmAmounts && summary.evmAmounts.length ? summary.evmAmounts : decoded.amounts);
+    const kind = summary.recordKind || decoded.kind || summary.functionName || summary.methodId || "EVM record";
+    const rawText = summary.cleanText || decoded.message || decoded.text || decoded.body || summary.title || "";
+    const cleanText = cleanHtmlishText(rawText);
+    const urls = uniqueStrings([summary.primaryUrl].concat(safeArray(summary.opReturnUrls), extractUrlsFromText(rawText), extractUrlsFromText(summary.title)));
+    const mediaCards = collectEvmMediaCards(row);
+
+    if (!words.length && !receivers.length && !cleanText && !urls.length && !kind) return null;
+
+    const block = document.createElement("div");
+    block.className = "portalEvmDecodedBlock";
+
+    const title = document.createElement("div");
+    title.className = "stepTitle";
+    title.textContent = sourceId === "evmGomez" ? "Gomez decoded record" : (sourceId === "evmJethro" ? "Jethro decoded artifact" : "EVM decoded record");
+    block.appendChild(title);
+
+    const meta = document.createElement("p");
+    meta.className = "muted";
+    meta.textContent = [
+      kind,
+      summary.contractName ? "contract " + summary.contractName : "",
+      summary.methodId || ""
+    ].filter(Boolean).join(" | ");
+    block.appendChild(meta);
+
+    if (cleanText) {
+      const message = document.createElement("p");
+      const compactText = mediaCards.length && cleanText.length > 520 ? cleanText.slice(0, 517) + "…" : cleanText;
+      message.textContent = compactText;
+      block.appendChild(message);
+    }
+
+    if (urls.length) {
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      urls.forEach(function (url, index) {
+        actions.appendChild(makeRecordLink(url, index ? "open link " + (index + 1) : "open record target"));
+      });
+      block.appendChild(actions);
+    }
+
+    if (words.length) {
+      const wordsTitle = document.createElement("div");
+      wordsTitle.className = "stepTitle";
+      wordsTitle.textContent = sourceId === "evmGomez" ? "receiver address words" : "artifact words";
+      block.appendChild(wordsTitle);
+      appendWordChips(block, words);
+    }
+
+    if (receivers.length) {
+      const table = document.createElement("table");
+      table.className = "portalMiniTable";
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      ["#", "decoded word", "EVM address", "amount"].forEach(function (label) {
+        const th = document.createElement("th");
+        th.textContent = label;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      const tbody = document.createElement("tbody");
+      receivers.forEach(function (address, index) {
+        const tr = document.createElement("tr");
+        [String(index + 1), words[index] || "", address, amounts[index] || ""].forEach(function (value) {
+          const td = document.createElement("td");
+          td.textContent = value;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      block.appendChild(table);
+    }
+
+    container.appendChild(block);
+    return block;
+  }
+
+  function appendPortalEvmImages(container, row) {
+    const images = collectEvmImageAssets(row);
+    if (!images.length) return null;
+
+    const block = document.createElement("div");
+    block.className = "portalInlineImageBlock portalInlineEvmImageBlock";
+
+    const title = document.createElement("div");
+    title.className = "stepTitle";
+    title.textContent = "EVM image asset";
+    block.appendChild(title);
+
+    images.forEach(function (asset) {
+      const frame = document.createElement("div");
+      frame.className = "portalInlineEvmImageFrame";
+
+      const img = document.createElement("img");
+      img.className = "portalInlineEvmImage";
+      img.alt = asset.assetId || "EVM image asset";
+      img.title = asset.assetId || asset.path || "EVM image asset";
+      img.loading = "lazy";
+      img.src = fileProxyRawUrl(asset.path);
+      frame.appendChild(img);
+
+      const caption = document.createElement("p");
+      caption.className = "muted";
+      caption.textContent = [
+        asset.assetId || "image",
+        asset.mime || "",
+        asset.width && asset.height ? asset.width + " × " + asset.height : "",
+        asset.bytes ? asset.bytes + " bytes" : ""
+      ].filter(Boolean).join(" | ");
+      frame.appendChild(caption);
+
+      block.appendChild(frame);
+    });
+
+    container.appendChild(block);
+    return block;
+  }
+
+  function appendPortalInlineImage(container, imageLines) {
+    const lines = getImageLines(imageLines || []);
+    if (!lines.length) return null;
+
+    const block = document.createElement("div");
+    block.className = "portalInlineImageBlock";
+
+    const title = document.createElement("div");
+    title.className = "stepTitle";
+    title.textContent = "Base57 image";
+    block.appendChild(title);
+
+    const canvasWrap = document.createElement("div");
+    canvasWrap.className = "portalInlineImageCanvasWrap";
+
+    const canvas = document.createElement("canvas");
+    canvas.className = "portalInlineImageCanvas";
+    canvas.title = "Base57 image carried by this transaction";
+
+    const configuredScale = configValue("inlineImageExpandedScale", configValue("inlineImageScale", 8));
+    const scale = Math.max(1, Number(configuredScale) || 8);
+    const stats = paintChordCanvas(canvas, lines, { scale: scale, skipPrefix: DEFAULT_SKIP_PREFIX, skipSuffix: DEFAULT_SKIP_SUFFIX });
+
+    canvasWrap.appendChild(canvas);
+    block.appendChild(canvasWrap);
+
+    const caption = document.createElement("p");
+    caption.className = "muted";
+    caption.textContent = stats.rows + " rows × " + stats.cols + " cols | scale " + stats.scale + " | " + lines.length + " Base57 line(s)";
+    block.appendChild(caption);
+
+    container.appendChild(block);
+    return block;
+  }
+
+  function appendPortalAnnotationEditor(container, row) {
+    const annotation = getPortalAnnotation(row);
+
+    const block = document.createElement("div");
+    block.className = "portalAnnotationBlock" + (portalAnnotationHasContent(annotation) ? " hasAnnotation" : "");
+
+    const title = document.createElement("div");
+    title.className = "stepTitle";
+    title.textContent = "Local notes, categories, and fixes";
+    block.appendChild(title);
+
+    const explainer = document.createElement("p");
+    explainer.className = "muted";
+    explainer.textContent = "Stored only in this browser under localStorage; nothing is written to a ledger.";
+    block.appendChild(explainer);
+
+    const grid = document.createElement("div");
+    grid.className = "portalAnnotationGrid";
+
+    const categoryLabel = document.createElement("label");
+    categoryLabel.textContent = "Category";
+    const category = document.createElement("input");
+    category.type = "text";
+    category.spellcheck = false;
+    category.maxLength = 80;
+    category.placeholder = "dogecoin, bsv, old tool, needs repair";
+    category.value = annotation.category || "";
+    categoryLabel.appendChild(category);
+    grid.appendChild(categoryLabel);
+
+    const noteLabel = document.createElement("label");
+    noteLabel.textContent = "Note";
+    const note = document.createElement("textarea");
+    note.rows = 4;
+    note.placeholder = "What this record means, why it matters, or how it connects to older work.";
+    note.value = annotation.note || "";
+    noteLabel.appendChild(note);
+    grid.appendChild(noteLabel);
+
+    const fixLabel = document.createElement("label");
+    fixLabel.textContent = "Fix / cleanup";
+    const fix = document.createElement("textarea");
+    fix.rows = 3;
+    fix.placeholder = "Broken URL, title correction, missing category, bad decode, follow-up target.";
+    fix.value = annotation.fix || "";
+    fixLabel.appendChild(fix);
+    grid.appendChild(fixLabel);
+
+    block.appendChild(grid);
+
+    const actions = document.createElement("div");
+    actions.className = "actions portalAnnotationActions";
+
+    const save = document.createElement("button");
+    save.type = "button";
+    save.className = "secondaryButton";
+    save.textContent = "save local note";
+    save.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (setPortalAnnotation(row, { category: category.value, note: note.value, fix: fix.value })) {
+        setStatus("Saved local annotation for " + shortTxid(row.txid) + ".", false);
+        requestPortalRender();
+      }
+    };
+    actions.appendChild(save);
+
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "secondaryButton";
+    clear.textContent = "clear local note";
+    clear.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      category.value = "";
+      note.value = "";
+      fix.value = "";
+      if (clearPortalAnnotation(row)) {
+        setStatus("Cleared local annotation for " + shortTxid(row.txid) + ".", false);
+        requestPortalRender();
+      }
+    };
+    actions.appendChild(clear);
+
+    if (annotation.updatedAt) {
+      const stamp = document.createElement("span");
+      stamp.className = "muted";
+      const d = new Date(annotation.updatedAt);
+      stamp.textContent = Number.isNaN(d.getTime()) ? "" : "last edited " + d.toISOString().slice(0, 16).replace("T", " ");
+      actions.appendChild(stamp);
+    }
+
+    block.appendChild(actions);
+    container.appendChild(block);
+    return block;
+  }
+
+  function appendPortalInlineDetails(container, row) {
+    container.innerHTML = "";
+
+    const summary = row.summary || makeBasicSummary(row.txid, row.raw || row, row.index);
+    const header = document.createElement("div");
+    header.className = "portalInlineHeader";
+
+    const title = document.createElement("h4");
+    title.textContent = summary.title || ("transaction " + shortTxid(row.txid));
+
+    const tx = document.createElement("code");
+    tx.textContent = row.txid || "";
+
+    const meta = document.createElement("p");
+    meta.className = "muted";
+    meta.textContent = [
+      coinLabel(row.index || row.coin),
+      formatRowTime(row),
+      summary.blockHeight ? "block " + summary.blockHeight : "unknown block",
+      summary.lines ? summary.lines + " address lines" : (sourceIdForRow(row).indexOf("evm") === 0 ? "EVM account/call record, no UTXO set" : "no address lines"),
+      summary.imageLines ? summary.imageLines + " image lines" : "",
+      summary.ipfsCount ? summary.ipfsCount + " IPFS pair(s)" : "",
+      row.localPath ? "local " + row.localPath : ""
+    ].filter(Boolean).join(" | ");
+
+    const actions = document.createElement("div");
+    actions.className = "actions portalInlineActions";
+
+    if (summary.primaryUrl && isLikelyUrl(summary.primaryUrl)) {
+      const primary = document.createElement("a");
+      primary.className = "secondaryButton";
+      primary.href = summary.primaryUrl;
+      primary.target = "_blank";
+      primary.rel = "noopener noreferrer";
+      primary.textContent = "open record target";
+      actions.appendChild(primary);
+    }
+
+    const verifyUrl = rowExplorerUrl(row);
+    if (verifyUrl) {
+      const verify = document.createElement("a");
+      verify.className = "secondaryButton";
+      verify.href = verifyUrl;
+      verify.target = "_blank";
+      verify.rel = "noopener noreferrer";
+      verify.textContent = "verify tx";
+      actions.appendChild(verify);
+    }
+
+    if (row.raw) {
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "secondaryButton";
+      save.textContent = "save JSON";
+      save.onclick = function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        saveTransactionToFileProxy(row.raw, row.txid, row.index || getCoinIndexByCoinName(row.coin)).then(function (saved) {
+          row.localPath = saved.path || row.localPath;
+          setStatus("Saved local jq-format transaction JSON: " + (saved.path || saved.filename || row.txid) + ".", false);
+          requestPortalRender();
+        }).catch(function (error) { setStatus(error.message || String(error), true); });
+      };
+      actions.appendChild(save);
+    }
+
+    header.appendChild(title);
+    header.appendChild(tx);
+    header.appendChild(meta);
+    header.appendChild(actions);
+    container.appendChild(header);
+
+    appendPortalAnnotationEditor(container, row);
+
+    const evmImages = collectEvmImageAssets(row);
+    const hasEvmImages = evmImages.length > 0;
+
+    if (hasEvmImages) appendPortalEvmImages(container, row);
+
+    appendPortalEvmMediaCards(container, row);
+    appendPortalEvmDecodedBlock(container, row);
+
+    if (row.loadError) {
+      const error = document.createElement("p");
+      error.className = "error";
+      error.textContent = "Could not resolve transaction JSON: " + row.loadError;
+      container.appendChild(error);
+    }
+
+    if (state.pendingHydration[row.key]) {
+      const loading = document.createElement("p");
+      loading.className = "muted";
+      loading.textContent = "Resolving transaction JSON and decoded records…";
+      container.appendChild(loading);
+      return;
+    }
+
+    if (!row.raw) {
+      const pending = document.createElement("p");
+      pending.className = "muted";
+      pending.textContent = "Transaction JSON has not been hydrated yet. Use + to resolve it inline; older rows are hydrated in the background.";
+      container.appendChild(pending);
+      return;
+    }
+
+    const lines = extractLines(row.raw);
+    const imageLines = getImageLines(lines);
+    const hasInlineImage = imageLines.length > 0;
+    const hasPrimaryImage = hasInlineImage || hasEvmImages;
+    const semantics = buildSemantics(row.raw, lines);
+    const decodedLines = lines.map(function (line) {
+      return { raw: line, decoded: normalizeMacDougallText(line), payload: getMacPayload(line) };
+    });
+
+    if (!row.discoveredLinksSaved) {
+      row.discoveredLinksSaved = true;
+      saveDiscoveredLinksMaybe(row.txid, semantics, row.index || getCoinIndexByCoinName(row.coin)).catch(function () {
+        row.discoveredLinksSaved = false;
+      });
+    }
+
+    if (hasInlineImage) appendPortalInlineImage(container, imageLines);
+
+    const dataContainer = hasPrimaryImage ? makeInlineDrawer("show other record data", false) : container;
+
+    const linksTitle = document.createElement("div");
+    linksTitle.className = "stepTitle";
+    linksTitle.textContent = "Decoded links and drill-down targets";
+    dataContainer.appendChild(linksTitle);
+
+    const links = document.createElement("div");
+    links.className = "portalInlineLinks";
+    appendPortalInlineLinks(links, semantics, row.index || getCoinIndexByCoinName(row.coin));
+    dataContainer.appendChild(links);
+
+    dataContainer.appendChild(makeInlinePre("Decoded lines", pretty(decodedLines), false));
+    dataContainer.appendChild(makeInlinePre("Chisel semantic records", semantics.records.length ? pretty(semantics.records) : "No Chisel semantic records detected.", false));
+    dataContainer.appendChild(makeInlinePre("Raw transaction JSON", pretty(row.raw), false));
+
+    if (hasPrimaryImage) container.appendChild(dataContainer);
+  }
+
+  async function hydratePortalRow(key, opts) {
+    const row = state.portalRowKeys[key];
+    if (!row) return null;
+    if (row.raw || state.pendingHydration[key]) return row;
+
+    state.pendingHydration[key] = true;
+    row.loadError = "";
+    if (!(opts && opts.silent) && (state.expandedRowKeys[key] || isVisiblePortalRow(row))) requestPortalRender();
+
+    try {
+      const loaded = await loadTransactionLocalFirst(row.index || getCoinIndexByCoinName(row.coin), row.txid, row.coin);
+      row.raw = loaded.json;
+      row.localPath = loaded.path || row.localPath;
+      row.summary = extractSummary(loaded.json, row.index || getCoinIndexByCoinName(row.coin));
+      row.blockTime = row.blockTime || row.summary.blockTime;
+      upsertPortalRow(row, { silent: true });
+      return row;
+    } catch (error) {
+      row.loadError = error.message || String(error);
+      return row;
+    } finally {
+      delete state.pendingHydration[key];
+      if (!(opts && opts.silent) || state.expandedRowKeys[key] || isVisiblePortalRow(row)) requestPortalRender();
+    }
+  }
+
+  async function togglePortalRowDetails(key, forceOpen) {
+    const row = state.portalRowKeys[key];
+    if (!row) return null;
+
+    const shouldOpen = forceOpen === true ? true : !state.expandedRowKeys[key];
+    if (!shouldOpen) {
+      delete state.expandedRowKeys[key];
+      if (state.selectedRowKey === key) state.selectedRowKey = "";
+      requestPortalRender();
+      return row;
+    }
+
+    state.expandedRowKeys[key] = true;
+    state.selectedRowKey = key;
+    state.selectedTxid = row.txid;
+    if ($("#portalTxid")) $("#portalTxid").value = row.txid;
+    if ($("#portalLocalCoin") && row.coin) $("#portalLocalCoin").value = row.coin;
+    requestPortalRender();
+    await hydratePortalRow(key);
+    return row;
+  }
+
+  function renderPortalStreamItem(list, row) {
+    const primaryUrl = row.summary && row.summary.primaryUrl && isLikelyUrl(row.summary.primaryUrl) ? row.summary.primaryUrl : "";
+    const item = document.createElement("div");
+    item.className = "portalStreamItem" + (state.expandedRowKeys[row.key] ? " isExpanded" : "");
+    item.dataset.key = row.key;
+
+    const line = document.createElement("div");
+    line.className = "portalStreamRow" + (row.key === state.selectedRowKey ? " isSelected" : "") + (primaryUrl ? " hasDirectTarget" : "");
+    line.dataset.key = row.key;
+    line.dataset.txid = row.txid;
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "secondaryButton portalExpandButton";
+    toggle.textContent = state.expandedRowKeys[row.key] ? "−" : "+";
+    toggle.title = state.expandedRowKeys[row.key] ? "collapse inline record" : "expand inline record";
+    toggle.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      togglePortalRowDetails(row.key).catch(function (error) { setStatus(error.message || String(error), true); });
+    };
+
+    const thumb = document.createElement("span");
+    thumb.className = "portalStreamThumb";
+    appendRowThumbnail(thumb, row);
+
+    const time = document.createElement("span");
+    time.className = "portalStreamTime";
+    time.textContent = formatRowTime(row);
+
+    const coin = document.createElement("span");
+    coin.className = "portalStreamCoin";
+    coin.textContent = coinLabel(row.index || row.coin).toUpperCase();
+
+    const titleWrap = document.createElement("span");
+    titleWrap.className = "portalStreamTitle";
+    const titleText = (row.summary && row.summary.title) || ("transaction " + shortTxid(row.txid));
+    titleWrap.title = primaryUrl || titleText;
+    if (primaryUrl) {
+      const titleLink = document.createElement("a");
+      titleLink.href = primaryUrl;
+      titleLink.target = "_blank";
+      titleLink.rel = "noopener noreferrer";
+      titleLink.textContent = titleText;
+      titleLink.className = "isDirectLink";
+      titleWrap.appendChild(titleLink);
+    } else {
+      titleWrap.textContent = titleText;
+    }
+
+    const meta = document.createElement("span");
+    meta.className = "portalStreamMeta";
+    meta.textContent = [
+      row.streamLabel || row.localPath || "local/live",
+      row.summary && row.summary.blockHeight ? "block " + row.summary.blockHeight : "unknown block"
+    ].filter(Boolean).join(" | ");
+    meta.title = meta.textContent;
+
+    const flags = document.createElement("span");
+    flags.className = "portalStreamFlags";
+    flags.textContent = rowFlags(row) || "plain";
+    flags.title = flags.textContent;
+
+    const verify = document.createElement("span");
+    const details = document.createElement("a");
+    details.className = "portalStreamVerify";
+    details.href = "#";
+    details.textContent = state.expandedRowKeys[row.key] ? "collapse" : "details";
+    details.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      togglePortalRowDetails(row.key).catch(function (error) { setStatus(error.message || String(error), true); });
+    };
+    verify.appendChild(details);
+
+    const url = rowExplorerUrl(row);
+    if (url) {
+      const a = document.createElement("a");
+      a.className = "portalStreamVerify";
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "verify";
+      a.onclick = function (event) { event.stopPropagation(); };
+      verify.appendChild(a);
+    }
+
+    line.appendChild(toggle);
+    line.appendChild(thumb);
+    line.appendChild(time);
+    line.appendChild(coin);
+    line.appendChild(titleWrap);
+    line.appendChild(meta);
+    line.appendChild(flags);
+    line.appendChild(verify);
+    item.appendChild(line);
+
+    if (state.expandedRowKeys[row.key]) {
+      const detail = document.createElement("div");
+      detail.className = "portalInlineDetails";
+      appendPortalInlineDetails(detail, row);
+      item.appendChild(detail);
+    }
+
+    list.appendChild(item);
   }
 
   function renderPortalRows() {
@@ -1181,100 +2719,32 @@
       list.classList.add("muted");
       list.textContent = "No transactions loaded. Start fileProxy or load a Thunderword index.";
       setText("#portalExplorerCount", "No transactions loaded.");
+      renderPortalPageControls();
       return;
     }
 
-    setText("#portalExplorerCount", state.portalRows.length + " transaction(s), newest first. Use mouse or ↑/↓ to change the rendered transaction.");
+    const filteredRows = getFilteredPortalRows();
+    if (!filteredRows.length) {
+      list.classList.add("muted");
+      list.textContent = "No visible transactions match the current Portal filters.";
+      setText("#portalExplorerCount", "0 visible transaction(s) from " + state.portalRows.length + " loaded. Adjust the source toggles or search term.");
+      renderPortalPageControls();
+      return;
+    }
 
-    state.portalRows.forEach(function (row) {
-      const primaryUrl = row.summary && row.summary.primaryUrl && isLikelyUrl(row.summary.primaryUrl) ? row.summary.primaryUrl : "";
-      const button = document.createElement("div");
-      button.setAttribute("role", "button");
-      button.tabIndex = 0;
-      button.className = "portalStreamRow" + (row.key === state.selectedRowKey ? " isSelected" : "") + (primaryUrl ? " hasDirectTarget" : "");
-      button.dataset.key = row.key;
-      button.dataset.txid = row.txid;
-      button.onclick = function () {
-        if (primaryUrl) {
-          window.open(primaryUrl, "_blank", "noopener,noreferrer");
-          return;
-        }
-        selectPortalRow(row.key).catch(function (error) { setStatus(error.message || String(error), true); });
-      };
-      button.onkeydown = function (event) {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          button.click();
-        }
-      };
+    const pageRows = getPortalPageRows();
+    const size = getPortalPageSize();
+    const page = clampPortalPage();
+    const start = ((page - 1) * size) + 1;
+    const end = Math.min(filteredRows.length, page * size);
+    setText("#portalExplorerCount", filteredRows.length + " visible / " + state.portalRows.length + " loaded transaction(s), newest first. Showing " + start + "-" + end + ". Older rows stay paged and hydrate in the background.");
+    renderPortalPageControls();
 
-      const thumb = document.createElement("span");
-      thumb.className = "portalStreamThumb";
-      appendRowThumbnail(thumb, row);
+    pageRows.forEach(function (row) { renderPortalStreamItem(list, row); });
+  }
 
-      const time = document.createElement("span");
-      time.className = "portalStreamTime";
-      time.textContent = formatRowTime(row);
-
-      const coin = document.createElement("span");
-      coin.className = "portalStreamCoin";
-      coin.textContent = coinLabel(row.index || row.coin).toUpperCase();
-
-      const title = document.createElement("span");
-      title.className = "portalStreamTitle";
-      title.textContent = (row.summary && row.summary.title) || ("transaction " + shortTxid(row.txid));
-      title.title = primaryUrl || title.textContent;
-      if (primaryUrl) title.className += " isDirectLink";
-
-      const meta = document.createElement("span");
-      meta.className = "portalStreamMeta";
-      meta.textContent = [
-        row.streamLabel || row.localPath || "local/live",
-        row.summary && row.summary.blockHeight ? "block " + row.summary.blockHeight : "unknown block"
-      ].filter(Boolean).join(" | ");
-      meta.title = meta.textContent;
-
-      const flags = document.createElement("span");
-      flags.className = "portalStreamFlags";
-      flags.textContent = rowFlags(row) || "plain";
-      flags.title = flags.textContent;
-
-      const verify = document.createElement("span");
-      const inspect = document.createElement("a");
-      inspect.className = "portalStreamVerify";
-      inspect.href = "#";
-      inspect.textContent = primaryUrl ? "inspect" : "select";
-      inspect.onclick = function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        selectPortalRow(row.key).catch(function (error) { setStatus(error.message || String(error), true); });
-      };
-      verify.appendChild(inspect);
-      const url = rowExplorerUrl(row);
-      if (url) {
-        const a = document.createElement("a");
-        a.className = "portalStreamVerify";
-        a.href = url;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.textContent = "verify";
-        a.onclick = function (event) { event.stopPropagation(); };
-        verify.appendChild(a);
-      } else if (!primaryUrl) {
-        const tx = document.createElement("span");
-        tx.textContent = shortTxid(row.txid);
-        verify.appendChild(tx);
-      }
-
-      button.appendChild(thumb);
-      button.appendChild(time);
-      button.appendChild(coin);
-      button.appendChild(title);
-      button.appendChild(meta);
-      button.appendChild(flags);
-      button.appendChild(verify);
-      list.appendChild(button);
-    });
+  async function selectPortalRow(key) {
+    return togglePortalRowDetails(key, true);
   }
 
   async function loadTransactionLocalFirst(indexEntry, txid, coin) {
@@ -1295,34 +2765,14 @@
     return { json: loaded.json, source: "live", url: loaded.url, coin: indexEntry.coin || indexEntry.ticker || "" };
   }
 
-  async function selectPortalRow(key) {
-    const row = state.portalRowKeys[key];
-    if (!row) return;
-    state.selectedRowKey = key;
-    state.selectedTxid = row.txid;
-    renderPortalRows();
-    if ($("#portalTxid")) $("#portalTxid").value = row.txid;
-    if ($("#portalLocalCoin") && row.coin) $("#portalLocalCoin").value = row.coin;
-
-    let raw = row.raw;
-    if (!raw) {
-      const loaded = await loadTransactionLocalFirst(row.index, row.txid, row.coin);
-      raw = loaded.json;
-      row.raw = raw;
-      row.localPath = loaded.path || row.localPath;
-      row.summary = extractSummary(raw, row.index || getCoinIndexByCoinName(row.coin));
-      upsertPortalRow(row);
-    }
-
-    await render(raw, (coinLabel(row.index || row.coin) + " tx " + row.txid), row.index || getCoinIndexByCoinName(row.coin));
-  }
-
   function selectRelativePortalRow(delta) {
-    if (!state.portalRows.length) return;
-    let index = state.portalRows.findIndex(function (row) { return row.key === state.selectedRowKey; });
-    if (index < 0) index = 0;
-    index = Math.max(0, Math.min(state.portalRows.length - 1, index + delta));
-    selectPortalRow(state.portalRows[index].key).catch(function (error) { setStatus(error.message || String(error), true); });
+    const rows = getFilteredPortalRows();
+    if (!rows.length) return;
+    let index = rows.findIndex(function (row) { return row.key === state.selectedRowKey; });
+    if (index < 0) index = (clampPortalPage() - 1) * getPortalPageSize();
+    index = Math.max(0, Math.min(rows.length - 1, index + delta));
+    state.portalPage = Math.floor(index / getPortalPageSize()) + 1;
+    selectPortalRow(rows[index].key).catch(function (error) { setStatus(error.message || String(error), true); });
   }
 
   async function listLocalTransactions() {
@@ -1347,35 +2797,153 @@
     }
 
     state.localTransactions = rows;
+    resetPortalRowsForNewLoad();
 
-    for (let i = 0; i < rows.length; i += 1) {
-      const row = rows[i];
-      const entry = getCoinIndexByCoinName(row.coin || coin);
-      let raw = null;
-      let summary = row.summary || makeBasicSummary(row.txid, row, entry);
+    beginPortalBatch();
+    try {
+      for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i];
+        const entry = getCoinIndexByCoinName(row.coin || coin);
+        let raw = null;
+        let summary = row.summary || makeBasicSummary(row.txid, row, entry);
 
-      if (!usedIndex) {
-        try {
-          const loaded = await loadLocalTransaction(row.txid, row.coin || coin);
-          raw = loaded.raw;
-          summary = extractSummary(raw, entry);
-        } catch (error) {}
+        if (!usedIndex && i < getPortalPageSize()) {
+          try {
+            const loaded = await loadLocalTransaction(row.txid, row.coin || coin);
+            raw = loaded.raw;
+            summary = extractSummary(raw, entry);
+          } catch (error) {}
+        }
+
+        upsertPortalRow({
+          index: entry,
+          coin: row.coin || coin || (entry && entry.coin) || "unknown",
+          txid: row.txid,
+          raw: raw,
+          summary: summary,
+          streamLabel: usedIndex ? "local index" : "local filesystem",
+          localPath: row.path,
+          modified: row.modified
+        }, { silent: true });
       }
+    } finally {
+      endPortalBatch();
+    }
+    requestPortalRender();
 
-      upsertPortalRow({
-        index: entry,
-        coin: row.coin || coin || (entry && entry.coin) || "unknown",
-        txid: row.txid,
-        raw: raw,
-        summary: summary,
-        streamLabel: usedIndex ? "local index" : "local filesystem",
-        localPath: row.path,
-        modified: row.modified
-      });
+    if (!usedIndex) {
+      window.setTimeout(function () {
+        hydratePortalRowsInBackground(state.portalRows.slice(), [], state.portalLoadGeneration).catch(function () {});
+      }, 0);
     }
 
     setText("#portalThunderwordRaw", pretty(json));
     setStatus("Loaded " + rows.length + " local txid fixture(s) from fileProxy " + (usedIndex ? "index" : "scan") + " into the merged stream.", false);
+  }
+
+  function getEvmProfileById(id) {
+    return EVM_PROFILES.find(function (profile) { return profile.id === id; }) || null;
+  }
+
+  function evmCheckboxForProfile(profile) {
+    return $("#portalIncludeEvm" + profile.label.replace(/[^A-Za-z0-9]/g, ""));
+  }
+
+  function enabledEvmProfiles() {
+    return EVM_PROFILES.filter(function (profile) {
+      const box = evmCheckboxForProfile(profile);
+      if (box) return !!box.checked;
+      return configBool(profile.id === "gomez" ? "includeEvmGomez" : "includeEvmJethro", false);
+    });
+  }
+
+  function applyEvmProfileConfig() {
+    EVM_PROFILES.forEach(function (profile) {
+      const box = evmCheckboxForProfile(profile);
+      if (!box) return;
+      const key = profile.id === "gomez" ? "includeEvmGomez" : "includeEvmJethro";
+      box.checked = configBool(key, false);
+    });
+  }
+
+  function evmIndexEntry(profile) {
+    return {
+      coin: "evm",
+      ticker: "EVM",
+      name: profile.label + " EVM",
+      label: profile.label + " EVM",
+      chainId: profile.chainId,
+      contractName: profile.contractName,
+      contractAddress: profile.contractAddress
+    };
+  }
+
+  function evmCatalogRowToPortalRow(row, profile) {
+    const summary = row.summary || {};
+    return {
+      index: evmIndexEntry(profile),
+      coin: "evm",
+      txid: row.txid,
+      raw: null,
+      summary: summary,
+      blockTime: summary.blockTime || row.modified || 0,
+      streamLabel: profile.label + " EVM local catalog",
+      localPath: row.path || "",
+      imageAsset: row.imageAsset || null,
+      modified: row.modified || 0
+    };
+  }
+
+  async function fetchEvmCatalogRows(profile) {
+    const json = await fileProxyJson("/evm-local-catalog", {
+      chainId: profile.chainId,
+      contractName: profile.contractName,
+      contractAddress: profile.contractAddress
+    });
+    return {
+      profile: profile,
+      json: json,
+      rows: safeArray(json.transactions).map(function (row) { return evmCatalogRowToPortalRow(row, profile); })
+    };
+  }
+
+  async function loadSelectedEvmCatalogs(opts) {
+    const profiles = enabledEvmProfiles();
+    if (!profiles.length) {
+      setStatus("Choose Gomez EVM, Jethro EVM, or both before loading the local EVM catalog.", true);
+      return [];
+    }
+
+    const reset = opts && opts.reset;
+    if (reset) resetPortalRowsForNewLoad();
+
+    setStatus("Loading local EVM catalog stream(s)…", false);
+    const loaded = [];
+    const reports = [];
+
+    beginPortalBatch();
+    try {
+      for (let i = 0; i < profiles.length; i += 1) {
+        const result = await fetchEvmCatalogRows(profiles[i]);
+        reports.push({
+          profile: result.profile.label,
+          count: result.rows.length,
+          streams: result.json.streams || []
+        });
+        result.rows.forEach(function (row) {
+          loaded.push(upsertPortalRow(row, { silent: true }));
+        });
+        state.evmCatalogLoaded[result.profile.id] = true;
+      }
+    } finally {
+      endPortalBatch();
+    }
+
+    state.portalPage = 1;
+    requestPortalRender();
+    setText("#portalThunderwordRaw", pretty({ evmCatalog: reports }));
+    setStatus("Loaded " + loaded.length + " EVM catalog transaction(s) into the main Portal feed.", false);
+    return loaded;
   }
 
   async function loadSelectedLocalTransaction() {
@@ -1501,7 +3069,7 @@
     setText("#portalSelectedTxid", txid || "no txid in loaded object");
     setText("#portalSelectedMeta", [
       summary.blockHeight ? "block " + summary.blockHeight : "",
-      summary.lines ? summary.lines + " address lines" : "no address lines",
+      summary.lines ? summary.lines + " address lines" : (sourceIdForRow(row).indexOf("evm") === 0 ? "EVM account/call record, no UTXO set" : "no address lines"),
       summary.imageLines ? summary.imageLines + " image lines" : "",
       summary.ipfsCount ? summary.ipfsCount + " IPFS pair(s)" : ""
     ].filter(Boolean).join(" | "));
@@ -1585,19 +3153,25 @@
       return;
     }
 
-    result.transactions.forEach(function (tx) {
-      const rawTx = tx.raw && tx.raw.vout ? tx.raw : null;
-      const summary = rawTx ? extractSummary(rawTx, result.index) : makeBasicSummary(tx.txid, tx, result.index);
-      upsertPortalRow({
-        index: result.index,
-        coin: result.index.coin || result.index.ticker || result.index.name,
-        txid: tx.txid,
-        raw: rawTx,
-        summary: summary,
-        blockTime: tx.blockTime,
-        streamLabel: result.index.label || result.index.address
+    beginPortalBatch();
+    try {
+      result.transactions.forEach(function (tx) {
+        const rawTx = tx.raw && tx.raw.vout ? tx.raw : null;
+        const summary = rawTx ? extractSummary(rawTx, result.index) : makeBasicSummary(tx.txid, tx, result.index);
+        upsertPortalRow({
+          index: result.index,
+          coin: result.index.coin || result.index.ticker || result.index.name,
+          txid: tx.txid,
+          raw: rawTx,
+          summary: summary,
+          blockTime: tx.blockTime,
+          streamLabel: result.index.label || result.index.address
+        }, { silent: true });
       });
-    });
+    } finally {
+      endPortalBatch();
+    }
+    requestPortalRender();
   }
 
   async function loadAddressIndex(entryOverride, addressOverride) {
@@ -1605,36 +3179,31 @@
     const entry = entryOverride || getSelectedIndex();
     const address = String(addressOverride || ($("#portalThunderwordAddress") ? $("#portalThunderwordAddress").value.trim() : entry.address) || "").trim();
     const activeEntry = cloneIndexForAddress(entry, address, entry.label || entry.address || address);
+    const generation = resetPortalRowsForNewLoad();
     state.currentIndex = activeEntry;
     setStatus("Loading " + (activeEntry.ticker || activeEntry.coin || activeEntry.name) + " address stream...", false);
     const result = await api.fetchAddressTransactions(activeEntry, address);
     renderThunderwordTxs(result);
     setText("#portalThunderwordRaw", pretty({ source: result.url, transactions: result.transactions }));
-    setStatus("Discovered " + result.transactions.length + " txid(s); resolving local-first transaction JSON...", false);
+    setStatus("Discovered " + result.transactions.length + " txid(s). Page1 is rendered; details hydrate in the background.", false);
 
-    for (let i = 0; i < result.transactions.length; i += 1) {
-      const tx = result.transactions[i];
-      try {
-        const loaded = await loadTransactionLocalFirst(activeEntry, tx.txid, activeEntry.coin);
-        tx.raw = loaded.json;
-        const summary = extractSummary(loaded.json, activeEntry);
-        const row = upsertPortalRow({
-          index: activeEntry,
-          coin: activeEntry.coin || activeEntry.ticker || activeEntry.name,
-          txid: tx.txid,
-          raw: loaded.json,
-          summary: summary,
-          blockTime: tx.blockTime || summary.blockTime,
-          streamLabel: loaded.source === "local" ? "local cache + " + (activeEntry.label || activeEntry.address) : activeEntry.label || activeEntry.address,
-          localPath: loaded.path || ""
-        }, { select: i === 0 && !state.selectedRowKey });
-        if (i === 0 && row && configBool("autoSelectNewest", true)) await selectPortalRow(row.key);
-      } catch (error) {
-        console.warn("Portal tx resolve failed:", tx.txid, error);
-      }
-    }
+    const rows = result.transactions.map(function (tx) {
+      return state.portalRowKeys[rowKey({ index: activeEntry, coin: activeEntry.coin || activeEntry.ticker || activeEntry.name, txid: tx.txid })];
+    }).filter(Boolean).sort(compareStreamItems);
 
-    setStatus("Loaded " + result.transactions.length + " transaction(s) into the merged stream.", false);
+    window.setTimeout(function () {
+      if (generation !== state.portalLoadGeneration) return;
+      hydratePortalRowsInBackground(rows, [{
+        index: activeEntry.label,
+        address: activeEntry.address,
+        coin: activeEntry.ticker || activeEntry.coin,
+        fetched: true,
+        transactions: result.transactions.length,
+        error: ""
+      }], generation).catch(function (error) {
+        setStatus("Background hydration failed: " + (error.message || String(error)), true);
+      });
+    }, 0);
   }
 
   async function loadThunderwordIndex() {
@@ -1776,7 +3345,7 @@ function getPortalFirstCharacter() {
     return targets.slice(0, Number(configValue("maxRabbitTrails", 24)) || 24);
   }
 
-  function renderConversationStatus(rows, trails) {
+  function renderConversationStatus(rows, trails, roots) {
     const box = $("#portalConversationStatus");
     if (!box) return;
     box.innerHTML = "";
@@ -1785,6 +3354,22 @@ function getPortalFirstCharacter() {
     summary.className = "muted";
     summary.textContent = "Merged " + rows.length + " transaction(s)" + (trails.length ? " with " + trails.length + " rabbit trail(s)." : ".");
     box.appendChild(summary);
+
+    if (roots && roots.length) {
+      const rootPre = document.createElement("pre");
+      rootPre.className = "json";
+      rootPre.textContent = pretty(roots.map(function (root) {
+        return {
+          coin: root.coin,
+          index: root.index,
+          address: root.address,
+          fetched: root.fetched,
+          transactions: root.transactions || 0,
+          error: root.error || ""
+        };
+      }));
+      box.appendChild(rootPre);
+    }
 
     if (trails.length) {
       const pre = document.createElement("pre");
@@ -1803,8 +3388,14 @@ function getPortalFirstCharacter() {
     }
   }
 
-  function renderConversationRows(rows) {
-    rows.forEach(function (row) { upsertPortalRow(row); });
+  function renderConversationRows(rows, opts) {
+    beginPortalBatch();
+    try {
+      rows.forEach(function (row) { upsertPortalRow(row, { silent: true }); });
+    } finally {
+      endPortalBatch();
+    }
+    if (!(opts && opts.silent)) requestPortalRender();
   }
 
   async function fetchIndexRows(entry, streamLabel) {
@@ -1815,7 +3406,7 @@ function getPortalFirstCharacter() {
 
     for (let i = 0; i < txs.length; i += 1) {
       const tx = txs[i];
-      const stub = {
+      rows.push({
         index: entry,
         coin: entry.coin || entry.ticker || entry.name,
         txid: tx.txid,
@@ -1823,27 +3414,111 @@ function getPortalFirstCharacter() {
         summary: tx.raw && tx.raw.vout ? extractSummary(tx.raw, entry) : makeBasicSummary(tx.txid, tx, entry),
         blockTime: tx.blockTime,
         streamLabel: streamLabel || entry.address
-      };
-      upsertPortalRow(stub);
-
-      try {
-        const loaded = stub.raw ? { json: stub.raw, source: "inline" } : await loadTransactionLocalFirst(entry, tx.txid, entry.coin);
-        const summary = extractSummary(loaded.json, entry);
-        const row = Object.assign(stub, {
-          raw: loaded.json,
-          summary: summary,
-          blockTime: tx.blockTime || summary.blockTime,
-          localPath: loaded.path || stub.localPath || "",
-          streamLabel: loaded.source === "local" ? "local cache + " + (streamLabel || entry.address) : (streamLabel || entry.address)
-        });
-        upsertPortalRow(row);
-        rows.push(row);
-      } catch (error) {
-        console.warn("Portal stream tx resolve failed:", tx.txid, error);
-      }
+      });
     }
 
     return rows;
+  }
+
+  async function hydratePortalRowsInBackground(rows, rawReport, generation) {
+    if (!configBool("backgroundHydrateTransactions", true)) return;
+    const runGeneration = generation || state.portalLoadGeneration;
+
+    const trailRows = [];
+    const trails = [];
+    const seenTrail = new Set();
+    const seenChildTx = new Set();
+    state.portalRows.forEach(function (existing) { seenChildTx.add(rowKey(existing)); });
+    const ordered = rows.slice().sort(compareStreamItems);
+    const shouldFetchRabbitTrails = configBool("autoFetchRabbitTrails", false);
+
+    for (let i = 0; i < ordered.length; i += 1) {
+      if (runGeneration !== state.portalLoadGeneration) return;
+      const key = rowKey(ordered[i]);
+      const row = state.portalRowKeys[key] || ordered[i];
+      const visible = isVisiblePortalRow(row) || !!state.expandedRowKeys[key];
+      const hydrated = await hydratePortalRow(key, { silent: !visible });
+      if (!hydrated || !hydrated.raw) continue;
+
+      findRabbitTrailTargets(hydrated.raw, hydrated.index).forEach(function (trail) {
+        const targetIndex = inferIndexForAddress(trail.address, hydrated.index);
+        const trailKey = ((targetIndex && (targetIndex.coin || targetIndex.name)) || hydrated.coin || "unknown") + ":" + trail.address;
+        if (seenTrail.has(trailKey)) return;
+        seenTrail.add(trailKey);
+        trails.push(Object.assign(trail, { index: targetIndex, fetchable: indexCanFetch(targetIndex) }));
+      });
+
+      if (i === getPortalPageSize() - 1) {
+        setStatus("First portal page is hydrated; older transaction records are continuing in the background.", false);
+      }
+    }
+
+    if (!shouldFetchRabbitTrails) {
+      state.conversationRows = rows.slice().sort(compareStreamItems);
+      state.rabbitTrails = trails;
+      renderConversationStatus(state.conversationRows, trails, rawReport || []);
+      setText("#portalThunderwordRaw", pretty({ roots: rawReport || [], rabbitTrails: trails, merged: state.conversationRows.map(function (row) {
+        const stored = state.portalRowKeys[rowKey(row)] || row;
+        return {
+          coin: stored.index && (stored.index.ticker || stored.index.coin),
+          txid: stored.txid,
+          title: stored.summary && stored.summary.title,
+          primaryUrl: stored.summary && stored.summary.primaryUrl,
+          stream: stored.streamLabel,
+          blockTime: stored.summary && stored.summary.blockTime,
+          blockHeight: stored.summary && stored.summary.blockHeight
+        };
+      }) }));
+      setStatus("Portal background hydration finished: " + state.conversationRows.length + " root transaction(s). Rabbit trails were discovered but not auto-merged.", false);
+      requestPortalRender();
+      return;
+    }
+
+    for (let j = 0; j < trails.length; j += 1) {
+      if (runGeneration !== state.portalLoadGeneration) return;
+      const trail = trails[j];
+      if (!trail.fetchable) continue;
+      const child = cloneIndexWithAddress(trail.index, trail.address, trail.title);
+      try {
+        const childRows = await fetchIndexRows(child, "rabbit trail: " + trail.title);
+        trail.transactions = childRows.length;
+        const uniqueRows = childRows.filter(function (row) {
+          const key = rowKey(Object.assign({}, row, { index: child, coin: child.coin || child.ticker || child.name }));
+          if (seenChildTx.has(key)) return false;
+          seenChildTx.add(key);
+          return true;
+        });
+        trailRows.push.apply(trailRows, uniqueRows);
+        renderConversationRows(uniqueRows);
+      } catch (error) {
+        trail.error = error.message || String(error);
+      }
+    }
+
+    for (let k = 0; k < trailRows.length; k += 1) {
+      if (runGeneration !== state.portalLoadGeneration) return;
+      const key = rowKey(trailRows[k]);
+      const row = state.portalRowKeys[key] || trailRows[k];
+      await hydratePortalRow(key, { silent: !isVisiblePortalRow(row) && !state.expandedRowKeys[key] });
+    }
+
+    state.conversationRows = rows.concat(trailRows).sort(compareStreamItems);
+    state.rabbitTrails = trails;
+    renderConversationStatus(state.conversationRows, trails, rawReport || []);
+    setText("#portalThunderwordRaw", pretty({ roots: rawReport || [], rabbitTrails: trails, merged: state.conversationRows.map(function (row) {
+      const stored = state.portalRowKeys[rowKey(row)] || row;
+      return {
+        coin: stored.index && (stored.index.ticker || stored.index.coin),
+        txid: stored.txid,
+        title: stored.summary && stored.summary.title,
+        primaryUrl: stored.summary && stored.summary.primaryUrl,
+        stream: stored.streamLabel,
+        blockTime: stored.summary && stored.summary.blockTime,
+        blockHeight: stored.summary && stored.summary.blockHeight
+      };
+    }) }));
+    setStatus("Portal background hydration finished: " + state.conversationRows.length + " transaction(s), " + trails.length + " rabbit trail(s).", false);
+    requestPortalRender();
   }
 
   async function loadConversationStreams() {
@@ -1852,14 +3527,13 @@ function getPortalFirstCharacter() {
 
     await ensureGeneratedGeneralIndexes();
 
+    const generation = resetPortalRowsForNewLoad();
     const roots = getGeneralConversationIndexes();
     const allRows = [];
-    const trails = [];
     const seenTx = new Set();
-    const seenTrail = new Set();
     const rawReport = [];
 
-    setStatus("Loading all default Thunderword streams across installed coins...", false);
+    setStatus("Loading default Thunderword roots and calculating page1 before rendering…", false);
 
     for (let i = 0; i < roots.length; i += 1) {
       const root = roots[i];
@@ -1882,51 +3556,74 @@ function getPortalFirstCharacter() {
             seenTx.add(key);
             allRows.push(row);
           }
-
-          findRabbitTrailTargets(row.raw, root).forEach(function (trail) {
-            const targetIndex = inferIndexForAddress(trail.address, root);
-            const trailKey = ((targetIndex && (targetIndex.coin || targetIndex.name)) || root.coin || root.name) + ":" + trail.address;
-            if (seenTrail.has(trailKey)) return;
-            seenTrail.add(trailKey);
-            trails.push(Object.assign(trail, { index: targetIndex, fetchable: indexCanFetch(targetIndex) }));
-          });
         });
       } catch (error) {
         rootReport.error = error.message || String(error);
       }
     }
 
-    for (let j = 0; j < trails.length; j += 1) {
-      const trail = trails[j];
-      if (!trail.fetchable) continue;
-      const child = cloneIndexWithAddress(trail.index, trail.address, trail.title);
+    const evmReports = [];
+    const evmProfiles = enabledEvmProfiles();
+    for (let e = 0; e < evmProfiles.length; e += 1) {
       try {
-        const childRows = await fetchIndexRows(child, "rabbit trail: " + trail.title);
-        trail.transactions = childRows.length;
-        childRows.forEach(function (row) {
-          const key = (child.coin || child.name) + ":" + row.txid;
+        const result = await fetchEvmCatalogRows(evmProfiles[e]);
+        evmReports.push({ profile: result.profile.label, count: result.rows.length, streams: result.json.streams || [] });
+        result.rows.forEach(function (row) {
+          const key = rowKey(row);
           if (!seenTx.has(key)) {
             seenTx.add(key);
             allRows.push(row);
           }
         });
       } catch (error) {
-        trail.error = error.message || String(error);
+        evmReports.push({ profile: evmProfiles[e].label, error: error.message || String(error) });
       }
     }
 
     allRows.sort(compareStreamItems);
     state.conversationRows = allRows;
-    state.rabbitTrails = trails;
-    renderConversationRows(allRows);
-    renderConversationStatus(allRows, trails);
-    setText("#portalThunderwordRaw", pretty({ roots: rawReport, rabbitTrails: trails, merged: allRows.map(function (row) { return { coin: row.index.ticker || row.index.coin, txid: row.txid, title: row.summary.title, primaryUrl: row.summary.primaryUrl, stream: row.streamLabel, blockTime: row.summary.blockTime, blockHeight: row.summary.blockHeight }; }) }));
-    setStatus("Loaded Babel stream: " + allRows.length + " transaction(s), " + trails.length + " rabbit trail(s).", false);
+    state.rabbitTrails = [];
+    state.portalPage = 1;
 
-    if (allRows.length) {
-      const key = rowKey(allRows[0]);
-      if (state.portalRowKeys[key]) await selectPortalRow(key);
-    }
+    renderConversationRows(allRows);
+    renderConversationStatus(allRows, [], rawReport);
+    setText("#portalThunderwordRaw", pretty({ roots: rawReport, evmCatalog: evmReports, merged: allRows.map(function (row) {
+      return {
+        coin: row.index && (row.index.ticker || row.index.coin),
+        txid: row.txid,
+        title: row.summary && row.summary.title,
+        primaryUrl: row.summary && row.summary.primaryUrl,
+        stream: row.streamLabel,
+        blockTime: row.summary && row.summary.blockTime,
+        blockHeight: row.summary && row.summary.blockHeight
+      };
+    }) }));
+
+    setStatus("Loaded page1 index view: " + Math.min(getPortalPageSize(), allRows.length) + " visible of " + allRows.length + " transaction(s). Hydrating details in the background.", false);
+
+    window.setTimeout(function () {
+      if (generation !== state.portalLoadGeneration) return;
+      hydratePortalRowsInBackground(allRows, rawReport, generation).catch(function (error) {
+        setStatus("Background hydration failed: " + (error.message || String(error)), true);
+      });
+    }, 0);
+  }
+
+  function shouldAutoLoadConversationStreams() {
+    if (!configBool("autoLoadConversationStreams", true)) return false;
+    try {
+      const urlMode = new URL(window.location.href).searchParams.get("mode") || "";
+      if (urlMode === "portal") return true;
+    } catch (error) {}
+    return document.body && document.body.dataset && document.body.dataset.mode === "portal";
+  }
+
+  function maybeAutoLoadConversationStreams() {
+    if (!shouldAutoLoadConversationStreams() || state.conversationAutoLoaded) return;
+    state.conversationAutoLoaded = true;
+    loadConversationStreams().catch(function (error) {
+      setStatus("Portal auto-load skipped: " + (error.message || String(error)), true);
+    });
   }
 
   function bind() {
@@ -1941,6 +3638,7 @@ function getPortalFirstCharacter() {
     const loadConversation = $("#portalLoadConversationButton");
     const loadLocalTxids = $("#portalLoadLocalTxidsButton");
     const loadSelectedLocal = $("#portalLoadSelectedLocalButton");
+    const loadEvmCatalog = $("#portalLoadEvmCatalogButton");
     const saveCurrentTx = $("#portalSaveCurrentTxButton");
 
     if (!loadThunderword) return;
@@ -1952,6 +3650,7 @@ function getPortalFirstCharacter() {
     if ($("#portalSkipPrefix")) $("#portalSkipPrefix").value = String(DEFAULT_SKIP_PREFIX);
     if ($("#portalSkipSuffix")) $("#portalSkipSuffix").value = String(DEFAULT_SKIP_SUFFIX);
 
+    loadPortalAnnotations();
     renderThunderwordOptions();
     renderEmptyTransactionList("Select a currency profile and load an address stream, or let local transactions populate the explorer.");
 
@@ -2032,6 +3731,42 @@ function getPortalFirstCharacter() {
       catch (error) { setStatus(error.message || String(error), true); }
     };
 
+    if (loadEvmCatalog) loadEvmCatalog.onclick = async function () {
+      try { await loadSelectedEvmCatalogs({ reset: false }); }
+      catch (error) { setStatus(error.message || String(error), true); }
+    };
+
+    EVM_PROFILES.forEach(function (profile) {
+      const box = evmCheckboxForProfile(profile);
+      if (!box) return;
+      box.onchange = function () {
+        state.evmCatalogLoaded[profile.id] = false;
+      };
+    });
+
+    PORTAL_FILTER_IDS.forEach(function (id) {
+      const box = portalFilterCheckbox(id);
+      if (!box) return;
+      box.onchange = function () {
+        state.portalSourceFilters[id] = !!box.checked;
+        state.portalPage = 1;
+        requestPortalRender();
+      };
+    });
+
+    const searchBox = $("#portalEvmWordSearch");
+    if (searchBox) searchBox.oninput = function () {
+      state.portalPage = 1;
+      requestPortalRender();
+    };
+
+    const focusGomez = $("#portalFocusGomezButton");
+    if (focusGomez) focusGomez.onclick = function () { focusPortalSources(["evmGomez"]); };
+    const focusJethro = $("#portalFocusJethroButton");
+    if (focusJethro) focusJethro.onclick = function () { focusPortalSources(["evmJethro"]); };
+    const showAll = $("#portalShowAllSourcesButton");
+    if (showAll) showAll.onclick = function () { focusPortalSources(PORTAL_FILTER_IDS.slice()); };
+
     if (saveCurrentTx) saveCurrentTx.onclick = async function () {
       try { await saveCurrentTransaction(); }
       catch (error) { setStatus(error.message || String(error), true); }
@@ -2043,21 +3778,35 @@ function getPortalFirstCharacter() {
       if (event.key === "ArrowUp") { event.preventDefault(); selectRelativePortalRow(-1); }
     };
 
+    const portalModeButton = document.querySelector('[data-mode-target="portal"]');
+    if (portalModeButton) portalModeButton.addEventListener("click", function () {
+      window.setTimeout(maybeAutoLoadConversationStreams, 0);
+    });
+
     loadColorMap(DEFAULT_COLOR_PATH).catch(function (error) {
       setStatus(error.message || String(error), true);
     });
 
     loadPortalConfig().then(function (config) {
       applyPortalConfig(config);
+      applyEvmProfileConfig();
       if (configBool("autoLoadLocalTransactions", true)) {
         listLocalTransactions().catch(function (error) {
           setStatus("Local fileProxy load skipped: " + (error.message || String(error)), true);
         });
       }
+      maybeAutoLoadConversationStreams();
+      if (configBool("autoLoadEvmCatalog", false)) {
+        loadSelectedEvmCatalogs({ reset: false }).catch(function (error) {
+          setStatus("Local EVM catalog load skipped: " + (error.message || String(error)), true);
+        });
+      }
       startLocalTransactionPolling();
     }).catch(function (error) {
       applyPortalConfig(DEFAULT_PORTAL_CONFIG);
+      applyEvmProfileConfig();
       setStatus("Portal config skipped: " + (error.message || String(error)), true);
+      maybeAutoLoadConversationStreams();
     });
   }
 
@@ -2076,11 +3825,19 @@ function getPortalFirstCharacter() {
     renderThunderwordOptions: renderThunderwordOptions,
     buildSemantics: buildSemantics,
     renderSemantics: renderSemantics,
+    loadPortalAnnotations: loadPortalAnnotations,
+    getPortalAnnotation: getPortalAnnotation,
+    setPortalAnnotation: setPortalAnnotation,
+    clearPortalAnnotation: clearPortalAnnotation,
     extractSummary: extractSummary,
+    extractBlockTime: extractBlockTime,
+    extractBlockHeight: extractBlockHeight,
     titleFromSemantics: titleFromSemantics,
     describeOpReturnText: describeOpReturnText,
     buildPortalMacDougall: buildPortalMacDougall,
     loadConversationStreams: loadConversationStreams,
+    loadSelectedEvmCatalogs: loadSelectedEvmCatalogs,
+    fetchEvmCatalogRows: fetchEvmCatalogRows,
     listLocalTransactions: listLocalTransactions,
     loadLocalTransaction: loadLocalTransaction,
     saveCurrentTransaction: saveCurrentTransaction,

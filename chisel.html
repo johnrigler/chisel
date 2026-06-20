@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chisel, IPFS, and Web3: A Critical Architectural Diagnosis</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f7f7;
+      --fg: #222222;
+      --accent: #005f99;
+      --muted: #666666;
+      --code-bg: #eeeeee;
+      --border: #dddddd;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111111;
+        --fg: #f0f0f0;
+        --accent: #4fb0ff;
+        --muted: #aaaaaa;
+        --code-bg: #1f1f1f;
+        --border: #333333;
+      }
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+    }
+    header, main, footer {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.5rem;
+    }
+    header h1 {
+      margin: 0 0 0.25rem 0;
+      font-size: 1.9rem;
+    }
+    header p {
+      margin: 0.1rem 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    main {
+      padding-top: 0.5rem;
+      padding-bottom: 2rem;
+    }
+    section {
+      margin-bottom: 2rem;
+    }
+    section > h2 {
+      margin-top: 0;
+      font-size: 1.4rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.25rem;
+    }
+    article h3 {
+      margin-top: 1.25rem;
+      font-size: 1.15rem;
+    }
+    p {
+      margin: 0.4rem 0 0.6rem 0;
+    }
+    ul, ol {
+      margin: 0.4rem 0 0.8rem 1.4rem;
+      padding-left: 0.6rem;
+    }
+    li {
+      margin: 0.2rem 0;
+    }
+    strong {
+      font-weight: 600;
+    }
+    code {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      background: var(--code-bg);
+      padding: 0.1rem 0.25rem;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: var(--code-bg);
+      padding: 0.75rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.9em;
+    }
+    pre code {
+      padding: 0;
+      background: transparent;
+    }
+    .tagline {
+      font-style: italic;
+    }
+    .note {
+      border-left: 3px solid var(--accent);
+      padding-left: 0.75rem;
+      margin: 0.75rem 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    footer {
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chisel, IPFS, and Web3: A Critical Architectural Diagnosis</h1>
+    <p class="tagline">A frank look at what these stacks actually buy you, and what they quietly cost.</p>
+    <p>Audience: experienced systems engineers who prefer boring reliability over fashionable complexity.</p>
+  </header>
+
+  <main>
+    <section>
+      <h2>1. Chisel the HDL vs “Chisel” the web tooling confusion</h2>
+      <article>
+        <h3>1.1 Two very different worlds sharing one name</h3>
+        <p>
+          The first point of confusion is that <strong>Chisel</strong> refers to at least two unrelated things:
+        </p>
+        <ul>
+          <li><strong>Chisel (HDL)</strong> – a Scala-embedded hardware description language used to generate Verilog.</li>
+          <li><strong>Chisel (web tooling / portals / dashboards)</strong> – various web UIs, “no-code” tools, or dev portals that happen to use the same name.</li>
+        </ul>
+        <p>
+          The HDL is a serious, research-backed tool for hardware design. The web tooling that borrows the name is usually just another layer of JavaScript, APIs, and configuration wrapped in a glossy UI. Architecturally, they have nothing in common beyond branding collisions.
+        </p>
+
+        <h3>1.2 Chisel the HDL: what it actually is</h3>
+        <p>
+          Chisel the HDL is a <strong>domain-specific language embedded in Scala</strong>. You write Scala code that describes hardware at the register-transfer level, and the toolchain lowers that to FIRRTL and then to Verilog. The value proposition is:
+        </p>
+        <ul>
+          <li><strong>Generator methodology</strong> – parameterized hardware generators instead of hand-written Verilog variants.</li>
+          <li><strong>Reuse and abstraction</strong> – libraries of FIFOs, arbiters, pipelines, etc., built as composable components.</li>
+          <li><strong>Type safety</strong> – Scala’s type system catches a class of wiring and width errors early.</li>
+        </ul>
+        <p>
+          For a hardware team, this is a reasonable trade: you accept the complexity of the Scala/JVM toolchain in exchange for more expressive hardware design and reuse.
+        </p>
+
+        <h3>1.3 Chisel-like web portals: a different kind of complexity</h3>
+        <p>
+          The “Chisel” you see in a browser—portals, dashboards, “low-code” builders—is usually just:
+        </p>
+        <ul>
+          <li>A JavaScript SPA or React-style front end.</li>
+          <li>Some backend APIs or microservices.</li>
+          <li>Configuration stored in a database or JSON/YAML.</li>
+        </ul>
+        <p>
+          These tools often promise “no code” or “faster development,” but the underlying architecture is still the usual web stack: HTTP, JSON, auth, persistence, and a lot of glue. The risk is that the UI hides complexity rather than removing it, and when something breaks, you’re debugging both the underlying stack and the tool’s abstraction layer.
+        </p>
+
+        <div class="note">
+          <strong>Key distinction:</strong> Chisel the HDL is about <em>hardware generation</em>. Chisel-like web tools are about <em>workflow and UI abstraction</em>. Treating them as the same kind of “innovation” is a category error.
+        </div>
+      </article>
+    </section>
+
+    <section>
+      <h2>2. What IPFS and Web3 are trying to achieve</h2>
+      <article>
+        <h3>2.1 The stated goals</h3>
+        <p>
+          IPFS and Web3 pitch themselves as answers to a set of real concerns:
+        </p>
+        <ul>
+          <li><strong>Decentralization</strong> – avoid single points of control or failure.</li>
+          <li><strong>Content addressing</strong> – address data by its hash, not by its location.</li>
+          <li><strong>Censorship resistance</strong> – make it hard for any single actor to remove or block content.</li>
+          <li><strong>Trust minimization</strong> – rely less on central authorities, more on protocols and cryptography.</li>
+          <li><strong>Programmable value</strong> – smart contracts, tokens, and on-chain logic for economic coordination.</li>
+        </ul>
+        <p>
+          These are legitimate goals. Centralized infrastructure does create choke points, and traditional DNS/HTTP is fundamentally location-based and trust-heavy.
+        </p>
+
+        <h3>2.2 IPFS in one paragraph</h3>
+        <p>
+          IPFS is essentially a <strong>content-addressed, peer-to-peer file system</strong>. You identify content by a hash (CID). Nodes exchange blocks over a DHT-like network. In theory, if anyone on the network has the content and is reachable, you can fetch it by CID without caring where it lives.
+        </p>
+
+        <h3>2.3 Web3 in one paragraph</h3>
+        <p>
+          “Web3” is a loose umbrella for:
+        </p>
+        <ul>
+          <li>Blockchains and smart contracts.</li>
+          <li>Token-based incentives and governance.</li>
+          <li>Decentralized storage (IPFS, Filecoin, etc.).</li>
+          <li>Wallet-based identity and authorization.</li>
+        </ul>
+        <p>
+          The narrative is: move state, identity, and value into decentralized protocols, and build applications that don’t depend on any single company or server.
+        </p>
+      </article>
+    </section>
+
+    <section>
+      <h2>3. Where these architectures actually help</h2>
+      <article>
+        <h3>3.1 Content addressing as a real win</h3>
+        <p>
+          Content addressing is genuinely useful. Addressing data by hash gives you:
+        </p>
+        <ul>
+          <li><strong>Integrity</strong> – if the hash matches, the content is what you expect.</li>
+          <li><strong>Deduplication</strong> – identical content shares the same identifier.</li>
+          <li><strong>Immutable references</strong> – a CID is a stable handle to a specific version of data.</li>
+        </ul>
+        <p>
+          You can use this idea entirely outside of IPFS or Web3: internal object stores, backup systems, and artifact registries all benefit from content addressing.
+        </p>
+
+        <h3>3.2 Append-only, verifiable logs</h3>
+        <p>
+          Blockchains are over-marketed, but the underlying pattern—<strong>append-only, verifiable logs replicated across multiple parties</strong>—is useful when:
+        </p>
+        <ul>
+          <li>Multiple organizations need a shared record.</li>
+          <li>There is low mutual trust.</li>
+          <li>Auditing and tamper evidence matter more than raw throughput.</li>
+        </ul>
+        <p>
+          In those cases, a carefully scoped ledger can be a better fit than a single-party database with ad-hoc audit trails.
+        </p>
+
+        <h3>3.3 Censorship resistance in hostile environments</h3>
+        <p>
+          In environments where infrastructure is actively hostile—state-level censorship, platform deplatforming, or frequent takedowns—peer-to-peer distribution and multiple independent gateways can make it harder to erase content completely. That is a real property, not just marketing.
+        </p>
+
+        <h3>3.4 Tokenization for niche coordination problems</h3>
+        <p>
+          Token-based incentives can occasionally solve coordination problems where:
+        </p>
+        <ul>
+          <li>Participants are anonymous or pseudonymous.</li>
+          <li>There is no central operator willing to fund or manage the system.</li>
+          <li>Contributions
