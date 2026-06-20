@@ -245,3 +245,14 @@ Restart note: this patch changes `tools/fileProxy/proxy.py`, so restart fileProx
 - Extracts YouTube URLs from malformed old Gomez snippets such as `<a href=<iframe ... src="https://www.youtube.com/embed/...">`.
 - Keeps the row thumbnail source and expanded media-card source aligned for YouTube/Spotify/link records.
 - Browser-only patch; fileProxy restart is not required.
+
+## v2.7.0 portal review patch
+
+- Moved `portalPageControls` below `portalTransactionList`, so page navigation lives at the bottom of the viewport instead of above it.
+- Removed the previous behavior that appended expanded rows from other pages into the current page slice. Expanded Gomez/Jethro records now disappear normally when the page changes.
+- Page changes now collapse inline rows, clear the selected inline row, and reset the transaction-list scroll position to the top of the new page.
+- Added a local-only Portal annotation editor on each expanded row with `Category`, `Note`, and `Fix / cleanup` fields.
+- Annotations are saved in browser `localStorage` under `chisel.portal.annotations.v1`; no ledger writes, no fileProxy dependency, and no transaction JSON mutation.
+- Annotated rows show `cat:<category>`, `note`, and/or `fix` in the existing stream flag column.
+
+FileProxy restart is not required for this browser-only patch.

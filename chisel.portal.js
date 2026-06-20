@@ -12,6 +12,7 @@
   const CIDV0_RE = /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/;
   const TXID_RE = /^[0-9a-fA-F]{64}$/;
   const DEFAULT_CONFIG_PATH = "chisel.portal.config.json";
+  const PORTAL_ANNOTATIONS_STORAGE_KEY = "chisel.portal.annotations.v1";
   const DEFAULT_PORTAL_CONFIG = {
     fileProxyUrl: DEFAULT_FILE_PROXY_URL,
     autoSaveFetchedTransactions: true,
@@ -105,7 +106,8 @@
     config: Object.assign({}, DEFAULT_PORTAL_CONFIG),
     localPollTimer: null,
     evmCatalogLoaded: Object.create(null),
-    portalSourceFilters: Object.create(null)
+    portalSourceFilters: Object.create(null),
+    portalAnnotations: Object.create(null)
   };
 
   function $(selector) { return document.querySelector(selector); }
@@ -124,6 +126,73 @@
 
   function pretty(value) { return JSON.stringify(value, null, 2); }
   function safeArray(value) { return Array.isArray(value) ? value : []; }
+
+  function normalizePortalAnnotation(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      category: printableText(source.category || "").slice(0, 80),
+      note: String(source.note || "").trim().slice(0, 5000),
+      fix: String(source.fix || "").trim().slice(0, 5000),
+      updatedAt: Number(source.updatedAt || 0) || 0
+    };
+  }
+
+  function portalAnnotationHasContent(annotation) {
+    const a = normalizePortalAnnotation(annotation);
+    return !!(a.category || a.note || a.fix);
+  }
+
+  function loadPortalAnnotations() {
+    const next = Object.create(null);
+    try {
+      const raw = window.localStorage ? window.localStorage.getItem(PORTAL_ANNOTATIONS_STORAGE_KEY) : "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      Object.keys(parsed || {}).forEach(function (key) {
+        const annotation = normalizePortalAnnotation(parsed[key]);
+        if (portalAnnotationHasContent(annotation)) next[key] = annotation;
+      });
+    } catch (error) {
+      setStatus("Local annotation store could not be read: " + (error.message || String(error)), true);
+    }
+    state.portalAnnotations = next;
+  }
+
+  function savePortalAnnotations() {
+    try {
+      if (!window.localStorage) throw new Error("localStorage is not available");
+      window.localStorage.setItem(PORTAL_ANNOTATIONS_STORAGE_KEY, JSON.stringify(state.portalAnnotations));
+      return true;
+    } catch (error) {
+      setStatus("Local annotation store could not be saved: " + (error.message || String(error)), true);
+      return false;
+    }
+  }
+
+  function portalAnnotationKey(row) {
+    if (!row) return "";
+    return row.key || rowKey(row);
+  }
+
+  function getPortalAnnotation(row) {
+    const key = portalAnnotationKey(row);
+    return normalizePortalAnnotation(key ? state.portalAnnotations[key] : null);
+  }
+
+  function setPortalAnnotation(row, annotation) {
+    const key = portalAnnotationKey(row);
+    if (!key) return false;
+    const clean = normalizePortalAnnotation(Object.assign({}, annotation, { updatedAt: Date.now() }));
+    if (portalAnnotationHasContent(clean)) state.portalAnnotations[key] = clean;
+    else delete state.portalAnnotations[key];
+    return savePortalAnnotations();
+  }
+
+  function clearPortalAnnotation(row) {
+    const key = portalAnnotationKey(row);
+    if (!key) return false;
+    delete state.portalAnnotations[key];
+    return savePortalAnnotations();
+  }
 
   function shortTxid(txid) {
     const value = String(txid || "");
@@ -1551,6 +1620,10 @@
     if (s.evmWords && s.evmWords.length) flags.push("words:" + s.evmWords.length);
     if (s.lines) flags.push("addr:" + s.lines);
     if (row.localPath) flags.push("local");
+    const annotation = getPortalAnnotation(row);
+    if (annotation.category) flags.push("cat:" + annotation.category);
+    if (annotation.note) flags.push("note");
+    if (annotation.fix) flags.push("fix");
     if (!row.raw) flags.push("txid-only");
     return flags.join(" ");
   }
@@ -1717,17 +1790,7 @@
     const rows = getFilteredPortalRows();
     const size = getPortalPageSize();
     const page = clampPortalPage();
-    const pageRows = rows.slice((page - 1) * size, page * size);
-    const present = Object.create(null);
-    pageRows.forEach(function (row) { if (row && row.key) present[row.key] = true; });
-
-    rows.forEach(function (row) {
-      if (!row || !row.key || !state.expandedRowKeys[row.key] || present[row.key]) return;
-      present[row.key] = true;
-      pageRows.push(row);
-    });
-
-    return pageRows;
+    return rows.slice((page - 1) * size, page * size);
   }
 
   function isVisiblePortalRow(row) {
@@ -1757,9 +1820,16 @@
   }
 
   function setPortalPage(page) {
+    const previousPage = clampPortalPage();
     state.portalPage = Math.max(1, Number(page) || 1);
-    clampPortalPage();
+    const nextPage = clampPortalPage();
+    if (nextPage !== previousPage) {
+      state.expandedRowKeys = Object.create(null);
+      state.selectedRowKey = "";
+    }
     renderPortalRows();
+    const list = $("#portalTransactionList");
+    if (list) list.scrollTop = 0;
   }
 
   function resetPortalRowsForNewLoad() {
@@ -2245,6 +2315,103 @@
     return block;
   }
 
+  function appendPortalAnnotationEditor(container, row) {
+    const annotation = getPortalAnnotation(row);
+
+    const block = document.createElement("div");
+    block.className = "portalAnnotationBlock" + (portalAnnotationHasContent(annotation) ? " hasAnnotation" : "");
+
+    const title = document.createElement("div");
+    title.className = "stepTitle";
+    title.textContent = "Local notes, categories, and fixes";
+    block.appendChild(title);
+
+    const explainer = document.createElement("p");
+    explainer.className = "muted";
+    explainer.textContent = "Stored only in this browser under localStorage; nothing is written to a ledger.";
+    block.appendChild(explainer);
+
+    const grid = document.createElement("div");
+    grid.className = "portalAnnotationGrid";
+
+    const categoryLabel = document.createElement("label");
+    categoryLabel.textContent = "Category";
+    const category = document.createElement("input");
+    category.type = "text";
+    category.spellcheck = false;
+    category.maxLength = 80;
+    category.placeholder = "dogecoin, bsv, old tool, needs repair";
+    category.value = annotation.category || "";
+    categoryLabel.appendChild(category);
+    grid.appendChild(categoryLabel);
+
+    const noteLabel = document.createElement("label");
+    noteLabel.textContent = "Note";
+    const note = document.createElement("textarea");
+    note.rows = 4;
+    note.placeholder = "What this record means, why it matters, or how it connects to older work.";
+    note.value = annotation.note || "";
+    noteLabel.appendChild(note);
+    grid.appendChild(noteLabel);
+
+    const fixLabel = document.createElement("label");
+    fixLabel.textContent = "Fix / cleanup";
+    const fix = document.createElement("textarea");
+    fix.rows = 3;
+    fix.placeholder = "Broken URL, title correction, missing category, bad decode, follow-up target.";
+    fix.value = annotation.fix || "";
+    fixLabel.appendChild(fix);
+    grid.appendChild(fixLabel);
+
+    block.appendChild(grid);
+
+    const actions = document.createElement("div");
+    actions.className = "actions portalAnnotationActions";
+
+    const save = document.createElement("button");
+    save.type = "button";
+    save.className = "secondaryButton";
+    save.textContent = "save local note";
+    save.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (setPortalAnnotation(row, { category: category.value, note: note.value, fix: fix.value })) {
+        setStatus("Saved local annotation for " + shortTxid(row.txid) + ".", false);
+        requestPortalRender();
+      }
+    };
+    actions.appendChild(save);
+
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "secondaryButton";
+    clear.textContent = "clear local note";
+    clear.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      category.value = "";
+      note.value = "";
+      fix.value = "";
+      if (clearPortalAnnotation(row)) {
+        setStatus("Cleared local annotation for " + shortTxid(row.txid) + ".", false);
+        requestPortalRender();
+      }
+    };
+    actions.appendChild(clear);
+
+    if (annotation.updatedAt) {
+      const stamp = document.createElement("span");
+      stamp.className = "muted";
+      const d = new Date(annotation.updatedAt);
+      stamp.textContent = Number.isNaN(d.getTime()) ? "" : "last edited " + d.toISOString().slice(0, 16).replace("T", " ");
+      actions.appendChild(stamp);
+    }
+
+    block.appendChild(actions);
+    container.appendChild(block);
+    return block;
+  }
+
   function appendPortalInlineDetails(container, row) {
     container.innerHTML = "";
 
@@ -2316,6 +2483,8 @@
     header.appendChild(meta);
     header.appendChild(actions);
     container.appendChild(header);
+
+    appendPortalAnnotationEditor(container, row);
 
     const evmImages = collectEvmImageAssets(row);
     const hasEvmImages = evmImages.length > 0;
@@ -3481,6 +3650,7 @@ function getPortalFirstCharacter() {
     if ($("#portalSkipPrefix")) $("#portalSkipPrefix").value = String(DEFAULT_SKIP_PREFIX);
     if ($("#portalSkipSuffix")) $("#portalSkipSuffix").value = String(DEFAULT_SKIP_SUFFIX);
 
+    loadPortalAnnotations();
     renderThunderwordOptions();
     renderEmptyTransactionList("Select a currency profile and load an address stream, or let local transactions populate the explorer.");
 
@@ -3655,6 +3825,10 @@ function getPortalFirstCharacter() {
     renderThunderwordOptions: renderThunderwordOptions,
     buildSemantics: buildSemantics,
     renderSemantics: renderSemantics,
+    loadPortalAnnotations: loadPortalAnnotations,
+    getPortalAnnotation: getPortalAnnotation,
+    setPortalAnnotation: setPortalAnnotation,
+    clearPortalAnnotation: clearPortalAnnotation,
     extractSummary: extractSummary,
     extractBlockTime: extractBlockTime,
     extractBlockHeight: extractBlockHeight,

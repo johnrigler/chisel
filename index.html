@@ -703,7 +703,8 @@
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
-      margin-bottom: 10px;
+      margin-top: 10px;
+      margin-bottom: 0;
     }
 
     .portalPageButton {
@@ -823,6 +824,49 @@
       background: #ffffff;
       color: #111820;
       font-weight: 700;
+    }
+
+    .portalAnnotationBlock {
+      display: grid;
+      gap: 8px;
+      border: 1px solid #ccd5df;
+      border-radius: 12px;
+      padding: 10px;
+      background: #ffffff;
+    }
+
+    .portalAnnotationBlock.hasAnnotation {
+      border-color: #8b98a5;
+      background: #fdfdf8;
+    }
+
+    .portalAnnotationGrid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .portalAnnotationGrid label {
+      display: grid;
+      gap: 4px;
+      color: #111820;
+      font-weight: 700;
+    }
+
+    .portalAnnotationGrid input,
+    .portalAnnotationGrid textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #b8c2cc;
+      border-radius: 8px;
+      padding: 7px 9px;
+      background: #fff;
+      color: #111820;
+      font: inherit;
+      font-weight: 400;
+    }
+
+    .portalAnnotationActions {
+      align-items: center;
     }
 
     .portalLegacyViewport {
@@ -1277,8 +1321,8 @@
             <button id="portalFocusJethroButton" class="secondaryButton portalPageButton" type="button">only Jethro</button>
             <button id="portalShowAllSourcesButton" class="secondaryButton portalPageButton" type="button">show all</button>
           </div>
-          <div id="portalPageControls" class="portalPageControls muted"></div>
           <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">Local transactions will load here when fileProxy is running.</div>
+          <div id="portalPageControls" class="portalPageControls muted"></div>
         </section>
       </section>
 
@@ -1449,7 +1493,7 @@
   <script src="chisel.digibyte.js?2.5.2d"></script>
   <script src="chisel.litecoin.js?2.5.2j"></script>
   <script src="chisel.thunderwords.js?2.6.9i"></script>
-  <script src="chisel.portal.js?2.6.9m"></script>
+  <script src="chisel.portal.js?2.7.0"></script>
 
  <script>
   window.CHISEL_DEBUG = {

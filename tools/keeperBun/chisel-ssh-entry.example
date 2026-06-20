@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Put this somewhere root-owned, for example:
+#   /usr/local/sbin/chisel-ssh-entry
+# Then use it as a ForceCommand or login shell.
+
+exec /usr/local/bin/bun \
+    /opt/chisel/tools/keeperBun/keeper-init.js \
+    --keeper http://127.0.0.1:8787 \
+    --user "$USER" \
+    2>>/var/log/chisel-keeper-init.err
