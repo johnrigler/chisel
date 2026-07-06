@@ -12,6 +12,9 @@
   const CIDV0_RE = /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/;
   const TXID_RE = /^[0-9a-fA-F]{64}$/;
   const DEFAULT_CONFIG_PATH = "chisel.portal.config.json";
+  const DEFAULT_STATIC_MANIFEST_PATH = "data/manifest.json";
+  const DEFAULT_BUNDLED_MANIFEST_PATH = "data-bundled/manifest.json";
+  const DEFAULT_REMOTE_MANIFEST_URL = "https://rigler.org/chisel-data/manifest.json";
   const PORTAL_ANNOTATIONS_STORAGE_KEY = "chisel.portal.annotations.v1";
   const DEFAULT_PORTAL_CONFIG = {
     fileProxyUrl: DEFAULT_FILE_PROXY_URL,
@@ -21,6 +24,10 @@
     pollLocalTransactionsMs: 0,
     autoSelectNewest: false,
     autoLoadConversationStreams: true,
+    autoLoadStaticDataset: true,
+    autoSearchLedgersAfterStatic: true,
+    staticManifestPaths: [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH],
+    staticManifestMirrors: [DEFAULT_REMOTE_MANIFEST_URL],
     backgroundHydrateTransactions: true,
     saveDiscoveredLinks: true,
     rabbitTrailSenders: false,
@@ -38,6 +45,7 @@
     portalFilterRavencoin: true,
     portalFilterLitecoin: true,
     portalFilterBitcoin: true,
+    portalFilterDogecoin: true,
     portalFilterEvmGomez: true,
     portalFilterEvmJethro: true,
     portalFilterOther: true
@@ -106,6 +114,10 @@
     config: Object.assign({}, DEFAULT_PORTAL_CONFIG),
     localPollTimer: null,
     evmCatalogLoaded: Object.create(null),
+    staticDatasetLoaded: false,
+    staticDatasetReports: [],
+    staticManifest: null,
+    staticRawByTxid: Object.create(null),
     portalSourceFilters: Object.create(null),
     portalAnnotations: Object.create(null)
   };
@@ -467,6 +479,47 @@
     return Number.isFinite(height) && height > 0 ? height : undefined;
   }
 
+
+  const UTXO_BLOCK_TIME_CHECKPOINTS = {
+    dogecoin: [[0, 1386325540], [1000000, 1449583300], [2000000, 1510419600], [3000000, 1578902400], [4000000, 1642779000], [5000000, 1706100000], [6000000, 1769500000]],
+    ravencoin: [[0, 1514999494], [1000000, 1575400000], [2000000, 1635850000], [3000000, 1696400000], [4000000, 1757000000]],
+    digibyte: [[0, 1389388390], [5000000, 1460200000], [10000000, 1525300000], [15000000, 1590400000], [20000000, 1655600000], [25000000, 1720800000]],
+    litecoin: [[0, 1317972665], [1000000, 1452400000], [2000000, 1590300000], [3000000, 1728000000]],
+    bitcoin: [[0, 1231006505], [300000, 1399700000], [600000, 1573500000], [900000, 1749000000]]
+  };
+
+  function estimateUtxoBlockTime(coin, height) {
+    const clean = normalizeCoinName(coin || "");
+    const h = Number(height);
+    const points = UTXO_BLOCK_TIME_CHECKPOINTS[clean] || [];
+    if (!Number.isFinite(h) || h <= 0 || points.length < 2) return 0;
+    let a = points[0];
+    let b = points[points.length - 1];
+    if (h <= points[0][0]) {
+      a = points[0];
+      b = points[1];
+    } else if (h >= points[points.length - 1][0]) {
+      a = points[points.length - 2];
+      b = points[points.length - 1];
+    } else {
+      for (let i = 0; i < points.length - 1; i += 1) {
+        if (points[i][0] <= h && h <= points[i + 1][0]) {
+          a = points[i];
+          b = points[i + 1];
+          break;
+        }
+      }
+    }
+    if (b[0] === a[0]) return Math.floor(a[1]);
+    return Math.floor(a[1] + ((h - a[0]) * (b[1] - a[1]) / (b[0] - a[0])));
+  }
+
+  function blockTimeForRowValue(value, rowCoin) {
+    const exact = extractBlockTime(value);
+    if (exact) return exact;
+    return estimateUtxoBlockTime(rowCoin || (value && (value.coin || value.ticker || value.chain)), extractBlockHeight(value));
+  }
+
   function extractOutputs(value) {
     const tx = value && value.tx && Array.isArray(value.tx.vout) ? value.tx : value;
     return safeArray(tx && tx.vout).map(function (entry, index) {
@@ -696,9 +749,13 @@
     return [];
   }
 
-  function isEvmTransactionJson(value) {
+  function isEvmTransactionJson(value, indexEntry) {
     if (!value || typeof value !== "object") return false;
-    if (String(value.coin || "").toLowerCase() === "evm") return true;
+    const explicitCoin = normalizeCoinName(value.coin || value.ticker || value.chain || (indexEntry && (indexEntry.coin || indexEntry.ticker || indexEntry.name)));
+    if (explicitCoin && explicitCoin !== "evm") return false;
+    if (explicitCoin === "evm") return true;
+    const tx = txObject(value);
+    if (Array.isArray(tx && tx.vout) || Array.isArray(tx && tx.vin)) return false;
     if (value.tx && value.tx.hash && value.tx.input !== undefined) return true;
     return !!(value.hash && value.input !== undefined && value.timeStamp !== undefined);
   }
@@ -931,7 +988,7 @@
   }
 
   function extractEvmSummary(value, indexEntry) {
-    if (!isEvmTransactionJson(value)) return null;
+    if (!isEvmTransactionJson(value, indexEntry)) return null;
     const tx = txObject(value);
     const txid = extractTxid(value);
     const existing = value && value.summary && typeof value.summary === "object" ? value.summary : {};
@@ -1003,7 +1060,8 @@
       opReturnText: opText,
       opReturnUrls: opUrls,
       blockHeight: extractBlockHeight(value),
-      blockTime: extractBlockTime(value),
+      blockTime: blockTimeForRowValue(value, indexEntry && (indexEntry.coin || indexEntry.ticker || indexEntry.name)),
+      blockTimeEstimated: !!(value && value.summary && value.summary.blockTimeEstimated),
       explorerUrl: indexEntry && txid && window.CHISEL_THUNDERWORDS ? window.CHISEL_THUNDERWORDS.getTxUrl(indexEntry, txid) : ""
     };
   }
@@ -1376,6 +1434,9 @@
     });
     if (exact) return exact;
 
+    const fallbackCoin = normalizeCoinName(fallbackEntry && (fallbackEntry.coin || fallbackEntry.ticker || fallbackEntry.name));
+    if (fallbackCoin && fallbackCoin !== "unknown") return fallbackEntry;
+
     const byRoot = indexes.find(function (entry) {
       const root = String(entry.address || "").charAt(0);
       return root && root === first;
@@ -1446,7 +1507,7 @@
   async function loadPortalConfig() {
     const directUrls = [DEFAULT_CONFIG_PATH];
     const proxyBase = String((state.config && state.config.fileProxyUrl) || DEFAULT_FILE_PROXY_URL).replace(/\/+$/, "");
-    directUrls.unshift(proxyBase + "/config?path=" + encodeURIComponent(DEFAULT_CONFIG_PATH));
+    directUrls.push(proxyBase + "/config?path=" + encodeURIComponent(DEFAULT_CONFIG_PATH));
 
     for (let i = 0; i < directUrls.length; i += 1) {
       try {
@@ -1512,6 +1573,254 @@
     return getFileProxyUrl() + "/raw?path=" + encodeURIComponent(String(path));
   }
 
+  function isAbsoluteUrl(value) {
+    return /^https?:\/\//i.test(String(value || ""));
+  }
+
+  function trimUrlSlash(value) {
+    return String(value || "").replace(/\/+$/, "");
+  }
+
+  function dirnameUrl(value) {
+    const text = String(value || "");
+    const idx = text.lastIndexOf("/");
+    return idx >= 0 ? text.slice(0, idx + 1) : "";
+  }
+
+  function joinDataPath(base, path) {
+    const p = String(path || "").replace(/^\/+/, "");
+    if (!p) return String(base || "");
+    if (isAbsoluteUrl(p)) return p;
+    const b = String(base || "");
+    if (!b) return p;
+    return trimUrlSlash(b) + "/" + p;
+  }
+
+  function normalizePathList(value, fallback) {
+    if (Array.isArray(value)) return value.map(String).filter(Boolean);
+    if (typeof value === "string" && value.trim()) return [value.trim()];
+    return fallback || [];
+  }
+
+  async function fetchJsonNoStore(url) {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) throw new Error(url + " failed with HTTP " + response.status + ".");
+    return response.json();
+  }
+
+  function makeStaticIndexEntry(row) {
+    const coin = normalizeCoinName(row.coin || row.chain || (row.summary && row.summary.coin) || "");
+    if (coin === "evm" || row.chainId || row.contractName || row.contractAddress) {
+      return {
+        coin: "evm",
+        ticker: "EVM",
+        name: (row.contractName || "static") + " EVM",
+        label: (row.contractName || "static") + " EVM static",
+        chainId: String(row.chainId || "137"),
+        contractName: row.contractName || (row.summary && row.summary.contractName) || "",
+        contractAddress: row.contractAddress || (row.summary && row.summary.contractAddress) || ""
+      };
+    }
+    return getCoinIndexByCoinName(coin || row.ticker || row.sourceId) || {
+      coin: coin || row.coin || "unknown",
+      ticker: row.ticker || tickerForCoin(coin) || "",
+      name: row.sourceId || coin || "static",
+      label: row.streamLabel || row.sourceId || coin || "static"
+    };
+  }
+
+  function staticRowToPortalRow(item, context) {
+    const row = item && typeof item === "object" ? item : {};
+    const txid = String(row.txid || row.hash || "").replace(/^0x/i, "").toLowerCase();
+    if (!TXID_RE.test(txid)) return null;
+    const summary = Object.assign({}, row.summary || {});
+    summary.txid = summary.txid || txid;
+    summary.hash = summary.hash || row.hash || (row.coin === "evm" ? "0x" + txid : txid);
+    summary.title = summary.title || row.title || ("transaction " + shortTxid(txid));
+    summary.coin = summary.coin || row.coin || "";
+    summary.ticker = summary.ticker || row.ticker || tickerForCoin(row.coin || "");
+    if (!summary.blockTime && row.blockTime) summary.blockTime = row.blockTime;
+    if (!summary.blockHeight && row.blockHeight) summary.blockHeight = row.blockHeight;
+    if (row.contractName && !summary.contractName) summary.contractName = row.contractName;
+    if (row.contractAddress && !summary.contractAddress) summary.contractAddress = row.contractAddress;
+
+    const baseUrl = (context && context.baseUrl) || "";
+    const remoteBaseUrls = normalizePathList(context && context.remoteBaseUrls, []);
+    const rawPath = row.rawPath || row.path || "";
+    const rawUrl = row.rawUrl || "";
+
+    const out = {
+      index: row.index || makeStaticIndexEntry(row),
+      coin: normalizeCoinName(row.coin || summary.coin || row.ticker || "") || row.coin || "unknown",
+      txid: txid,
+      raw: row.raw || null,
+      summary: summary,
+      blockTime: summary.blockTime || row.blockTime || 0,
+      streamLabel: row.streamLabel || ((context && context.sourceLabel) || "static dataset"),
+      localPath: row.localPath || "",
+      staticRawPath: rawPath,
+      staticRawUrl: rawUrl,
+      staticBaseUrl: baseUrl,
+      staticRemoteBaseUrls: remoteBaseUrls,
+      staticSource: (context && context.sourceBadge) || "static",
+      sourceId: row.sourceId || "",
+      discoverySource: row.discoverySource || "preloaded"
+    };
+
+    if (rawPath || rawUrl) {
+      state.staticRawByTxid[out.coin + ":" + txid] = out;
+      state.staticRawByTxid[(row.sourceId || sourceIdForRow(out)) + ":" + txid] = out;
+    }
+    return out;
+  }
+
+  function normalizeStaticDatasetRows(dataset, context) {
+    const rows = Array.isArray(dataset) ? dataset : safeArray(dataset && (dataset.transactions || dataset.records || dataset.rows));
+    return rows.map(function (row) { return staticRowToPortalRow(row, context || {}); }).filter(Boolean);
+  }
+
+  function mergeStaticRows(rows, opts) {
+    let added = 0;
+    let updated = 0;
+    beginPortalBatch();
+    try {
+      rows.forEach(function (row) {
+        const key = rowKey(row);
+        const existed = !!state.portalRowKeys[key];
+        if (upsertPortalRow(row, { silent: true })) {
+          if (existed) updated += 1;
+          else added += 1;
+        }
+      });
+    } finally {
+      endPortalBatch();
+    }
+    state.portalPage = 1;
+    if (!(opts && opts.silent)) requestPortalRender();
+    return { added: added, updated: updated, total: rows.length };
+  }
+
+  function loadEmbeddedStaticDataset() {
+    const dataset = window.CHISEL_PORTAL_STARTER_DATA;
+    if (!dataset || state.staticDatasetLoaded) return null;
+    const rows = normalizeStaticDatasetRows(dataset, {
+      baseUrl: "./data-bundled/",
+      sourceLabel: "bundled static index",
+      sourceBadge: "bundled",
+      remoteBaseUrls: ["https://rigler.org/chisel-data/"]
+    });
+    const report = mergeStaticRows(rows, { silent: true });
+    state.staticDatasetLoaded = true;
+    state.staticDatasetReports.push(Object.assign({ source: "embedded starter", records: rows.length }, report));
+    setStatus("Preloaded " + report.added + " bundled record(s), newest first. Live ledger search can add newer rows without clearing the stream.", false);
+    requestPortalRender();
+    return report;
+  }
+
+  async function loadStaticManifest(manifestUrl, opts) {
+    const label = (opts && opts.label) || manifestUrl;
+    const manifest = await fetchJsonNoStore(manifestUrl);
+    const baseUrl = manifest.baseUrl ? manifest.baseUrl : dirnameUrl(manifestUrl);
+    const indexPath = manifest.defaultIndex || "index/portal.index.json";
+    const indexUrl = joinDataPath(baseUrl, indexPath);
+    const index = await fetchJsonNoStore(indexUrl);
+    const rows = normalizeStaticDatasetRows(index, {
+      baseUrl: baseUrl,
+      sourceLabel: label,
+      sourceBadge: (opts && opts.badge) || (manifestUrl.indexOf("data-bundled/") >= 0 ? "bundled" : (isAbsoluteUrl(manifestUrl) ? "remote" : "static")),
+      remoteBaseUrls: manifest.remoteBaseUrls || []
+    });
+    const report = mergeStaticRows(rows, { silent: opts && opts.silent });
+    state.staticManifest = manifest;
+    state.staticDatasetReports.push(Object.assign({ source: label, manifest: manifestUrl, records: rows.length }, report));
+    return report;
+  }
+
+  async function loadConfiguredStaticDatasets(opts) {
+    const reports = [];
+    const localPaths = normalizePathList(configValue("staticManifestPaths", null), [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH]);
+    for (let i = 0; i < localPaths.length; i += 1) {
+      try {
+        reports.push(await loadStaticManifest(localPaths[i], { label: localPaths[i], badge: localPaths[i].indexOf("data-bundled") >= 0 ? "bundled" : "static", silent: true }));
+      } catch (error) {
+        reports.push({ source: localPaths[i], error: error.message || String(error) });
+      }
+    }
+    const mirrors = normalizePathList(configValue("staticManifestMirrors", null), [DEFAULT_REMOTE_MANIFEST_URL]);
+    for (let j = 0; j < mirrors.length; j += 1) {
+      try {
+        reports.push(await loadStaticManifest(mirrors[j], { label: mirrors[j], badge: "remote", silent: true }));
+        break;
+      } catch (error) {
+        reports.push({ source: mirrors[j], error: error.message || String(error) });
+      }
+    }
+    requestPortalRender();
+    setText("#portalThunderwordRaw", pretty({ staticDatasets: reports }));
+    if (!(opts && opts.quiet)) {
+      const ok = reports.filter(function (r) { return !r.error; });
+      const added = ok.reduce(function (sum, r) { return sum + (Number(r.added) || 0); }, 0);
+      const updated = ok.reduce(function (sum, r) { return sum + (Number(r.updated) || 0); }, 0);
+      setStatus("Static dataset refresh finished: " + added + " added, " + updated + " updated. fileProxy was not required.", false);
+    }
+    return reports;
+  }
+
+  async function fetchStaticRawFromRow(row) {
+    const paths = [];
+    if (row.staticRawUrl) paths.push(row.staticRawUrl);
+    if (row.staticRawPath && row.staticBaseUrl) paths.push(joinDataPath(row.staticBaseUrl, row.staticRawPath));
+    normalizePathList(row.staticRemoteBaseUrls, []).forEach(function (base) {
+      if (row.staticRawPath) paths.push(joinDataPath(base, row.staticRawPath));
+    });
+    const errors = [];
+    for (let i = 0; i < paths.length; i += 1) {
+      try {
+        return { json: await fetchJsonNoStore(paths[i]), source: row.staticSource || "static", url: paths[i], coin: row.coin || canonicalCoinForRow(row) };
+      } catch (error) {
+        errors.push(paths[i] + " => " + (error.message || String(error)));
+      }
+    }
+    if (!paths.length) throw new Error("No static raw path is registered for this row.");
+    throw new Error("Static transaction fetch failed: " + errors.join(" | "));
+  }
+
+  async function validateStaticDataset() {
+    const reports = [];
+    const manifests = normalizePathList(configValue("staticValidationManifestPaths", null), [DEFAULT_BUNDLED_MANIFEST_PATH]);
+    for (let i = 0; i < manifests.length; i += 1) {
+      const manifestUrl = manifests[i];
+      const report = { manifest: manifestUrl, ok: false, checks: [] };
+      reports.push(report);
+      try {
+        const manifest = await fetchJsonNoStore(manifestUrl);
+        const baseUrl = manifest.baseUrl ? manifest.baseUrl : dirnameUrl(manifestUrl);
+        const hashes = manifest.hashes || {};
+        const paths = Object.keys(hashes);
+        for (let j = 0; j < paths.length; j += 1) {
+          const path = paths[j];
+          const url = joinDataPath(baseUrl, path);
+          const response = await fetch(url, { cache: "no-store" });
+          if (!response.ok) throw new Error(url + " failed with HTTP " + response.status);
+          const buffer = await response.arrayBuffer();
+          let digest = "";
+          if (window.crypto && window.crypto.subtle) {
+            const hashBuffer = await window.crypto.subtle.digest("SHA-256", buffer);
+            digest = Array.from(new Uint8Array(hashBuffer)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+          }
+          const expected = String(hashes[path] || "").replace(/^sha256-/i, "");
+          report.checks.push({ path: path, bytes: buffer.byteLength, expected: expected, actual: digest, ok: digest ? digest === expected : "crypto.subtle unavailable" });
+        }
+        report.ok = report.checks.every(function (c) { return c.ok === true || c.ok === "crypto.subtle unavailable"; });
+      } catch (error) {
+        report.error = error.message || String(error);
+      }
+    }
+    setText("#portalThunderwordRaw", pretty({ validation: reports }));
+    setStatus("Dataset validation finished. See Index raw for hash details.", reports.some(function (r) { return r.error || r.ok === false; }));
+    return reports;
+  }
+
   function getCurrentCoinName(indexEntry) {
     const entry = indexEntry || state.currentIndex || (function () {
       try { return getSelectedIndex(); } catch (error) { return null; }
@@ -1563,34 +1872,102 @@
 
 
   function getCoinIndexByCoinName(coin) {
-    const api = getThunderwords();
-    const clean = String(coin || "").toLowerCase();
-    if (!api || !clean) return state.currentIndex;
-    const found = api.listIndexes().find(function (entry) {
-      return String(entry.coin || "").toLowerCase() === clean || String(entry.ticker || "").toLowerCase() === clean;
-    });
-    return found || state.currentIndex;
+    return indexEntryForCoin(coin, state.currentIndex);
   }
 
   async function loadLocalTransaction(txid, coin) {
     const json = await fileProxyJson("/tx", { txid: txid, coin: coin || "" });
     const tx = json.json || tryParseJsonText(json.text) || { text: json.text, txid: txid };
-    return { txid: txid, coin: coin || json.coin || "", path: json.path, raw: tx };
+    return { txid: txid, coin: normalizeCoinName(coin || json.coin || tx.coin || tx.ticker || tx.chain || ""), path: json.path, raw: tx };
+  }
+
+  function normalizeCoinName(value) {
+    const clean = String(value || "").trim().toLowerCase();
+    if (!clean) return "";
+    const compact = clean.replace(/[^a-z0-9]+/g, "");
+    const aliases = {
+      dgb: "digibyte",
+      digibyte: "digibyte",
+      rvn: "ravencoin",
+      raven: "ravencoin",
+      ravencoin: "ravencoin",
+      ltc: "litecoin",
+      litecoin: "litecoin",
+      btc: "bitcoin",
+      bitcoin: "bitcoin",
+      doge: "dogecoin",
+      dogecoin: "dogecoin",
+      evm: "evm",
+      eth: "evm",
+      ethereum: "evm",
+      polygon: "evm",
+      matic: "evm"
+    };
+    return aliases[compact] || clean;
+  }
+
+  function tickerForCoin(value) {
+    const coin = normalizeCoinName(value);
+    if (coin === "digibyte") return "DGB";
+    if (coin === "ravencoin") return "RVN";
+    if (coin === "litecoin") return "LTC";
+    if (coin === "bitcoin") return "BTC";
+    if (coin === "dogecoin") return "DOGE";
+    if (coin === "evm") return "EVM";
+    return "";
+  }
+
+  function rawCoinFromRow(row) {
+    const s = row && row.summary ? row.summary : {};
+    const raw = row && row.raw && typeof row.raw === "object" ? row.raw : {};
+    return normalizeCoinName(row && (row.coin || row.ticker)) ||
+      normalizeCoinName(s.coin || s.ticker || s.chain) ||
+      normalizeCoinName(raw.coin || raw.ticker || raw.chain) || "";
+  }
+
+  function canonicalCoinForRow(row) {
+    const explicit = rawCoinFromRow(row);
+    if (explicit) return explicit;
+    const entry = row && row.index ? row.index : {};
+    return normalizeCoinName(entry.coin || entry.ticker || entry.name) || "unknown";
+  }
+
+  function indexEntryForCoin(coin, fallback) {
+    const api = getThunderwords();
+    const clean = normalizeCoinName(coin);
+    if (!api || !clean) return fallback || state.currentIndex || null;
+    const ticker = tickerForCoin(clean).toLowerCase();
+    const found = api.listIndexes().find(function (entry) {
+      return normalizeCoinName(entry.coin || entry.name) === clean || String(entry.ticker || "").toLowerCase() === ticker;
+    });
+    return found || fallback || state.currentIndex || null;
+  }
+
+  function rowIndexEntry(row) {
+    const coin = canonicalCoinForRow(row);
+    return indexEntryForCoin(coin, row && row.index);
   }
 
   function coinLabel(entryOrCoin) {
     if (!entryOrCoin) return "?";
-    if (typeof entryOrCoin === "string") return entryOrCoin || "?";
-    return entryOrCoin.ticker || entryOrCoin.coin || entryOrCoin.name || "?";
+    if (typeof entryOrCoin === "string") return tickerForCoin(entryOrCoin) || entryOrCoin || "?";
+    return entryOrCoin.ticker || tickerForCoin(entryOrCoin.coin || entryOrCoin.name) || entryOrCoin.coin || entryOrCoin.name || "?";
+  }
+
+  function coinLabelForRow(row) {
+    return tickerForCoin(canonicalCoinForRow(row)) || coinLabel(row && (row.index || row.coin));
   }
 
   function rowKey(row) {
-    return String((row.index && (row.index.coin || row.index.name)) || row.coin || "unknown").toLowerCase() + ":" + String(row.txid || "").toLowerCase();
+    return sourceIdForRow(row) + ":" + String(row && row.txid || "").toLowerCase();
   }
 
   function rowTime(row) {
     const summary = row.summary || {};
-    return Number(summary.blockTime || row.blockTime || extractBlockTime(row.raw) || row.modified || 0) || 0;
+    const exact = Number(summary.blockTime || row.blockTime || extractBlockTime(row.raw) || 0) || 0;
+    if (exact) return exact;
+    const estimated = estimateUtxoBlockTime(canonicalCoinForRow(row), summary.blockHeight || extractBlockHeight(row.raw));
+    return Number(estimated || row.modified || 0) || 0;
   }
 
   function formatRowTime(row) {
@@ -1619,7 +1996,10 @@
     if (s.imageCount) flags.push("asset-img:" + s.imageCount);
     if (s.evmWords && s.evmWords.length) flags.push("words:" + s.evmWords.length);
     if (s.lines) flags.push("addr:" + s.lines);
+    if (row.staticSource) flags.push(row.staticSource);
+    if (row.discoverySource) flags.push(row.discoverySource);
     if (row.localPath) flags.push("local");
+    flags.push(row.raw ? "hydrated" : "summary");
     const annotation = getPortalAnnotation(row);
     if (annotation.category) flags.push("cat:" + annotation.category);
     if (annotation.note) flags.push("note");
@@ -1629,7 +2009,7 @@
   }
 
   const PORTAL_FILTER_IDS = [
-    "digibyte", "ravencoin", "litecoin", "bitcoin", "evmGomez", "evmJethro", "other"
+    "digibyte", "ravencoin", "litecoin", "bitcoin", "dogecoin", "evmGomez", "evmJethro", "other"
   ];
 
   function portalFilterConfigKey(id) {
@@ -1641,23 +2021,25 @@
   }
 
   function sourceIdForRow(row) {
+    if (row && row.sourceId) return String(row.sourceId);
     const s = row && row.summary ? row.summary : {};
     const entry = row && row.index ? row.index : {};
     const raw = row && row.raw && typeof row.raw === "object" ? row.raw : {};
     const rawContract = raw.contract && typeof raw.contract === "object" ? raw.contract : {};
-    const coin = String((entry.coin || entry.ticker || row.coin || s.coin || "")).toLowerCase();
+    const coin = canonicalCoinForRow(row);
     const contractName = String(s.contractName || entry.contractName || rawContract.name || "").toLowerCase();
     const contractAddress = String(s.contractAddress || entry.contractAddress || rawContract.address || "").toLowerCase();
 
+    if (coin === "digibyte") return "digibyte";
+    if (coin === "ravencoin") return "ravencoin";
+    if (coin === "litecoin") return "litecoin";
+    if (coin === "bitcoin") return "bitcoin";
+    if (coin === "dogecoin") return "dogecoin";
     if (coin === "evm" || contractName || contractAddress.match(/^0x/)) {
       if (contractName.indexOf("gomez") !== -1 || contractAddress.indexOf("5a2220d56f56") !== -1) return "evmGomez";
       if (contractName.indexOf("jethro") !== -1 || contractAddress.indexOf("0076416c84c7") !== -1) return "evmJethro";
       return "other";
     }
-    if (coin.indexOf("digibyte") !== -1 || coin === "dgb") return "digibyte";
-    if (coin.indexOf("ravencoin") !== -1 || coin === "rvn") return "ravencoin";
-    if (coin.indexOf("litecoin") !== -1 || coin === "ltc" || coin.indexOf("litecointestnet") !== -1) return "litecoin";
-    if (coin.indexOf("bitcoin") !== -1 || coin === "btc" || coin === "tbtc") return "bitcoin";
     return "other";
   }
 
@@ -1705,7 +2087,7 @@
     const d = rawDecodedForRow(row);
     const parts = [
       row && row.txid,
-      s.hash, s.title, s.cleanText, s.primaryUrl, s.functionName, s.methodId, s.contractName, s.contractAddress,
+      s.hash, s.title, s.cleanText, s.primaryUrl, s.functionName, s.methodId, s.contractName, s.contractAddress, s.coin,
       d.kind, d.message, d.text, d.artifact, d.body
     ];
     safeArray(s.evmReceivers).forEach(function (x) { parts.push(x); });
@@ -1754,7 +2136,7 @@
       imageLines: 0,
       ipfsCount: 0,
       blockHeight: extractBlockHeight(tx),
-      blockTime: extractBlockTime(tx),
+      blockTime: blockTimeForRowValue(tx, entry && (entry.coin || entry.ticker || entry.name)),
       explorerUrl: entry && getThunderwords() ? getThunderwords().getTxUrl(entry, txid) : ""
     };
   }
@@ -1847,6 +2229,17 @@
     return state.portalLoadGeneration;
   }
 
+  function clearPortalStream(reason) {
+    const generation = resetPortalRowsForNewLoad();
+    state.staticDatasetLoaded = false;
+    state.staticDatasetReports = [];
+    state.staticManifest = null;
+    state.staticRawByTxid = Object.create(null);
+    setText("#portalThunderwordRaw", "");
+    setStatus(reason || "Portal stream cleared. Static data and live searches can be loaded again.", false);
+    return generation;
+  }
+
   function renderPortalPageControls() {
     const box = $("#portalPageControls");
     if (!box) return;
@@ -1912,8 +2305,15 @@
       summary: Object.assign({}, existing.summary || {}, row.summary || {}),
       raw: row.raw || existing.raw,
       index: row.index || existing.index,
-      coin: row.coin || existing.coin,
-      localPath: row.localPath || existing.localPath
+      coin: canonicalCoinForRow(row) || row.coin || existing.coin,
+      localPath: row.localPath || existing.localPath,
+      staticRawPath: row.staticRawPath || existing.staticRawPath,
+      staticRawUrl: row.staticRawUrl || existing.staticRawUrl,
+      staticBaseUrl: row.staticBaseUrl || existing.staticBaseUrl,
+      staticRemoteBaseUrls: row.staticRemoteBaseUrls || existing.staticRemoteBaseUrls,
+      staticSource: row.staticSource || existing.staticSource,
+      sourceId: row.sourceId || existing.sourceId,
+      discoverySource: row.discoverySource || existing.discoverySource
     }) : Object.assign({}, row, { key: key });
 
     if (!existing) {
@@ -2428,7 +2828,7 @@
     const meta = document.createElement("p");
     meta.className = "muted";
     meta.textContent = [
-      coinLabel(row.index || row.coin),
+      coinLabelForRow(row),
       formatRowTime(row),
       summary.blockHeight ? "block " + summary.blockHeight : "unknown block",
       summary.lines ? summary.lines + " address lines" : (sourceIdForRow(row).indexOf("evm") === 0 ? "EVM account/call record, no UTXO set" : "no address lines"),
@@ -2469,7 +2869,7 @@
       save.onclick = function (event) {
         event.preventDefault();
         event.stopPropagation();
-        saveTransactionToFileProxy(row.raw, row.txid, row.index || getCoinIndexByCoinName(row.coin)).then(function (saved) {
+        saveTransactionToFileProxy(row.raw, row.txid, rowIndexEntry(row)).then(function (saved) {
           row.localPath = saved.path || row.localPath;
           setStatus("Saved local jq-format transaction JSON: " + (saved.path || saved.filename || row.txid) + ".", false);
           requestPortalRender();
@@ -2512,7 +2912,7 @@
     if (!row.raw) {
       const pending = document.createElement("p");
       pending.className = "muted";
-      pending.textContent = "Transaction JSON has not been hydrated yet. Use + to resolve it inline; older rows are hydrated in the background.";
+      pending.textContent = rowCanHydrate(row) ? "Transaction JSON has not been hydrated yet. Use + to resolve it inline; older rows are hydrated in the background." : "Summary-only static record. Publish the raw JSON dataset or use authoring tools to hydrate it.";
       container.appendChild(pending);
       return;
     }
@@ -2528,7 +2928,7 @@
 
     if (!row.discoveredLinksSaved) {
       row.discoveredLinksSaved = true;
-      saveDiscoveredLinksMaybe(row.txid, semantics, row.index || getCoinIndexByCoinName(row.coin)).catch(function () {
+      saveDiscoveredLinksMaybe(row.txid, semantics, rowIndexEntry(row)).catch(function () {
         row.discoveredLinksSaved = false;
       });
     }
@@ -2544,7 +2944,7 @@
 
     const links = document.createElement("div");
     links.className = "portalInlineLinks";
-    appendPortalInlineLinks(links, semantics, row.index || getCoinIndexByCoinName(row.coin));
+    appendPortalInlineLinks(links, semantics, rowIndexEntry(row));
     dataContainer.appendChild(links);
 
     dataContainer.appendChild(makeInlinePre("Decoded lines", pretty(decodedLines), false));
@@ -2552,6 +2952,13 @@
     dataContainer.appendChild(makeInlinePre("Raw transaction JSON", pretty(row.raw), false));
 
     if (hasPrimaryImage) container.appendChild(dataContainer);
+  }
+
+  function rowCanHydrate(row) {
+    if (!row || row.raw) return false;
+    if (row.staticRawPath || row.staticRawUrl) return true;
+    if (indexCanFetch(rowIndexEntry(row))) return true;
+    return false;
   }
 
   async function hydratePortalRow(key, opts) {
@@ -2564,11 +2971,11 @@
     if (!(opts && opts.silent) && (state.expandedRowKeys[key] || isVisiblePortalRow(row))) requestPortalRender();
 
     try {
-      const loaded = await loadTransactionLocalFirst(row.index || getCoinIndexByCoinName(row.coin), row.txid, row.coin);
+      const loaded = await loadTransactionForRow(row);
       row.raw = loaded.json;
       row.localPath = loaded.path || row.localPath;
-      row.summary = extractSummary(loaded.json, row.index || getCoinIndexByCoinName(row.coin));
-      row.blockTime = row.blockTime || row.summary.blockTime;
+      row.summary = extractSummary(loaded.json, rowIndexEntry(row));
+      row.blockTime = row.summary.blockTime || row.blockTime || 0;
       upsertPortalRow(row, { silent: true });
       return row;
     } catch (error) {
@@ -2598,7 +3005,7 @@
     if ($("#portalTxid")) $("#portalTxid").value = row.txid;
     if ($("#portalLocalCoin") && row.coin) $("#portalLocalCoin").value = row.coin;
     requestPortalRender();
-    await hydratePortalRow(key);
+    if (rowCanHydrate(row)) await hydratePortalRow(key);
     return row;
   }
 
@@ -2634,7 +3041,7 @@
 
     const coin = document.createElement("span");
     coin.className = "portalStreamCoin";
-    coin.textContent = coinLabel(row.index || row.coin).toUpperCase();
+    coin.textContent = coinLabelForRow(row).toUpperCase();
 
     const titleWrap = document.createElement("span");
     titleWrap.className = "portalStreamTitle";
@@ -2717,7 +3124,7 @@
 
     if (!state.portalRows.length) {
       list.classList.add("muted");
-      list.textContent = "No transactions loaded. Start fileProxy or load a Thunderword index.";
+      list.textContent = "No transactions loaded. Load bundled/static data, search a ledger/address stream, or enter a direct txid.";
       setText("#portalExplorerCount", "No transactions loaded.");
       renderPortalPageControls();
       return;
@@ -2747,9 +3154,24 @@
     return togglePortalRowDetails(key, true);
   }
 
+  async function loadTransactionForRow(row) {
+    if (!row) throw new Error("No portal row selected for hydration.");
+    if (row.staticRawPath || row.staticRawUrl) {
+      try { return await fetchStaticRawFromRow(row); }
+      catch (error) { row.staticLoadError = error.message || String(error); }
+    }
+    return loadTransactionLocalFirst(rowIndexEntry(row), row.txid, canonicalCoinForRow(row));
+  }
+
   async function loadTransactionLocalFirst(indexEntry, txid, coin) {
     const id = String(txid || "").trim();
     if (!TXID_RE.test(id)) throw new Error("Transaction id must be 64 hex characters.");
+
+    const existingRow = state.portalRowKeys[rowKey({ index: indexEntry, coin: coin || (indexEntry && indexEntry.coin) || "", txid: id })];
+    if (existingRow && (existingRow.staticRawPath || existingRow.staticRawUrl)) {
+      try { return await fetchStaticRawFromRow(existingRow); }
+      catch (error) { existingRow.staticLoadError = error.message || String(error); }
+    }
 
     if (configBool("localFirstTransactions", true)) {
       try {
@@ -2783,7 +3205,7 @@
 
     if (configBool("preferLocalIndex", true)) {
       try {
-        json = await fileProxyJson("/tx-index", { coin: coin });
+        json = await fileProxyJson("/tx-index", { coin: coin, force: "1" });
         rows = json.transactions || [];
         usedIndex = true;
       } catch (error) {
@@ -2797,13 +3219,12 @@
     }
 
     state.localTransactions = rows;
-    resetPortalRowsForNewLoad();
 
     beginPortalBatch();
     try {
       for (let i = 0; i < rows.length; i += 1) {
         const row = rows[i];
-        const entry = getCoinIndexByCoinName(row.coin || coin);
+        const entry = getCoinIndexByCoinName(row.coin || row.ticker || (row.summary && (row.summary.coin || row.summary.ticker)) || coin);
         let raw = null;
         let summary = row.summary || makeBasicSummary(row.txid, row, entry);
 
@@ -2817,11 +3238,12 @@
 
         upsertPortalRow({
           index: entry,
-          coin: row.coin || coin || (entry && entry.coin) || "unknown",
+          coin: normalizeCoinName(row.coin || row.ticker || (row.summary && (row.summary.coin || row.summary.ticker)) || coin || (entry && entry.coin)) || "unknown",
           txid: row.txid,
           raw: raw,
           summary: summary,
           streamLabel: usedIndex ? "local index" : "local filesystem",
+          discoverySource: "fileProxy",
           localPath: row.path,
           modified: row.modified
         }, { silent: true });
@@ -2888,6 +3310,7 @@
       summary: summary,
       blockTime: summary.blockTime || row.modified || 0,
       streamLabel: profile.label + " EVM local catalog",
+      discoverySource: "fileProxy",
       localPath: row.path || "",
       imageAsset: row.imageAsset || null,
       modified: row.modified || 0
@@ -2959,6 +3382,7 @@
       raw: loaded.raw,
       summary: extractSummary(loaded.raw, entry),
       streamLabel: "local filesystem",
+      discoverySource: "fileProxy",
       localPath: loaded.path
     }, { select: true });
     if (row) await selectPortalRow(row.key);
@@ -3165,7 +3589,8 @@
           raw: rawTx,
           summary: summary,
           blockTime: tx.blockTime,
-          streamLabel: result.index.label || result.index.address
+          streamLabel: result.index.label || result.index.address,
+          discoverySource: "live-search"
         }, { silent: true });
       });
     } finally {
@@ -3179,13 +3604,14 @@
     const entry = entryOverride || getSelectedIndex();
     const address = String(addressOverride || ($("#portalThunderwordAddress") ? $("#portalThunderwordAddress").value.trim() : entry.address) || "").trim();
     const activeEntry = cloneIndexForAddress(entry, address, entry.label || entry.address || address);
-    const generation = resetPortalRowsForNewLoad();
+    const reset = false;
+    const generation = reset ? resetPortalRowsForNewLoad() : state.portalLoadGeneration;
     state.currentIndex = activeEntry;
-    setStatus("Loading " + (activeEntry.ticker || activeEntry.coin || activeEntry.name) + " address stream...", false);
+    setStatus("Searching " + (activeEntry.ticker || activeEntry.coin || activeEntry.name) + " ledger/address stream; matching rows will be merged into the existing Portal feed...", false);
     const result = await api.fetchAddressTransactions(activeEntry, address);
     renderThunderwordTxs(result);
     setText("#portalThunderwordRaw", pretty({ source: result.url, transactions: result.transactions }));
-    setStatus("Discovered " + result.transactions.length + " txid(s). Page1 is rendered; details hydrate in the background.", false);
+    setStatus("Ledger search discovered " + result.transactions.length + " txid(s). New rows were merged; existing preloaded rows stayed in place.", false);
 
     const rows = result.transactions.map(function (tx) {
       return state.portalRowKeys[rowKey({ index: activeEntry, coin: activeEntry.coin || activeEntry.ticker || activeEntry.name, txid: tx.txid })];
@@ -3413,7 +3839,8 @@ function getPortalFirstCharacter() {
         raw: tx.raw && tx.raw.vout ? tx.raw : null,
         summary: tx.raw && tx.raw.vout ? extractSummary(tx.raw, entry) : makeBasicSummary(tx.txid, tx, entry),
         blockTime: tx.blockTime,
-        streamLabel: streamLabel || entry.address
+        streamLabel: streamLabel || entry.address,
+        discoverySource: "live-search"
       });
     }
 
@@ -3521,19 +3948,19 @@ function getPortalFirstCharacter() {
     requestPortalRender();
   }
 
-  async function loadConversationStreams() {
+  async function loadConversationStreams(opts) {
     const api = getThunderwords();
     if (!api) throw new Error("chisel.thunderwords.js is required for conversation streams.");
 
     await ensureGeneratedGeneralIndexes();
 
-    const generation = resetPortalRowsForNewLoad();
+    const generation = (opts && opts.reset) ? resetPortalRowsForNewLoad() : state.portalLoadGeneration;
     const roots = getGeneralConversationIndexes();
     const allRows = [];
     const seenTx = new Set();
     const rawReport = [];
 
-    setStatus("Loading default Thunderword roots and calculating page1 before rendering…", false);
+    setStatus("Searching live/default ledger roots for newer records; results merge into the preloaded stream…", false);
 
     for (let i = 0; i < roots.length; i += 1) {
       const root = roots[i];
@@ -3599,7 +4026,7 @@ function getPortalFirstCharacter() {
       };
     }) }));
 
-    setStatus("Loaded page1 index view: " + Math.min(getPortalPageSize(), allRows.length) + " visible of " + allRows.length + " transaction(s). Hydrating details in the background.", false);
+    setStatus("Live ledger search merged " + allRows.length + " candidate transaction(s). Static/preloaded rows were not cleared.", false);
 
     window.setTimeout(function () {
       if (generation !== state.portalLoadGeneration) return;
@@ -3636,6 +4063,9 @@ function getPortalFirstCharacter() {
     const useMac = $("#portalUseMacAsIndexButton");
     const useSpendable = $("#portalUseSpendableAsIndexButton");
     const loadConversation = $("#portalLoadConversationButton");
+    const loadStaticDataset = $("#portalLoadStaticDatasetButton");
+    const validateDataset = $("#portalValidateDatasetButton");
+    const clearStream = $("#portalClearStreamButton");
     const loadLocalTxids = $("#portalLoadLocalTxidsButton");
     const loadSelectedLocal = $("#portalLoadSelectedLocalButton");
     const loadEvmCatalog = $("#portalLoadEvmCatalogButton");
@@ -3652,7 +4082,8 @@ function getPortalFirstCharacter() {
 
     loadPortalAnnotations();
     renderThunderwordOptions();
-    renderEmptyTransactionList("Select a currency profile and load an address stream, or let local transactions populate the explorer.");
+    renderEmptyTransactionList("Loading bundled static dataset; live ledger searches can add newer records after first paint.");
+    loadEmbeddedStaticDataset();
 
     if (loadTx) loadTx.onclick = async function () {
       try {
@@ -3667,6 +4098,7 @@ function getPortalFirstCharacter() {
           raw: loaded.json,
           summary: extractSummary(loaded.json, entry),
           streamLabel: loaded.source === "local" ? "direct txid from local cache" : "direct txid live fetch",
+          discoverySource: loaded.source === "local" ? "fileProxy" : "live-search",
           localPath: loaded.path || ""
         }, { select: true });
         if (row) await selectPortalRow(row.key);
@@ -3717,9 +4149,21 @@ function getPortalFirstCharacter() {
     };
 
     if (loadConversation) loadConversation.onclick = async function () {
-      try { await loadConversationStreams(); }
+      try { await loadConversationStreams({ reset: false }); }
       catch (error) { setStatus(error.message || String(error), true); }
     };
+
+    if (loadStaticDataset) loadStaticDataset.onclick = async function () {
+      try { await loadConfiguredStaticDatasets(); }
+      catch (error) { setStatus(error.message || String(error), true); }
+    };
+
+    if (validateDataset) validateDataset.onclick = async function () {
+      try { await validateStaticDataset(); }
+      catch (error) { setStatus(error.message || String(error), true); }
+    };
+
+    if (clearStream) clearStream.onclick = function () { clearPortalStream(); };
 
     if (loadLocalTxids) loadLocalTxids.onclick = async function () {
       try { await listLocalTransactions(); }
@@ -3790,12 +4234,21 @@ function getPortalFirstCharacter() {
     loadPortalConfig().then(function (config) {
       applyPortalConfig(config);
       applyEvmProfileConfig();
-      if (configBool("autoLoadLocalTransactions", true)) {
+      if (configBool("autoLoadStaticDataset", true)) {
+        loadConfiguredStaticDatasets({ quiet: true }).then(function () {
+          if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
+        }).catch(function (error) {
+          setStatus("Static dataset refresh skipped: " + (error.message || String(error)), true);
+          if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
+        });
+      } else if (configBool("autoSearchLedgersAfterStatic", true)) {
+        maybeAutoLoadConversationStreams();
+      }
+      if (configBool("autoLoadLocalTransactions", false)) {
         listLocalTransactions().catch(function (error) {
           setStatus("Local fileProxy load skipped: " + (error.message || String(error)), true);
         });
       }
-      maybeAutoLoadConversationStreams();
       if (configBool("autoLoadEvmCatalog", false)) {
         loadSelectedEvmCatalogs({ reset: false }).catch(function (error) {
           setStatus("Local EVM catalog load skipped: " + (error.message || String(error)), true);
@@ -3806,7 +4259,7 @@ function getPortalFirstCharacter() {
       applyPortalConfig(DEFAULT_PORTAL_CONFIG);
       applyEvmProfileConfig();
       setStatus("Portal config skipped: " + (error.message || String(error)), true);
-      maybeAutoLoadConversationStreams();
+      if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
     });
   }
 
@@ -3836,6 +4289,10 @@ function getPortalFirstCharacter() {
     describeOpReturnText: describeOpReturnText,
     buildPortalMacDougall: buildPortalMacDougall,
     loadConversationStreams: loadConversationStreams,
+    loadEmbeddedStaticDataset: loadEmbeddedStaticDataset,
+    loadConfiguredStaticDatasets: loadConfiguredStaticDatasets,
+    validateStaticDataset: validateStaticDataset,
+    clearPortalStream: clearPortalStream,
     loadSelectedEvmCatalogs: loadSelectedEvmCatalogs,
     fetchEvmCatalogRows: fetchEvmCatalogRows,
     listLocalTransactions: listLocalTransactions,

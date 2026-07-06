@@ -44,7 +44,7 @@ ALLOWED_SOURCE_ROOTS = ALLOWED_ROOTS + LEGACY_SOURCE_ROOTS
 TXID_RE = set("0123456789abcdefABCDEF")
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
 JSON_EXTS = ["", ".json", ".txt"]
-KNOWN_COINS = {"digibyte", "ravencoin", "litecoin", "litecointestnet", "bitcoin", "bitcointestnet3", "bitcointestnet4", "polygon", "matic", "evm", "unknown"}
+KNOWN_COINS = {"digibyte", "ravencoin", "raven", "rvn", "litecoin", "litecointestnet", "bitcoin", "bitcointestnet3", "bitcointestnet4", "dogecoin", "doge", "polygon", "matic", "evm", "unknown"}
 INDEX_PATH = Path("data/index/transactions.index.json")
 
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -228,7 +228,7 @@ def read_jsonish(path):
 
 def tx_roots(coin=None):
     roots = []
-    bases = ["txids", "data/transactions", "transactions"]
+    bases = ["txids", "data/transactions", "data-bundled/transactions", "transactions"]
     for base in bases:
         # Transaction stores are read-only discovery roots here. Follow symlinks so a
         # small app tar can point at a separate large data directory.
@@ -244,7 +244,7 @@ def tx_roots(coin=None):
         candidates = [data_root / "transactions", data_root / "data" / "transactions"]
         if coin and (data_root / coin).exists():
             candidates.append(data_root)
-        elif not coin and any((data_root / name).exists() for name in ("digibyte", "litecoin", "ravencoin")):
+        elif not coin and any((data_root / name).exists() for name in ("digibyte", "litecoin", "ravencoin", "dogecoin")):
             candidates.append(data_root)
         for p in candidates:
             if not p.exists():
@@ -288,8 +288,8 @@ def detect_coin_for_path(path, explicit_coin=None):
                 if len(lowered) > idx + 1:
                     candidate = safe_segment(lowered[idx + 1])
                     if candidate and candidate not in ("data", "transactions", "txids"):
-                        return candidate
-    parent = safe_segment(resolved.parent.name)
+                        return normalize_coin_name(candidate)
+    parent = normalize_coin_name(safe_segment(resolved.parent.name))
     return parent if parent not in ("transactions", "txids", "data") else "unknown"
 
 
@@ -1452,10 +1452,171 @@ def import_legacy_evm_images_from_tar(source_tar, chain_id="137", contract_name=
     return {"ok": True, "source": str(source), "dryRun": bool(dry_run), "imported": imported, "skipped": skipped, "count": len(imported), "skippedCount": len(skipped)}
 
 
+
+def normalize_coin_name(value):
+    clean = safe_segment(value or "")
+    aliases = {
+        "dgb": "digibyte",
+        "doge": "dogecoin",
+        "rvn": "ravencoin",
+        "raven": "ravencoin",
+        "raven_coin": "ravencoin",
+        "raven-coin": "ravencoin",
+        "ltc": "litecoin",
+        "btc": "bitcoin",
+        "polygon": "evm",
+        "matic": "evm",
+        "eth": "evm",
+        "ethereum": "evm"
+    }
+    return aliases.get(clean, clean)
+
+
+def ticker_for_coin(value):
+    coin = normalize_coin_name(value)
+    return {
+        "digibyte": "DGB",
+        "ravencoin": "RVN",
+        "litecoin": "LTC",
+        "bitcoin": "BTC",
+        "dogecoin": "DOGE",
+        "evm": "EVM"
+    }.get(coin, coin.upper() if coin else "")
+
+
+def coin_is_evm(value):
+    return normalize_coin_name(value) == "evm"
+
+
+def coin_from_value(value, fallback=""):
+    if isinstance(value, dict):
+        for key in ("coin", "ticker", "chain"):
+            v = normalize_coin_name(value.get(key))
+            if v:
+                return v
+        tx = value.get("tx") if isinstance(value.get("tx"), dict) else {}
+        for key in ("coin", "ticker", "chain"):
+            v = normalize_coin_name(tx.get(key))
+            if v:
+                return v
+    return normalize_coin_name(fallback)
+
+
+def tx_explorer_url(coin, txid):
+    clean_coin = safe_segment(coin or "unknown")
+    clean_txid = str(txid or "").strip().lower()
+    if not is_txid(clean_txid):
+        return ""
+    if clean_coin in ("dogecoin", "doge"):
+        return "https://blockchair.com/dogecoin/transaction/" + clean_txid
+    if clean_coin in ("litecoin", "ltc"):
+        return "https://litecoinspace.org/tx/" + clean_txid
+    if clean_coin in ("digibyte", "dgb"):
+        return "https://digiexplorer.info/tx/" + clean_txid
+    if clean_coin in ("ravencoin", "rvn"):
+        return "https://explorer.rvn.zelcore.io/tx/" + clean_txid
+    if clean_coin in ("bitcoin", "btc"):
+        return "https://mempool.space/tx/" + clean_txid
+    return ""
+
+
+# Best-effort height-to-time fallback for imported UTXO feeds that only contain
+# block height. Exact block header timestamps win whenever they are present in
+# source JSON. These checkpoints exist only to keep old imports sorted in their
+# historical neighborhood instead of at fileProxy import time. Use the hydrate
+# helper in tools/bunOven for exact node-derived timestamps.
+UTXO_BLOCK_TIME_CHECKPOINTS = {
+    "dogecoin": [
+        (0, 1386325540),        # genesis neighborhood, 2013-12-06 UTC
+        (1000000, 1449583300),
+        (2000000, 1510419600),
+        (3000000, 1578902400),
+        (4000000, 1642779000),
+        (5000000, 1706100000),
+        (6000000, 1769500000)
+    ],
+    "ravencoin": [
+        (0, 1514999494),        # 2018-01-03 UTC neighborhood
+        (1000000, 1575400000),
+        (2000000, 1635850000),
+        (3000000, 1696400000),
+        (4000000, 1757000000)
+    ],
+    "digibyte": [
+        (0, 1389388390),
+        (5000000, 1460200000),
+        (10000000, 1525300000),
+        (15000000, 1590400000),
+        (20000000, 1655600000),
+        (25000000, 1720800000)
+    ],
+    "litecoin": [
+        (0, 1317972665),
+        (1000000, 1452400000),
+        (2000000, 1590300000),
+        (3000000, 1728000000)
+    ],
+    "bitcoin": [
+        (0, 1231006505),
+        (300000, 1399700000),
+        (600000, 1573500000),
+        (900000, 1749000000)
+    ]
+}
+
+
+def estimate_utxo_block_time(coin, height):
+    clean_coin = normalize_coin_name(coin or "")
+    try:
+        h = int(height)
+    except Exception:
+        return 0
+    if h <= 0:
+        return 0
+    points = UTXO_BLOCK_TIME_CHECKPOINTS.get(clean_coin) or []
+    if not points:
+        return 0
+    points = sorted(points)
+    if h <= points[0][0]:
+        h0, t0 = points[0]
+        h1, t1 = points[1]
+    elif h >= points[-1][0]:
+        h0, t0 = points[-2]
+        h1, t1 = points[-1]
+    else:
+        h0, t0, h1, t1 = points[0][0], points[0][1], points[-1][0], points[-1][1]
+        for idx in range(len(points) - 1):
+            a_h, a_t = points[idx]
+            b_h, b_t = points[idx + 1]
+            if a_h <= h <= b_h:
+                h0, t0, h1, t1 = a_h, a_t, b_h, b_t
+                break
+    if h1 == h0:
+        return int(t0)
+    return int(t0 + ((h - h0) * (t1 - t0) / (h1 - h0)))
+
+
+def best_utxo_block_time(coin, height, *candidates):
+    exact = coerce_unix_time(first_present(*candidates))
+    if exact:
+        return exact, False
+    estimated = estimate_utxo_block_time(coin, height)
+    return estimated, bool(estimated)
+
 def summarize_tx_json(value, path=None, coin=None, modified=None):
-    evm_summary = summarize_evm_tx_json(value, path, coin, modified)
-    if evm_summary:
-        return evm_summary
+    detected_coin = detect_coin_for_path(path, coin) if path else coin_from_value(value, coin or "unknown")
+    detected_coin = normalize_coin_name(detected_coin or coin_from_value(value, "unknown")) or "unknown"
+    # Do not let a UTXO transaction with a generic `hash`/`input` field fall into
+    # the EVM decoder. EVM is only EVM when the path/packet says so, or when the
+    # packet is otherwise unknown and the EVM shape is the only strong signal.
+    if coin_is_evm(detected_coin):
+        evm_summary = summarize_evm_tx_json(value, path, "evm", modified)
+        if evm_summary:
+            return evm_summary
+    elif detected_coin == "unknown":
+        evm_summary = summarize_evm_tx_json(value, path, "", modified)
+        if evm_summary:
+            return evm_summary
     tx = value.get("tx") if isinstance(value, dict) and isinstance(value.get("tx"), dict) else value
     txid = extract_txid(value) or (Path(path).stem.lower() if path and is_txid(Path(path).stem) else "")
     vout = tx.get("vout", []) if isinstance(tx, dict) else []
@@ -1484,17 +1645,28 @@ def summarize_tx_json(value, path=None, coin=None, modified=None):
         title = "transaction " + short_txid(txid)
     block_height = None
     block_time = None
+    block_time_estimated = False
+    existing_summary = value.get("summary") if isinstance(value, dict) and isinstance(value.get("summary"), dict) else {}
     if isinstance(tx, dict):
         status = tx.get("status") if isinstance(tx.get("status"), dict) else {}
-        block_height = first_present(status.get("block_height"), status.get("blockHeight"), tx.get("block_height"), tx.get("blockHeight"), tx.get("blockheight"), tx.get("height"))
-        block_time = coerce_unix_time(first_present(status.get("block_time"), status.get("blockTime"), status.get("time"), status.get("timestamp"), tx.get("block_time"), tx.get("blockTime"), tx.get("blocktime"), tx.get("time"), tx.get("timestamp")))
+        block_height = first_present(existing_summary.get("blockHeight"), existing_summary.get("block_height"), status.get("block_height"), status.get("blockHeight"), tx.get("block_height"), tx.get("blockHeight"), tx.get("blockheight"), tx.get("height"))
+        block_time, block_time_estimated = best_utxo_block_time(
+            detected_coin,
+            block_height,
+            existing_summary.get("blockTime"), existing_summary.get("block_time"), existing_summary.get("time"), existing_summary.get("timestamp"),
+            status.get("block_time"), status.get("blockTime"), status.get("time"), status.get("timestamp"),
+            tx.get("block_time"), tx.get("blockTime"), tx.get("blocktime"), tx.get("time"), tx.get("timestamp")
+        )
     return {
         "txid": txid,
-        "coin": detect_coin_for_path(path, coin) if path else safe_segment(coin or "unknown"),
+        "coin": detected_coin,
+        "ticker": ticker_for_coin(detected_coin),
         "path": rel_path(Path(path)) if path else "",
         "modified": int(modified or (Path(path).stat().st_mtime if path and Path(path).exists() else time.time())),
         "summary": {
             "txid": txid,
+            "coin": detected_coin,
+            "ticker": ticker_for_coin(detected_coin),
             "title": title,
             "primaryUrl": urls[0] if urls else "",
             "lines": len(lines),
@@ -1504,12 +1676,24 @@ def summarize_tx_json(value, path=None, coin=None, modified=None):
             "opReturnText": op_texts[0] if op_texts else "",
             "opReturnUrls": urls,
             "blockHeight": block_height,
-            "blockTime": block_time
+            "blockTime": block_time,
+            "blockTimeEstimated": block_time_estimated,
+            "explorerUrl": tx_explorer_url(detected_coin, txid)
         }
     }
 
 
 def index_file_path():
+    # The normal Chisel datastore is data/index. In some portable release
+    # tarballs, data is a symlink to the user's long-lived datastore. If that
+    # symlink is not available on the current machine, fall back to the bundled
+    # read-only seed index so Portal can still show the included Dogecoin import.
+    try:
+        bundled = ROOT / "data-bundled" / "index" / "transactions.index.json"
+        if DATA_LINK.is_symlink() and not DATA_LINK_TARGET.exists() and bundled.exists():
+            return safe_path("data-bundled/index/transactions.index.json")
+    except Exception:
+        pass
     return safe_path(str(INDEX_PATH))
 
 
@@ -1545,7 +1729,7 @@ def build_tx_index(coin=None):
                 txid = name.lower() if is_txid(name) else ""
             if not txid:
                 continue
-            detected_coin = detect_coin_for_path(p, coin)
+            detected_coin = normalize_coin_name(detect_coin_for_path(p, coin))
             key = detected_coin + ":" + txid
             if key in seen:
                 continue
@@ -1568,7 +1752,7 @@ def read_or_build_tx_index(coin=None, force=False):
             data = json.loads(idx.read_text(encoding="utf-8"))
             rows = data.get("transactions", [])
             if coin:
-                rows = [row for row in rows if safe_segment(row.get("coin")) == safe_segment(coin)]
+                rows = [row for row in rows if normalize_coin_name(row.get("coin")) == normalize_coin_name(coin)]
             return {"ok": True, "cached": True, "path": rel_path(idx), "coin": coin or "", "transactions": rows}
         except Exception:
             pass
@@ -1577,7 +1761,7 @@ def read_or_build_tx_index(coin=None, force=False):
     payload = {"ok": True, "generated": int(time.time()), "transactions": rows}
     idx.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if coin:
-        rows = [row for row in rows if safe_segment(row.get("coin")) == safe_segment(coin)]
+        rows = [row for row in rows if normalize_coin_name(row.get("coin")) == normalize_coin_name(coin)]
     return {"ok": True, "cached": False, "path": rel_path(idx), "coin": coin or "", "transactions": rows}
 
 
@@ -1652,10 +1836,11 @@ def list_txids(coin=None):
                 continue
             seen.add(key)
             st = p.stat()
-            detected_coin = detect_coin_for_path(p, coin)
+            detected_coin = normalize_coin_name(detect_coin_for_path(p, coin))
             out.append({
                 "txid": txid_value,
                 "coin": detected_coin,
+                "ticker": ticker_for_coin(detected_coin),
                 "path": key,
                 "file_slug": name,
                 "size": st.st_size,
@@ -1713,6 +1898,194 @@ def find_assets(txid=None, cid=None):
             })
     out.sort(key=lambda row: row["path"])
     return out
+
+
+def parse_jist_feed_text(text):
+    rows = []
+    errors = []
+    stripped = str(text or "").strip()
+    if not stripped:
+        return rows, errors
+    try:
+        parsed = json.loads(stripped)
+        if isinstance(parsed, list):
+            return [row for row in parsed if isinstance(row, dict)], errors
+        if isinstance(parsed, dict):
+            data = parsed.get("rows") or parsed.get("outputs") or parsed.get("transactions")
+            if isinstance(data, list):
+                return [row for row in data if isinstance(row, dict)], errors
+    except Exception:
+        pass
+    for lineno, line in enumerate(stripped.splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+            if isinstance(row, dict):
+                rows.append(row)
+            elif isinstance(row, list):
+                rows.extend([item for item in row if isinstance(item, dict)])
+        except Exception as e:
+            errors.append({"line": lineno, "error": str(e), "text": line[:160]})
+    return rows, errors
+
+
+def tx_packet_from_jist_rows(txid, rows, coin="dogecoin"):
+    clean_txid = str(txid or "").lower()
+    coin = normalize_coin_name(coin or "dogecoin") or "dogecoin"
+    grouped = sorted(rows or [], key=lambda row: int(row.get("n") or 0))
+    vout = []
+    lines = []
+    heights = []
+    block_times = []
+    scores = []
+    flags = []
+    words = []
+    for row in grouped:
+        addr = str(row.get("address") or row.get("scriptpubkey_address") or "")
+        amount = str(row.get("amount_coin") or row.get("value") or "0")
+        script_type = str(row.get("script_type") or row.get("scriptpubkey_type") or "unknown")
+        try:
+            n = int(row.get("n") or 0)
+        except Exception:
+            n = 0
+        if addr:
+            lines.append(addr)
+            decoded = decode_mac_address_line(addr)
+            if decoded:
+                words.append(decoded)
+        try:
+            if row.get("block_height") not in (None, ""):
+                heights.append(int(row.get("block_height")))
+        except Exception:
+            pass
+        row_time = coerce_unix_time(first_present(
+            row.get("block_time"), row.get("blockTime"), row.get("blocktime"),
+            row.get("confirmed_at"), row.get("confirmedAt"), row.get("timestamp"), row.get("time")
+        ))
+        if row_time:
+            block_times.append(row_time)
+        try:
+            scores.append(int(row.get("score") or 0))
+        except Exception:
+            pass
+        flags.extend([flag for flag in str(row.get("flags") or "").split("|") if flag])
+        spk = {"asm": "", "hex": "", "type": script_type, "address": addr, "addresses": [addr] if addr else []}
+        vout.append({
+            "n": n,
+            "value": amount,
+            "scriptpubkey_address": addr,
+            "scriptpubkey_type": script_type,
+            "scriptPubKey": spk,
+            "chisel_jist": row
+        })
+    height = max(heights) if heights else None
+    block_time = max(block_times) if block_times else 0
+    block_time_estimated = False
+    if not block_time and height is not None:
+        block_time = estimate_utxo_block_time(coin, height)
+        block_time_estimated = bool(block_time)
+    title = words[0] if words else (lines[0] if lines else "transaction " + short_txid(clean_txid))
+    packet = {
+        "kind": "chisel-jist-transaction",
+        "chain": coin,
+        "coin": coin,
+        "ticker": ticker_for_coin(coin),
+        "txid": clean_txid,
+        "status": {"confirmed": True},
+        "vout": vout,
+        "lines": lines,
+        "summary": {
+            "txid": clean_txid,
+            "coin": coin,
+            "ticker": ticker_for_coin(coin),
+            "title": title,
+            "lines": len(lines),
+            "imageLines": 0,
+            "imageChordLines": [],
+            "ipfsCount": 0,
+            "opReturnText": "",
+            "opReturnUrls": [],
+            "blockHeight": height,
+            "blockTime": block_time,
+            "blockTimeEstimated": block_time_estimated,
+            "explorerUrl": tx_explorer_url(coin, clean_txid),
+            "source": "bun-jist-jsonl",
+            "voutCount": len(vout),
+            "scoreMax": max(scores or [0]),
+            "flags": sorted(set(flags)),
+            "words": words
+        },
+        "source": {"kind": "bun-jist-jsonl", "rowCount": len(grouped)}
+    }
+    if height is not None:
+        packet["block_height"] = height
+        packet["status"]["block_height"] = height
+    if block_time:
+        packet["block_time"] = block_time
+        packet["status"]["block_time"] = block_time
+    return packet
+
+
+def write_jist_feed_rows(rows, coin="dogecoin", mode="merge", source_name="bun-jist-feed"):
+    clean_coin = normalize_coin_name(coin or "dogecoin") or "dogecoin"
+    tx_dir = data_path("transactions", clean_coin)
+    if mode == "replace" and tx_dir.exists():
+        for child in tx_dir.glob("*.json"):
+            if child.is_file():
+                child.unlink()
+    tx_dir.mkdir(parents=True, exist_ok=True)
+    grouped = {}
+    skipped = []
+    for index, row in enumerate(rows or []):
+        txid = extract_txid(row)
+        if not txid:
+            skipped.append({"index": index, "error": "missing txid", "row": row})
+            continue
+        grouped.setdefault(txid, []).append(row)
+    saved = []
+    for txid, group in grouped.items():
+        packet = tx_packet_from_jist_rows(txid, group, clean_coin)
+        filename = base58_from_hex(txid) + "-" + txid[:12] + ".json"
+        out = tx_dir / filename
+        out.write_text(json.dumps(packet, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        saved.append({"txid": txid, "path": rel_path(out), "outputs": len(group), "size": out.stat().st_size})
+    stamp = int(time.time())
+    import_dir = data_path("imports", clean_coin)
+    import_dir.mkdir(parents=True, exist_ok=True)
+    raw_path = import_dir / (safe_segment(source_name, "bun-jist-feed") + "-" + str(stamp) + ".jsonl")
+    raw_path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in (rows or [])) + "\n", encoding="utf-8")
+    chord_dir = data_path("chords", clean_coin)
+    chord_dir.mkdir(parents=True, exist_ok=True)
+    chord_path = chord_dir / (safe_segment(source_name, "bun-jist-feed") + "-" + str(stamp) + ".chord")
+    chord_lines = [clean_coin + "() {"]
+    for row in rows or []:
+        addr = str(row.get("address") or row.get("scriptpubkey_address") or "")
+        amount = str(row.get("amount_coin") or row.get("value") or "0")
+        if addr:
+            chord_lines.append("  : " + addr + " " + amount + ";")
+    chord_lines.append("}")
+    chord_path.write_text("\n".join(chord_lines) + "\n", encoding="utf-8")
+    try:
+        index_file_path().unlink(missing_ok=True)
+    except Exception:
+        pass
+    index_payload = read_or_build_tx_index(force=True)
+    return {
+        "ok": True,
+        "coin": clean_coin,
+        "mode": mode,
+        "rows": len(rows or []),
+        "txids": len(grouped),
+        "saved": saved,
+        "savedCount": len(saved),
+        "skipped": skipped,
+        "skippedCount": len(skipped),
+        "feedPath": rel_path(raw_path),
+        "chordPath": rel_path(chord_path),
+        "indexPath": index_payload.get("path", "")
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1776,13 +2149,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             if parsed.path == "/txids":
-                coin = query.get("coin", [""])[0].strip() or None
+                coin = normalize_coin_name(query.get("coin", [""])[0].strip()) or None
                 rows = list_txids(coin)
                 send_json(self, {"ok": True, "root": str(ROOT), "data_roots": [str(p) for p in EXTRA_DATA_ROOTS], "coin": coin or "", "transactions": rows})
                 return
 
             if parsed.path == "/tx-index":
-                coin = query.get("coin", [""])[0].strip() or None
+                coin = normalize_coin_name(query.get("coin", [""])[0].strip()) or None
                 force = query.get("force", [""])[0].strip().lower() in ("1", "true", "yes")
                 payload = read_or_build_tx_index(coin, force=force)
                 payload.update({"root": str(ROOT), "data_roots": [str(p) for p in EXTRA_DATA_ROOTS]})
@@ -1821,7 +2194,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             if parsed.path == "/reindex":
-                coin = query.get("coin", [""])[0].strip() or None
+                coin = normalize_coin_name(query.get("coin", [""])[0].strip()) or None
                 payload = read_or_build_tx_index(coin, force=True)
                 payload.update({"root": str(ROOT), "data_roots": [str(p) for p in EXTRA_DATA_ROOTS]})
                 send_json(self, payload)
@@ -1829,7 +2202,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if parsed.path == "/tx":
                 txid = query.get("txid", [""])[0]
-                coin = query.get("coin", [""])[0].strip() or None
+                coin = normalize_coin_name(query.get("coin", [""])[0].strip()) or None
                 p = find_tx_file(txid, coin)
                 if not p:
                     send_json(self, {"ok": False, "error": "Transaction fixture not found", "txid": txid, "coin": coin or ""}, 404)
@@ -1866,6 +2239,31 @@ class Handler(BaseHTTPRequestHandler):
             raw = self.rfile.read(length).decode("utf-8")
             body = json.loads(raw) if raw else {}
 
+            if parsed.path == "/import-jist-feed":
+                coin = safe_segment(body.get("coin", "dogecoin"), "dogecoin")
+                mode = safe_segment(body.get("mode", "merge"), "merge")
+                if mode not in ("merge", "replace"):
+                    mode = "merge"
+                text = body.get("text", "")
+                source_name = body.get("sourceName", body.get("source", "bun-jist-feed"))
+                if not text and body.get("path"):
+                    source_path = safe_path(body.get("path"))
+                    if not source_path.exists() or not source_path.is_file():
+                        send_json(self, {"ok": False, "error": "feed path not found"}, 404)
+                        return
+                    text = source_path.read_text(encoding="utf-8", errors="replace")
+                    source_name = source_name or source_path.stem
+                if not text and isinstance(body.get("rows"), list):
+                    rows = [row for row in body.get("rows") if isinstance(row, dict)]
+                    errors = []
+                else:
+                    rows, errors = parse_jist_feed_text(text)
+                payload = write_jist_feed_rows(rows, coin=coin, mode=mode, source_name=source_name)
+                payload["parseErrors"] = errors
+                payload["parseErrorCount"] = len(errors)
+                send_json(self, payload, 200 if not errors else 207)
+                return
+
             if parsed.path == "/save":
                 rel = body.get("path", "")
                 text = body.get("text", "")
@@ -1880,7 +2278,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if parsed.path == "/save-tx":
                 txid = body.get("txid", "")
-                coin = safe_segment(body.get("coin", "unknown"), "unknown")
+                coin = normalize_coin_name(body.get("coin", "unknown")) or "unknown"
                 payload = body.get("json", None)
                 text = body.get("text", "")
                 filename_mode = safe_segment(body.get("filenameMode", "base58"), "base58")
@@ -2013,7 +2411,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if parsed.path == "/save-links":
                 txid = body.get("txid", "")
-                coin = safe_segment(body.get("coin", "unknown"), "unknown")
+                coin = normalize_coin_name(body.get("coin", "unknown")) or "unknown"
                 payload = body.get("json", body)
                 if not is_txid(txid):
                     send_json(self, {"ok": False, "error": "txid must be 64 hex characters"}, 400)
@@ -2057,7 +2455,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     print(f"chisel-fileproxy running at http://{HOST}:{PORT}")
     print(f"root: {ROOT}")
-    print("endpoints: /ping /config /txids /tx-index /evm-stream-status /evm-local-catalog /evm-image-catalog /reindex /tx /ipfs /find-assets /raw /list /load /save /save-tx /save-evm-tx /save-evm-batch /import-legacy-evm-images")
+    print("endpoints: /ping /config /txids /tx-index /evm-stream-status /evm-local-catalog /evm-image-catalog /reindex /tx /ipfs /find-assets /raw /list /load /save /import-jist-feed /save-tx /save-evm-tx /save-evm-batch /import-legacy-evm-images")
     HTTPServer((HOST, PORT), Handler).serve_forever()
 
 

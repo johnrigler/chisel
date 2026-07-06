@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.6.4</title>
+  <title>Chisel 2.7.4</title>
 
 
   <style>
@@ -322,6 +322,7 @@
       display: none;
     }
 
+    body[data-mode="origin"] .modePanel[data-mode-panel="origin"],
     body[data-mode="broadcast"] .modePanel[data-mode-panel="broadcast"],
     body[data-mode="review"] .modePanel[data-mode-panel="review"],
     body[data-mode="decode"] .modePanel[data-mode-panel="decode"],
@@ -1032,12 +1033,45 @@
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
         <button class="modeButton active" type="button" data-mode-target="broadcast">Broadcast</button>
+        <button class="modeButton" type="button" data-mode-target="origin">Origin</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
-        <button class="modeButton" type="button" data-mode-target="decode">Decode</button>
+        <button class="modeButton" type="button" data-mode-target="decode">Legacy Decode</button>
         <button class="modeButton" type="button" data-mode-target="portal">Portal</button>
         <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
       </div>
       <div class="compactHint" id="modeHint">Broadcast mode builds, signs, decodes, and sends the transaction. Review mode shows the raw transaction pipeline after a build/send attempt.</div>
+    </section>
+
+
+    <section class="modePanel" data-mode-panel="origin">
+      <section class="panel hero">
+        <h2>Origin and architecture</h2>
+        <p class="muted">This is the colleague-facing bridge between the older signing conversation, the 2020 crypto-linguistic white paper, and the current Chisel implementation. It now starts with the practical reason Chisel is vanilla JavaScript: elliptic gives the browser enough secp256k1 machinery to sign locally without turning the main app into a Node stack dependency tour.</p>
+        <div class="toolGrid">
+          <a class="toolCard" href="docs/origin.md">
+            <strong>Read origin bridge</strong>
+            <span>Starts with vanilla JS, elliptic, local signing, QR stickers, mundane transaction UX, then maps the white paper kernel to Portal, MacDougall, ASC, and the current refactor boundary.</span>
+          </a>
+          <a class="toolCard" href="docs/origin-print.html">
+            <strong>Printable HTML</strong>
+            <span>Letter-friendly review copy with a print button and explicit page-break behavior.</span>
+          </a>
+          <a class="toolCard" href="docs/refactor-phases.md">
+            <strong>Refactor phases</strong>
+            <span>Low-risk sequence for cleaning up Chisel before touching signing, fees, UTXO selection, or broadcast code.</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">Current boundary</div>
+        <p class="help">Core builds, signs, serializes, decodes, and explains meaningful UTXO transactions. The main app remains plain browser JavaScript. elliptic is part of the core signing path. Portal displays and filters transaction artifacts. Data is a static or local snapshot. fileProxy, bunOven, keeperBun, scanners, label tools, and importers are satellites.</p>
+      </section>
+
+      <section class="panel">
+        <div class="stepTitle">First demo path</div>
+        <p class="help">Start with why local browser signing matters, then open Portal, load a local or bundled transaction fixture, inspect ordered outputs, read MacDougall address lines, inspect OP_RETURN if present, treat amount codes as optional binders, then verify the raw JSON. Do not start with every historical experiment.</p>
+      </section>
     </section>
 
     <section class="modePanel" data-mode-panel="broadcast">
@@ -1092,7 +1126,7 @@
             <select id="unspendableKind" data-currency="">
               <option value="">loading modifiers...</option>
             </select>
-            <input id="unspendablePhrase" type="text" maxlength="24" placeholder="MacDougal phrase" />
+            <input id="unspendablePhrase" type="text" maxlength="24" placeholder="MacDougall phrase" />
             <input id="unspendableAmount" type="number" min="0" step="0.00000001" />
             <button id="addUnspendableButton" class="secondaryButton" type="button">ADD UNSPENDABLE / INDEX OUTPUT</button>
           </div>
@@ -1217,8 +1251,8 @@
 
     <section class="modePanel" data-mode-panel="decode">
       <section class="panel hero">
-        <h2>Decode ledger objects</h2>
-        <p class="muted">Open the decoder when the txid is the durable object key and the outputs need to be read as OP_RETURN plus MacDougall indexed addresses.</p>
+        <h2>Legacy transaction decoder</h2>
+        <p class="muted">This standalone decoder remains as a diagnostic path. Portal is now the normal reader experience for Chisel artifacts. Open the decoder when the txid is the durable object key and the outputs need to be read as OP_RETURN plus MacDougall indexed addresses.</p>
         <div class="actions">
           <a class="toolCard" href="tools/decoder/index.html">
             <strong>Open Chisel Transaction Decoder</strong>
@@ -1233,7 +1267,7 @@
     <section class="modePanel" data-mode-panel="portal">
       <section class="panel hero">
         <h2>Portal explorer</h2>
-        <p class="muted">Cross-chain transaction stream. Local filesystem records are loaded first, then live index lookups can add new transactions as they are discovered. The table is the main object: one row per transaction, newest first, with decoded data hints and verification exits.</p>
+        <p class="muted">Cross-chain transaction stream. The browser preloads the bundled/static records first, newest first, so the page is useful as soon as it opens. Live ledger searches then merge newer discoveries into the same stream. fileProxy, bun, and deno are authoring tools, not public runtime requirements.</p>
       </section>
 
       <section class="portalExplorerShell">
@@ -1302,9 +1336,10 @@
                 <input id="portalIncludeEvmJethro" type="checkbox">
                 Jethro EVM
               </label>
-              <button id="portalLoadEvmCatalogButton" class="secondaryButton" type="button">LOAD EVM LOCAL</button>
-              <button id="portalLoadLocalTxidsButton" class="secondaryButton" type="button">LOAD LOCAL</button>
-              <button id="portalLoadConversationButton" class="secondaryButton" type="button">LOAD ALL DEFAULT STREAMS</button>
+              <button id="portalLoadStaticDatasetButton" class="secondaryButton" type="button">REFRESH STATIC</button>
+              <button id="portalValidateDatasetButton" class="secondaryButton" type="button">VALIDATE DATASET</button>
+              <button id="portalLoadConversationButton" class="secondaryButton" type="button">SEARCH LEDGERS</button>
+              <button id="portalClearStreamButton" class="secondaryButton" type="button">CLEAR STREAM</button>
             </div>
           </div>
           <div class="portalFilterBar" aria-label="Portal stream filters">
@@ -1313,6 +1348,7 @@
             <label class="inlineOption compactOption"><input id="portalFilterRavencoin" type="checkbox"> RVN</label>
             <label class="inlineOption compactOption"><input id="portalFilterLitecoin" type="checkbox"> LTC</label>
             <label class="inlineOption compactOption"><input id="portalFilterBitcoin" type="checkbox"> BTC</label>
+            <label class="inlineOption compactOption"><input id="portalFilterDogecoin" type="checkbox"> DOGE</label>
             <label class="inlineOption compactOption"><input id="portalFilterEvmGomez" type="checkbox"> Gomez</label>
             <label class="inlineOption compactOption"><input id="portalFilterEvmJethro" type="checkbox"> Jethro</label>
             <label class="inlineOption compactOption"><input id="portalFilterOther" type="checkbox"> Other</label>
@@ -1321,13 +1357,13 @@
             <button id="portalFocusJethroButton" class="secondaryButton portalPageButton" type="button">only Jethro</button>
             <button id="portalShowAllSourcesButton" class="secondaryButton portalPageButton" type="button">show all</button>
           </div>
-          <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">Local transactions will load here when fileProxy is running.</div>
+          <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">Bundled/static transaction summaries will load here first. Live ledger searches can add newer records after first paint.</div>
           <div id="portalPageControls" class="portalPageControls muted"></div>
         </section>
       </section>
 
       <details class="panel portalDrawer">
-        <summary>Sources and write options</summary>
+        <summary>Authoring sources, fileProxy, and write options</summary>
         <div class="portalControls">
           <label class="inlineOption">
             <input id="portalAutoSaveFetchedTxs" type="checkbox">
@@ -1346,7 +1382,11 @@
               <button id="portalLoadSelectedLocalButton" class="secondaryButton" type="button">LOAD SELECTED LOCAL</button>
             </div>
           </div>
-          <p class="muted">Config is read from <code>chisel.portal.config.json</code>. Saved transactions are pretty jq-style JSON under <code>data/transactions/&lt;coin&gt;/ and EVM split feeds under data/transactions/evm/&lt;chainid&gt;/&lt;contract&gt;/</code>.</p>
+          <p class="muted">Config is read from <code>chisel.portal.config.json</code>. Public browsing uses bundled/static JSON first. fileProxy can import, save, and format data during authoring; visitors do not need it. Saved transactions are pretty jq-style JSON under <code>data/transactions/&lt;coin&gt;/</code> and EVM split feeds under <code>data/transactions/evm/&lt;chainid&gt;/&lt;contract&gt;/</code>.</p>
+          <div class="actions">
+            <button id="portalLoadEvmCatalogButton" class="secondaryButton" type="button">LOAD EVM LOCAL</button>
+            <button id="portalLoadLocalTxidsButton" class="secondaryButton" type="button">LOAD LOCAL</button>
+          </div>
           <div id="portalSaveTxResult" class="muted"></div>
           <div id="portalLocalTxList" class="portalHiddenList muted">Local transaction list is merged into the main stream.</div>
           <div id="portalConversationStatus" class="muted"></div>
@@ -1430,7 +1470,7 @@
           <pre id="portalLineList" class="json"></pre>
         </section>
         <section class="panel">
-          <div class="stepTitle">MacDougal-readable pass</div>
+          <div class="stepTitle">MacDougall-readable pass</div>
           <pre id="portalDecodedLines" class="json"></pre>
         </section>
       </details>
@@ -1493,7 +1533,8 @@
   <script src="chisel.digibyte.js?2.5.2d"></script>
   <script src="chisel.litecoin.js?2.5.2j"></script>
   <script src="chisel.thunderwords.js?2.6.9i"></script>
-  <script src="chisel.portal.js?2.7.0"></script>
+  <script src="data-bundled/portal-starter.js?2.7.4"></script>
+  <script src="chisel.portal.js?2.7.4"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -1502,7 +1543,7 @@
   };
 </script>
 
-  <script src="app.js?2.6.7"></script>
+  <script src="app.js?2.7.4"></script>
 </body>
 </html>
 
