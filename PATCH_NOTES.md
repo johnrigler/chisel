@@ -1,3 +1,38 @@
+## v2.7.4
+
+- Portal now preloads a bundled/static dataset before any fileProxy or live ledger work.
+- Added `data-bundled/manifest.json`, `data-bundled/index/portal.index.json`, and `data-bundled/portal-starter.js` so the first Portal page renders immediately from static records.
+- Added explicit static refresh, dataset validation, live ledger search, and clear-stream controls.
+- Changed Portal loaders to merge into the stream by default; Gomez/Jethro/static/live rows no longer intentionally erase each other.
+- Moved fileProxy/EVM-local controls under authoring options. fileProxy, bun, deno, and local import scripts are build/import/publish tools, not public runtime dependencies.
+- Portal row keys are source-aware (`sourceId:txid`) and rows show bundled/static/preloaded/summary/hydrated badges.
+- Config defaults now prefer static-first public loading and optional live ledger search; local fileProxy autoload is off.
+
+# Patch notes
+
+## v2.7.3
+
+Low-risk documentation and Origin mode expansion.
+
+- Expanded `docs/origin.md` to open with why Chisel is built as vanilla browser JavaScript.
+- Added the Keir Finlow-Bates signing-context note and explained how `elliptic` made browser-side secp256k1 signing practical.
+- Added QR stickers / label tools to the origin story as part of the mundane-transaction adoption layer.
+- Updated `docs/origin-print.html` with a new first section and refreshed page layout.
+- Updated the Origin panel copy and version string to 2.7.3.
+- No signing, WIF, fee, UTXO selection, serialization, or broadcast behavior changed.
+
+## v2.7.2
+
+Low-risk orientation pass. No signing, fee, UTXO selection, serialization, or broadcast behavior was intentionally changed.
+
+- Added `docs/origin.md` as the white-paper-to-Chisel bridge.
+- Added `docs/origin-print.html` for printable review copies.
+- Added `docs/refactor-phases.md` to define the safe cleanup order.
+- Added an Origin mode to the main app shell.
+- Demoted Decode language to legacy diagnostic wording while keeping the decoder link available.
+- Corrected visible UI spelling to MacDougall where new reader-facing text was touched.
+- Updated app shell version string to 2.7.2.
+
 
 ## v2.6.9l
 

@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.0";
+  const APP_VERSION = "2.7.4";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -1379,6 +1379,7 @@ function onClickAddCommonAddressButton() {
   // GUI mode shell
   //
   const MODE_HINTS = {
+    origin: "Origin mode explains why Chisel is vanilla JavaScript, how elliptic enables local signing, and how the white paper maps into the current implementation.",
     broadcast: "Broadcast mode builds, signs, decodes, and sends the transaction. Review mode shows the raw transaction pipeline after a build/send attempt.",
     review: "Review mode exposes the transaction spine: account, UTXOs, VIN, VOUT, raw hex, signed hex, and broadcast result.",
     decode: "Decode mode opens the ledger object viewer. Use it after a txid exists or when reading a txid-named fixture.",
@@ -1387,7 +1388,7 @@ function onClickAddCommonAddressButton() {
   };
 
   function normalizeMode(value) {
-    if (value === "review" || value === "decode" || value === "portal" || value === "tools") {
+    if (value === "origin" || value === "review" || value === "decode" || value === "portal" || value === "tools") {
       return value;
     }
 
