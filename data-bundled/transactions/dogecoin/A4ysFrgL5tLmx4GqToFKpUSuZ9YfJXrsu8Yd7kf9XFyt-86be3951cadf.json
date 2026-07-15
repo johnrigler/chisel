@@ -1,0 +1,71 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/86be3951cadf12d4a5d04359d72a6bf243499e55bc75b3226e83f74663cfa58b",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "9sTHExENDzzzzzzzzzzzzzzzzzzzU988K1",
+      "amount_coin": "0.00039692",
+      "amount_units": "39692",
+      "block_height": 3162963,
+      "chain": "dogecoin",
+      "created_at": 1781936507,
+      "flags": "addr_macdougall_9s|addr_prefix_9s|addr_prefix_9S|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 13,
+      "op_return_ascii": null,
+      "satoshi_code": "3969",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "86be3951cadf12d4a5d04359d72a6bf243499e55bc75b3226e83f74663cfa58b"
+    },
+    {
+      "address": "DCxDEARhSTEVENhKiNGzzzzzzzzzX1cYqE",
+      "amount_coin": "0.00039837",
+      "amount_units": "39837",
+      "block_height": 3162963,
+      "chain": "dogecoin",
+      "created_at": 1781936507,
+      "flags": "addr_macdougall_DCx|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 0,
+      "op_return_ascii": null,
+      "satoshi_code": "3983",
+      "score": 510,
+      "script_type": "pubkeyhash",
+      "txid": "86be3951cadf12d4a5d04359d72a6bf243499e55bc75b3226e83f74663cfa58b"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 3162963,
+    "blockTime": 1589311922,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/86be3951cadf12d4a5d04359d72a6bf243499e55bc75b3226e83f74663cfa58b",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 2,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "DEARhSTEVENhKING",
+    "txid": "86be3951cadf12d4a5d04359d72a6bf243499e55bc75b3226e83f74663cfa58b"
+  },
+  "ticker": "DOGE",
+  "txid": "86be3951cadf12d4a5d04359d72a6bf243499e55bc75b3226e83f74663cfa58b",
+  "vin": [],
+  "vout": [
+    {
+      "n": 13,
+      "scriptpubkey_address": "9sTHExENDzzzzzzzzzzzzzzzzzzzU988K1",
+      "value": 39692
+    },
+    {
+      "n": 0,
+      "scriptpubkey_address": "DCxDEARhSTEVENhKiNGzzzzzzzzzX1cYqE",
+      "value": 39837
+    }
+  ]
+}

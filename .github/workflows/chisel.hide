@@ -1,0 +1,72 @@
+name: Chisel CI + Pages
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify required files exist
+        run: |
+          test -f index.html
+          test -f chisel.js
+          test -f app.js
+
+      - name: Syntax check JavaScript
+        run: |
+          node --check chisel.js
+          node --check app.js
+
+      - name: Check for expected script references in index.html
+        run: |
+          grep -q 'chisel.js' index.html
+          grep -q 'app.js' index.html
+
+      - name: Build site directory
+        run: |
+          mkdir -p dist
+          cp -r index.html *.js *.css dist/ 2>/dev/null || true
+
+      - name: Verify deploy entry file exists
+        run: |
+          test -f dist/index.html
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,51 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/9d8bd0c12b180ed6baf61c8bb69be449ccc90ed627d8311f4ceee164b812ab50",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "DCxSUCHxMCAFEEx2o2oxWiNNERxxJocqMj",
+      "amount_coin": "1.00039692",
+      "amount_units": "100039692",
+      "block_height": 2786683,
+      "chain": "dogecoin",
+      "created_at": 1781932406,
+      "flags": "addr_macdougall_DCx|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 0,
+      "op_return_ascii": null,
+      "satoshi_code": "3969",
+      "score": 480,
+      "script_type": "pubkeyhash",
+      "txid": "9d8bd0c12b180ed6baf61c8bb69be449ccc90ed627d8311f4ceee164b812ab50"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 2786683,
+    "blockTime": 1564293854,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/9d8bd0c12b180ed6baf61c8bb69be449ccc90ed627d8311f4ceee164b812ab50",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 1,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "Such Mcafee 2o2o Winner",
+    "txid": "9d8bd0c12b180ed6baf61c8bb69be449ccc90ed627d8311f4ceee164b812ab50"
+  },
+  "ticker": "DOGE",
+  "txid": "9d8bd0c12b180ed6baf61c8bb69be449ccc90ed627d8311f4ceee164b812ab50",
+  "vin": [],
+  "vout": [
+    {
+      "n": 0,
+      "scriptpubkey_address": "DCxSUCHxMCAFEEx2o2oxWiNNERxxJocqMj",
+      "value": 100039692
+    }
+  ]
+}

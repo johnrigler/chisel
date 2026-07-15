@@ -1,0 +1,13 @@
+{
+    "ttlSeconds": 3600,
+    "secrets": {
+        "blockchair": "BLOCKCHAIR_API_KEY_HERE",
+        "etherscan": "ETHERSCAN_API_KEY_HERE"
+    },
+    "scopes": [
+        "dogecoin.read",
+        "litecoin.read",
+        "bitcoin-sv.read",
+        "evm.read"
+    ]
+}

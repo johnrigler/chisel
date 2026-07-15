@@ -1,0 +1,51 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/8dbb16bd9d8f2172b5415ec1e5263140c292f6be71a801ba5d30200ca40bbe87",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "9sDCxiPxADDRx1o4x248x156x22yzKvo4C",
+      "amount_coin": "1.00039692",
+      "amount_units": "100039692",
+      "block_height": 2921956,
+      "chain": "dogecoin",
+      "created_at": 1781931374,
+      "flags": "addr_macdougall_9s|addr_prefix_9s|addr_prefix_9S|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 1,
+      "op_return_ascii": null,
+      "satoshi_code": "3969",
+      "score": 510,
+      "script_type": "scripthash",
+      "txid": "8dbb16bd9d8f2172b5415ec1e5263140c292f6be71a801ba5d30200ca40bbe87"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 2921956,
+    "blockTime": 1573557728,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/8dbb16bd9d8f2172b5415ec1e5263140c292f6be71a801ba5d30200ca40bbe87",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 1,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "C Ip Addr 1o4 248 156 22-",
+    "txid": "8dbb16bd9d8f2172b5415ec1e5263140c292f6be71a801ba5d30200ca40bbe87"
+  },
+  "ticker": "DOGE",
+  "txid": "8dbb16bd9d8f2172b5415ec1e5263140c292f6be71a801ba5d30200ca40bbe87",
+  "vin": [],
+  "vout": [
+    {
+      "n": 1,
+      "scriptpubkey_address": "9sDCxiPxADDRx1o4x248x156x22yzKvo4C",
+      "value": 100039692
+    }
+  ]
+}

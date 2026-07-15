@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <title>ChatGPT Voice Conversation Recorder</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        background: #101010;
+        color: #f5f5f5;
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      button,
+      label,
+      select {
+        font: inherit;
+      }
+
+      button {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #fff;
+        background: #2563eb;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+
+      fieldset {
+        margin: 16px 0;
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 16px;
+      }
+
+      legend {
+        padding: 0 8px;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 18px 0;
+      }
+
+      .instructions {
+        background: #181818;
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      .device-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .device-option {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      canvas {
+        width: 100%;
+        max-height: 70vh;
+        background: #000;
+        border: 1px solid #333;
+        border-radius: 12px;
+      }
+
+      output {
+        display: block;
+        margin: 12px 0;
+        color: #93c5fd;
+      }
+
+      a {
+        color: #93c5fd;
+      }
+
+      video {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>ChatGPT Voice Conversation Recorder</h1>
+
+      <section class="instructions">
+        <p>
+          Use this to create a video artifact of a ChatGPT Voice conversation on Chromebook.
+        </p>
+        <p>
+          When Chrome asks what to share, choose the ChatGPT tab and enable tab audio.
+          Your microphone is recorded separately so your side of the voice conversation is included.
+        </p>
+      </section>
+
+      <div class="controls">
+        <button id="loadDevices" type="button">LOAD DEVICES</button>
+        <button id="startRecording" type="button" disabled>START RECORDING</button>
+        <button id="stopRecording" type="button" disabled>STOP RECORDING</button>
+      </div>
+
+      <fieldset>
+        <legend>Optional webcam overlay</legend>
+        <div class="device-list" id="cameraList"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Your microphone</legend>
+        <div class="device-list" id="microphoneList"></div>
+      </fieldset>
+
+      <output id="status">Load devices first.</output>
+
+      <p>
+        <a id="download" hidden download="chatgpt-voice-conversation.webm">
+          Download ChatGPT voice conversation recording
+        </a>
+      </p>
+
+      <canvas id="stage" width="1920" height="1080"></canvas>
+    </main>
+
+    <script>
+      (function () {
+        //
+        // Constants
+        //
+        const CANVAS_WIDTH = 1920;
+        const CANVAS_HEIGHT = 1080;
+        const CAMERA_WIDTH = 320;
+        const CAMERA_HEIGHT = 180;
+        const CAMERA_MARGIN = 24;
+        const FRAME_RATE = 30;
+        const VIDEO_BITS_PER_SECOND = 6000000;
+        const AUDIO_GAIN = 1;
+
+        //
+        // Elements
+        //
+        const elems = {
+          cameraList: document.querySelector("#cameraList"),
+          download: document.querySelector("#download"),
+          loadDevices: document.querySelector("#loadDevices"),
+          microphoneList: document.querySelector("#microphoneList"),
+          stage: document.querySelector("#stage"),
+          startRecording: document.querySelector("#startRecording"),
+          status: document.querySelector("#status"),
+          stopRecording: document.querySelector("#stopRecording"),
+        };
+
+        //
+        // State
+        //
+        const state = {
+          animationFrameId: 0,
+          audioContext: null,
+          cameraDevices: [],
+          cameraStream: null,
+          cameraVideo: null,
+          chunks: [],
+          displayStream: null,
+          downloadUrl: "",
+          isRecording: false,
+          mediaRecorder: null,
+          microphoneDevices: [],
+          microphoneStream: null,
+          mixedAudioDestination: null,
+          recorderStream: null,
+          screenVideo: null,
+          selectedCameraDeviceId: "",
+          selectedMicrophoneDeviceId: "",
+          statusMessage: "Load devices first.",
+        };
+
+        const canvasContext = elems.stage.getContext("2d");
+
+        //
+        // Validators
+        //
+        function isSupportedBrowser() {
+          return Boolean(
+            navigator.mediaDevices &&
+              navigator.mediaDevices.getDisplayMedia &&
+              navigator.mediaDevices.getUserMedia &&
+              window.MediaRecorder &&
+              elems.stage.captureStream
+          );
+        }
+
+        function isCameraDevice(device) {
+          return device.kind === "videoinput";
+        }
+
+        function isMicrophoneDevice(device) {
+          return device.kind === "audioinput";
+        }
+
+        //
+        // Formatters
+        //
+        function formatDeviceLabel(device, index, fallback) {
+          if (device.label) {
+            return device.label;
+          }
+
+          return `${fallback} ${index + 1}`;
+        }
+
+        function getSupportedMimeType() {
+          const mimeTypes = [
+            "video/webm;codecs=vp9,opus",
+            "video/webm;codecs=vp8,opus",
+            "video/webm",
+          ];
+
+          for (let i = 0; i < mimeTypes.length; i++) {
+            if (MediaRecorder.isTypeSupported(mimeTypes[i])) {
+              return mimeTypes[i];
+            }
+          }
+
+          return "";
+        }
+
+        //
+        // DOM setters
+        //
+        function setStatusMessage(message) {
+          state.statusMessage = message;
+          render();
+        }
+
+        function setDevices(devices) {
+          state.cameraDevices = devices.filter(isCameraDevice);
+          state.microphoneDevices = devices.filter(isMicrophoneDevice);
+
+          if (!state.selectedCameraDeviceId && state.cameraDevices[0]) {
+            state.selectedCameraDeviceId = state.cameraDevices[0].deviceId;
+          }
+
+          if (!state.selectedMicrophoneDeviceId && state.microphoneDevices[0]) {
+            state.selectedMicrophoneDeviceId = state.microphoneDevices[0].deviceId;
+          }
+
+          render();
+        }
+
+        function setDownloadUrl(url) {
+          if (state.downloadUrl) {
+            URL.revokeObjectURL(state.downloadUrl);
+          }
+
+          state.downloadUrl = url;
+          render();
+        }
+
+        function setRecordingState(isRecording) {
+          state.isRecording = isRecording;
+          render();
+        }
+
+        //
+        // Rendering
+        //
+        function clearChildren(element) {
+          while (element.firstChild) {
+            element.firstChild.remove();
+          }
+        }
+
+        function createNoCameraOption() {
+          const label = document.createElement("label");
+          const input = document.createElement("input");
+          const span = document.createElement("span");
+
+          label.className = "device-option";
+          input.type = "radio";
+          input.name = "camera";
+          input.value = "";
+          input.checked = state.selectedCameraDeviceId === "";
+          input.onchange = onCameraSelectionChange;
+          span.textContent = "No webcam overlay";
+
+          label.append(input, span);
+
+          return label;
+        }
+
+        function createCameraOption(device, index) {
+          const label = document.createElement("label");
+          const input = document.createElement("input");
+          const span = document.createElement("span");
+
+          label.className = "device-option";
+          input.type = "radio";
+          input.name = "camera";
+          input.value = device.deviceId;
+          input.checked = state.selectedCameraDeviceId === device.deviceId;
+          input.onchange = onCameraSelectionChange;
+          span.textContent = formatDeviceLabel(device, index, "Camera");
+
+          label.append(input, span);
+
+          return label;
+        }
+
+        function createMicrophoneOption(device, index) {
+          const label = document.createElement("label");
+          const input = document.createElement("input");
+          const span = document.createElement("span");
+
+          label.className = "device-option";
+          input.type = "radio";
+          input.name = "microphone";
+          input.value = device.deviceId;
+          input.checked = state.selectedMicrophoneDeviceId === device.deviceId;
+          input.onchange = onMicrophoneSelectionChange;
+          span.textContent = formatDeviceLabel(device, index, "Microphone");
+
+          label.append(input, span);
+
+          return label;
+        }
+
+        function renderCameraList() {
+          clearChildren(elems.cameraList);
+          elems.cameraList.append(createNoCameraOption());
+
+          state.cameraDevices.forEach(function (device, index) {
+            elems.cameraList.append(createCameraOption(device, index));
+          });
+        }
+
+        function renderMicrophoneList() {
+          clearChildren(elems.microphoneList);
+
+          if (state.microphoneDevices.length === 0) {
+            elems.microphoneList.textContent = "No microphones found.";
+            return;
+          }
+
+          state.microphoneDevices.forEach(function (device, index) {
+            elems.microphoneList.append(createMicrophoneOption(device, index));
+          });
+        }
+
+        function renderButtons() {
+          const hasMicrophone = state.microphoneDevices.length > 0;
+
+          elems.loadDevices.disabled = state.isRecording;
+          elems.startRecording.disabled = state.isRecording || !hasMicrophone;
+          elems.stopRecording.disabled = !state.isRecording;
+        }
+
+        function renderDownload() {
+          elems.download.hidden = !state.downloadUrl;
+          elems.download.href = state.downloadUrl;
+        }
+
+        function renderStatus() {
+          elems.status.textContent = state.statusMessage;
+        }
+
+        function render() {
+          renderCameraList();
+          renderMicrophoneList();
+          renderButtons();
+          renderDownload();
+          renderStatus();
+        }
+
+        //
+        // Media setup
+        //
+        async function loadDevices() {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          setDevices(devices);
+        }
+
+        async function requestDevicePermissions() {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true,
+          });
+
+          stream.getTracks().forEach(function (track) {
+            track.stop();
+          });
+
+          await loadDevices();
+        }
+
+        async function createDisplayStream() {
+          return navigator.mediaDevices.getDisplayMedia({
+            audio: true,
+            video: {
+              frameRate: FRAME_RATE,
+              width: {
+                ideal: CANVAS_WIDTH,
+              },
+              height: {
+                ideal: CANVAS_HEIGHT,
+              },
+            },
+            preferCurrentTab: false,
+            selfBrowserSurface: "exclude",
+            systemAudio: "include",
+            surfaceSwitching: "include",
+          });
+        }
+
+        async function createMicrophoneStream() {
+          return navigator.mediaDevices.getUserMedia({
+            audio: {
+              deviceId: {
+                exact: state.selectedMicrophoneDeviceId,
+              },
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+            video: false,
+          });
+        }
+
+        async function createCameraStream() {
+          if (!state.selectedCameraDeviceId) {
+            return null;
+          }
+
+          return navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              deviceId: {
+                exact: state.selectedCameraDeviceId,
+              },
+              width: {
+                ideal: 1280,
+              },
+              height: {
+                ideal: 720,
+              },
+              frameRate: {
+                ideal: FRAME_RATE,
+              },
+            },
+          });
+        }
+
+        function createVideoElement(stream, muted) {
+          const video = document.createElement("video");
+
+          video.autoplay = true;
+          video.muted = muted;
+          video.playsInline = true;
+          video.srcObject = stream;
+
+          return video;
+        }
+
+        async function playVideo(video) {
+          document.body.append(video);
+          await video.play();
+
+          return video;
+        }
+
+        function connectAudioStream(stream) {
+          if (!stream || stream.getAudioTracks().length === 0) {
+            return;
+          }
+
+          const source = state.audioContext.createMediaStreamSource(stream);
+          const gain = state.audioContext.createGain();
+
+          gain.gain.value = AUDIO_GAIN;
+          source.connect(gain);
+          gain.connect(state.mixedAudioDestination);
+        }
+
+        function createMixedAudioStream() {
+          state.audioContext = new AudioContext();
+          state.mixedAudioDestination = state.audioContext.createMediaStreamDestination();
+
+          connectAudioStream(state.displayStream);
+          connectAudioStream(state.microphoneStream);
+
+          return state.mixedAudioDestination.stream;
+        }
+
+        function createRecorderStream() {
+          const canvasStream = elems.stage.captureStream(FRAME_RATE);
+          const audioStream = createMixedAudioStream();
+
+          state.recorderStream = new MediaStream([
+            ...canvasStream.getVideoTracks(),
+            ...audioStream.getAudioTracks(),
+          ]);
+        }
+
+        function createMediaRecorder() {
+          const mimeType = getSupportedMimeType();
+          const options = {
+            videoBitsPerSecond: VIDEO_BITS_PER_SECOND,
+          };
+
+          if (mimeType) {
+            options.mimeType = mimeType;
+          }
+
+          state.mediaRecorder = new MediaRecorder(state.recorderStream, options);
+          state.mediaRecorder.ondataavailable = onRecorderDataAvailable;
+          state.mediaRecorder.onstop = onRecorderStop;
+        }
+
+        //
+        // Canvas drawing
+        //
+        function drawCover(video, x, y, width, height) {
+          const videoRatio = video.videoWidth / video.videoHeight;
+          const targetRatio = width / height;
+          let sourceWidth = video.videoWidth;
+          let sourceHeight = video.videoHeight;
+          let sourceX = 0;
+          let sourceY = 0;
+
+          if (videoRatio > targetRatio) {
+            sourceWidth = video.videoHeight * targetRatio;
+            sourceX = (video.videoWidth - sourceWidth) / 2;
+          } else {
+            sourceHeight = video.videoWidth / targetRatio;
+            sourceY = (video.videoHeight - sourceHeight) / 2;
+          }
+
+          canvasContext.drawImage(
+            video,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            x,
+            y,
+            width,
+            height
+          );
+        }
+
+        function drawCameraOverlay() {
+          const x = CANVAS_WIDTH - CAMERA_WIDTH - CAMERA_MARGIN;
+          const y = CAMERA_MARGIN;
+
+          if (!state.cameraVideo || state.cameraVideo.videoWidth === 0) {
+            return;
+          }
+
+          canvasContext.fillStyle = "#000";
+          canvasContext.fillRect(x - 4, y - 4, CAMERA_WIDTH + 8, CAMERA_HEIGHT + 8);
+          drawCover(state.cameraVideo, x, y, CAMERA_WIDTH, CAMERA_HEIGHT);
+        }
+
+        function drawFrame() {
+          canvasContext.fillStyle = "#000";
+          canvasContext.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+          if (state.screenVideo && state.screenVideo.videoWidth > 0) {
+            drawCover(state.screenVideo, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+          }
+
+          drawCameraOverlay();
+
+          state.animationFrameId = requestAnimationFrame(drawFrame);
+        }
+
+        //
+        // Recorder actions
+        //
+        async function startRecording() {
+          state.chunks = [];
+          setDownloadUrl("");
+          setStatusMessage("Choose the ChatGPT tab in Chrome’s share picker and enable tab audio.");
+
+          state.displayStream = await createDisplayStream();
+          state.microphoneStream = await createMicrophoneStream();
+          state.cameraStream = await createCameraStream();
+
+          state.screenVideo = await playVideo(createVideoElement(state.displayStream, true));
+
+          if (state.cameraStream) {
+            state.cameraVideo = await playVideo(createVideoElement(state.cameraStream, true));
+          }
+
+          createRecorderStream();
+          createMediaRecorder();
+          drawFrame();
+
+          state.mediaRecorder.start(1000);
+          setRecordingState(true);
+          setStatusMessage("Recording ChatGPT Voice. Keep using the ChatGPT tab normally.");
+        }
+
+        function stopStream(stream) {
+          if (!stream) {
+            return;
+          }
+
+          stream.getTracks().forEach(function (track) {
+            track.stop();
+          });
+        }
+
+        function removeVideo(video) {
+          if (!video) {
+            return;
+          }
+
+          video.pause();
+          video.srcObject = null;
+          video.remove();
+        }
+
+        function stopRecording() {
+          if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
+            state.mediaRecorder.stop();
+          }
+
+          if (state.animationFrameId) {
+            cancelAnimationFrame(state.animationFrameId);
+          }
+
+          stopStream(state.displayStream);
+          stopStream(state.microphoneStream);
+          stopStream(state.cameraStream);
+          stopStream(state.recorderStream);
+
+          removeVideo(state.screenVideo);
+          removeVideo(state.cameraVideo);
+
+          if (state.audioContext) {
+            state.audioContext.close();
+          }
+
+          state.animationFrameId = 0;
+          state.audioContext = null;
+          state.cameraStream = null;
+          state.cameraVideo = null;
+          state.displayStream = null;
+          state.microphoneStream = null;
+          state.mixedAudioDestination = null;
+          state.recorderStream = null;
+          state.screenVideo = null;
+
+          setRecordingState(false);
+          setStatusMessage("Recording stopped. Download your WebM file.");
+        }
+
+        //
+        // DOM listeners
+        //
+        async function onLoadDevicesClick() {
+          try {
+            if (!isSupportedBrowser()) {
+              setStatusMessage("This browser does not support the required recording APIs.");
+              return;
+            }
+
+            await requestDevicePermissions();
+            setStatusMessage("Devices loaded. Start recording, then choose the ChatGPT tab.");
+          } catch (error) {
+            setStatusMessage(`Could not load devices: ${error.message}`);
+          }
+        }
+
+        async function onStartRecordingClick() {
+          try {
+            await startRecording();
+          } catch (error) {
+            stopRecording();
+            setStatusMessage(`Recording could not start: ${error.message}`);
+          }
+        }
+
+        function onStopRecordingClick() {
+          stopRecording();
+        }
+
+        function onCameraSelectionChange(event) {
+          state.selectedCameraDeviceId = event.target.value;
+          render();
+        }
+
+        function onMicrophoneSelectionChange(event) {
+          state.selectedMicrophoneDeviceId = event.target.value;
+          render();
+        }
+
+        function onRecorderDataAvailable(event) {
+          if (event.data && event.data.size > 0) {
+            state.chunks.push(event.data);
+          }
+        }
+
+        function onRecorderStop() {
+          const blob = new Blob(state.chunks, {
+            type: "video/webm",
+          });
+          const url = URL.createObjectURL(blob);
+
+          setDownloadUrl(url);
+        }
+
+        function onBeforeUnload() {
+          if (state.isRecording) {
+            stopRecording();
+          }
+        }
+
+        function addEventListeners() {
+          elems.loadDevices.onclick = onLoadDevicesClick;
+          elems.startRecording.onclick = onStartRecordingClick;
+          elems.stopRecording.onclick = onStopRecordingClick;
+          window.onbeforeunload = onBeforeUnload;
+        }
+
+        //
+        // Init
+        //
+        addEventListeners();
+        render();
+      })();
+    </script>
+  </body>
+</html>

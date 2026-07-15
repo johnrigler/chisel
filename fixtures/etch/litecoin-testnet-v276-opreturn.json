@@ -1,0 +1,21 @@
+{
+  "label": "Litecoin testnet v276 OP_RETURN dry-run",
+  "currency": "litecoinTestnet",
+  "rpcUrl": "litecoinspaceTestnet",
+  "explorerUrl": "https://litecoinspace.org/testnet/tx/",
+  "fee": "0.00010000",
+  "senderWif": "cMahea7zqjxrtgAbB7LSGbcQUr1uX1ojuat9jZodMN87JcbXMTcA",
+  "warning": "Public Bitcoin-family testnet dummy WIF derived from private key 1. Do not fund with real assets.",
+  "vin": [
+    {
+      "txid": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      "vout": 0
+    }
+  ],
+  "vout": {
+    "mrCDrCybB6J1vRfbwM5hemdJz73FwDBC8r": 0.001,
+    "data": "43484953454c7632373620746573746e6574"
+  },
+  "expectedRawHex": "01000000018967452301efcdab8967452301efcdab8967452301efcdab8967452301efcdab0000000000ffffffff02a0860100000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac0000000000000000146a1243484953454c7632373620746573746e657400000000",
+  "expectedSignedHex": "01000000018967452301efcdab8967452301efcdab8967452301efcdab8967452301efcdab000000006a47304402201381900f5dea15d9c89a4dad1056e93a6f5e5b89ced229c0bb5c1caf2733cc5702206c3d364223cc0fc5bb29992dd8c7ab7e3d39bf7e4a0818b20bd1b1f3b9c87c7801210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ffffffff02a0860100000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac0000000000000000146a1243484953454c7632373620746573746e657400000000"
+}

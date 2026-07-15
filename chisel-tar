@@ -1,0 +1,6 @@
+tar -czf chisel-v277-static-data-review.tgz \
+    REFACTOR-MAP.md \
+    chisel.portal.static-data.js \
+    chisel.portal.js \
+    chisel.selftest.js \
+    index.html

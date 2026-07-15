@@ -1,8 +1,8 @@
 {
   "fileProxyUrl": "http://127.0.0.1:7799",
-  "autoSaveFetchedTransactions": true,
+  "autoSaveFetchedTransactions": false,
   "localFirstTransactions": true,
-  "autoLoadLocalTransactions": false,
+  "autoLoadLocalTransactions": true,
   "pollLocalTransactionsMs": 0,
   "autoSelectNewest": false,
   "saveDiscoveredLinks": true,
@@ -12,7 +12,7 @@
   "autoLoadConversationStreams": true,
   "backgroundHydrateTransactions": true,
   "portalPageSize": 20,
-  "autoFetchRabbitTrails": false,
+  "autoFetchRabbitTrails": true,
   "inlineImageScale": 4,
   "inlineImageThumbScale": 2,
   "inlineImageExpandedScale": 8,
@@ -25,5 +25,14 @@
   "portalFilterBitcoin": true,
   "portalFilterEvmGomez": true,
   "portalFilterEvmJethro": true,
-  "portalFilterOther": true
+  "portalFilterOther": true,
+  "portalFilterDogecoin": true,
+  "autoLoadStaticDataset": true,
+  "autoSearchLedgersAfterStatic": true,
+  "staticManifestPaths": [
+    "data-bundled/manifest.json"
+  ],
+  "staticManifestMirrors": [
+    "https://rigler.org/chisel-data/manifest.json"
+  ]
 }

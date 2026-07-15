@@ -3,11 +3,12 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.6.9m";
+  const APP_VERSION = "2.7.8";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
   const ENTER_KEY = "Enter";
+  const MANUAL_DRAFT_STORAGE_KEY = "chisel.manualEtchDraft.v1";
 
   const LITECOIN_UNSPENDABLE_MODIFIERS = [
     "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
@@ -78,6 +79,26 @@
     changeRvn: document.querySelector("#changeRvn"),
     changeLabel: document.querySelector("#changeLabel"),
     sendButton: document.querySelector("#sendButton"),
+    prepareDraftButton: document.querySelector("#prepareDraftButton"),
+    utxoToVinButton: document.querySelector("#utxoToVinButton"),
+    createRawButton: document.querySelector("#createRawButton"),
+    signRawButton: document.querySelector("#signRawButton"),
+    sendRawButton: document.querySelector("#sendRawButton"),
+    loadManualFromReviewButton: document.querySelector("#loadManualFromReviewButton"),
+    etchFixtureSelect: document.querySelector("#etchFixtureSelect"),
+    loadEtchFixtureButton: document.querySelector("#loadEtchFixtureButton"),
+    saveManualDraftButton: document.querySelector("#saveManualDraftButton"),
+    restoreManualDraftButton: document.querySelector("#restoreManualDraftButton"),
+    clearManualDraftButton: document.querySelector("#clearManualDraftButton"),
+    exportRpcCommandsButton: document.querySelector("#exportRpcCommandsButton"),
+    confirmManualBroadcast: document.querySelector("#confirmManualBroadcast"),
+    manualUtxoJson: document.querySelector("#manualUtxoJson"),
+    manualVinJson: document.querySelector("#manualVinJson"),
+    manualVoutJson: document.querySelector("#manualVoutJson"),
+    manualRawHex: document.querySelector("#manualRawHex"),
+    manualSignedHex: document.querySelector("#manualSignedHex"),
+    manualRpcCommands: document.querySelector("#manualRpcCommands"),
+    manualScratchJson: document.querySelector("#manualScratchJson"),
     wifScanButton: document.querySelector("#wifScanButton"),
     status: document.querySelector("#status"),
     version: document.querySelector("#version"),
@@ -116,7 +137,8 @@
     signedHex: "",
     decodedSigned: null,
     sendPayload: null,
-    sendResult: null
+    sendResult: null,
+    manualContext: null
   };
 
   //
@@ -738,6 +760,71 @@ function setFeeUnitsValue(feeUnits) {
     };
   }
 
+  function getTransportValues() {
+    const coin = getCoin();
+
+    return {
+      rpcUrl: elems.rpcUrl ? elems.rpcUrl.value.trim() : "",
+      explorerUrl: elems.explorerUrl ? elems.explorerUrl.value.trim() : "",
+      senderWif: elems.senderWif ? elems.senderWif.value.trim() : "",
+      feeUnits: coin.coinToUnits(elems.feeRvn && elems.feeRvn.value ? elems.feeRvn.value : "0"),
+      opReturnHex: "",
+      ipfsField: "",
+      hasIpfsField: false,
+      recipients: [],
+      extraRecipientCount: 0
+    };
+  }
+
+  function validateTransportValues(coin, values) {
+    if (!values.rpcUrl && !coin.USES_THIRD_PARTY_PROVIDERS) {
+      throw new Error("RPC URL is required.");
+    }
+
+    if (coin.REQUIRES_EXPLORER && !values.explorerUrl) {
+      throw new Error("Explorer URL is required for " + coin.DISPLAY_NAME + ".");
+    }
+  }
+
+  async function makeClientForValues(coin, values) {
+    const client = coin.USES_THIRD_PARTY_PROVIDERS ? null : new CHISEL(values.rpcUrl);
+
+    if (client) {
+      await client.load();
+    }
+
+    return client;
+  }
+
+  function parseManualJsonTextarea(elem, label) {
+    const text = elem && elem.value ? elem.value.trim() : "";
+
+    if (!text) {
+      throw new Error(label + " is empty.");
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      throw new Error(label + " is not valid JSON: " + (error.message || String(error)));
+    }
+  }
+
+  function getManualHex(elem, label) {
+    const text = elem && elem.value ? elem.value.trim() : "";
+    const normalized = normalizeHex(text);
+
+    if (!normalized) {
+      throw new Error(label + " is empty.");
+    }
+
+    if (!isHex(normalized) || normalized.length % 2 !== 0) {
+      throw new Error(label + " must be even-length hex.");
+    }
+
+    return normalized.toLowerCase();
+  }
+
 function getResolvedOpReturnHexForFee() {
   const ascii = elems.opReturnAscii.value.trim();
   const hex = normalizeHex(elems.opReturnHex.value);
@@ -1030,8 +1117,280 @@ function clearOutputs() {
     elem.textContent = value || "";
   }
 
+  function setManualTextareaValue(elem, value) {
+    if (!elem) {
+      return;
+    }
+
+    if (value === null || value === undefined || value === "") {
+      elem.value = "";
+      return;
+    }
+
+    if (typeof value === "string") {
+      elem.value = value;
+      return;
+    }
+
+    elem.value = JSON.stringify(value, null, 2);
+  }
+
+  function setManualJsonValue(elem, value) {
+    setManualTextareaValue(elem, value);
+  }
+
+  function setManualHexValue(elem, value) {
+    setManualTextareaValue(elem, value || "");
+  }
+
+  function compactJson(value) {
+    return JSON.stringify(value === undefined ? null : value);
+  }
+
+  function shellSingleQuote(value) {
+    return "'" + String(value || "").replace(/'/g, "'\\''") + "'";
+  }
+
+  function textAreaValue(elem) {
+    return elem && elem.value ? elem.value.trim() : "";
+  }
+
+  function getManualWorkspace() {
+    return {
+      version: APP_VERSION,
+      savedAt: new Date().toISOString(),
+      currency: elems.currency ? elems.currency.value : "",
+      rpcUrl: elems.rpcUrl ? elems.rpcUrl.value : "",
+      explorerUrl: elems.explorerUrl ? elems.explorerUrl.value : "",
+      fee: elems.feeRvn ? elems.feeRvn.value : "",
+      senderWifSaved: false,
+      note: "WIF is intentionally not saved in manual Etch drafts.",
+      manualUtxoJson: elems.manualUtxoJson ? elems.manualUtxoJson.value : "",
+      manualVinJson: elems.manualVinJson ? elems.manualVinJson.value : "",
+      manualVoutJson: elems.manualVoutJson ? elems.manualVoutJson.value : "",
+      manualRawHex: elems.manualRawHex ? elems.manualRawHex.value : "",
+      manualSignedHex: elems.manualSignedHex ? elems.manualSignedHex.value : "",
+      manualRpcCommands: elems.manualRpcCommands ? elems.manualRpcCommands.value : "",
+      manualScratchJson: elems.manualScratchJson ? elems.manualScratchJson.value : ""
+    };
+  }
+
+  function setManualWorkspace(workspace) {
+    const data = workspace && typeof workspace === "object" ? workspace : {};
+
+    if (data.currency) setCurrencyValue(data.currency);
+    if (elems.rpcUrl && data.rpcUrl !== undefined) elems.rpcUrl.value = data.rpcUrl || "";
+    if (elems.explorerUrl && data.explorerUrl !== undefined) elems.explorerUrl.value = data.explorerUrl || "";
+    if (elems.feeRvn && data.fee !== undefined) elems.feeRvn.value = data.fee || "";
+    if (elems.manualUtxoJson) elems.manualUtxoJson.value = data.manualUtxoJson || "";
+    if (elems.manualVinJson) elems.manualVinJson.value = data.manualVinJson || "";
+    if (elems.manualVoutJson) elems.manualVoutJson.value = data.manualVoutJson || "";
+    if (elems.manualRawHex) elems.manualRawHex.value = data.manualRawHex || "";
+    if (elems.manualSignedHex) elems.manualSignedHex.value = data.manualSignedHex || "";
+    if (elems.manualRpcCommands) elems.manualRpcCommands.value = data.manualRpcCommands || "";
+    if (elems.manualScratchJson) elems.manualScratchJson.value = data.manualScratchJson || "";
+    if (elems.confirmManualBroadcast) elems.confirmManualBroadcast.checked = false;
+
+    updateRecipientCostPreview();
+  }
+
+  function saveManualDraft() {
+    const workspace = getManualWorkspace();
+    window.localStorage.setItem(MANUAL_DRAFT_STORAGE_KEY, JSON.stringify(workspace));
+    setStatusMessage("Saved manual Etch draft to localStorage. WIF was not saved.", false);
+  }
+
+  function restoreManualDraft() {
+    const text = window.localStorage.getItem(MANUAL_DRAFT_STORAGE_KEY);
+    if (!text) throw new Error("No saved manual Etch draft found in localStorage.");
+    setManualWorkspace(JSON.parse(text));
+    setStatusMessage("Restored manual Etch draft from localStorage. WIF was not restored.", false);
+  }
+
+  function clearManualEditors() {
+    [
+      elems.manualUtxoJson,
+      elems.manualVinJson,
+      elems.manualVoutJson,
+      elems.manualRawHex,
+      elems.manualSignedHex,
+      elems.manualRpcCommands,
+      elems.manualScratchJson
+    ].forEach(function clearManualEditor(elem) {
+      if (elem) elem.value = "";
+    });
+    if (elems.confirmManualBroadcast) elems.confirmManualBroadcast.checked = false;
+    setStatusMessage("Cleared manual Etch pipeline boxes.", false);
+  }
+
+  function validateVinJson(vin) {
+    if (!Array.isArray(vin) || vin.length === 0) {
+      throw new Error("VIN JSON must be a non-empty array.");
+    }
+
+    vin.forEach(function validateVinRow(row, index) {
+      if (!row || typeof row !== "object") {
+        throw new Error("VIN row " + index + " must be an object.");
+      }
+      if (!/^[0-9a-f]{64}$/i.test(String(row.txid || ""))) {
+        throw new Error("VIN row " + index + " has an invalid txid.");
+      }
+      if (!Number.isInteger(Number(row.vout)) || Number(row.vout) < 0) {
+        throw new Error("VIN row " + index + " has an invalid vout.");
+      }
+    });
+  }
+
+  function validateVoutJson(vout) {
+    if (!vout || typeof vout !== "object" || Array.isArray(vout)) {
+      throw new Error("VOUT JSON must be an object mapping address/data/ipfs keys to values.");
+    }
+
+    const keys = Object.keys(vout);
+    if (!keys.length) {
+      throw new Error("VOUT JSON must contain at least one output.");
+    }
+
+    keys.forEach(function validateVoutKey(key) {
+      const value = vout[key];
+      if (key === "data") {
+        const hex = normalizeHex(String(value || ""));
+        if (hex && (!isHex(hex) || hex.length % 2 !== 0)) {
+          throw new Error("VOUT data field must be even-length hex.");
+        }
+        return;
+      }
+      if (key === "ipfs") {
+        if (!String(value || "").trim()) {
+          throw new Error("VOUT ipfs field cannot be empty.");
+        }
+        return;
+      }
+      if (!String(key || "").trim()) {
+        throw new Error("VOUT contains an empty output key.");
+      }
+      if (!Number.isFinite(Number(value)) || Number(value) <= 0) {
+        throw new Error("VOUT amount for " + key + " must be greater than zero.");
+      }
+    });
+  }
+
+  function buildRpcCommandText() {
+    let vin = null;
+    let vout = null;
+    const rawHex = textAreaValue(elems.manualRawHex);
+    const signedHex = textAreaValue(elems.manualSignedHex);
+    const lines = [];
+
+    if (elems.manualVinJson && elems.manualVinJson.value.trim()) {
+      vin = parseManualJsonTextarea(elems.manualVinJson, "VIN JSON");
+      validateVinJson(vin);
+    }
+
+    if (elems.manualVoutJson && elems.manualVoutJson.value.trim()) {
+      vout = parseManualJsonTextarea(elems.manualVoutJson, "VOUT JSON");
+      validateVoutJson(vout);
+    }
+
+    lines.push("# Chisel Etch manual pipeline");
+    lines.push("# Currency: " + getCoin().DISPLAY_NAME);
+    lines.push("# WIF is intentionally redacted. Replace <WIF> only in a trusted shell.");
+
+    if (vin && vout) {
+      lines.push("createrawtransaction " + shellSingleQuote(compactJson(vin)) + " " + shellSingleQuote(compactJson(vout)));
+    } else {
+      lines.push("# createrawtransaction requires VIN JSON and VOUT JSON");
+    }
+
+    if (rawHex) {
+      lines.push("signrawtransactionwithkey " + shellSingleQuote(rawHex) + " '[\"<WIF>\"]'");
+    } else {
+      lines.push("# signrawtransactionwithkey requires unsigned raw hex");
+    }
+
+    if (signedHex) {
+      lines.push("sendrawtransaction " + shellSingleQuote(signedHex));
+    } else {
+      lines.push("# sendrawtransaction requires signed raw hex");
+    }
+
+    return lines.join("\n");
+  }
+
+  function exportRpcCommandsToManualBox() {
+    const text = buildRpcCommandText();
+    if (elems.manualRpcCommands) elems.manualRpcCommands.value = text;
+    setStatusMessage("Exported RPC-style commands from the current manual Etch boxes.", false);
+    return text;
+  }
+
+  function populateEtchFixtureSelect() {
+    if (!elems.etchFixtureSelect) return;
+    const fixtures = window.CHISEL_ETCH_FIXTURES || {};
+    Object.keys(fixtures).forEach(function addFixtureOption(key) {
+      const fixture = fixtures[key];
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = fixture.label || key;
+      elems.etchFixtureSelect.appendChild(option);
+    });
+  }
+
+  function loadSelectedEtchFixture() {
+    if (!elems.etchFixtureSelect || !elems.etchFixtureSelect.value) {
+      throw new Error("Choose an Etch fixture first.");
+    }
+
+    const fixtures = window.CHISEL_ETCH_FIXTURES || {};
+    const fixture = fixtures[elems.etchFixtureSelect.value];
+
+    if (!fixture) {
+      throw new Error("Unknown Etch fixture: " + elems.etchFixtureSelect.value);
+    }
+
+    if (fixture.currency) setCurrencyValue(fixture.currency);
+    if (elems.rpcUrl && fixture.rpcUrl !== undefined) elems.rpcUrl.value = fixture.rpcUrl || "";
+    if (elems.explorerUrl && fixture.explorerUrl !== undefined) elems.explorerUrl.value = fixture.explorerUrl || "";
+    if (elems.feeRvn && fixture.fee !== undefined) elems.feeRvn.value = fixture.fee || "";
+    if (elems.senderWif && fixture.senderWif !== undefined) elems.senderWif.value = fixture.senderWif || "";
+
+    setManualJsonValue(elems.manualUtxoJson, fixture.utxos || []);
+    setManualJsonValue(elems.manualVinJson, fixture.vin || []);
+    setManualJsonValue(elems.manualVoutJson, fixture.vout || {});
+    setManualHexValue(elems.manualRawHex, fixture.expectedRawHex || "");
+    setManualHexValue(elems.manualSignedHex, fixture.expectedSignedHex || "");
+    setManualJsonValue(elems.manualScratchJson, {
+      fixture: elems.etchFixtureSelect.value,
+      label: fixture.label || "",
+      warning: fixture.warning || "",
+      expectedRawHex: fixture.expectedRawHex || "",
+      expectedSignedHex: fixture.expectedSignedHex || ""
+    });
+    exportRpcCommandsToManualBox();
+    if (elems.confirmManualBroadcast) elems.confirmManualBroadcast.checked = false;
+    updateRecipientCostPreview();
+    setStatusMessage("Loaded Etch fixture: " + (fixture.label || elems.etchFixtureSelect.value) + ". Broadcast remains locked.", false);
+  }
+
   function render() {
     elems.sendButton.disabled = state.isLoading;
+    [
+      elems.prepareDraftButton,
+      elems.utxoToVinButton,
+      elems.createRawButton,
+      elems.signRawButton,
+      elems.sendRawButton,
+      elems.loadManualFromReviewButton,
+      elems.loadEtchFixtureButton,
+      elems.saveManualDraftButton,
+      elems.restoreManualDraftButton,
+      elems.clearManualDraftButton,
+      elems.exportRpcCommandsButton
+    ].forEach(function toggleManualButton(button) {
+      if (button) {
+        button.disabled = state.isLoading;
+      }
+    });
     elems.status.textContent = state.status;
     elems.status.className = state.isError ? "error" : "";
 
@@ -1112,18 +1471,13 @@ function getMinimumRequiredFeeUnits(coin, values) {
 }
 
 
-  async function buildTransactionContext() {
+  async function prepareTransactionDraftFromForm() {
     const coin = getCoin();
     const values = getFormValues();
 
     validateBuildSignSendValues(coin, values);
 
-    const client = coin.USES_THIRD_PARTY_PROVIDERS ? null : new CHISEL(values.rpcUrl);
-
-    if (client) {
-      await client.load();
-    }
-
+    const client = await makeClientForValues(coin, values);
     const minimumRequiredFeeUnits = getMinimumRequiredFeeUnits(coin, values);
     const requiredFeeUnits = Math.max(values.feeUnits, minimumRequiredFeeUnits);
 
@@ -1181,26 +1535,38 @@ function getMinimumRequiredFeeUnits(coin, values) {
       recipients: values.recipients
     });
 
-    setStatusMessage(coin.USES_THIRD_PARTY_PROVIDERS ? "Creating raw transaction locally..." : "Creating raw transaction...", false);
-    const rawHex = await coin.createRawTransaction(client, values, vin, vout);
-    setRawHexData(rawHex);
-
-    setStatusMessage(coin.USES_THIRD_PARTY_PROVIDERS ? "Decoding unsigned raw transaction locally..." : "Decoding unsigned raw transaction...", false);
-    const decodedUnsigned = await coin.decodeRawTransaction(client, values, rawHex);
-    setDecodedUnsignedData(decodedUnsigned);
-
     return {
-      coin,
-      values,
-      client,
-      account,
-      utxos,
-      vin,
-      vout,
-      requiredFeeUnits,
-      rawHex,
+      coin: coin,
+      values: values,
+      client: client,
+      account: account,
+      utxos: utxos,
+      vin: vin,
+      vout: vout,
+      requiredFeeUnits: requiredFeeUnits,
+      rawHex: null,
       signedHex: null
     };
+  }
+
+  async function createRawFromContext(context) {
+    setStatusMessage(context.coin.USES_THIRD_PARTY_PROVIDERS ? "Creating raw transaction locally..." : "Creating raw transaction...", false);
+    const rawHex = await context.coin.createRawTransaction(context.client, context.values, context.vin, context.vout);
+    setRawHexData(rawHex);
+
+    setStatusMessage(context.coin.USES_THIRD_PARTY_PROVIDERS ? "Decoding unsigned raw transaction locally..." : "Decoding unsigned raw transaction...", false);
+    const decodedUnsigned = await context.coin.decodeRawTransaction(context.client, context.values, rawHex);
+    setDecodedUnsignedData(decodedUnsigned);
+
+    context.rawHex = rawHex;
+
+    return context;
+  }
+
+  async function buildTransactionContext() {
+    const context = await prepareTransactionDraftFromForm();
+    await createRawFromContext(context);
+    return context;
   }
 
   async function signTransactionContext(context) {
@@ -1245,6 +1611,200 @@ function getMinimumRequiredFeeUnits(coin, values) {
     setStatusMessage(STATUS_DONE, false);
 
     return context;
+  }
+
+  function loadManualEditorsFromState() {
+    setManualJsonValue(elems.manualUtxoJson, state.utxos);
+    setManualJsonValue(elems.manualVinJson, state.vin);
+    setManualJsonValue(elems.manualVoutJson, state.vout);
+    setManualHexValue(elems.manualRawHex, state.rawHex);
+    setManualHexValue(elems.manualSignedHex, state.signedHex);
+    setManualJsonValue(elems.manualScratchJson, state.buildPayload || state.sendPayload || null);
+    try { exportRpcCommandsToManualBox(); } catch (error) {}
+  }
+
+  async function prepareManualDraftFromForm() {
+    const context = await prepareTransactionDraftFromForm();
+    state.manualContext = context;
+    loadManualEditorsFromState();
+    setStatusMessage("Prepared VIN and VOUT. You can edit the JSON before creating raw hex.", false);
+    return context;
+  }
+
+  function normalizeManualUtxoPayload(payload) {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    if (payload && Array.isArray(payload.utxos)) {
+      return payload.utxos;
+    }
+
+    if (payload && Array.isArray(payload.unspent_outputs)) {
+      return payload.unspent_outputs;
+    }
+
+    if (payload && Array.isArray(payload.vin) && payload.vin.every(function hasTxid(row) { return row && row.txid; })) {
+      return payload.vin;
+    }
+
+    throw new Error("UTXO JSON must be an array, {utxos:[...]}, {unspent_outputs:[...]}, or a tx-like object with vin.");
+  }
+
+  function buildVinFromManualUtxoJson() {
+    const payload = parseManualJsonTextarea(elems.manualUtxoJson, "UTXO JSON");
+    const utxos = normalizeManualUtxoPayload(payload).map(CHISEL.normalizeUTXO);
+    const vin = CHISEL.buildVin(utxos);
+    validateVinJson(vin);
+
+    setUtxoData(utxos);
+    setVinData(vin);
+    setManualJsonValue(elems.manualVinJson, vin);
+    try { exportRpcCommandsToManualBox(); } catch (error) {}
+    setStatusMessage("Built VIN from pasted UTXO JSON.", false);
+
+    return vin;
+  }
+
+  async function createRawFromManualJson() {
+    const coin = getCoin();
+    const values = getTransportValues();
+    validateTransportValues(coin, values);
+
+    const vin = parseManualJsonTextarea(elems.manualVinJson, "VIN JSON");
+    const vout = parseManualJsonTextarea(elems.manualVoutJson, "VOUT JSON");
+    validateVinJson(vin);
+    validateVoutJson(vout);
+    const client = await makeClientForValues(coin, values);
+    const context = {
+      coin: coin,
+      values: values,
+      client: client,
+      account: state.account,
+      utxos: state.utxos,
+      vin: vin,
+      vout: vout,
+      rawHex: null,
+      signedHex: null
+    };
+
+    setVinData(vin);
+    setVoutData(vout);
+    setBuildPayloadData({
+      method: "createrawtransaction",
+      currency: coin.NAME,
+      source: "manual-json-editor",
+      params: [vin, vout]
+    });
+
+    await createRawFromContext(context);
+    state.manualContext = context;
+    setManualHexValue(elems.manualRawHex, context.rawHex);
+    exportRpcCommandsToManualBox();
+    setStatusMessage("Created unsigned raw transaction from pasted JSON.", false);
+
+    return context;
+  }
+
+  async function signRawFromManualHex() {
+    const coin = getCoin();
+    const values = getTransportValues();
+    const rawHex = getManualHex(elems.manualRawHex, "Unsigned raw transaction hex");
+    const vin = elems.manualVinJson && elems.manualVinJson.value.trim() ? parseManualJsonTextarea(elems.manualVinJson, "VIN JSON") : state.vin;
+
+    if (!values.senderWif) {
+      throw new Error("Sender WIF is required to sign raw hex. It is not required for SEND SIGNED RAW.");
+    }
+
+    validateVinJson(vin);
+
+    validateTransportValues(coin, values);
+    const client = await makeClientForValues(coin, values);
+
+    setStatusMessage("Deriving signing account from WIF...", false);
+    const account = await coin.wifToAccount(values.senderWif);
+    setAccountData({
+      currency: coin.NAME,
+      ticker: coin.TICKER,
+      network: account.network,
+      compressed: account.compressed,
+      address: account.address,
+      compressedAddress: account.compressedAddress,
+      uncompressedAddress: account.uncompressedAddress,
+      privateKeyHex: account.privateKeyHex
+    });
+
+    const context = {
+      coin: coin,
+      values: values,
+      client: client,
+      account: account,
+      utxos: state.utxos,
+      vin: vin,
+      vout: state.vout,
+      rawHex: rawHex,
+      signedHex: null
+    };
+
+    setVinData(vin);
+    setRawHexData(rawHex);
+    await signTransactionContext(context);
+    state.manualContext = context;
+    setManualHexValue(elems.manualSignedHex, context.signedHex);
+    exportRpcCommandsToManualBox();
+    setStatusMessage("Signed raw transaction locally. Review the signed hex before sending.", false);
+
+    return context;
+  }
+
+  async function sendSignedRawFromManualHex() {
+    if (!elems.confirmManualBroadcast || !elems.confirmManualBroadcast.checked) {
+      throw new Error("SEND SIGNED RAW is locked. Check the broadcast confirmation box after inspecting the signed hex.");
+    }
+
+    const coin = getCoin();
+    const values = getTransportValues();
+    validateTransportValues(coin, values);
+
+    const signedHex = getManualHex(elems.manualSignedHex, "Signed raw transaction hex");
+    const client = await makeClientForValues(coin, values);
+    const context = {
+      coin: coin,
+      values: values,
+      client: client,
+      account: state.account,
+      utxos: state.utxos,
+      vin: state.vin,
+      vout: state.vout,
+      rawHex: state.rawHex,
+      signedHex: signedHex
+    };
+
+    setSignedHexData(signedHex);
+    setSendPayloadData({
+      method: "sendrawtransaction",
+      currency: coin.NAME,
+      source: "manual-signed-hex-editor",
+      params: [signedHex]
+    });
+    await sendTransactionContext(context);
+    state.manualContext = context;
+    exportRpcCommandsToManualBox();
+    setStatusMessage(STATUS_DONE, false);
+
+    return context;
+  }
+
+  async function runManualStep(stepFn) {
+    try {
+      setLoadingState(true);
+      await stepFn();
+    } catch (error) {
+      console.error(error);
+      setStatusMessage(error.message || String(error), true);
+    } finally {
+      setLoadingState(false);
+    }
   }
 
   //
@@ -1379,19 +1939,31 @@ function onClickAddCommonAddressButton() {
   // GUI mode shell
   //
   const MODE_HINTS = {
-    broadcast: "Broadcast mode builds, signs, decodes, and sends the transaction. Review mode shows the raw transaction pipeline after a build/send attempt.",
+    start: "Start mode explains what Chisel proves: browser-local signing, chain-native graph/indexing, and static or local ledger resources.",
+    etch: "Etch mode builds UTXO transactions. Use RUN ALL for the old one-pass path or the manual pipeline to stop after each raw-transaction step.",
     review: "Review mode exposes the transaction spine: account, UTXOs, VIN, VOUT, raw hex, signed hex, and broadcast result.",
-    decode: "Decode mode opens the ledger object viewer. Use it after a txid exists or when reading a txid-named fixture.",
-    portal: "Portal mode is a Chisel-aware block explorer view over Thunderword indexes and transaction semantics.",
-    tools: "Tools mode links to QR/WIF scanning, label generation, and transaction decoding without crowding the broadcaster."
+    portal: "Portal mode is the default Chisel-aware block explorer view over Thunderword indexes and transaction semantics.",
+    tools: "Tools mode links to QR/WIF scanning, label generation, legacy decoding, and support utilities without crowding the etcher."
   };
 
   function normalizeMode(value) {
-    if (value === "review" || value === "decode" || value === "portal" || value === "tools") {
+    if (value === "origin" || value === "start") {
+      return "start";
+    }
+
+    if (value === "broadcast" || value === "etch") {
+      return "etch";
+    }
+
+    if (value === "review" || value === "portal" || value === "tools") {
       return value;
     }
 
-    return "broadcast";
+    if (value === "decode") {
+      return "tools";
+    }
+
+    return "portal";
   }
 
   function setGuiMode(mode) {
@@ -1406,7 +1978,7 @@ function onClickAddCommonAddressButton() {
     });
 
     if (modeHint) {
-      modeHint.textContent = MODE_HINTS[normalizedMode] || MODE_HINTS.broadcast;
+      modeHint.textContent = MODE_HINTS[normalizedMode] || MODE_HINTS.portal;
     }
 
     try {
@@ -1420,12 +1992,12 @@ function onClickAddCommonAddressButton() {
 
   function bindGuiModeShell() {
     const buttons = Array.from(document.querySelectorAll("[data-mode-target]"));
-    let initialMode = "broadcast";
+    let initialMode = "portal";
 
     try {
-      initialMode = new URL(window.location.href).searchParams.get("mode") || "broadcast";
+      initialMode = new URL(window.location.href).searchParams.get("mode") || "portal";
     } catch (error) {
-      initialMode = "broadcast";
+      initialMode = "portal";
     }
 
     buttons.forEach(function bindModeButton(button) {
@@ -1593,6 +2165,7 @@ function init() {
     setCurrencyForm();
     setStatusMessage(STATUS_IDLE, false);
     bindGuiModeShell();
+    populateEtchFixtureSelect();
 
     elems.sendButton.onclick = onClickSendButton;
     elems.senderWif.onkeydown = onKeydownSenderWif;
@@ -1613,6 +2186,92 @@ function init() {
     }
     if (elems.addCommonAddressButton) {
       elems.addCommonAddressButton.onclick = onClickAddCommonAddressButton;
+    }
+
+    if (elems.prepareDraftButton) {
+      elems.prepareDraftButton.onclick = function onClickPrepareDraftButton() {
+        runManualStep(prepareManualDraftFromForm);
+      };
+    }
+
+    if (elems.utxoToVinButton) {
+      elems.utxoToVinButton.onclick = function onClickUtxoToVinButton() {
+        runManualStep(function manualUtxoToVinStep() {
+          buildVinFromManualUtxoJson();
+          return Promise.resolve();
+        });
+      };
+    }
+
+    if (elems.createRawButton) {
+      elems.createRawButton.onclick = function onClickCreateRawButton() {
+        runManualStep(createRawFromManualJson);
+      };
+    }
+
+    if (elems.signRawButton) {
+      elems.signRawButton.onclick = function onClickSignRawButton() {
+        runManualStep(signRawFromManualHex);
+      };
+    }
+
+    if (elems.sendRawButton) {
+      elems.sendRawButton.onclick = function onClickSendRawButton() {
+        runManualStep(sendSignedRawFromManualHex);
+      };
+    }
+
+    if (elems.loadManualFromReviewButton) {
+      elems.loadManualFromReviewButton.onclick = function onClickLoadManualFromReviewButton() {
+        loadManualEditorsFromState();
+        setStatusMessage("Loaded current review values into the manual pipeline boxes.", false);
+      };
+    }
+
+    if (elems.loadEtchFixtureButton) {
+      elems.loadEtchFixtureButton.onclick = function onClickLoadEtchFixtureButton() {
+        runManualStep(function manualLoadFixtureStep() {
+          loadSelectedEtchFixture();
+          return Promise.resolve();
+        });
+      };
+    }
+
+    if (elems.saveManualDraftButton) {
+      elems.saveManualDraftButton.onclick = function onClickSaveManualDraftButton() {
+        runManualStep(function manualSaveDraftStep() {
+          saveManualDraft();
+          return Promise.resolve();
+        });
+      };
+    }
+
+    if (elems.restoreManualDraftButton) {
+      elems.restoreManualDraftButton.onclick = function onClickRestoreManualDraftButton() {
+        runManualStep(function manualRestoreDraftStep() {
+          restoreManualDraft();
+          return Promise.resolve();
+        });
+      };
+    }
+
+    if (elems.clearManualDraftButton) {
+      elems.clearManualDraftButton.onclick = function onClickClearManualDraftButton() {
+        clearManualEditors();
+      };
+    }
+
+    if (elems.exportRpcCommandsButton) {
+      elems.exportRpcCommandsButton.onclick = function onClickExportRpcCommandsButton() {
+        runManualStep(function manualExportRpcStep() {
+          exportRpcCommandsToManualBox();
+          return Promise.resolve();
+        });
+      };
+    }
+
+    if (elems.confirmManualBroadcast) {
+      elems.confirmManualBroadcast.onchange = render;
     }
 
     if (elems.wifScanButton) {
@@ -1636,6 +2295,15 @@ function init() {
   window.getCoin = getCoin;
   window.getCoinName = getCoinName;
   window.runBuildSignDecodeSend = runBuildSignDecodeSend;
+  window.prepareTransactionDraftFromForm = prepareTransactionDraftFromForm;
+  window.createRawFromManualJson = createRawFromManualJson;
+  window.signRawFromManualHex = signRawFromManualHex;
+  window.sendSignedRawFromManualHex = sendSignedRawFromManualHex;
+  window.buildVinFromManualUtxoJson = buildVinFromManualUtxoJson;
+  window.exportRpcCommandsToManualBox = exportRpcCommandsToManualBox;
+  window.loadSelectedEtchFixture = loadSelectedEtchFixture;
+  window.saveManualDraft = saveManualDraft;
+  window.restoreManualDraft = restoreManualDraft;
   window.addRecipient = addRecipientRow;
   window.addUnspendableRecipientFromTool = addUnspendableRecipientFromTool;
   window.clearRecipients = clearRecipientRows;
