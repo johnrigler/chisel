@@ -21,6 +21,7 @@
     autoSaveFetchedTransactions: true,
     localFirstTransactions: true,
     autoLoadLocalTransactions: false,
+    autoHydrateLocalTransactions: true,
     pollLocalTransactionsMs: 0,
     autoSelectNewest: false,
     autoLoadConversationStreams: true,
@@ -99,6 +100,7 @@
     selectedTxid: "",
     currentSavedPath: "",
     localTransactions: [],
+    localHydrationReport: null,
     localAssetPaths: [],
     portalRows: [],
     portalRowKeys: Object.create(null),
@@ -121,6 +123,17 @@
     portalSourceFilters: Object.create(null),
     portalAnnotations: Object.create(null)
   };
+
+  const staticData = window.CHISEL_PORTAL_STATIC_DATA;
+  if (!staticData) throw new Error("Load chisel.portal.static-data.js before chisel.portal.js.");
+  const staticNormalizer = staticData.createNormalizer({
+    normalizeCoinName: normalizeCoinName,
+    tickerForCoin: tickerForCoin,
+    getCoinIndexByCoinName: getCoinIndexByCoinName,
+    shortTxid: shortTxid,
+    txidRe: TXID_RE
+  });
+  const staticTransport = staticData.createTransport({ fetch: fetch, crypto: window.crypto });
 
   function $(selector) { return document.querySelector(selector); }
 
@@ -1573,110 +1586,21 @@
     return getFileProxyUrl() + "/raw?path=" + encodeURIComponent(String(path));
   }
 
-  function isAbsoluteUrl(value) {
-    return /^https?:\/\//i.test(String(value || ""));
-  }
-
-  function trimUrlSlash(value) {
-    return String(value || "").replace(/\/+$/, "");
-  }
-
-  function dirnameUrl(value) {
-    const text = String(value || "");
-    const idx = text.lastIndexOf("/");
-    return idx >= 0 ? text.slice(0, idx + 1) : "";
-  }
-
-  function joinDataPath(base, path) {
-    const p = String(path || "").replace(/^\/+/, "");
-    if (!p) return String(base || "");
-    if (isAbsoluteUrl(p)) return p;
-    const b = String(base || "");
-    if (!b) return p;
-    return trimUrlSlash(b) + "/" + p;
-  }
-
   function normalizePathList(value, fallback) {
-    if (Array.isArray(value)) return value.map(String).filter(Boolean);
-    if (typeof value === "string" && value.trim()) return [value.trim()];
-    return fallback || [];
+    return staticData.normalizePathList(value, fallback);
   }
 
-  async function fetchJsonNoStore(url) {
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) throw new Error(url + " failed with HTTP " + response.status + ".");
-    return response.json();
-  }
-
-  function makeStaticIndexEntry(row) {
-    const coin = normalizeCoinName(row.coin || row.chain || (row.summary && row.summary.coin) || "");
-    if (coin === "evm" || row.chainId || row.contractName || row.contractAddress) {
-      return {
-        coin: "evm",
-        ticker: "EVM",
-        name: (row.contractName || "static") + " EVM",
-        label: (row.contractName || "static") + " EVM static",
-        chainId: String(row.chainId || "137"),
-        contractName: row.contractName || (row.summary && row.summary.contractName) || "",
-        contractAddress: row.contractAddress || (row.summary && row.summary.contractAddress) || ""
-      };
-    }
-    return getCoinIndexByCoinName(coin || row.ticker || row.sourceId) || {
-      coin: coin || row.coin || "unknown",
-      ticker: row.ticker || tickerForCoin(coin) || "",
-      name: row.sourceId || coin || "static",
-      label: row.streamLabel || row.sourceId || coin || "static"
-    };
-  }
-
-  function staticRowToPortalRow(item, context) {
-    const row = item && typeof item === "object" ? item : {};
-    const txid = String(row.txid || row.hash || "").replace(/^0x/i, "").toLowerCase();
-    if (!TXID_RE.test(txid)) return null;
-    const summary = Object.assign({}, row.summary || {});
-    summary.txid = summary.txid || txid;
-    summary.hash = summary.hash || row.hash || (row.coin === "evm" ? "0x" + txid : txid);
-    summary.title = summary.title || row.title || ("transaction " + shortTxid(txid));
-    summary.coin = summary.coin || row.coin || "";
-    summary.ticker = summary.ticker || row.ticker || tickerForCoin(row.coin || "");
-    if (!summary.blockTime && row.blockTime) summary.blockTime = row.blockTime;
-    if (!summary.blockHeight && row.blockHeight) summary.blockHeight = row.blockHeight;
-    if (row.contractName && !summary.contractName) summary.contractName = row.contractName;
-    if (row.contractAddress && !summary.contractAddress) summary.contractAddress = row.contractAddress;
-
-    const baseUrl = (context && context.baseUrl) || "";
-    const remoteBaseUrls = normalizePathList(context && context.remoteBaseUrls, []);
-    const rawPath = row.rawPath || row.path || "";
-    const rawUrl = row.rawUrl || "";
-
-    const out = {
-      index: row.index || makeStaticIndexEntry(row),
-      coin: normalizeCoinName(row.coin || summary.coin || row.ticker || "") || row.coin || "unknown",
-      txid: txid,
-      raw: row.raw || null,
-      summary: summary,
-      blockTime: summary.blockTime || row.blockTime || 0,
-      streamLabel: row.streamLabel || ((context && context.sourceLabel) || "static dataset"),
-      localPath: row.localPath || "",
-      staticRawPath: rawPath,
-      staticRawUrl: rawUrl,
-      staticBaseUrl: baseUrl,
-      staticRemoteBaseUrls: remoteBaseUrls,
-      staticSource: (context && context.sourceBadge) || "static",
-      sourceId: row.sourceId || "",
-      discoverySource: row.discoverySource || "preloaded"
-    };
-
-    if (rawPath || rawUrl) {
-      state.staticRawByTxid[out.coin + ":" + txid] = out;
-      state.staticRawByTxid[(row.sourceId || sourceIdForRow(out)) + ":" + txid] = out;
-    }
-    return out;
+  function registerStaticRawRows(rows) {
+    rows.forEach(function (row) {
+      if (!row.staticRawPath && !row.staticRawUrl) return;
+      state.staticRawByTxid[row.coin + ":" + row.txid] = row;
+      state.staticRawByTxid[(row.sourceId || sourceIdForRow(row)) + ":" + row.txid] = row;
+    });
+    return rows;
   }
 
   function normalizeStaticDatasetRows(dataset, context) {
-    const rows = Array.isArray(dataset) ? dataset : safeArray(dataset && (dataset.transactions || dataset.records || dataset.rows));
-    return rows.map(function (row) { return staticRowToPortalRow(row, context || {}); }).filter(Boolean);
+    return registerStaticRawRows(staticNormalizer.normalizeStaticDatasetRows(dataset, context));
   }
 
   function mergeStaticRows(rows, opts) {
@@ -1719,19 +1643,15 @@
 
   async function loadStaticManifest(manifestUrl, opts) {
     const label = (opts && opts.label) || manifestUrl;
-    const manifest = await fetchJsonNoStore(manifestUrl);
-    const baseUrl = manifest.baseUrl ? manifest.baseUrl : dirnameUrl(manifestUrl);
-    const indexPath = manifest.defaultIndex || "index/portal.index.json";
-    const indexUrl = joinDataPath(baseUrl, indexPath);
-    const index = await fetchJsonNoStore(indexUrl);
-    const rows = normalizeStaticDatasetRows(index, {
-      baseUrl: baseUrl,
+    const loaded = await staticTransport.loadManifest(manifestUrl);
+    const rows = normalizeStaticDatasetRows(loaded.index, {
+      baseUrl: loaded.baseUrl,
       sourceLabel: label,
-      sourceBadge: (opts && opts.badge) || (manifestUrl.indexOf("data-bundled/") >= 0 ? "bundled" : (isAbsoluteUrl(manifestUrl) ? "remote" : "static")),
-      remoteBaseUrls: manifest.remoteBaseUrls || []
+      sourceBadge: (opts && opts.badge) || (manifestUrl.indexOf("data-bundled/") >= 0 ? "bundled" : (staticData.isAbsoluteUrl(manifestUrl) ? "remote" : "static")),
+      remoteBaseUrls: loaded.manifest.remoteBaseUrls || []
     });
     const report = mergeStaticRows(rows, { silent: opts && opts.silent });
-    state.staticManifest = manifest;
+    state.staticManifest = loaded.manifest;
     state.staticDatasetReports.push(Object.assign({ source: label, manifest: manifestUrl, records: rows.length }, report));
     return report;
   }
@@ -1767,55 +1687,12 @@
   }
 
   async function fetchStaticRawFromRow(row) {
-    const paths = [];
-    if (row.staticRawUrl) paths.push(row.staticRawUrl);
-    if (row.staticRawPath && row.staticBaseUrl) paths.push(joinDataPath(row.staticBaseUrl, row.staticRawPath));
-    normalizePathList(row.staticRemoteBaseUrls, []).forEach(function (base) {
-      if (row.staticRawPath) paths.push(joinDataPath(base, row.staticRawPath));
-    });
-    const errors = [];
-    for (let i = 0; i < paths.length; i += 1) {
-      try {
-        return { json: await fetchJsonNoStore(paths[i]), source: row.staticSource || "static", url: paths[i], coin: row.coin || canonicalCoinForRow(row) };
-      } catch (error) {
-        errors.push(paths[i] + " => " + (error.message || String(error)));
-      }
-    }
-    if (!paths.length) throw new Error("No static raw path is registered for this row.");
-    throw new Error("Static transaction fetch failed: " + errors.join(" | "));
+    return staticTransport.fetchStaticRawFromRow(row, canonicalCoinForRow);
   }
 
   async function validateStaticDataset() {
-    const reports = [];
     const manifests = normalizePathList(configValue("staticValidationManifestPaths", null), [DEFAULT_BUNDLED_MANIFEST_PATH]);
-    for (let i = 0; i < manifests.length; i += 1) {
-      const manifestUrl = manifests[i];
-      const report = { manifest: manifestUrl, ok: false, checks: [] };
-      reports.push(report);
-      try {
-        const manifest = await fetchJsonNoStore(manifestUrl);
-        const baseUrl = manifest.baseUrl ? manifest.baseUrl : dirnameUrl(manifestUrl);
-        const hashes = manifest.hashes || {};
-        const paths = Object.keys(hashes);
-        for (let j = 0; j < paths.length; j += 1) {
-          const path = paths[j];
-          const url = joinDataPath(baseUrl, path);
-          const response = await fetch(url, { cache: "no-store" });
-          if (!response.ok) throw new Error(url + " failed with HTTP " + response.status);
-          const buffer = await response.arrayBuffer();
-          let digest = "";
-          if (window.crypto && window.crypto.subtle) {
-            const hashBuffer = await window.crypto.subtle.digest("SHA-256", buffer);
-            digest = Array.from(new Uint8Array(hashBuffer)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
-          }
-          const expected = String(hashes[path] || "").replace(/^sha256-/i, "");
-          report.checks.push({ path: path, bytes: buffer.byteLength, expected: expected, actual: digest, ok: digest ? digest === expected : "crypto.subtle unavailable" });
-        }
-        report.ok = report.checks.every(function (c) { return c.ok === true || c.ok === "crypto.subtle unavailable"; });
-      } catch (error) {
-        report.error = error.message || String(error);
-      }
-    }
+    const reports = await staticTransport.validateStaticDataset(manifests);
     setText("#portalThunderwordRaw", pretty({ validation: reports }));
     setStatus("Dataset validation finished. See Index raw for hash details.", reports.some(function (r) { return r.error || r.ok === false; }));
     return reports;
@@ -1876,9 +1753,43 @@
   }
 
   async function loadLocalTransaction(txid, coin) {
-    const json = await fileProxyJson("/tx", { txid: txid, coin: coin || "" });
+    const requestedCoin = normalizeCoinName(coin || "");
+    const lookupCoin = requestedCoin && requestedCoin !== "unknown" ? requestedCoin : "";
+    const json = await fileProxyJson("/tx", { txid: txid, coin: lookupCoin });
     const tx = json.json || tryParseJsonText(json.text) || { text: json.text, txid: txid };
-    return { txid: txid, coin: normalizeCoinName(coin || json.coin || tx.coin || tx.ticker || tx.chain || ""), path: json.path, raw: tx };
+    return { txid: txid, coin: normalizeCoinName(lookupCoin || json.coin || tx.coin || tx.ticker || tx.chain || ""), path: json.path, raw: tx };
+  }
+
+  async function loadLocalTransactionPath(path, txid, coin) {
+    const localPath = String(path || "").trim();
+    if (!localPath) throw new Error("Local transaction path is missing.");
+    const response = await fetch(fileProxyRawUrl(localPath), { cache: "no-store" });
+    if (!response.ok) throw new Error(localPath + " failed with HTTP " + response.status + ".");
+    const text = await response.text();
+    const tx = tryParseJsonText(text);
+    if (!tx || typeof tx !== "object") throw new Error(localPath + " is not transaction JSON.");
+    const requestedCoin = normalizeCoinName(coin || "");
+    return {
+      txid: txid || extractTxid(tx),
+      coin: requestedCoin && requestedCoin !== "unknown" ? requestedCoin : normalizeCoinName(tx.coin || tx.ticker || tx.chain || ""),
+      path: localPath,
+      raw: tx
+    };
+  }
+
+  function coinFromLocalPath(path) {
+    const match = String(path || "").replace(/\\/g, "/").match(/(?:^|\/)transactions\/([^/]+)(?:\/|$)/i);
+    return match ? normalizeCoinName(match[1]) : "";
+  }
+
+  function coinForLocalIndexRow(row, fallback) {
+    const summary = row && row.summary ? row.summary : {};
+    const declared = normalizeCoinName(row && (row.coin || row.ticker) || summary.coin || summary.ticker || "");
+    if (declared && declared !== "unknown") return declared;
+    const fromPath = coinFromLocalPath(row && row.path);
+    if (fromPath) return fromPath;
+    const fallbackCoin = normalizeCoinName(fallback || "");
+    return fallbackCoin === "unknown" ? "" : (fallbackCoin || declared);
   }
 
   function normalizeCoinName(value) {
@@ -2954,9 +2865,14 @@
     if (hasPrimaryImage) container.appendChild(dataContainer);
   }
 
+  function isLocalPortalRow(row) {
+    return !!(row && (row.localPath || row.discoverySource === "fileProxy"));
+  }
+
   function rowCanHydrate(row) {
     if (!row || row.raw) return false;
     if (row.staticRawPath || row.staticRawUrl) return true;
+    if (isLocalPortalRow(row)) return true;
     if (indexCanFetch(rowIndexEntry(row))) return true;
     return false;
   }
@@ -3160,6 +3076,14 @@
       try { return await fetchStaticRawFromRow(row); }
       catch (error) { row.staticLoadError = error.message || String(error); }
     }
+    if (row.localPath) {
+      try {
+        const local = await loadLocalTransactionPath(row.localPath, row.txid, canonicalCoinForRow(row));
+        return { json: local.raw, source: "local", path: local.path, coin: local.coin };
+      } catch (error) {
+        row.localPathLoadError = error.message || String(error);
+      }
+    }
     return loadTransactionLocalFirst(rowIndexEntry(row), row.txid, canonicalCoinForRow(row));
   }
 
@@ -3197,11 +3121,67 @@
     selectPortalRow(rows[index].key).catch(function (error) { setStatus(error.message || String(error), true); });
   }
 
+  async function hydrateLocalRowsInBackground(rows, generation) {
+    const runGeneration = generation == null ? state.portalLoadGeneration : generation;
+    const candidates = safeArray(rows).filter(function (row) {
+      return isLocalPortalRow(row) && !row.raw;
+    });
+    const report = {
+      requested: candidates.length,
+      hydrated: 0,
+      failed: 0,
+      skipped: 0,
+      cancelled: false,
+      status: "pending"
+    };
+    state.localHydrationReport = report;
+
+    if (!configBool("backgroundHydrateTransactions", true) || !configBool("autoHydrateLocalTransactions", true)) {
+      report.status = "disabled";
+      return report;
+    }
+    if (!candidates.length) {
+      report.status = "complete";
+      return report;
+    }
+
+    for (let i = 0; i < candidates.length; i += 1) {
+      if (runGeneration !== state.portalLoadGeneration) {
+        report.cancelled = true;
+        report.status = "cancelled";
+        return report;
+      }
+      const key = candidates[i].key || rowKey(candidates[i]);
+      const row = state.portalRowKeys[key] || candidates[i];
+      if (row.raw) {
+        report.skipped += 1;
+        continue;
+      }
+      if (state.pendingHydration[key]) {
+        report.skipped += 1;
+        continue;
+      }
+      const hydrated = await hydratePortalRow(key, { silent: !isVisiblePortalRow(row) && !state.expandedRowKeys[key] });
+      if (hydrated && hydrated.raw) report.hydrated += 1;
+      else report.failed += 1;
+
+      if ((i + 1) % getPortalPageSize() === 0 && i + 1 < candidates.length) {
+        setStatus("Hydrated " + report.hydrated + " of " + candidates.length + " local fileProxy transaction(s); continuing in the background.", false);
+      }
+    }
+
+    report.status = "complete";
+    setStatus("Local fileProxy hydration finished: " + report.hydrated + " hydrated, " + report.failed + " failed, " + report.skipped + " already available or in progress.", report.failed > 0);
+    requestPortalRender();
+    return report;
+  }
+
   async function listLocalTransactions() {
     const coin = getLocalCoin();
     let json = null;
     let rows = [];
     let usedIndex = false;
+    const localPortalRows = [];
 
     if (configBool("preferLocalIndex", true)) {
       try {
@@ -3224,21 +3204,22 @@
     try {
       for (let i = 0; i < rows.length; i += 1) {
         const row = rows[i];
-        const entry = getCoinIndexByCoinName(row.coin || row.ticker || (row.summary && (row.summary.coin || row.summary.ticker)) || coin);
+        const localCoin = coinForLocalIndexRow(row, coin);
+        const entry = getCoinIndexByCoinName(localCoin);
         let raw = null;
         let summary = row.summary || makeBasicSummary(row.txid, row, entry);
 
         if (!usedIndex && i < getPortalPageSize()) {
           try {
-            const loaded = await loadLocalTransaction(row.txid, row.coin || coin);
+            const loaded = await loadLocalTransaction(row.txid, localCoin);
             raw = loaded.raw;
             summary = extractSummary(raw, entry);
           } catch (error) {}
         }
 
-        upsertPortalRow({
+        const portalRow = upsertPortalRow({
           index: entry,
-          coin: normalizeCoinName(row.coin || row.ticker || (row.summary && (row.summary.coin || row.summary.ticker)) || coin || (entry && entry.coin)) || "unknown",
+          coin: localCoin || normalizeCoinName(entry && entry.coin) || "unknown",
           txid: row.txid,
           raw: raw,
           summary: summary,
@@ -3247,20 +3228,26 @@
           localPath: row.path,
           modified: row.modified
         }, { silent: true });
+        if (portalRow) localPortalRows.push(portalRow);
       }
     } finally {
       endPortalBatch();
     }
     requestPortalRender();
 
-    if (!usedIndex) {
+    const hydrationQueued = configBool("backgroundHydrateTransactions", true) && configBool("autoHydrateLocalTransactions", true);
+    if (hydrationQueued) {
+      const hydrationGeneration = state.portalLoadGeneration;
       window.setTimeout(function () {
-        hydratePortalRowsInBackground(state.portalRows.slice(), [], state.portalLoadGeneration).catch(function () {});
+        hydrateLocalRowsInBackground(localPortalRows, hydrationGeneration).catch(function (error) {
+          setStatus("Local fileProxy background hydration failed: " + (error.message || String(error)), true);
+        });
       }, 0);
     }
 
     setText("#portalThunderwordRaw", pretty(json));
-    setStatus("Loaded " + rows.length + " local txid fixture(s) from fileProxy " + (usedIndex ? "index" : "scan") + " into the merged stream.", false);
+    setStatus("Loaded " + rows.length + " local txid fixture(s) from fileProxy " + (usedIndex ? "index" : "scan") + " into the merged stream." + (hydrationQueued ? " Background hydration queued." : ""), false);
+    return localPortalRows;
   }
 
   function getEvmProfileById(id) {
@@ -4297,6 +4284,8 @@ function getPortalFirstCharacter() {
     fetchEvmCatalogRows: fetchEvmCatalogRows,
     listLocalTransactions: listLocalTransactions,
     loadLocalTransaction: loadLocalTransaction,
+    loadLocalTransactionPath: loadLocalTransactionPath,
+    hydrateLocalRowsInBackground: hydrateLocalRowsInBackground,
     saveCurrentTransaction: saveCurrentTransaction,
     saveTransactionToFileProxy: saveTransactionToFileProxy,
     saveDiscoveredLinksMaybe: saveDiscoveredLinksMaybe,

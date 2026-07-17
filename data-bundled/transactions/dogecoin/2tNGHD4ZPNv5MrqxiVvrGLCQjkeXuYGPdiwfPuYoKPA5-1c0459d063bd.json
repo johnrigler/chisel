@@ -1,0 +1,51 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/1c0459d063bd617bbdd69d51b9cddb65c94ba232cf305af0c419d66c6893c336",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "9sGoTTAxLiGHTxGoTTAxLiGHTzzz7g5ZcF",
+      "amount_coin": "0.00039692",
+      "amount_units": "39692",
+      "block_height": 2890338,
+      "chain": "dogecoin",
+      "created_at": 1781931700,
+      "flags": "addr_macdougall_9s|addr_prefix_9s|addr_prefix_9S|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 0,
+      "op_return_ascii": null,
+      "satoshi_code": "3969",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "1c0459d063bd617bbdd69d51b9cddb65c94ba232cf305af0c419d66c6893c336"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 2890338,
+    "blockTime": 1571392439,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/1c0459d063bd617bbdd69d51b9cddb65c94ba232cf305af0c419d66c6893c336",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 1,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "Otta Light Gotta Light",
+    "txid": "1c0459d063bd617bbdd69d51b9cddb65c94ba232cf305af0c419d66c6893c336"
+  },
+  "ticker": "DOGE",
+  "txid": "1c0459d063bd617bbdd69d51b9cddb65c94ba232cf305af0c419d66c6893c336",
+  "vin": [],
+  "vout": [
+    {
+      "n": 0,
+      "scriptpubkey_address": "9sGoTTAxLiGHTxGoTTAxLiGHTzzz7g5ZcF",
+      "value": 39692
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/f54449b85ec09dd8c1553b8f682db6499e2eb597b3508dd01ea6868ec6c25200",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "9sCoNTACTxJoHNrRiGLER1oRGzzzYuLbqt",
+      "amount_coin": "0.00039692",
+      "amount_units": "39692",
+      "block_height": 2904024,
+      "chain": "dogecoin",
+      "created_at": 1781931440,
+      "flags": "addr_macdougall_9s|addr_prefix_9s|addr_prefix_9S|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 18,
+      "op_return_ascii": null,
+      "satoshi_code": "3969",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "f54449b85ec09dd8c1553b8f682db6499e2eb597b3508dd01ea6868ec6c25200"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 2904024,
+    "blockTime": 1572329694,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/f54449b85ec09dd8c1553b8f682db6499e2eb597b3508dd01ea6868ec6c25200",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 1,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "ONTACT JOHNrRIGLER1ORG",
+    "txid": "f54449b85ec09dd8c1553b8f682db6499e2eb597b3508dd01ea6868ec6c25200"
+  },
+  "ticker": "DOGE",
+  "txid": "f54449b85ec09dd8c1553b8f682db6499e2eb597b3508dd01ea6868ec6c25200",
+  "vin": [],
+  "vout": [
+    {
+      "n": 18,
+      "scriptpubkey_address": "9sCoNTACTxJoHNrRiGLER1oRGzzzYuLbqt",
+      "value": 39692
+    }
+  ]
+}

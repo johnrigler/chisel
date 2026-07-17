@@ -1,0 +1,205 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Chisel Origin Bridge</title><style>
+
+:root {
+  --ink: #111111;
+  --muted: #565656;
+  --rule: #cfcfcf;
+  --panel: #f4f4f4;
+  --accent: #263238;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; color: var(--ink); background: #dedede; font-family: Arial, Helvetica, sans-serif; }
+.toolbar { position: sticky; top: 0; z-index: 5; padding: 10px 16px; background: #111; color: white; display: flex; gap: 12px; align-items: center; font-size: 13px; }
+.toolbar button { border: 1px solid #777; background: #fff; color: #111; padding: 7px 12px; border-radius: 4px; cursor: pointer; }
+.page { width: 8.5in; min-height: 11in; margin: 24px auto; padding: 0.68in; background: white; box-shadow: 0 8px 32px rgba(0,0,0,.25); break-after: page; page-break-after: always; position: relative; }
+.page:last-child { page-break-after: auto; break-after: auto; }
+h1 { font-size: 26pt; line-height: 1.05; margin: 0 0 10px; letter-spacing: -0.02em; }
+h2 { font-size: 17pt; margin: 0 0 14px; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
+h3 { font-size: 12pt; margin: 18px 0 6px; }
+p { font-size: 10.8pt; line-height: 1.42; margin: 0 0 10px; }
+.subtitle { font-size: 14pt; color: var(--muted); margin-bottom: 28px; }
+.meta { margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.callout, .note { margin: 14px 0; padding: 12px 14px; background: var(--panel); border-left: 5px solid var(--accent); font-size: 10.5pt; line-height: 1.35; }
+ul { margin: 10px 0 0 20px; padding: 0; }
+li { font-size: 10.5pt; line-height: 1.38; margin: 0 0 7px; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0 8px; font-size: 8.0pt; page-break-inside: avoid; break-inside: avoid; }
+th, td { border: 1px solid #9e9e9e; padding: 5px 5px; vertical-align: top; }
+th { background: #eeeeee; text-align: left; }
+pre { white-space: pre-wrap; font-size: 9pt; line-height: 1.25; background: #f2f2f2; padding: 10px; border: 1px solid #c7c7c7; break-inside: avoid; page-break-inside: avoid; }
+.footer { position: absolute; left: 0.68in; right: 0.68in; bottom: 0.38in; border-top: 1px solid var(--rule); padding-top: 5px; font-size: 8pt; color: #666; display: flex; justify-content: space-between; }
+.kicker { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.12em; color: #555; margin-bottom: 18px; }
+@page { size: Letter; margin: 0.65in; }
+@media print {
+  html, body { background: white; }
+  .toolbar { display: none; }
+  .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+  .footer { position: fixed; left: 0; right: 0; bottom: -0.35in; }
+}
+
+</style></head><body>
+<div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button><span>Chisel Origin Bridge - printable Letter layout with explicit page breaks.</span></div>
+<section class="page" id="page-1">
+<div class="kicker">Repository bridge document</div>
+<h1>Chisel Origin Bridge</h1>
+<p class="subtitle">From the 2020 crypto-linguistic white paper to the current Chisel implementation</p>
+<div class="meta">
+<p>Purpose: give a technically literate colleague enough context to understand why Chisel exists, why it is plain browser JavaScript, how elliptic made local signing practical, and which parts are core versus experimental tooling.</p>
+<p>Primary author and project owner: John Rigler.</p>
+<p>Editorial synthesis and printable document preparation: ChatGPT, GPT-5.5 Thinking, OpenAI. This credit is for organization, drafting assistance, and formatting only. The core theory, inventions, code, names, examples, transactions, and project direction belong to John Rigler and the Chisel project.</p>
+<p>Status: working bridge document, intended to be checked into the repository under docs/origin.md and offered as printable HTML for review meetings.</p>
+</div>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 1</span></div>
+</section>
+<section class="page" id="page-2">
+<h2>1. Why vanilla JavaScript and elliptic come first</h2>
+<p>Chisel is intentionally built as plain browser JavaScript. That is not nostalgia and it is not a refusal to use modern tooling. It is a boundary decision. The reader and authoring interface should be able to run from a static directory, GitHub Pages, IPFS, rigler.org, or a local file/server without first asking a Node toolchain to bless the build.</p>
+<p>The architectural point is that Chisel should not recreate the gatekeeper pattern it is trying to escape. A transaction artifact should be understandable from a block explorer, a full node export, or a static JSON snapshot. The interface that explains and signs it should also be inspectable as ordinary browser code. The fewer moving parts between the user and the signed transaction, the better.</p>
+<p>This connects to an earlier conversation between John Rigler and Keir Finlow-Bates about whether local signing could be made practical in a lightweight interface. The idea was clear before the implementation path was clear: a user should be able to prepare and sign meaningful blockchain material locally rather than hand the act to a hosted wallet service. At that time, John had not yet found the JavaScript elliptic library, and the practical route seemed to wander through the usual Node.js dependency trench.</p>
+<p>elliptic changed the shape of the problem. It gives Chisel the browser-side secp256k1 machinery needed to sign UTXO-style material locally. Chisel still needs careful transaction construction, fee handling, source UTXO selection, and broadcast plumbing, but the hardest feasibility knot became smaller: local signing in a browser is no longer theoretical.</p>
+<p>The QR code sticker and label tools belong to the same design line. They are not decoration. They make keys, addresses, txids, routes, and message fragments physically usable. The goal is not another conference demo where crypto people impress crypto people. The goal is mundane adoption: a bar, event table, print ritual, or community night where a transaction becomes easy enough to scan, verify, explain, and enjoy.</p>
+<p>The ETHDenver image is a usability target rather than a travel plan: not only the venue full of specialists, but the bar across town where people are doing ordinary things and need the tool to be obvious. That is the adoption layer Chisel should aim at.</p>
+<div class="callout">Colleague note for Keir: the thing we discussed as a signing possibility now has a practical browser-side path. <code>elliptic</code> is the missing bridge that made the old conversation executable.</div>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 2</span></div>
+</section>
+<section class="page" id="page-3">
+<h2>2. Executive summary</h2>
+<p>Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts. It treats a transaction output as more than a payment. An address can carry readable structure, an amount can carry a small code, an OP_RETURN can carry text or a pointer, and the transaction itself can become a public note, breadcrumb, receipt, ritual, or searchable index.</p>
+<p>The 2020 white paper states the root claim: a cryptocurrency transaction can combine spendable and unspendable outputs that are understood as coming from one sender and acting atomically as a self-descriptive object. Chisel is the working implementation of that claim.</p>
+<p>The practical goal is not to build another private database wrapped around a chain. The goal is to make public ledger material readable and recoverable from the ledger itself, then let local tools add notes, categories, imports, and indexes without becoming the source of truth.</p>
+<p>In plain terms: Chisel turns ordinary UTXO transaction machinery into a small, chain-native publishing and indexing system.</p>
+<div class="callout">Colleague takeaway: Chisel is not primarily a wallet, block explorer, IPFS tool, or casino gadget. It is a data-transaction workbench for UTXO ledgers.</div>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 3</span></div>
+</section>
+<section class="page" id="page-4">
+<h2>3. White paper kernel</h2>
+<p>The paper starts from a limitation in Bitcoin-style systems: ordinary wallets expose address and amount, but not a native public memo field. OP_RETURN became the common payload channel, but it is not universally exposed by wallet software and tends to create specialized readers, indexers, and third-party tooling.</p>
+<p>The paper proposes two universal channels that already exist in every simple payment: the target address and the transaction amount. The address channel can carry readable material through obviously unspendable addresses. The amount channel can carry small labels through advanced satoshi codes, including Kloctal and Shoctal-style encodings.</p>
+<p>The paper then combines these with multi-output transactions. Because output order is preserved, a transaction can carry a message block. Repeated or structured amount codes can bind outputs together. Optional agents can assemble, summarize, or relay these messages, but the ledger remains the durable source.</p>
+<p>That is the narrow technical spine of Chisel: address text, amount tags, optional OP_RETURN, ordered outputs, and external readers that do not own the meaning.</p>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 4</span></div>
+</section>
+<section class="page" id="page-5">
+<h2>4. Implementation map</h2>
+<p>The table below maps the white paper concepts to current Chisel terms and code areas. It is intentionally blunt: this is where a new reader should look before diving into old UI sections or historical experiments.</p>
+<div class="note">Use MacDougall in new writing. Older source files may contain MacDougal. Do not make the spelling drift worse.</div>
+<table>
+<thead><tr><th>White paper concept</th><th>Chisel term</th><th>Current implementation / location</th><th>Interpretation</th></tr></thead><tbody>
+<tr><td>Browser-local signing feasibility</td><td>elliptic signing path</td><td>vendor/elliptic-6-6-1.js, chisel.sign.js</td><td>The browser can hold the signing act locally instead of sending secrets to a hosted service.</td></tr>
+<tr><td>Static browser interface</td><td>Vanilla JS application shell</td><td>index.html, app.js, chisel.js</td><td>No bundler or Node build step is required for the main reader/authoring path.</td></tr>
+<tr><td>Physical usability layer</td><td>QR labels and stickers</td><td>tools/qrField, tools/keyPrint, scan pages</td><td>Keys, txids, addresses, and route labels can be moved through ordinary printed objects.</td></tr>
+<tr><td>Base58-Hash currency family</td><td>Multi-chain UTXO target</td><td>DigiByte, Ravencoin, Litecoin, Dogecoin modules</td><td>The common substrate is UTXO transaction construction, not a single chain brand.</td></tr>
+<tr><td>Obviously unspendable address</td><td>MacDougall address line</td><td>chisel.unspendable.js, unspendable.py lineage</td><td>Readable output address that should be treated as burned / non-spendable.</td></tr>
+<tr><td>Address namespace</td><td>DAx / DBx / DCx / DDx / DEx</td><td>MacDougall conventions</td><td>DAx person, DBx transport/source, DCx subject, DDx/DEx split pointer.</td></tr>
+<tr><td>Advanced satoshi code</td><td>ASC / Shoctal / amount tag</td><td>Daisy scripts, chord output, amount fields</td><td>Small value-level metadata used as a tag, checksum, or logical binder.</td></tr>
+<tr><td>OP_RETURN</td><td>Payload channel</td><td>Chain send modules and decode logic</td><td>Useful but optional. Chisel should not depend on OP_RETURN as the only semantic layer.</td></tr>
+<tr><td>Multi-output transaction</td><td>Artifact transaction</td><td>send-to-multiple outputs, local fixtures</td><td>The whole vout set is the object. Output order matters.</td></tr>
+<tr><td>Agent / hub</td><td>fileProxy, bunOven, keeperBun</td><td>tools/fileProxy, tools/bunOven, tools/keeperBun</td><td>Authoring, import, caching, and API access tools. They are not the ledger.</td></tr>
+<tr><td>Interactive systems</td><td>Portal, chords, print rituals</td><td>Portal path, chord files, label/QR tools</td><td>Human-facing views over ledger-native objects.</td></tr>
+</tbody></table>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 5</span></div>
+</section>
+<section class="page" id="page-6">
+<h2>5. Architecture boundary</h2>
+<p>Chisel needs a cleaner boundary. Right now the codebase contains core transaction machinery, local datastore tooling, historical demos, UI experiments, chain-specific logic, and operational helpers. That is normal for a research prototype, but it makes the project hard to explain.</p>
+<p>The recommended boundary is this: Chisel core builds, signs, serializes, decodes, and explains meaningful UTXO transactions. Portal displays and filters transaction artifacts. Data is a static or local snapshot of transaction fixtures, indexes, imports, and chords. Tools are satellites that help author, import, cache, print, scan, or relay material.</p>
+<p>fileProxy should be treated as an authoring/import/local-write tool. Normal readers should be able to open a static dataset from relative JSON paths, GitHub Pages, IPFS, rigler.org, or another trusted HTTP source when indexes are present.</p>
+<p>keeperBun should be treated as an optional signed-access API broker for paid or secret-bearing APIs. It should never be part of the baseline reading path. Secrets are operational plumbing, not Chisel semantics.</p>
+<div class="callout">Rule: anything required to understand a transaction belongs near the core. Anything required only to fetch, cache, print, scan, or administer belongs outside the core.</div>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 6</span></div>
+</section>
+<section class="page" id="page-7">
+<h2>6. The refactor thesis</h2>
+<p>The current project should be refactored around one first impression: Chisel reads and writes ledger-native artifacts. Everything else should support that view or move out of the way.</p>
+<p>The old Decode section is now misleading because it suggests that decoding is a separate destination. Decoding should be a service inside Portal, a reusable library function, and a diagnostic mode. Portal should become the main reader experience.</p>
+<p>The docs should come before large code changes. A colleague should be able to read docs/origin.md, docs/architecture.md, and docs/demo-path.md, then open the app and recognize the same nouns in the interface.</p>
+<p>The UI should be pruned until the first path is obvious: load a transaction, see the outputs, see OP_RETURN if present, see MacDougall labels, see local notes, and see the source JSON.</p>
+<ul>
+<li>Phase 0: freeze vocabulary. Chisel, Portal, MacDougall, ASC, chord, Thunderword, fileProxy, keeperBun.</li>
+<li>Phase 1: add this origin bridge and a short demo path to docs/.</li>
+<li>Phase 2: make Portal the default reader and demote Decode to diagnostics or remove it from primary navigation.</li>
+<li>Phase 3: normalize the data directory contract and static dataset loading.</li>
+<li>Phase 4: split satellites from core, leaving only reusable UTXO transaction primitives in the main path.</li>
+<li>Phase 5: add two or three clean public examples that a colleague can understand without project folklore.</li>
+</ul>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 7</span></div>
+</section>
+<section class="page" id="page-8">
+<h2>7. Five-minute colleague demo</h2>
+<p>The first demo should avoid mythic density. Do not start with the whole Dogecoin/Joyce archaeology, the casino framing, or the keeper daemon. Start with a single transaction artifact and explain the layers.</p>
+<p>Demo script: open Portal with a local or bundled fixture. Point to the txid as the permanent lookup key. Show the OP_RETURN channel if present. Show MacDougall address outputs as indexed human labels. Show the amount field as a possible tag or binder. Show local notes as local interpretation, not ledger truth. Then open the raw JSON to prove the view is not magic.</p>
+<p>After that, show that the same object could be loaded from a local fileProxy, a static dataset, a full node export, a block explorer API, or a paid API broker. That is the point: the source can vary, but the transaction artifact remains the anchor.</p>
+<p>Only then show how Chisel can construct and sign a new UTXO transaction locally. The strongest technical point is that the browser can prepare meaningful transaction structure without handing the private key to a server.</p>
+<div class="callout">Do not let the first five minutes become a tour of every experiment. Show one artifact, then show why it is portable.</div>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 8</span></div>
+</section>
+<section class="page" id="page-9">
+<h2>8. Working definitions</h2>
+<table>
+<thead><tr><th>Term</th><th>Working definition</th></tr></thead><tbody>
+<tr><td><strong>Chisel</strong></td><td>A browser-first toolkit for constructing, signing, decoding, importing, and presenting data-rich UTXO transactions.</td></tr>
+<tr><td><strong>Vanilla JS</strong></td><td>The no-build, inspectable browser runtime choice for the main app. Optional tools may use Python, Bun, Deno, or Node, but those are satellites.</td></tr>
+<tr><td><strong>elliptic</strong></td><td>The JavaScript secp256k1 signing library that makes local browser signing practical for Chisel&#x27;s UTXO workflow.</td></tr>
+<tr><td><strong>MacDougall</strong></td><td>The readable address-language layer descended from obviously unspendable address construction. New docs should spell it with two Ls.</td></tr>
+<tr><td><strong>ASC</strong></td><td>Advanced Satoshi Code. A small amount-level code used as a tag, checksum, binder, or compact signal. Shoctal is one family inside this idea.</td></tr>
+<tr><td><strong>Chord</strong></td><td>A shell-like local rendering of transaction outputs and route/context information. It is a view, not the canonical chain record.</td></tr>
+<tr><td><strong>Thunderword</strong></td><td>A universal marker address used as a search/index beacon, comparable to a well-known zero or all-ones address pattern in other ecosystems.</td></tr>
+<tr><td><strong>Portal</strong></td><td>The main reader/viewer experience for Chisel artifacts. Portal should absorb normal decoding behavior.</td></tr>
+<tr><td><strong>fileProxy</strong></td><td>Local filesystem bridge for authoring, imports, and local writes. It should not be required for ordinary static reading.</td></tr>
+<tr><td><strong>bunOven</strong></td><td>Importer that pushes feed material through fileProxy into the Chisel datastore shape.</td></tr>
+<tr><td><strong>keeperBun</strong></td><td>Signed-access hot keeper for API secrets and paid remote API access. It is optional infrastructure.</td></tr>
+<tr><td><strong>Satellite</strong></td><td>A tool, UI, proxy, print page, scanner, or chain-specific helper that uses Chisel but should not define the core.</td></tr>
+</tbody></table>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 9</span></div>
+</section>
+<section class="page" id="page-10">
+<h2>9. Positioning cautions</h2>
+<p>Use cautious language around unspendability. The social and practical point is that the address is deliberately constructed as a readable burn target, not harvested as a vanity key. Consensus rules do not mark it as special. A user should still treat any value sent there as destroyed.</p>
+<p>Do not frame OP_RETURN as useless. It remains useful for compact payloads, URLs, hashes, and direct text. The critique is narrower: OP_RETURN alone often pushes users toward specialized tools and gatekeepers. Chisel uses it as one lane, not the whole road.</p>
+<p>Do not frame agents as trusted authorities. Agents can relay, assemble, cache, or summarize, but the durable object is the public transaction. If an agent becomes mandatory to interpret the artifact, the design has drifted back toward the thing the paper was trying to avoid.</p>
+<p>For compliance and audit audiences, use the phrase voluntary pre-disclosure. The system can make public transactions easier to understand, document, and audit. It is not a claim that Chisel replaces law, KYC, AML, accounting systems, or professional review.</p>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 10</span></div>
+</section>
+<section class="page" id="page-11">
+<h2>10. Suggested repository placement</h2>
+<p>Add this document as docs/origin.md. Add the printable version as docs/origin-print.html. Then add a short pointer from README.md near the top:</p>
+<p>“New readers should start with docs/origin.md. It explains how the 2020 crypto-linguistic white paper maps to the current Chisel implementation.”</p>
+<p>After that, add docs/architecture.md with the boundary rules: core, Portal, data, tools/satellites, keeper, examples. Add docs/demo-path.md with one deterministic artifact walkthrough.</p>
+<p>This is not bureaucracy. It is a control surface. Without it, every new reader enters through a different tunnel and forms a different model of what Chisel is.</p>
+<pre>docs/
+  origin.md
+  origin-print.html
+  architecture.md
+  demo-path.md
+  glossary.md
+
+core files:
+  chisel.js
+  chisel.sign.js
+  chisel.unspendable.js
+  chisel.&lt;coin&gt;.js
+  chisel.thunderwords.js
+
+data:
+  data/transactions/&lt;coin&gt;/&lt;txid&gt;.json
+  data/index/transactions.index.json
+  data/chords/&lt;coin&gt;/*.chord
+
+tools/satellites:
+  fileProxy/
+  bunOven/
+  keeperBun/
+  qrField/
+  keyPrint/
+  base64/
+  decoder/</pre>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 11</span></div>
+</section>
+<section class="page" id="page-12">
+<h2>11. Source notes</h2>
+<p>Primary theory source: John Rigler, “Thoughts on an all-purpose cryptocurrency linguistic system,” IEEE Blockchain 2020 draft PDF in the project archive. Relevant sections: abstract, Introduction, OP_RETURN Codes, Advanced Satoshi Codes, Obviously Unspendable Addresses, Combining Systems for Greater Value, and Further Interactive Systems.</p>
+<p>Current implementation source: Chisel v2.7.1 project snapshot and README language describing Chisel as a browser-first toolkit for reading and preserving small blockchain artifacts, plus the local datastore, Portal, fileProxy, bunOven, and chord conventions.</p>
+<p>MacDougall source: unspendable.py / UNSPENDABLE README lineage, including the readable address conventions, checksum suffix construction, and DAx / DBx / DCx / DDx / DEx namespace assignments.</p>
+<p>Assistant credit: ChatGPT, GPT-5.5 Thinking, OpenAI, assisted in editorial synthesis, document organization, and generation of Markdown and HTML versions. This is not a claim of authorship over Chisel, MacDougall, unspendable, ASC, Shoctal, the white paper, the codebase, or any ledger artifacts.</p>
+<div class="footer"><span>Chisel Origin Bridge</span><span>Page 12</span></div>
+</section>
+</body></html>

@@ -1,0 +1,51 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/091aed854be8b111a450ce7fd6f0f8da296fa9767cb431be7fe2cd79f450f0d3",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "DCxSECREThBEACHhSoLhLLCxdbzzXeMuuj",
+      "amount_coin": "0.00025528",
+      "amount_units": "25528",
+      "block_height": 3192367,
+      "chain": "dogecoin",
+      "created_at": 1781931045,
+      "flags": "addr_macdougall_DCx|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 0,
+      "op_return_ascii": null,
+      "satoshi_code": "2552",
+      "score": 510,
+      "script_type": "pubkeyhash",
+      "txid": "091aed854be8b111a450ce7fd6f0f8da296fa9767cb431be7fe2cd79f450f0d3"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 3192367,
+    "blockTime": 1591190149,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/091aed854be8b111a450ce7fd6f0f8da296fa9767cb431be7fe2cd79f450f0d3",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 1,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "SECREThBEACHhSOLhLLC db",
+    "txid": "091aed854be8b111a450ce7fd6f0f8da296fa9767cb431be7fe2cd79f450f0d3"
+  },
+  "ticker": "DOGE",
+  "txid": "091aed854be8b111a450ce7fd6f0f8da296fa9767cb431be7fe2cd79f450f0d3",
+  "vin": [],
+  "vout": [
+    {
+      "n": 0,
+      "scriptpubkey_address": "DCxSECREThBEACHhSoLhLLCxdbzzXeMuuj",
+      "value": 25528
+    }
+  ]
+}

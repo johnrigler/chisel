@@ -1,0 +1,25 @@
+{
+  "version": "2026-07-10-v276-static-stubbed",
+  "title": "Chisel bundled/static dataset",
+  "baseUrl": "./data-bundled/",
+  "defaultIndex": "index/portal.index.json",
+  "records": 531,
+  "generatedAt": "2026-07-10T00:00:00Z",
+  "generatedBy": "Chisel authoring tools / static index builder",
+  "runtimeRequires": [
+    "browser"
+  ],
+  "runtimeDoesNotRequire": [
+    "bun",
+    "deno",
+    "fileProxy",
+    "node"
+  ],
+  "remoteBaseUrls": [
+    "https://rigler.org/chisel-data/"
+  ],
+  "hashes": {
+    "index/portal.index.json": "sha256-d30c6e067ccffb0cfa852fdaf04c48494a03ec77318908e71542c8d575ff51d4"
+  },
+  "v276Note": "Referenced transaction paths are present as generated static stubs when full raw captures are not bundled."
+}

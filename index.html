@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.7.4</title>
+  <title>Chisel 2.7.8</title>
 
 
   <style>
@@ -322,14 +322,60 @@
       display: none;
     }
 
-    body[data-mode="origin"] .modePanel[data-mode-panel="origin"],
-    body[data-mode="broadcast"] .modePanel[data-mode-panel="broadcast"],
+    body[data-mode="start"] .modePanel[data-mode-panel="start"],
+    body[data-mode="etch"] .modePanel[data-mode-panel="etch"],
+    body[data-mode="broadcast"] .modePanel[data-mode-panel="etch"],
     body[data-mode="review"] .modePanel[data-mode-panel="review"],
-    body[data-mode="decode"] .modePanel[data-mode-panel="decode"],
     body[data-mode="portal"] .modePanel[data-mode-panel="portal"],
     body[data-mode="tools"] .modePanel[data-mode-panel="tools"] {
       display: grid;
     }
+
+
+
+    .demoGuide {
+      display: grid;
+      gap: 10px;
+    }
+
+    .demoStepList {
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+      list-style: none;
+    }
+
+    .demoStepList li {
+      border: 1px solid #26313d;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #9fb0c0;
+      background: #0a0f14;
+    }
+
+    .demoStepList li.active {
+      border-color: #7c6dff;
+      color: #e6edf3;
+      background: rgba(124, 109, 255, 0.12);
+    }
+
+    .selfTestOutput {
+      min-height: 180px;
+      max-height: 360px;
+      overflow: auto;
+      border: 1px solid #1f2933;
+      border-radius: 10px;
+      background: #05080b;
+      padding: 12px;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      color: #d7e2ee;
+    }
+
+    .selfTestPass { color: #a3e635; }
+    .selfTestFail { color: #ff7b7b; }
+    .selfTestSkip { color: #ffd166; }
 
     .toolGrid {
       display: grid;
@@ -368,6 +414,90 @@
       color: #91a4b7;
       font-size: 13px;
       line-height: 1.5;
+    }
+
+    .manualWorkbenchGrid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 12px;
+    }
+
+    .manualWorkbenchCell {
+      display: grid;
+      gap: 8px;
+    }
+
+    .manualWorkbenchCell label {
+      padding: 0;
+      font-size: 12px;
+      color: #91a4b7;
+    }
+
+    textarea.transactionJsonBox,
+    textarea.transactionHexBox {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #d7e2ee;
+      background: #05080b;
+      border: 1px solid #263241;
+      border-radius: 10px;
+      padding: 10px;
+      box-sizing: border-box;
+      white-space: pre;
+    }
+
+    textarea.transactionHexBox {
+      min-height: 100px;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .manualStepRow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .manualDangerGate {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin-top: 10px;
+      border: 1px solid #6b3a1f;
+      border-radius: 10px;
+      padding: 10px;
+      background: #120b07;
+      color: #d7e2ee;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .manualDangerGate input {
+      width: auto;
+      margin-top: 2px;
+    }
+
+    .manualMiniSelect {
+      width: auto;
+      min-width: 230px;
+    }
+
+    .wifWarning {
+      border: 1px solid #263241;
+      border-radius: 10px;
+      padding: 10px;
+      background: #080c10;
+      color: #91a4b7;
+      font-size: 13px;
+      line-height: 1.45;
+      margin-top: 10px;
     }
 
 
@@ -1005,7 +1135,8 @@
     }
 
     @media (max-width: 900px) {
-      .toolGrid {
+      .toolGrid,
+      .manualWorkbenchGrid {
         grid-template-columns: 1fr;
       }
     }
@@ -1021,7 +1152,7 @@
     }
   </style>
 </head>
-<body data-mode="broadcast">
+<body data-mode="portal">
   <header>
     <div class="shell">
       <h1>Chisel</h1>
@@ -1032,20 +1163,19 @@
   <main>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
-        <button class="modeButton active" type="button" data-mode-target="broadcast">Broadcast</button>
-        <button class="modeButton" type="button" data-mode-target="origin">Origin</button>
+        <button class="modeButton active" type="button" data-mode-target="portal">Portal</button>
+        <button class="modeButton" type="button" data-mode-target="start">Start</button>
+        <button class="modeButton" type="button" data-mode-target="etch">Etch</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
-        <button class="modeButton" type="button" data-mode-target="decode">Legacy Decode</button>
-        <button class="modeButton" type="button" data-mode-target="portal">Portal</button>
         <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
       </div>
-      <div class="compactHint" id="modeHint">Broadcast mode builds, signs, decodes, and sends the transaction. Review mode shows the raw transaction pipeline after a build/send attempt.</div>
+      <div class="compactHint" id="modeHint">Portal mode is the default reader. Etch mode creates/signs/sends transactions in either one pass or separate copy/paste steps.</div>
     </section>
 
 
-    <section class="modePanel" data-mode-panel="origin">
+    <section class="modePanel" data-mode-panel="start">
       <section class="panel hero">
-        <h2>Origin and architecture</h2>
+        <h2>Start: what Chisel proves</h2>
         <p class="muted">This is the colleague-facing bridge between the older signing conversation, the 2020 crypto-linguistic white paper, and the current Chisel implementation. It now starts with the practical reason Chisel is vanilla JavaScript: elliptic gives the browser enough secp256k1 machinery to sign locally without turning the main app into a Node stack dependency tour.</p>
         <div class="toolGrid">
           <a class="toolCard" href="docs/origin.md">
@@ -1060,6 +1190,18 @@
             <strong>Refactor phases</strong>
             <span>Low-risk sequence for cleaning up Chisel before touching signing, fees, UTXO selection, or broadcast code.</span>
           </a>
+          <a class="toolCard" href="docs/WHAT_CHISEL_PROVES.md">
+            <strong>What Chisel proves</strong>
+            <span>Short colleague-facing claim: local signing, ordered outputs, explorer/node resources, static graph, and satellite tools.</span>
+          </a>
+          <a class="toolCard" href="docs/ARCHITECTURE.md">
+            <strong>Architecture</strong>
+            <span>Core driver, Etch workbench, Review microscope, Portal reader, and satellites.</span>
+          </a>
+          <a class="toolCard" href="docs/DEMO_SCRIPT.md">
+            <strong>Demo script</strong>
+            <span>Portal first, Start second, Etch third, Review fourth, Tools last.</span>
+          </a>
         </div>
       </section>
 
@@ -1072,11 +1214,48 @@
         <div class="stepTitle">First demo path</div>
         <p class="help">Start with why local browser signing matters, then open Portal, load a local or bundled transaction fixture, inspect ordered outputs, read MacDougall address lines, inspect OP_RETURN if present, treat amount codes as optional binders, then verify the raw JSON. Do not start with every historical experiment.</p>
       </section>
+
+      <section class="panel" id="demoModePanel">
+        <div class="stepTitle">Guided demo mode</div>
+        <p class="help">A click-through route for colleagues: Portal reader, Etch fixture, raw transaction, local signature, RPC export, then Tools. It avoids live broadcast and uses the bundled dummy fixture.</p>
+        <div class="actions">
+          <button id="demoStartButton" class="secondaryButton" type="button">START DEMO MODE</button>
+          <button id="demoNextButton" class="secondaryButton" type="button">NEXT DEMO STEP</button>
+          <button id="demoResetButton" class="secondaryButton" type="button">RESET DEMO</button>
+        </div>
+        <div class="demoGuide">
+          <ol class="demoStepList" id="demoStepList">
+            <li data-demo-step="0">Start: explain local browser signing and static graph reading.</li>
+            <li data-demo-step="1">Portal: confirm bundled/static data is visible.</li>
+            <li data-demo-step="2">Etch: load a dry-run fixture.</li>
+            <li data-demo-step="3">Etch: create unsigned raw hex from VIN/VOUT JSON.</li>
+            <li data-demo-step="4">Etch: sign locally with the dummy WIF.</li>
+            <li data-demo-step="5">Etch: export normal RPC command text.</li>
+            <li data-demo-step="6">Tools: show scanners, labels, legacy decoder, and satellites.</li>
+          </ol>
+          <pre id="demoModeOutput" class="selfTestOutput">Demo mode idle.</pre>
+        </div>
+      </section>
+
+      <section class="panel" id="selfTestPanel">
+        <div class="stepTitle">Browser self-test</div>
+        <p class="help">Runs fixture and packaging checks inside the same browser environment used for the demo. This is not a live broadcast test.</p>
+        <div class="actions">
+          <button id="selfTestAllButton" class="secondaryButton" type="button">RUN ALL SELF TESTS</button>
+          <button id="selfTestEtchButton" class="secondaryButton" type="button">RUN ETCH FIXTURE TEST</button>
+          <button id="selfTestDataButton" class="secondaryButton" type="button">CHECK DATA-BUNDLED LINKS</button>
+          <button id="selfTestPortalButton" class="secondaryButton" type="button">CHECK PORTAL BOOT</button>
+          <button id="selfTestDraftButton" class="secondaryButton" type="button">CHECK DRAFT SAVE/RESTORE</button>
+          <button id="selfTestSendLockButton" class="secondaryButton" type="button">CHECK SEND LOCK</button>
+        </div>
+        <pre id="selfTestOutput" class="selfTestOutput">Self-test idle.</pre>
+      </section>
+
     </section>
 
-    <section class="modePanel" data-mode-panel="broadcast">
+    <section class="modePanel" data-mode-panel="etch">
     <section class="panel hero">
-      <h2 id="heroTitle">One-step Ravencoin send-back + broadcast</h2>
+      <h2 id="heroTitle">Etch transaction workbench</h2>
       <p id="heroText">
         Paste one private key in WIF format, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction. Your private key is only used locally in this session and never sent to the remote API.
       </p>
@@ -1161,13 +1340,76 @@
       </div>
 
       <div class="actions">
-        <button id="sendButton" type="button">BUILD, SIGN, DECODE, SEND</button>
+        <button id="sendButton" type="button">RUN ALL: BUILD, SIGN, SEND</button>
         <div id="status">Idle</div>
       </div>
 
       <div class="help" id="currencyHelp">
         Ravencoin uses the RPC/API server directly for UTXOs, create, decode, and send.
       </div>
+
+      <details open>
+        <summary>Manual transaction pipeline</summary>
+        <p class="help">Use this when you want to stop between createrawtransaction, signrawtransaction, and sendrawtransaction. You can copy any box out, paste edited JSON or hex back in, then continue from that step. Sending a signed raw transaction does not require the WIF.</p>
+
+        <div class="wifWarning">WIF handling: Chisel uses the WIF only inside the current browser session. Manual draft save/restore intentionally does not store WIF values. Fixture WIFs are public dummy keys and must not be funded.</div>
+
+        <div class="manualStepRow">
+          <select id="etchFixtureSelect" class="manualMiniSelect">
+            <option value="">Etch fixture...</option>
+          </select>
+          <button id="loadEtchFixtureButton" class="secondaryButton" type="button">LOAD FIXTURE</button>
+          <button id="saveManualDraftButton" class="secondaryButton" type="button">SAVE DRAFT</button>
+          <button id="restoreManualDraftButton" class="secondaryButton" type="button">RESTORE DRAFT</button>
+          <button id="clearManualDraftButton" class="secondaryButton" type="button">CLEAR BOXES</button>
+        </div>
+
+        <div class="manualStepRow">
+          <button id="prepareDraftButton" class="secondaryButton" type="button">PREPARE VIN / VOUT FROM FORM</button>
+          <button id="utxoToVinButton" class="secondaryButton" type="button">VIN FROM UTXO JSON</button>
+          <button id="createRawButton" class="secondaryButton" type="button">CREATE RAW FROM JSON</button>
+          <button id="signRawButton" class="secondaryButton" type="button">SIGN RAW</button>
+          <button id="sendRawButton" class="secondaryButton" type="button">SEND SIGNED RAW</button>
+          <button id="loadManualFromReviewButton" class="secondaryButton" type="button">LOAD FROM REVIEW</button>
+          <button id="exportRpcCommandsButton" class="secondaryButton" type="button">EXPORT RPC COMMANDS</button>
+        </div>
+
+        <label class="manualDangerGate" for="confirmManualBroadcast">
+          <input id="confirmManualBroadcast" type="checkbox" />
+          <span>I understand SEND SIGNED RAW will broadcast a transaction to the selected chain/provider. Leave this unchecked while building, signing, copying, or testing fixtures.</span>
+        </label>
+
+        <div class="manualWorkbenchGrid">
+          <div class="manualWorkbenchCell">
+            <label for="manualUtxoJson">Optional UTXO JSON</label>
+            <textarea id="manualUtxoJson" class="transactionJsonBox" spellcheck="false" placeholder='Paste UTXO array, {"utxos": [...]}, or a tx JSON with vin/vout. Use VIN FROM UTXO JSON to normalize.'></textarea>
+          </div>
+          <div class="manualWorkbenchCell">
+            <label for="manualVinJson">VIN JSON</label>
+            <textarea id="manualVinJson" class="transactionJsonBox" spellcheck="false" placeholder='[{"txid":"...","vout":0}]'></textarea>
+          </div>
+          <div class="manualWorkbenchCell">
+            <label for="manualVoutJson">VOUT JSON</label>
+            <textarea id="manualVoutJson" class="transactionJsonBox" spellcheck="false" placeholder='{"L...":0.001,"data":"hex"}'></textarea>
+          </div>
+          <div class="manualWorkbenchCell">
+            <label for="manualRawHex">Unsigned raw transaction hex</label>
+            <textarea id="manualRawHex" class="transactionHexBox" spellcheck="false" placeholder="created raw hex"></textarea>
+          </div>
+          <div class="manualWorkbenchCell">
+            <label for="manualSignedHex">Signed raw transaction hex</label>
+            <textarea id="manualSignedHex" class="transactionHexBox" spellcheck="false" placeholder="signed raw hex"></textarea>
+          </div>
+          <div class="manualWorkbenchCell">
+            <label for="manualRpcCommands">RPC command export</label>
+            <textarea id="manualRpcCommands" class="transactionJsonBox" spellcheck="false" placeholder="createrawtransaction / signrawtransactionwithkey / sendrawtransaction commands"></textarea>
+          </div>
+          <div class="manualWorkbenchCell">
+            <label for="manualScratchJson">Scratch JSON / notes</label>
+            <textarea id="manualScratchJson" class="transactionJsonBox" spellcheck="false" placeholder="Keep edited payloads, explorer responses, or hand-built output maps here."></textarea>
+          </div>
+        </div>
+      </details>
 
       <details>
         <summary>Advanced / derived values</summary>
@@ -1246,19 +1488,6 @@
       <section class="panel">
         <div class="stepTitle">11. Broadcast result</div>
         <pre id="sendResultJson" class="json"></pre>
-      </section>
-    </section>
-
-    <section class="modePanel" data-mode-panel="decode">
-      <section class="panel hero">
-        <h2>Legacy transaction decoder</h2>
-        <p class="muted">This standalone decoder remains as a diagnostic path. Portal is now the normal reader experience for Chisel artifacts. Open the decoder when the txid is the durable object key and the outputs need to be read as OP_RETURN plus MacDougall indexed addresses.</p>
-        <div class="actions">
-          <a class="toolCard" href="tools/decoder/index.html">
-            <strong>Open Chisel Transaction Decoder</strong>
-            <span>Reads txid-named fixtures or live Ravencoin RPC, decodes OP_RETURN, and renders indexed address outputs.</span>
-          </a>
-        </div>
       </section>
     </section>
 
@@ -1513,9 +1742,17 @@
             <strong>Display portal</strong>
             <span>Render base58-color image chords from tx JSON, pasted JSON, or Digibyte explorer data.</span>
           </a>
+          <a class="toolCard" href="?mode=start#selfTestPanel">
+            <strong>Browser self-test</strong>
+            <span>Run fixture, draft, send-lock, Portal boot, and static-data checks before a demo.</span>
+          </a>
+          <a class="toolCard" href="docs/DEMO_MODE.md">
+            <strong>Demo mode notes</strong>
+            <span>Click-through route for showing Chisel without starting with the old Decode page or a live broadcast.</span>
+          </a>
           <a class="toolCard" href="tools/decoder/index.html">
-            <strong>Transaction decoder</strong>
-            <span>Inspect social/ledger objects by txid and decode indexed outputs.</span>
+            <strong>Legacy transaction decoder</strong>
+            <span>Old single-transaction inspector. Portal is the normal reader; use this when debugging txid-named fixtures or raw output decoding.</span>
           </a>
           <a class="toolCard" href="tools/qrField/index.html">
             <strong>qrField label tool</strong>
@@ -1526,15 +1763,17 @@
     </section>
   </main>
 
-  <script src="chisel.js?2.6.4"></script>
-  <script src="chisel.unspendable.js?2.5.2f"></script>
-  <script src="chisel.sign.js?2.5.2d"></script>
-  <script src="chisel.ravencoin.js?2.5.2d"></script>
-  <script src="chisel.digibyte.js?2.5.2d"></script>
-  <script src="chisel.litecoin.js?2.5.2j"></script>
-  <script src="chisel.thunderwords.js?2.6.9i"></script>
-  <script src="data-bundled/portal-starter.js?2.7.4"></script>
-  <script src="chisel.portal.js?2.7.4"></script>
+  <script src="chisel.js?2.7.8"></script>
+  <script src="chisel.unspendable.js?2.7.8"></script>
+  <script src="chisel.sign.js?2.7.8"></script>
+  <script src="chisel.ravencoin.js?2.7.8"></script>
+  <script src="chisel.digibyte.js?2.7.8"></script>
+  <script src="chisel.litecoin.js?2.7.8"></script>
+  <script src="chisel.thunderwords.js?2.7.8"></script>
+  <script src="data-bundled/portal-starter.js?2.7.8"></script>
+  <script src="chisel.portal.static-data.js?2.7.8"></script>
+  <script src="chisel.portal.js?2.7.8"></script>
+  <script src="fixtures/etch/etch-fixtures.js?2.7.8"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -1543,7 +1782,7 @@
   };
 </script>
 
-  <script src="app.js?2.7.4"></script>
+  <script src="app.js?2.7.8"></script>
+  <script src="chisel.selftest.js?2.7.8"></script>
 </body>
 </html>
-

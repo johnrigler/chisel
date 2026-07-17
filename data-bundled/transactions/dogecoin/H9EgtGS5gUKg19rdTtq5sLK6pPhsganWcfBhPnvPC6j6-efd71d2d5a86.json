@@ -1,0 +1,51 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/efd71d2d5a864af5cbdff42186ae08484db5f8a43a6832ef4bab167ac66bd0b5",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "DCxixAMxRooTzzzzzzzzzzzzzzzzdE9xhj",
+      "amount_coin": "1.00039692",
+      "amount_units": "100039692",
+      "block_height": 3398269,
+      "chain": "dogecoin",
+      "created_at": 1781931374,
+      "flags": "addr_macdougall_DCx|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 1,
+      "op_return_ascii": null,
+      "satoshi_code": "3969",
+      "score": 510,
+      "script_type": "pubkeyhash",
+      "txid": "efd71d2d5a864af5cbdff42186ae08484db5f8a43a6832ef4bab167ac66bd0b5"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 3398269,
+    "blockTime": 1604342469,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/efd71d2d5a864af5cbdff42186ae08484db5f8a43a6832ef4bab167ac66bd0b5",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 1,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "I Am Root",
+    "txid": "efd71d2d5a864af5cbdff42186ae08484db5f8a43a6832ef4bab167ac66bd0b5"
+  },
+  "ticker": "DOGE",
+  "txid": "efd71d2d5a864af5cbdff42186ae08484db5f8a43a6832ef4bab167ac66bd0b5",
+  "vin": [],
+  "vout": [
+    {
+      "n": 1,
+      "scriptpubkey_address": "DCxixAMxRooTzzzzzzzzzzzzzzzzdE9xhj",
+      "value": 100039692
+    }
+  ]
+}

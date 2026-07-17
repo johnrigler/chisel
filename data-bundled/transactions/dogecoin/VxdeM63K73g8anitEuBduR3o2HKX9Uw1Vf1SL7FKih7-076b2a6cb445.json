@@ -1,0 +1,211 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "9tREDzzzzzzzzzzzzzzzzzzzzzzzaprs4V",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 11,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    },
+    {
+      "address": "9tBLUEzzzzzzzzzzzzzzzzzzzzzzWtqHZF",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 12,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    },
+    {
+      "address": "9tGREENzzzzzzzzzzzzzzzzzzzzzVhxjyk",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 13,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    },
+    {
+      "address": "9tYELLoWzzzzzzzzzzzzzzzzzzzzZyCJ15",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 14,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    },
+    {
+      "address": "9toRANGEzzzzzzzzzzzzzzzzzzzzZ2ySag",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 15,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    },
+    {
+      "address": "9tBRoWNzzzzzzzzzzzzzzzzzzzzzT6Cmwc",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 16,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    },
+    {
+      "address": "9tPURPLEzzzzzzzzzzzzzzzzzzzzUEs82J",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 17,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    },
+    {
+      "address": "9tBLACKzzzzzzzzzzzzzzzzzzzzzTbZ3JH",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 19,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    },
+    {
+      "address": "9tWHiTEzzzzzzzzzzzzzzzzzzzzzXQrGTb",
+      "amount_coin": "1.00055334",
+      "amount_units": "100055334",
+      "block_height": 3020510,
+      "chain": "dogecoin",
+      "created_at": 1781935011,
+      "flags": "addr_macdougall_9t|addr_prefix_9t|addr_prefix_9T|addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 20,
+      "op_return_ascii": null,
+      "satoshi_code": "5533",
+      "score": 540,
+      "script_type": "scripthash",
+      "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 3020510,
+    "blockTime": 1580212509,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 9,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "Ed",
+    "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a"
+  },
+  "ticker": "DOGE",
+  "txid": "076b2a6cb4459e2b8275b5723afa7d331833d31300af8ec8383771c30ea63c8a",
+  "vin": [],
+  "vout": [
+    {
+      "n": 11,
+      "scriptpubkey_address": "9tREDzzzzzzzzzzzzzzzzzzzzzzzaprs4V",
+      "value": 100055334
+    },
+    {
+      "n": 12,
+      "scriptpubkey_address": "9tBLUEzzzzzzzzzzzzzzzzzzzzzzWtqHZF",
+      "value": 100055334
+    },
+    {
+      "n": 13,
+      "scriptpubkey_address": "9tGREENzzzzzzzzzzzzzzzzzzzzzVhxjyk",
+      "value": 100055334
+    },
+    {
+      "n": 14,
+      "scriptpubkey_address": "9tYELLoWzzzzzzzzzzzzzzzzzzzzZyCJ15",
+      "value": 100055334
+    },
+    {
+      "n": 15,
+      "scriptpubkey_address": "9toRANGEzzzzzzzzzzzzzzzzzzzzZ2ySag",
+      "value": 100055334
+    },
+    {
+      "n": 16,
+      "scriptpubkey_address": "9tBRoWNzzzzzzzzzzzzzzzzzzzzzT6Cmwc",
+      "value": 100055334
+    },
+    {
+      "n": 17,
+      "scriptpubkey_address": "9tPURPLEzzzzzzzzzzzzzzzzzzzzUEs82J",
+      "value": 100055334
+    },
+    {
+      "n": 19,
+      "scriptpubkey_address": "9tBLACKzzzzzzzzzzzzzzzzzzzzzTbZ3JH",
+      "value": 100055334
+    },
+    {
+      "n": 20,
+      "scriptpubkey_address": "9tWHiTEzzzzzzzzzzzzzzzzzzzzzXQrGTb",
+      "value": 100055334
+    }
+  ]
+}

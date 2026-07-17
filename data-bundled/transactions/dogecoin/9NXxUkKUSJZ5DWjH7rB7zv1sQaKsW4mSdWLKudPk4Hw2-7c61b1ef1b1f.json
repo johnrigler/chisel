@@ -1,0 +1,51 @@
+{
+  "coin": "dogecoin",
+  "explorerUrl": "https://blockchair.com/dogecoin/transaction/7c61b1ef1b1f6d00aa26e4d110efcb64e4ab9df48e781ef5322dce6355026165",
+  "note": "This file was generated from data-bundled/index/transactions.index.json plus available bundled import rows so Portal hydration does not point at missing files.",
+  "ok": true,
+  "records": [
+    {
+      "address": "DKVPV1ryZ3pR5NMzfZ9L39AePbPajQXkUA",
+      "amount_coin": "12000.00047663",
+      "amount_units": "1200000047663",
+      "block_height": 2818416,
+      "chain": "dogecoin",
+      "created_at": 1781932291,
+      "flags": "addr_pre_checksum_z|amount_000nnnn|amount_000nnnnn|amount_shoctal_000nnnn|amount_shoctal_000nnnnn|strong_candidate",
+      "n": 0,
+      "op_return_ascii": null,
+      "satoshi_code": "4766",
+      "score": 390,
+      "script_type": "pubkeyhash",
+      "txid": "7c61b1ef1b1f6d00aa26e4d110efcb64e4ab9df48e781ef5322dce6355026165"
+    }
+  ],
+  "source": "v276 generated bundled static stub",
+  "summary": {
+    "blockHeight": 2818416,
+    "blockTime": 1566467019,
+    "blockTimeEstimated": false,
+    "coin": "dogecoin",
+    "explorerUrl": "https://blockchair.com/dogecoin/transaction/7c61b1ef1b1f6d00aa26e4d110efcb64e4ab9df48e781ef5322dce6355026165",
+    "imageChordLines": [],
+    "imageLines": 0,
+    "ipfsCount": 0,
+    "lines": 1,
+    "opReturnText": "",
+    "opReturnUrls": [],
+    "primaryUrl": "",
+    "ticker": "DOGE",
+    "title": "PV1r-Z3pR5NM fZ9L39AePbPa",
+    "txid": "7c61b1ef1b1f6d00aa26e4d110efcb64e4ab9df48e781ef5322dce6355026165"
+  },
+  "ticker": "DOGE",
+  "txid": "7c61b1ef1b1f6d00aa26e4d110efcb64e4ab9df48e781ef5322dce6355026165",
+  "vin": [],
+  "vout": [
+    {
+      "n": 0,
+      "scriptpubkey_address": "DKVPV1ryZ3pR5NMzfZ9L39AePbPajQXkUA",
+      "value": 1200000047663
+    }
+  ]
+}

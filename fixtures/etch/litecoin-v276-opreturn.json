@@ -1,0 +1,21 @@
+{
+  "label": "Litecoin v276 OP_RETURN dry-run",
+  "currency": "litecoin",
+  "rpcUrl": "litecoinspace,blockcypherLitecoin,blockchairLitecoin",
+  "explorerUrl": "https://litecoinspace.org/tx/",
+  "fee": "0.00010000",
+  "senderWif": "T33ydQRKp4FCW5LCLLUB7deioUMoveiwekdwUwyfRDeGZm76aUjV",
+  "warning": "Public dummy WIF derived from private key 1. Do not fund this address.",
+  "vin": [
+    {
+      "txid": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "vout": 1
+    }
+  ],
+  "vout": {
+    "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ": 0.001,
+    "data": "43484953454c763237362066697874757265"
+  },
+  "expectedRawHex": "0100000001efcdab8967452301efcdab8967452301efcdab8967452301efcdab89674523010100000000ffffffff02a0860100000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac0000000000000000146a1243484953454c76323736206669787475726500000000",
+  "expectedSignedHex": "0100000001efcdab8967452301efcdab8967452301efcdab8967452301efcdab8967452301010000006b4830450221009eb13bb5b8ccb9b0e8b8d18a071b3a7cfd485a0c9978ce14348beacba506f29f02202871bba9bd0722f9e731f2cb2b6147e7c2650ea1d78e5587aa34f2a9f978d03001210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ffffffff02a0860100000000001976a914751e76e8199196d454941c45d1b3a323f1433bd688ac0000000000000000146a1243484953454c76323736206669787475726500000000"
+}
