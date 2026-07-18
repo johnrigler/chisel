@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.7.8</title>
+  <title>Chisel 2.7.10</title>
 
 
   <style>
@@ -519,6 +519,10 @@
       max-width: none;
     }
 
+    body[data-mode="portal"] #modeHint {
+      display: none;
+    }
+
     .portalIndexBar {
       display: grid;
       gap: 10px;
@@ -532,7 +536,7 @@
 
     .portalStreamHeader {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
       align-items: start;
       margin-bottom: 10px;
@@ -566,7 +570,7 @@
 
     .portalStreamRow {
       display: grid;
-      grid-template-columns: 40px 112px 128px 70px minmax(320px, 1.5fr) minmax(220px, 0.8fr) 150px 110px;
+      grid-template-columns: 40px 112px 128px 70px minmax(260px, 1fr) auto;
       align-items: center;
       gap: 8px;
       padding: 8px 10px;
@@ -761,14 +765,14 @@
 
     .portalEvmMediaGrid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: minmax(0, 1fr);
       gap: 10px;
     }
 
     .portalEvmMediaCard {
       display: grid;
-      grid-template-columns: 150px minmax(0, 1fr);
-      gap: 10px;
+      grid-template-columns: minmax(320px, 55%) minmax(0, 1fr);
+      gap: 14px;
       align-items: start;
       border: 1px solid #d6dde5;
       border-radius: 12px;
@@ -783,7 +787,7 @@
     }
 
     .portalEvmMediaThumb {
-      width: 150px;
+      width: 100%;
       aspect-ratio: 16 / 9;
       object-fit: cover;
       border: 1px solid #aeb7c0;
@@ -908,21 +912,36 @@
       border-radius: 12px;
       padding: 10px;
       background: #ffffff;
+      min-width: 0;
+    }
+
+    .portalExpandedBody {
+      display: grid;
+      grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .portalInlineImageSide {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
     }
 
     .portalInlineImageCanvasWrap {
       display: block;
-      overflow: auto;
+      overflow-x: auto;
+      overflow-y: visible;
       border: 1px solid #263241;
       border-radius: 10px;
       padding: 10px;
       background: #05080b;
-      max-height: 58vh;
     }
 
     .portalInlineImageCanvas {
       display: block;
-      max-width: 100%;
+      max-width: none;
+      width: auto;
       height: auto;
       background: #000;
       image-rendering: pixelated;
@@ -966,6 +985,41 @@
       background: #ffffff;
     }
 
+    .portalAnnotationBlock > summary {
+      cursor: pointer;
+      color: #111820;
+      font-weight: 700;
+    }
+
+    .portalAnnotationBlock.portalAnnotationEmpty {
+      display: block;
+      width: fit-content;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .portalAnnotationBlock.portalAnnotationEmpty > summary {
+      padding: 6px 9px;
+      border: 1px solid #8b98a5;
+      border-radius: 999px;
+      background: #fff;
+    }
+
+    .portalAnnotationBlock.portalAnnotationEmpty[open] {
+      display: grid;
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccd5df;
+      background: #fff;
+    }
+
+    .portalAnnotationBlock.portalAnnotationEmpty[open] > summary {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+    }
+
     .portalAnnotationBlock.hasAnnotation {
       border-color: #8b98a5;
       background: #fdfdf8;
@@ -998,6 +1052,34 @@
 
     .portalAnnotationActions {
       align-items: center;
+    }
+
+    .portalVinBlock {
+      display: grid;
+      gap: 6px;
+    }
+
+    .portalVinList {
+      display: grid;
+      gap: 6px;
+    }
+
+    .portalVinRow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .portalVinAddress {
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid #9ea8b2;
+      border-radius: 8px;
+      background: #fff;
+      color: #064f75;
+      text-align: left;
+      overflow-wrap: anywhere;
     }
 
     .portalLegacyViewport {
@@ -1148,6 +1230,25 @@
 
       label {
         padding-top: 0;
+      }
+
+      .portalExpandedBody,
+      .portalEvmMediaCard {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .portalInlineDetails {
+        margin-left: 6px;
+        margin-right: 6px;
+      }
+
+      .portalStreamRow {
+        grid-template-columns: 34px 86px minmax(0, 1fr) auto;
+      }
+
+      .portalStreamTime,
+      .portalStreamCoin {
+        display: none;
       }
     }
   </style>
@@ -1494,11 +1595,6 @@
 
 
     <section class="modePanel" data-mode-panel="portal">
-      <section class="panel hero">
-        <h2>Portal explorer</h2>
-        <p class="muted">Cross-chain transaction stream. The browser preloads the bundled/static records first, newest first, so the page is useful as soon as it opens. Live ledger searches then merge newer discoveries into the same stream. fileProxy, bun, and deno are authoring tools, not public runtime requirements.</p>
-      </section>
-
       <section class="portalExplorerShell">
         <section class="panel portalDetailGrid portalLegacyViewport" aria-hidden="true">
           <div class="portalSelectedHeader">
@@ -1557,18 +1653,10 @@
               <p id="portalExplorerCount" class="muted">No transactions loaded.</p>
             </div>
             <div class="actions">
-              <label class="inlineOption compactOption">
-                <input id="portalIncludeEvmGomez" type="checkbox">
-                Gomez EVM
-              </label>
-              <label class="inlineOption compactOption">
-                <input id="portalIncludeEvmJethro" type="checkbox">
-                Jethro EVM
-              </label>
-              <button id="portalLoadStaticDatasetButton" class="secondaryButton" type="button">REFRESH STATIC</button>
-              <button id="portalValidateDatasetButton" class="secondaryButton" type="button">VALIDATE DATASET</button>
-              <button id="portalLoadConversationButton" class="secondaryButton" type="button">SEARCH LEDGERS</button>
-              <button id="portalClearStreamButton" class="secondaryButton" type="button">CLEAR STREAM</button>
+              <button id="portalLoadStaticDatasetButton" class="secondaryButton" type="button">REFRESH</button>
+              <button id="portalValidateDatasetButton" class="secondaryButton" type="button">CHECK DATA</button>
+              <button id="portalLoadConversationButton" class="secondaryButton" type="button">SEARCH</button>
+              <button id="portalClearStreamButton" class="secondaryButton" type="button">CLEAR</button>
             </div>
           </div>
           <div class="portalFilterBar" aria-label="Portal stream filters">
@@ -1586,39 +1674,35 @@
             <button id="portalFocusJethroButton" class="secondaryButton portalPageButton" type="button">only Jethro</button>
             <button id="portalShowAllSourcesButton" class="secondaryButton portalPageButton" type="button">show all</button>
           </div>
-          <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">Bundled/static transaction summaries will load here first. Live ledger searches can add newer records after first paint.</div>
+          <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">Loading…</div>
           <div id="portalPageControls" class="portalPageControls muted"></div>
         </section>
       </section>
 
       <details class="panel portalDrawer">
-        <summary>Authoring sources, fileProxy, and write options</summary>
+        <summary>Local data / fileProxy</summary>
         <div class="portalControls">
-          <label class="inlineOption">
-            <input id="portalAutoSaveFetchedTxs" type="checkbox">
-            Auto-save fetched tx JSON
-          </label>
           <div class="portalIndexBar">
             <div>
               <label for="portalFileProxyUrl">fileProxy URL</label>
               <input id="portalFileProxyUrl" type="text" spellcheck="false" value="http://127.0.0.1:7799">
             </div>
-            <div>
-              <label for="portalLocalCoin">Coin folder</label>
-              <input id="portalLocalCoin" type="text" spellcheck="false" placeholder="blank = all local coins">
-            </div>
             <div class="actions">
-              <button id="portalLoadSelectedLocalButton" class="secondaryButton" type="button">LOAD SELECTED LOCAL</button>
+              <button id="portalLoadLocalTxidsButton" class="secondaryButton" type="button">LOAD UTXO DATA</button>
+              <label class="inlineOption compactOption">
+                <input id="portalIncludeEvmGomez" type="checkbox">
+                Gomez
+              </label>
+              <label class="inlineOption compactOption">
+                <input id="portalIncludeEvmJethro" type="checkbox">
+                Jethro
+              </label>
+              <button id="portalLoadEvmCatalogButton" class="secondaryButton" type="button">LOAD EVM DATA</button>
             </div>
-          </div>
-          <p class="muted">Config is read from <code>chisel.portal.config.json</code>. Public browsing uses bundled/static JSON first. fileProxy can import, save, and format data during authoring; visitors do not need it. Saved transactions are pretty jq-style JSON under <code>data/transactions/&lt;coin&gt;/</code> and EVM split feeds under <code>data/transactions/evm/&lt;chainid&gt;/&lt;contract&gt;/</code>.</p>
-          <div class="actions">
-            <button id="portalLoadEvmCatalogButton" class="secondaryButton" type="button">LOAD EVM LOCAL</button>
-            <button id="portalLoadLocalTxidsButton" class="secondaryButton" type="button">LOAD LOCAL</button>
           </div>
           <div id="portalSaveTxResult" class="muted"></div>
           <div id="portalLocalTxList" class="portalHiddenList muted">Local transaction list is merged into the main stream.</div>
-          <div id="portalConversationStatus" class="muted"></div>
+          <div id="portalConversationStatus" class="portalHiddenList muted"></div>
           <div id="portalConversationList" class="portalHiddenList muted">Merged stream list is rendered in the main stream.</div>
         </div>
       </details>
@@ -1763,17 +1847,17 @@
     </section>
   </main>
 
-  <script src="chisel.js?2.7.8"></script>
-  <script src="chisel.unspendable.js?2.7.8"></script>
-  <script src="chisel.sign.js?2.7.8"></script>
-  <script src="chisel.ravencoin.js?2.7.8"></script>
-  <script src="chisel.digibyte.js?2.7.8"></script>
-  <script src="chisel.litecoin.js?2.7.8"></script>
-  <script src="chisel.thunderwords.js?2.7.8"></script>
-  <script src="data-bundled/portal-starter.js?2.7.8"></script>
-  <script src="chisel.portal.static-data.js?2.7.8"></script>
-  <script src="chisel.portal.js?2.7.8"></script>
-  <script src="fixtures/etch/etch-fixtures.js?2.7.8"></script>
+  <script src="chisel.js?2.7.10"></script>
+  <script src="chisel.unspendable.js?2.7.10"></script>
+  <script src="chisel.sign.js?2.7.10"></script>
+  <script src="chisel.ravencoin.js?2.7.10"></script>
+  <script src="chisel.digibyte.js?2.7.10"></script>
+  <script src="chisel.litecoin.js?2.7.10"></script>
+  <script src="chisel.thunderwords.js?2.7.10"></script>
+  <script src="data-bundled/portal-starter.js?2.7.10"></script>
+  <script src="chisel.portal.static-data.js?2.7.10"></script>
+  <script src="chisel.portal.js?2.7.10"></script>
+  <script src="fixtures/etch/etch-fixtures.js?2.7.10"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -1782,7 +1866,7 @@
   };
 </script>
 
-  <script src="app.js?2.7.8"></script>
-  <script src="chisel.selftest.js?2.7.8"></script>
+  <script src="app.js?2.7.10"></script>
+  <script src="chisel.selftest.js?2.7.10"></script>
 </body>
 </html>

@@ -202,6 +202,64 @@
     else log.skip("Portal stream container selector changed; state check passed.");
   }
 
+  async function runPortalUiTest(log) {
+    const api = window.CHISEL_PORTAL;
+    assert(api, "window.CHISEL_PORTAL is not installed.");
+    assert(!$("portalAutoSaveFetchedTxs"), "Obsolete auto-save checkbox is still visible.");
+    assert(!$("portalLocalCoin"), "Obsolete coin-folder control is still visible.");
+    assert(!$("portalLoadSelectedLocalButton"), "Obsolete selected-local control is still visible.");
+    assertEqual($("portalLoadLocalTxidsButton").textContent.trim(), "LOAD UTXO DATA", "Local UTXO button");
+    assertEqual($("portalLoadEvmCatalogButton").textContent.trim(), "LOAD EVM DATA", "Local EVM button");
+    log.pass("Portal local-data controls are unambiguous.");
+
+    const txid = "a".repeat(64);
+    const vinAddress = "LcudkPQzLuuqsnzHSmJ7iLREaHStvPKRVb";
+    const imageLine = "SN" + "A".repeat(26) + "ABCDEF";
+    const entry = { coin: "litecoin", ticker: "LTC", name: "Litecoin", label: "Litecoin" };
+    const raw = {
+      txid: txid,
+      vin: [{ address: vinAddress }],
+      vout: Array.from({ length: 48 }, function (_unused, index) {
+        return { n: index, value: 0, scriptPubKey: { type: "pubkeyhash", addresses: [imageLine] } };
+      })
+    };
+    const row = {
+      key: "litecoin:" + txid,
+      txid: txid,
+      coin: "litecoin",
+      index: entry,
+      raw: raw,
+      summary: api.extractSummary(raw, entry)
+    };
+    const oldConfig = api.state.config;
+    const container = document.createElement("div");
+    try {
+      api.state.config = Object.assign({}, oldConfig, { inlineImageExpandedScale: 12, saveDiscoveredLinks: false });
+      api.appendPortalInlineDetails(container, row);
+    } finally {
+      api.state.config = oldConfig;
+    }
+
+    assert(container.querySelector(".portalExpandedBody"), "Expanded Base57 grid is missing.");
+    assert(container.querySelector(".portalInlineImageSide"), "Expanded Base57 data column is missing.");
+    assertEqual(container.querySelector(".portalInlineImageCanvas").width, 26 * 12, "Expanded Base57 width");
+    assertEqual(container.querySelector(".portalInlineImageCanvas").height, 48 * 12, "Expanded Base57 height");
+    assertEqual(container.querySelector(".portalVinAddress").textContent, vinAddress, "VIN rabbit-trail address");
+    assert(!container.querySelector(".portalAnnotationEmpty").open, "Empty local annotation is expanded.");
+    log.pass("Expanded Base57 media, right-side data, VIN lookup, and collapsed empty notes are present.");
+
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: "https://youtu.be/abcdefghi", primaryUrl: "https://youtu.be/abcdefghi" } }), "YouTube", "URL display title");
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: "dkPQ Luuqsn HSmJ7ILREaHSt" } }), "transaction aaaaaaaaaa…aaaaaaaaaa", "Encoded display title");
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: "Ddddddddddddddddddddddddddd" } }), "transaction aaaaaaaaaa…aaaaaaaaaa", "Repeated address display title");
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "evm", sourceId: "evmGomez", index: entry, summary: { title: '<iframe src="https://www.youtube.com/embed/abcdefghi"></iframe>' } }), "YouTube", "HTML media display title");
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "evm", sourceId: "evmGomez", index: entry, summary: { title: '<table><iframe src="https://www.youtube.com/embed/abcdefghi" title="truncated' } }), "YouTube", "Truncated HTML media display title");
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "evm", sourceId: "evmGomez", index: entry, summary: { title: "<pre>Readable record text" } }), "Readable record text", "HTML text display title");
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "evm", sourceId: "evmGomez", index: entry, summary: { title: "<a href=https://example.com/story>Useful article</a>" } }), "Useful article", "HTML anchor display title");
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: "Eyes of the World" } }), "Eyes of the World", "Human display title");
+    assertEqual(api.extractInputAddresses({ inputs: [{ recipient: vinAddress }] })[0], vinAddress, "Alternate VIN shape");
+    log.pass("Portal title normalization and VIN extraction passed.");
+  }
+
   async function fetchJson(path) {
     const response = await fetch(path, { cache: "no-store" });
     if (!response.ok) throw new Error(path + " failed with HTTP " + response.status);
@@ -306,10 +364,11 @@
 
   async function runAllSelfTests() {
     const log = makeLog("selfTestOutput");
-    log.reset("Chisel browser self-test v2.7.7");
+    log.reset("Chisel browser self-test");
     try {
       await runPortalStaticDataCharacterizationTest(log);
       await runPortalBootTest(log);
+      await runPortalUiTest(log);
       await runDataBundledLinksTest(log);
       await runEtchFixtureTest(log);
       await runDraftSaveRestoreTest(log);
@@ -474,6 +533,7 @@
     runEtchFixtureTest: function () { return runEtchFixtureTest(makeLog("selfTestOutput")); },
     runDataBundledLinksTest: function () { return runDataBundledLinksTest(makeLog("selfTestOutput")); },
     runPortalBootTest: function () { return runPortalBootTest(makeLog("selfTestOutput")); },
+    runPortalUiTest: function () { return runPortalUiTest(makeLog("selfTestOutput")); },
     runDraftSaveRestoreTest: function () { return runDraftSaveRestoreTest(makeLog("selfTestOutput")); },
     runSendLockTest: function () { return runSendLockTest(makeLog("selfTestOutput")); },
     runDemoStep: runDemoStep
