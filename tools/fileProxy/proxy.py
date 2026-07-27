@@ -5,6 +5,7 @@ from pathlib import Path
 import base64
 import hashlib
 import html
+import importlib.util
 import json
 import mimetypes
 import os
@@ -224,6 +225,52 @@ def read_jsonish(path):
         return {"format": "json", "json": json.loads(text), "text": text}
     except Exception:
         return {"format": "text", "json": None, "text": text}
+
+
+def atomic_write_text(path, text):
+    """Replace a cache/index source only after the complete file is durable."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name("." + path.name + ".tmp-" + str(os.getpid()) + "-" + str(time.time_ns()))
+    try:
+        with temp.open("w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp, path)
+    finally:
+        try:
+            temp.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def active_data_root():
+    configured = _split_roots(os.environ.get("CHISEL_DATA_ROOT", ""))
+    if configured:
+        return configured[0]
+    # Preserve a symlink here so the indexer can reject a broken target instead
+    # of silently creating a new datastore in the wrong place.
+    return ROOT / "data"
+
+
+_CHISEL_INDEXER = None
+
+
+def load_chisel_indexer():
+    global _CHISEL_INDEXER
+    if _CHISEL_INDEXER is not None:
+        return _CHISEL_INDEXER
+    module_path = Path(__file__).resolve().parents[1] / "chisel_index" / "indexer.py"
+    if not module_path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("chisel_unified_index", module_path)
+    if not spec or not spec.loader:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _CHISEL_INDEXER = module
+    return module
 
 
 def tx_roots(coin=None):
@@ -1759,10 +1806,47 @@ def read_or_build_tx_index(coin=None, force=False):
     rows = build_tx_index(coin=None)
     idx.parent.mkdir(parents=True, exist_ok=True)
     payload = {"ok": True, "generated": int(time.time()), "transactions": rows}
-    idx.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write_text(idx, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     if coin:
         rows = [row for row in rows if normalize_coin_name(row.get("coin")) == normalize_coin_name(coin)]
     return {"ok": True, "cached": False, "path": rel_path(idx), "coin": coin or "", "transactions": rows}
+
+
+def refresh_all_indexes(coin=None):
+    """Refresh derived catalogs once after one or more canonical JSON writes."""
+    result = {"ok": True, "json": None, "sqlite": None}
+    try:
+        json_index = read_or_build_tx_index(None, force=True)
+        result["json"] = {
+            "ok": True,
+            "path": json_index.get("path", ""),
+            "records": len(json_index.get("transactions", [])),
+        }
+    except Exception as exc:
+        result["ok"] = False
+        result["json"] = {"ok": False, "error": str(exc)}
+
+    indexer = load_chisel_indexer()
+    if indexer is None:
+        result["ok"] = False
+        result["sqlite"] = {"ok": False, "available": False, "error": "tools/chisel_index/indexer.py is not installed"}
+        return result
+
+    try:
+        status = indexer.rebuild_index(active_data_root(), include_legacy_jist=False)
+        result["sqlite"] = {
+            "ok": bool(status.get("ok")),
+            "available": True,
+            "database": status.get("database", ""),
+            "counts": status.get("counts", {}),
+            "legacyJistIncluded": bool(status.get("legacyJistIncluded", False)),
+        }
+        if not status.get("ok"):
+            result["ok"] = False
+    except Exception as exc:
+        result["ok"] = False
+        result["sqlite"] = {"ok": False, "available": True, "error": str(exc)}
+    return result
 
 
 def read_config(rel_path="chisel.portal.config.json"):
@@ -2105,7 +2189,17 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             if parsed.path == "/ping":
-                send_json(self, {"ok": True, "service": "chisel-fileproxy", "root": str(ROOT)})
+                send_json(self, {
+                    "ok": True,
+                    "service": "chisel-fileproxy",
+                    "root": str(ROOT),
+                    "data_root": str(active_data_root()),
+                    "capabilities": {
+                        "canonicalTransactionCache": True,
+                        "batchReindex": True,
+                        "unifiedSqliteIndex": load_chisel_indexer() is not None,
+                    },
+                })
                 return
 
             if parsed.path == "/config":
@@ -2195,9 +2289,9 @@ class Handler(BaseHTTPRequestHandler):
 
             if parsed.path == "/reindex":
                 coin = normalize_coin_name(query.get("coin", [""])[0].strip()) or None
-                payload = read_or_build_tx_index(coin, force=True)
+                payload = refresh_all_indexes(coin)
                 payload.update({"root": str(ROOT), "data_roots": [str(p) for p in EXTRA_DATA_ROOTS]})
-                send_json(self, payload)
+                send_json(self, payload, 200 if payload.get("ok") else 500)
                 return
 
             if parsed.path == "/tx":
@@ -2282,6 +2376,11 @@ class Handler(BaseHTTPRequestHandler):
                 payload = body.get("json", None)
                 text = body.get("text", "")
                 filename_mode = safe_segment(body.get("filenameMode", "base58"), "base58")
+                refresh_index = body.get("refreshIndex", False)
+                if isinstance(refresh_index, str):
+                    refresh_index = refresh_index.strip().lower() in ("1", "true", "yes", "on")
+                else:
+                    refresh_index = bool(refresh_index)
                 if not is_txid(txid):
                     send_json(self, {"ok": False, "error": "txid must be 64 hex characters"}, 400)
                     return
@@ -2297,13 +2396,14 @@ class Handler(BaseHTTPRequestHandler):
                     if isinstance(payload, dict) and not is_txid(payload.get("txid")):
                         payload = dict(payload)
                         payload["txid"] = txid
-                    p.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+                    atomic_write_text(p, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
                 else:
-                    p.write_text(text, encoding="utf-8")
+                    atomic_write_text(p, text)
                 try:
                     index_file_path().unlink(missing_ok=True)
                 except Exception:
                     pass
+                index_refresh = refresh_all_indexes(coin) if refresh_index else {"ok": True, "deferred": True}
                 send_json(self, {
                     "ok": True,
                     "path": rel_path(p),
@@ -2311,7 +2411,8 @@ class Handler(BaseHTTPRequestHandler):
                     "txid": txid,
                     "coin": coin,
                     "filename": p.name,
-                    "filenameMode": filename_mode
+                    "filenameMode": filename_mode,
+                    "indexRefresh": index_refresh,
                 })
                 return
 

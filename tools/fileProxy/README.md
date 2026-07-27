@@ -32,14 +32,21 @@ Endpoints:
 - `GET /ping`
 - `GET /txids?coin=litecoin`
 - `GET /tx?coin=litecoin&txid=<64hex>`
+- `GET /reindex` (refresh the JSON catalog and unified SQLite witness once)
 - `GET /ipfs?cid=<cid>`
 - `GET /find-assets?txid=<64hex>` or `GET /find-assets?cid=<cid>`
 - `GET /raw?path=<relative path>`
 - `GET /list?path=<relative path>`
 - `GET /load?path=<relative path>`
 - `POST /save`
-- `POST /save-tx`
+- `POST /save-tx` (`refreshIndex: false` permits a batch followed by one `/reindex`)
 - `POST /mkdir`
 - `POST /delete`
 
-Decode uses `/tx` and `/txids`. Portal uses `/txids`, `/tx`, and `/find-assets`. The older `/load` and `/save` endpoints remain available.
+Decode uses `/tx` and `/txids`. Portal uses `/txids`, `/tx`, and `/find-assets`.
+When Portal finds an uncached transaction while fileProxy is running, it saves
+the canonical JSON first. A current-page date batch saves every cache miss with
+`refreshIndex: false`, then calls `/reindex` once. That rebuild corrects
+`data/index/chisel.sqlite3` and its portable Portal index without repeating the
+ledger lookup on later visits. The older `/load` and `/save` endpoints remain
+available.
