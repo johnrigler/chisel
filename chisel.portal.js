@@ -19,6 +19,7 @@
   const DEFAULT_PORTAL_CONFIG = {
     fileProxyUrl: DEFAULT_FILE_PROXY_URL,
     autoSaveFetchedTransactions: false,
+    cacheFetchedTransactionsWithFileProxy: true,
     localFirstTransactions: true,
     autoLoadLocalTransactions: false,
     autoHydrateLocalTransactions: false,
@@ -30,6 +31,9 @@
     staticManifestPaths: [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH],
     staticManifestMirrors: [DEFAULT_REMOTE_MANIFEST_URL],
     backgroundHydrateTransactions: false,
+    autoFetchVisibleTransactionDates: true,
+    maxVisibleDateLookups: 20,
+    visibleDateLookupConcurrency: 3,
     saveDiscoveredLinks: false,
     rabbitTrailSenders: false,
     autoFetchRabbitTrails: false,
@@ -109,6 +113,11 @@
     portalPageSize: 20,
     expandedRowKeys: Object.create(null),
     pendingHydration: Object.create(null),
+    pendingDateLookup: Object.create(null),
+    attemptedDateLookup: Object.create(null),
+    visibleDateLookupScheduled: false,
+    visibleDateLookupToken: "",
+    fileProxyAvailable: null,
     portalBatchDepth: 0,
     portalRenderQueued: false,
     portalRenderScheduled: false,
@@ -1652,7 +1661,14 @@
   async function fileProxyJson(path, params) {
     const query = new URLSearchParams(params || {});
     const url = getFileProxyUrl() + path + (String(query) ? "?" + String(query) : "");
-    const response = await fetch(url, { cache: "no-store" });
+    let response;
+    try {
+      response = await fetch(url, { cache: "no-store" });
+      state.fileProxyAvailable = true;
+    } catch (error) {
+      state.fileProxyAvailable = false;
+      throw error;
+    }
     const json = await response.json().catch(function () { return null; });
     if (!response.ok || !json || json.ok === false) {
       throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
@@ -1662,17 +1678,35 @@
 
   async function fileProxyPostJson(path, body) {
     const url = getFileProxyUrl() + path;
-    const response = await fetch(url, {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body || {})
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {})
+      });
+      state.fileProxyAvailable = true;
+    } catch (error) {
+      state.fileProxyAvailable = false;
+      throw error;
+    }
     const json = await response.json().catch(function () { return null; });
     if (!response.ok || !json || json.ok === false) {
       throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
     }
     return json;
+  }
+
+  async function fileProxyIsAvailable() {
+    if (state.fileProxyAvailable === true) return true;
+    if (state.fileProxyAvailable === false) return false;
+    try {
+      await fileProxyJson("/ping");
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   function fileProxyRawUrl(path) {
@@ -1799,7 +1833,7 @@
     return String((entry && (entry.coin || entry.ticker || entry.name)) || "unknown").toLowerCase();
   }
 
-  async function saveTransactionToFileProxy(tx, txid, indexEntry) {
+  async function saveTransactionToFileProxy(tx, txid, indexEntry, opts) {
     const raw = tx || state.rawJson;
     const id = String(txid || extractTxid(raw) || state.selectedTxid || "").trim();
     if (!raw) throw new Error("No transaction JSON is loaded in Portal.");
@@ -1809,11 +1843,14 @@
       txid: id,
       coin: coin,
       json: raw,
-      filenameMode: "base58"
+      filenameMode: "base58",
+      refreshIndex: !(opts && opts.refreshIndex === false)
     });
     state.currentSavedPath = saved.path || "";
-    setText("#portalSaveTxResult", saved.path ? "saved " + saved.path : pretty(saved));
-    setStatus("Saved local jq-format transaction JSON: " + (saved.path || saved.filename || id) + ".", false);
+    if (!(opts && opts.quiet)) {
+      setText("#portalSaveTxResult", saved.path ? "saved " + saved.path : pretty(saved));
+      setStatus("Saved local jq-format transaction JSON: " + (saved.path || saved.filename || id) + ".", false);
+    }
     return saved;
   }
 
@@ -1822,19 +1859,20 @@
   }
 
   function shouldAutoSaveFetchedTxs() {
-    return configBool("autoSaveFetchedTransactions", false);
+    return configBool("autoSaveFetchedTransactions", false) || configBool("cacheFetchedTransactionsWithFileProxy", true);
   }
 
-  async function autoSaveTransactionMaybe(tx, txid, indexEntry) {
+  async function autoSaveTransactionMaybe(tx, txid, indexEntry, opts) {
     if (!shouldAutoSaveFetchedTxs()) return null;
     if (!tx || !tx.vout) return null;
+    if (!(await fileProxyIsAvailable())) return null;
 
     try {
-        return await saveTransactionToFileProxy(tx, txid || extractTxid(tx), indexEntry);
+        return await saveTransactionToFileProxy(tx, txid || extractTxid(tx), indexEntry, Object.assign({ quiet: true }, opts || {}));
     } catch (error) {
-        console.warn("Portal auto-save failed:", error);
-        setStatus("Auto-save failed: " + (error.message || String(error)), true);
-        return null;
+      console.warn("Portal auto-save failed:", error);
+      if (!(opts && opts.quiet)) setStatus("Local transaction cache failed: " + (error.message || String(error)), true);
+      return null;
     }
 }
 
@@ -2256,6 +2294,10 @@
     state.portalRowKeys = Object.create(null);
     state.expandedRowKeys = Object.create(null);
     state.pendingHydration = Object.create(null);
+    state.pendingDateLookup = Object.create(null);
+    state.attemptedDateLookup = Object.create(null);
+    state.visibleDateLookupScheduled = false;
+    state.visibleDateLookupToken = "";
     state.visiblePortalRowKeys = Object.create(null);
     state.portalSortPending = false;
     state.selectedRowKey = "";
@@ -2335,12 +2377,40 @@
     addButton("›", page + 1, page >= count);
   }
 
+  function mergePortalSummary(existingSummary, incomingSummary) {
+    const previous = existingSummary && typeof existingSummary === "object" ? existingSummary : {};
+    const incoming = incomingSummary && typeof incomingSummary === "object" ? incomingSummary : {};
+    const merged = Object.assign({}, previous, incoming);
+    const previousTime = normalizeUnixTime(previous.blockTime || previous.block_time || previous.time || previous.timestamp);
+    const incomingTime = normalizeUnixTime(incoming.blockTime || incoming.block_time || incoming.time || incoming.timestamp);
+    const previousIsExact = previousTime && !previous.blockTimeEstimated;
+    const incomingIsExact = incomingTime && !incoming.blockTimeEstimated;
+
+    if (incomingIsExact || (!previousIsExact && incomingTime)) {
+      merged.blockTime = incomingTime;
+      merged.blockTimeEstimated = !incomingIsExact;
+    } else if (previousTime) {
+      merged.blockTime = previousTime;
+      merged.blockTimeEstimated = !!previous.blockTimeEstimated;
+    } else {
+      merged.blockTime = 0;
+    }
+
+    const previousHeight = Number(previous.blockHeight || previous.block_height || 0) || 0;
+    const incomingHeight = Number(incoming.blockHeight || incoming.block_height || 0) || 0;
+    merged.blockHeight = incomingHeight > 0 ? incomingHeight : (previousHeight > 0 ? previousHeight : undefined);
+    return merged;
+  }
+
   function upsertPortalRow(row, opts) {
     if (!row || !TXID_RE.test(String(row.txid || ""))) return null;
     const key = rowKey(row);
     const existing = state.portalRowKeys[key];
+    const previousRowTime = existing ? extractBlockTime(existing) : 0;
+    const incomingRowTime = extractBlockTime(row);
     const merged = existing ? Object.assign(existing, row, {
-      summary: Object.assign({}, existing.summary || {}, row.summary || {}),
+      summary: mergePortalSummary(existing.summary, row.summary),
+      blockTime: incomingRowTime || previousRowTime || 0,
       raw: row.raw || existing.raw,
       index: row.index || existing.index,
       coin: canonicalCoinForRow(row) || row.coin || existing.coin,
@@ -3192,6 +3262,100 @@
     list.appendChild(item);
   }
 
+  function visibleDateLookupContextToken() {
+    const filters = PORTAL_FILTER_IDS.map(function (id) {
+      return id + "=" + (getPortalFilterValue(id) ? "1" : "0");
+    }).join("&");
+    return [state.portalLoadGeneration, state.portalRows.length, state.portalPage, getPortalSearchText(), filters].join("|");
+  }
+
+  function rowNeedsVisibleDateLookup(row) {
+    if (!row || rowTime(row) || row.raw) return false;
+    if (canonicalCoinForRow(row) === "evm") return false;
+    if (state.pendingDateLookup[row.key] || state.attemptedDateLookup[row.key]) return false;
+    return rowCanHydrate(row);
+  }
+
+  async function fetchPortalRowDate(row, generation) {
+    const key = row && row.key;
+    if (!key || generation !== state.portalLoadGeneration || !rowNeedsVisibleDateLookup(row)) {
+      return { changed: false, saved: false };
+    }
+    state.attemptedDateLookup[key] = true;
+    state.pendingDateLookup[key] = true;
+    try {
+      const loaded = await loadTransactionForRow(row, { quiet: true, refreshIndex: false });
+      if (generation !== state.portalLoadGeneration || !loaded || !loaded.json) return { changed: false, saved: false };
+      const exactTime = extractBlockTime(loaded.json);
+      const blockHeight = extractBlockHeight(loaded.json);
+      if (!exactTime && !blockHeight) return { changed: false, saved: !!loaded.saved };
+
+      row.summary = mergePortalSummary(row.summary, {
+        blockTime: exactTime || 0,
+        blockTimeEstimated: false,
+        blockHeight: blockHeight
+      });
+      row.blockTime = exactTime || row.blockTime || 0;
+      row.localPath = loaded.path || row.localPath;
+      upsertPortalRow(row, { silent: true, deferSort: true });
+      return { changed: true, saved: !!loaded.saved };
+    } catch (error) {
+      row.dateLookupError = error.message || String(error);
+      return { changed: false, saved: false };
+    } finally {
+      delete state.pendingDateLookup[key];
+    }
+  }
+
+  async function fetchVisiblePortalDates(rows, generation) {
+    const maxLookups = Math.max(1, Math.min(getPortalPageSize(), Number(configValue("maxVisibleDateLookups", getPortalPageSize())) || getPortalPageSize()));
+    const concurrency = Math.max(1, Math.min(6, Number(configValue("visibleDateLookupConcurrency", 3)) || 3));
+    const candidates = safeArray(rows).filter(rowNeedsVisibleDateLookup).slice(0, maxLookups);
+    let saved = 0;
+    let changed = false;
+
+    for (let offset = 0; offset < candidates.length; offset += concurrency) {
+      if (generation !== state.portalLoadGeneration) return;
+      const results = await Promise.all(candidates.slice(offset, offset + concurrency).map(function (row) {
+        return fetchPortalRowDate(row, generation);
+      }));
+      results.forEach(function (result) {
+        changed = changed || result.changed;
+        if (result.saved) saved += 1;
+      });
+      if (changed) requestPortalRender();
+      await yieldPortalThread();
+    }
+
+    if (state.portalSortPending) sortPortalRows();
+    if (changed) requestPortalRender();
+    if (saved) {
+      try {
+        await fileProxyJson("/reindex");
+      } catch (error) {
+        console.warn("fileProxy saved transaction JSON but its derived indexes were not refreshed:", error);
+      }
+    }
+  }
+
+  function scheduleVisiblePortalDates(pageRows) {
+    if (!configBool("autoFetchVisibleTransactionDates", true) || state.visibleDateLookupScheduled) return;
+    const candidates = safeArray(pageRows).filter(rowNeedsVisibleDateLookup);
+    if (!candidates.length) return;
+    const token = visibleDateLookupContextToken();
+    if (state.visibleDateLookupToken === token) return;
+    state.visibleDateLookupToken = token;
+    state.visibleDateLookupScheduled = true;
+    const generation = state.portalLoadGeneration;
+    window.setTimeout(function () {
+      fetchVisiblePortalDates(candidates, generation).catch(function (error) {
+        console.warn("Visible transaction date lookup failed:", error);
+      }).finally(function () {
+        state.visibleDateLookupScheduled = false;
+      });
+    }, 0);
+  }
+
   function renderPortalRows() {
     cancelScheduledPortalRender();
     if (state.portalSortPending) sortPortalRows();
@@ -3230,13 +3394,14 @@
       state.visiblePortalRowKeys[row.key] = true;
       renderPortalStreamItem(list, row);
     });
+    scheduleVisiblePortalDates(pageRows);
   }
 
   async function selectPortalRow(key) {
     return togglePortalRowDetails(key, true);
   }
 
-  async function loadTransactionForRow(row) {
+  async function loadTransactionForRow(row, opts) {
     if (!row) throw new Error("No portal row selected for hydration.");
     if (row.staticRawPath || row.staticRawUrl) {
       try { return await fetchStaticRawFromRow(row); }
@@ -3250,10 +3415,10 @@
         row.localPathLoadError = error.message || String(error);
       }
     }
-    return loadTransactionLocalFirst(rowIndexEntry(row), row.txid, canonicalCoinForRow(row));
+    return loadTransactionLocalFirst(rowIndexEntry(row), row.txid, canonicalCoinForRow(row), opts);
   }
 
-  async function loadTransactionLocalFirst(indexEntry, txid, coin) {
+  async function loadTransactionLocalFirst(indexEntry, txid, coin, opts) {
     const id = String(txid || "").trim();
     if (!TXID_RE.test(id)) throw new Error("Transaction id must be 64 hex characters.");
 
@@ -3273,8 +3438,15 @@
     const api = getThunderwords();
     if (!api || !indexEntry || !indexCanFetch(indexEntry)) throw new Error("No local transaction and no live tx fetcher configured.");
     const loaded = await api.fetchTransaction(indexEntry, id);
-    await autoSaveTransactionMaybe(loaded.json, id, indexEntry);
-    return { json: loaded.json, source: "live", url: loaded.url, coin: indexEntry.coin || indexEntry.ticker || "" };
+    const saved = await autoSaveTransactionMaybe(loaded.json, id, indexEntry, opts);
+    return {
+      json: loaded.json,
+      source: "live",
+      url: loaded.url,
+      coin: indexEntry.coin || indexEntry.ticker || "",
+      path: saved && saved.path ? saved.path : "",
+      saved: saved || null
+    };
   }
 
   function selectRelativePortalRow(delta) {
