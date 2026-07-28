@@ -1,5 +1,6 @@
 {
-  "fileProxyUrl": "http://127.0.0.1:7799",
+  "xfileProxyUrl": "http://127.0.0.1:7799",
+  "fileProxyUrl":  "https://rigler.org:7799",
   "autoSaveFetchedTransactions": true,
   "cacheFetchedTransactionsWithFileProxy": true,
   "persistMainThunderwords": true,
