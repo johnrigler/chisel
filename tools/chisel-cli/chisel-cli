@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Chisel local Bash entry point.
+#
+# This is deliberately a local-authoring satellite.  It loads the browser
+# source modules through Node; it neither changes the static app nor needs
+# npm/package.json.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+CHISEL_ROOT="${CHISEL_ROOT:-${DEFAULT_ROOT}}"
+export CHISEL_ROOT
+
+run_rpc() {
+  local api_file="${CHISEL_ROOT}/tools/chisel-api.sh"
+
+  if [[ ! -f "${api_file}" ]]; then
+    printf 'Chisel RPC helper not found: %s\n' "${api_file}" >&2
+    printf 'Set CHISEL_ROOT to a Chisel checkout containing tools/chisel-api.sh.\n' >&2
+    return 2
+  fi
+
+  # shellcheck source=/dev/null
+  . "${api_file}"
+  chisel_rpc "$@"
+}
+
+run_rpc_call() {
+  local api_file="${CHISEL_ROOT}/tools/chisel-api.sh"
+
+  if [[ ! -f "${api_file}" ]]; then
+    printf 'Chisel RPC helper not found: %s\n' "${api_file}" >&2
+    printf 'Set CHISEL_ROOT to a Chisel checkout containing tools/chisel-api.sh.\n' >&2
+    return 2
+  fi
+
+  # shellcheck source=/dev/null
+  . "${api_file}"
+  chisel_call "$@"
+}
+
+case "${1:-}" in
+  rpc)
+    shift
+    run_rpc "$@"
+    ;;
+  rpc-call)
+    shift
+    run_rpc_call "$@"
+    ;;
+  rpc-methods)
+    shift
+    api_file="${CHISEL_ROOT}/tools/chisel-api.sh"
+    if [[ ! -f "${api_file}" ]]; then
+      printf 'Chisel RPC helper not found: %s\n' "${api_file}" >&2
+      exit 2
+    fi
+    # shellcheck source=/dev/null
+    . "${api_file}"
+    chisel_methods_pretty "$@"
+    ;;
+  *)
+    if ! command -v node >/dev/null 2>&1; then
+      printf 'Chisel local CLI needs Node.js 18 or later.\n' >&2
+      exit 127
+    fi
+    exec node "${SCRIPT_DIR}/chisel-cli.js" "$@"
+    ;;
+esac

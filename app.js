@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.11";
+  const APP_VERSION = "2.7.12";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -2018,6 +2018,34 @@ function onClickAddCommonAddressButton() {
     elems.senderWif.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  function announcePortalPublicAccount(coin, account) {
+    if (!account || !account.address || !window.CustomEvent) return;
+    window.dispatchEvent(new CustomEvent("chisel:main-account", {
+      detail: {
+        address: account.address,
+        coin: (coin && (coin.NAME || coin.TICKER)) || "",
+        ticker: (coin && coin.TICKER) || "",
+        network: account.network || "",
+        label: ((coin && (coin.TICKER || coin.NAME)) || "WIF account") + " account"
+      }
+    }));
+  }
+
+  async function promoteEnteredWifToPortal() {
+    const wif = elems.senderWif ? elems.senderWif.value.trim() : "";
+    if (!wif) return;
+    const coin = getCoin();
+    if (!coin || typeof coin.wifToAccount !== "function") return;
+    try {
+      const account = await coin.wifToAccount(wif);
+      if (!elems.senderWif || elems.senderWif.value.trim() !== wif) return;
+      announcePortalPublicAccount(coin, account);
+    } catch (error) {
+      // A partially typed or wrong-network WIF is normal while editing. Do not
+      // expose it in a status message, URL, localStorage, or fileProxy.
+    }
+  }
+
   function setCurrencyValue(currencyKey) {
     const normalized = String(currencyKey || "").trim();
     const keys = Object.keys(CURRENCY_DEFINITIONS);
@@ -2169,6 +2197,7 @@ function init() {
 
     elems.sendButton.onclick = onClickSendButton;
     elems.senderWif.onkeydown = onKeydownSenderWif;
+    elems.senderWif.onchange = promoteEnteredWifToPortal;
     elems.currency.onchange = onChangeCurrency;
     elems.currency.addEventListener("change", setUnspendableKindOptions);
     elems.opReturnAscii.oninput = onInputOpReturnAscii;

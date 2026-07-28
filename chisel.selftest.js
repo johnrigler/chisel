@@ -197,6 +197,10 @@
     assert(rows > 0, "Portal has no rows after embedded static dataset load.");
     log.pass("Portal booted and has " + rows + " bundled/static row(s).");
 
+    assert(window.CHISEL_PORTAL.isPublicMainThunderwordAddress("LcudkPQzLuuqsnzHSmJ7iLREaHStvPKRVb"), "Portal rejected a public Litecoin address as a main thunderword.");
+    assert(!window.CHISEL_PORTAL.isPublicMainThunderwordAddress("K" + "A".repeat(51)), "Portal accepted WIF-shaped private material as a main thunderword.");
+    log.pass("Main-thunderword validation accepts public addresses and rejects WIF-shaped private material.");
+
     const root = $("portalStream") || $("portalTransactionList") || document.querySelector(".portalStream");
     if (root) log.pass("Portal stream container exists in DOM.");
     else log.skip("Portal stream container selector changed; state check passed.");
@@ -249,6 +253,14 @@
     log.pass("Expanded Base57 media, right-side data, VIN lookup, and collapsed empty notes are present.");
 
     assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: "https://youtu.be/abcdefghi", primaryUrl: "https://youtu.be/abcdefghi" } }), "YouTube", "URL display title");
+    const tiktokUrl = "https://www.tiktok.com/@chisel/video/7331234567890123456";
+    assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: tiktokUrl, primaryUrl: tiktokUrl } }), "TikTok", "TikTok URL display title");
+    assertEqual(api.mediaKindForUrl(tiktokUrl), "tiktok", "TikTok media kind");
+    assertEqual(api.tiktokVideoIdFromUrl(tiktokUrl), "7331234567890123456", "TikTok video id");
+    const tiktokCards = api.buildEvmMediaCardsFromValues([tiktokUrl], []);
+    assertEqual(tiktokCards.length, 1, "TikTok media card count");
+    assertEqual(tiktokCards[0].kind, "tiktok", "TikTok media card kind");
+    assert(tiktokCards[0].thumbnailUrl.indexOf("/tiktok-thumbnail?url=") >= 0, "TikTok media card does not use the local thumbnail endpoint.");
     assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: "dkPQ Luuqsn HSmJ7ILREaHSt" } }), "transaction aaaaaaaaaa…aaaaaaaaaa", "Encoded display title");
     assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: "Ddddddddddddddddddddddddddd" } }), "transaction aaaaaaaaaa…aaaaaaaaaa", "Repeated address display title");
     assertEqual(api.displayTitleForRow({ txid: txid, coin: "evm", sourceId: "evmGomez", index: entry, summary: { title: '<iframe src="https://www.youtube.com/embed/abcdefghi"></iframe>' } }), "YouTube", "HTML media display title");
@@ -257,7 +269,7 @@
     assertEqual(api.displayTitleForRow({ txid: txid, coin: "evm", sourceId: "evmGomez", index: entry, summary: { title: "<a href=https://example.com/story>Useful article</a>" } }), "Useful article", "HTML anchor display title");
     assertEqual(api.displayTitleForRow({ txid: txid, coin: "litecoin", index: entry, summary: { title: "Eyes of the World" } }), "Eyes of the World", "Human display title");
     assertEqual(api.extractInputAddresses({ inputs: [{ recipient: vinAddress }] })[0], vinAddress, "Alternate VIN shape");
-    log.pass("Portal title normalization and VIN extraction passed.");
+    log.pass("Portal title normalization, TikTok thumbnail routing, and VIN extraction passed.");
   }
 
   async function fetchJson(path) {
