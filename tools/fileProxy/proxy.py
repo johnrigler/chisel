@@ -10,12 +10,21 @@ import json
 import mimetypes
 import os
 import re
+import ssl
 import tarfile
 import urllib.parse
+import urllib.request
 import time
 
 HOST = os.environ.get("CHISEL_FILE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("CHISEL_FILE_PORT", "7799"))
+
+# Leave TLS off by default so the local development proxy remains the same.
+# The rigler.org service enables it with CHISEL_FILE_TLS=1 and supplies its
+# existing Certbot certificate/key through the two path variables below.
+TLS_ENABLED = os.environ.get("CHISEL_FILE_TLS", "").strip().lower() in {"1", "true", "yes", "on"}
+TLS_CERT = os.environ.get("CHISEL_FILE_CERT", "/etc/letsencrypt/live/rigler.org/fullchain.pem")
+TLS_KEY = os.environ.get("CHISEL_FILE_KEY", "/etc/letsencrypt/live/rigler.org/privkey.pem")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ROOT = Path(os.environ.get("CHISEL_FILE_ROOT", str(PROJECT_ROOT))).expanduser().resolve()
@@ -47,6 +56,9 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
 JSON_EXTS = ["", ".json", ".txt"]
 KNOWN_COINS = {"digibyte", "ravencoin", "raven", "rvn", "litecoin", "litecointestnet", "bitcoin", "bitcointestnet3", "bitcointestnet4", "dogecoin", "doge", "polygon", "matic", "evm", "unknown"}
 INDEX_PATH = Path("data/index/transactions.index.json")
+TIKTOK_OEMBED_CACHE_NAME = "tiktok-oembed-cache.json"
+TIKTOK_OEMBED_SUCCESS_TTL_SECONDS = 6 * 60 * 60
+TIKTOK_OEMBED_FAILURE_TTL_SECONDS = 15 * 60
 
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
@@ -219,6 +231,14 @@ def send_file(handler, path):
     handler.wfile.write(data)
 
 
+def send_redirect(handler, url, status=302):
+    handler.send_response(status)
+    handler.send_header("Location", url)
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.send_header("Cache-Control", "public, max-age=21600")
+    handler.end_headers()
+
+
 def read_jsonish(path):
     text = path.read_text(encoding="utf-8", errors="replace")
     try:
@@ -271,6 +291,171 @@ def load_chisel_indexer():
     spec.loader.exec_module(module)
     _CHISEL_INDEXER = module
     return module
+
+
+PUBLIC_BASE58_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{26,40}$")
+PUBLIC_BECH32_ADDRESS_RE = re.compile(r"^(?:bc1|tb1|ltc1|tltc1|dgb1|rvn1)[ac-hj-np-z02-9]{20,90}$", re.IGNORECASE)
+
+
+def canonical_stream_address(value):
+    address = str(value or "").strip()
+    return address.lower() if address.lower().startswith("0x") else address
+
+
+def is_public_stream_address(value):
+    address = canonical_stream_address(value)
+    if re.fullmatch(r"0x[0-9a-f]{40}", address):
+        return True
+    if PUBLIC_BASE58_ADDRESS_RE.fullmatch(address):
+        return True
+    if PUBLIC_BECH32_ADDRESS_RE.fullmatch(address):
+        return True
+    return False
+
+
+def stream_key(coin, address):
+    return normalize_coin_name(coin) + ":" + canonical_stream_address(address)
+
+
+def stream_root():
+    return active_data_root() / "streams"
+
+
+def stream_manifest_path(coin, address):
+    clean_coin = normalize_coin_name(coin) or "unknown"
+    clean_address = canonical_stream_address(address)
+    visible = re.sub(r"[^A-Za-z0-9._-]+", "-", clean_address).strip(".-_")[:72] or "address"
+    digest = hashlib.sha256(clean_address.encode("utf-8")).hexdigest()[:16]
+    return stream_root() / clean_coin / (visible + "-" + digest + ".json")
+
+
+def read_json_object(path):
+    try:
+        value = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except Exception:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def clean_stream_transactions(value, source=""):
+    rows = value if isinstance(value, list) else []
+    out = []
+    seen = set()
+    now = int(time.time())
+    for row in rows:
+        if isinstance(row, str):
+            row = {"txid": row}
+        if not isinstance(row, dict):
+            continue
+        txid = str(row.get("txid", row.get("hash", ""))).strip().lower()
+        if not is_txid(txid) or txid in seen:
+            continue
+        seen.add(txid)
+        discovered = coerce_unix_time(row.get("discoveredAt", row.get("discovered_at", row.get("time")))) or now
+        out.append({
+            "txid": txid,
+            "discoveredAt": discovered,
+            "source": safe_segment(row.get("source", source), "address-search"),
+        })
+    return out
+
+
+def write_main_stream(body):
+    """Persist a public root selection and its address-history txids.
+
+    This is intentionally a JSON manifest first. The SQLite witness is derived
+    from these manifests, which keeps the catalog rebuildable and prevents a
+    database-only root from disappearing after a repair.
+    """
+    if not isinstance(body, dict):
+        raise ValueError("main stream body must be an object")
+    for private_key in ("wif", "privateKey", "private_key", "privateKeyHex"):
+        if body.get(private_key):
+            raise ValueError("main stream accepts a public address only; never send WIF/private key material")
+
+    coin = normalize_coin_name(body.get("coin", "unknown")) or "unknown"
+    address = canonical_stream_address(body.get("address", ""))
+    if not is_public_stream_address(address):
+        raise ValueError("main stream address must be a public UTXO/bech32/EVM address, not WIF/private material")
+
+    path = stream_manifest_path(coin, address)
+    old = read_json_object(path) if path.exists() else {}
+    now = int(time.time())
+    source = safe_segment(body.get("source", old.get("source", "manual")), "manual")
+    label = str(body.get("label", old.get("label", address)) or address).strip()[:1000]
+    source_txid = str(body.get("sourceTxid", body.get("source_txid", old.get("sourceTxid", ""))) or "").strip().lower()
+    if not is_txid(source_txid):
+        source_txid = ""
+
+    incoming = []
+    incoming.extend(clean_stream_transactions(old.get("transactions"), old.get("source", source)))
+    incoming.extend(clean_stream_transactions(body.get("transactions"), source))
+    incoming.extend(clean_stream_transactions(body.get("txids"), source))
+
+    records = {}
+    for row in incoming:
+        txid = row["txid"]
+        existing = records.get(txid)
+        if existing:
+            if row.get("source") and not existing.get("source"):
+                existing["source"] = row["source"]
+            existing["discoveredAt"] = min(existing.get("discoveredAt", now), row.get("discoveredAt", now))
+        else:
+            records[txid] = row
+
+    transactions = sorted(records.values(), key=lambda row: (-int(row.get("discoveredAt", 0)), row["txid"]))
+    created_at = coerce_unix_time(old.get("createdAt")) or now
+    manifest = {
+        "kind": "chisel-main-thunderword",
+        "version": 1,
+        "streamKey": stream_key(coin, address),
+        "coin": coin,
+        "ticker": ticker_for_coin(coin),
+        "address": address,
+        "label": label,
+        "source": source,
+        "sourceTxid": source_txid,
+        "createdAt": created_at,
+        "updatedAt": now,
+        "lastFetchedAt": now,
+        "transactions": transactions,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
+    return {
+        "ok": True,
+        "stream": manifest,
+        "path": rel_path(path),
+        "transactions": len(transactions),
+    }
+
+
+def list_main_streams():
+    root = stream_root()
+    streams = []
+    if not root.exists():
+        return streams
+    for path in root.rglob("*.json"):
+        if not path.is_file():
+            continue
+        value = read_json_object(path)
+        if value.get("kind") != "chisel-main-thunderword":
+            continue
+        streams.append({
+            "streamKey": value.get("streamKey", ""),
+            "coin": value.get("coin", ""),
+            "ticker": value.get("ticker", ""),
+            "address": value.get("address", ""),
+            "label": value.get("label", ""),
+            "source": value.get("source", ""),
+            "sourceTxid": value.get("sourceTxid", ""),
+            "updatedAt": coerce_unix_time(value.get("updatedAt")) or 0,
+            "lastFetchedAt": coerce_unix_time(value.get("lastFetchedAt")) or 0,
+            "transactions": len(clean_stream_transactions(value.get("transactions"))),
+            "path": rel_path(path),
+        })
+    streams.sort(key=lambda row: (-row["updatedAt"], row["coin"], row["address"]))
+    return streams
 
 
 def tx_roots(coin=None):
@@ -594,6 +779,8 @@ def media_kind_for_url(url):
     u = str(url or "").lower()
     if youtube_id_from_url(u):
         return "youtube"
+    if tiktok_url_from_url(url):
+        return "tiktok"
     if "open.spotify.com" in u:
         return "spotify"
     if "archive.org" in u:
@@ -613,6 +800,114 @@ def youtube_thumbnail_url(video_id, quality="hqdefault"):
     return "https://i.ytimg.com/vi/" + vid + "/" + q + ".jpg"
 
 
+def tiktok_url_from_url(url):
+    """Return a TikTok URL only when its host is an actual TikTok domain.
+
+    The oEmbed request below is always sent to www.tiktok.com.  This guard
+    therefore prevents /tiktok-thumbnail from becoming an arbitrary URL-fetch
+    endpoint merely because a caller supplied a URL parameter.
+    """
+    clean = html.unescape(str(url or "")).strip().rstrip("),.;")
+    if not clean or len(clean) > 2048:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(clean)
+    except Exception:
+        return ""
+    if parsed.scheme.lower() not in ("http", "https"):
+        return ""
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if host == "tiktok.com" or host.endswith(".tiktok.com"):
+        return clean
+    if host == "tik.tok" or host.endswith(".tik.tok"):
+        return clean
+    return ""
+
+
+def tiktok_video_id_from_url(url):
+    clean = tiktok_url_from_url(url)
+    if not clean:
+        return ""
+    try:
+        path = urllib.parse.urlparse(clean).path
+    except Exception:
+        return ""
+    match = re.search(r'''/(?:@[^/]+/)?video/(\d{8,})''', path, flags=re.I)
+    return match.group(1) if match else ""
+
+
+def tiktok_oembed_cache_path():
+    return data_path("index", TIKTOK_OEMBED_CACHE_NAME)
+
+
+def read_tiktok_oembed_cache():
+    path = tiktok_oembed_cache_path()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        entries = raw.get("entries") if isinstance(raw, dict) else {}
+        return entries if isinstance(entries, dict) else {}
+    except Exception:
+        return {}
+
+
+def write_tiktok_oembed_cache(entries):
+    path = tiktok_oembed_cache_path()
+    payload = {
+        "kind": "chisel-tiktok-oembed-cache",
+        "generated": int(time.time()),
+        "entries": entries if isinstance(entries, dict) else {},
+    }
+    try:
+        atomic_write_text(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    except Exception:
+        # A read-only cache must not prevent cataloging the transaction itself.
+        pass
+
+
+def tiktok_oembed_metadata(url):
+    """Fetch and cache only the display metadata needed for a media card."""
+    clean = tiktok_url_from_url(url)
+    if not clean:
+        return {}
+
+    now = int(time.time())
+    entries = read_tiktok_oembed_cache()
+    cached = entries.get(clean)
+    if isinstance(cached, dict):
+        updated = int(cached.get("updated") or 0)
+        ttl = TIKTOK_OEMBED_SUCCESS_TTL_SECONDS if cached.get("ok") else TIKTOK_OEMBED_FAILURE_TTL_SECONDS
+        if updated and now - updated < ttl:
+            return dict(cached.get("metadata") or {}) if cached.get("ok") else {}
+
+    endpoint = "https://www.tiktok.com/oembed?" + urllib.parse.urlencode({"url": clean})
+    try:
+        request = urllib.request.Request(endpoint, headers={
+            "Accept": "application/json",
+            "User-Agent": "Chisel fileProxy/2.7 (+https://johnrigler.github.io/chisel-v1/)",
+        })
+        with urllib.request.urlopen(request, timeout=8) as response:
+            raw = response.read().decode("utf-8", errors="replace")
+        value = json.loads(raw)
+        thumbnail = str(value.get("thumbnail_url") or "").strip()
+        title = str(value.get("title") or "").strip()
+        author_name = str(value.get("author_name") or "").strip()
+        if thumbnail and not thumbnail.lower().startswith("https://"):
+            thumbnail = ""
+        metadata = {
+            "thumbnailUrl": thumbnail,
+            "title": title,
+            "authorName": author_name,
+            "provider": "TikTok",
+        }
+        entries[clean] = {"ok": bool(thumbnail), "updated": now, "metadata": metadata}
+        write_tiktok_oembed_cache(entries)
+        return metadata if thumbnail else {}
+    except Exception as exc:
+        entries[clean] = {"ok": False, "updated": now, "error": str(exc)[:180]}
+        write_tiktok_oembed_cache(entries)
+        return {}
+
+
 def build_media_cards(raw_values, words=None, overrides=None):
     words = [w for w in unique_strings(words or []) if w]
     raw_text = "\n".join(str(x or "") for x in raw_values or [] if x is not None)
@@ -623,6 +918,7 @@ def build_media_cards(raw_values, words=None, overrides=None):
         normalized = normalize_media_url(url)
         kind = media_kind_for_url(url)
         video_id = youtube_id_from_url(url)
+        tiktok_url = tiktok_url_from_url(url)
         title = ""
         if index < len(anchor_texts):
             title = anchor_texts[index]
@@ -638,6 +934,16 @@ def build_media_cards(raw_values, words=None, overrides=None):
         if video_id:
             card["videoId"] = video_id
             card["thumbnailUrl"] = youtube_thumbnail_url(video_id)
+        elif tiktok_url:
+            metadata = tiktok_oembed_metadata(tiktok_url)
+            card["tiktokUrl"] = tiktok_url
+            card["tiktokVideoId"] = tiktok_video_id_from_url(tiktok_url)
+            if metadata.get("thumbnailUrl"):
+                card["thumbnailUrl"] = metadata["thumbnailUrl"]
+            if title == normalized and metadata.get("title"):
+                card["title"] = metadata["title"]
+            if metadata.get("authorName"):
+                card["authorName"] = metadata["authorName"]
         cards.append(card)
     overrides = overrides if isinstance(overrides, dict) else {}
     override_cards = overrides.get("mediaCards") if isinstance(overrides.get("mediaCards"), list) else []
@@ -859,7 +1165,7 @@ def evm_tx_save_path(txid, chain_id, contract_name, contract_address, filename_m
     chain = safe_segment(chain_id or "unknown-chain", "unknown-chain")
     contract = evm_contract_slug(chain, contract_name, contract_address)
     filename = evm_tx_filename(txid, filename_mode)
-    return safe_path("data/transactions/evm/" + chain + "/" + contract + "/" + filename)
+    return data_path("transactions", "evm", chain, contract, filename)
 
 
 def write_evm_tx_packet(packet, chain_id="", contract_name="", contract_address="", filename_mode="base58"):
@@ -1704,6 +2010,11 @@ def summarize_tx_json(value, path=None, coin=None, modified=None):
             status.get("block_time"), status.get("blockTime"), status.get("time"), status.get("timestamp"),
             tx.get("block_time"), tx.get("blockTime"), tx.get("blocktime"), tx.get("time"), tx.get("timestamp")
         )
+    media_cards = build_media_cards([
+        existing_summary.get("primaryUrl"),
+        existing_summary.get("title"),
+        existing_summary.get("cleanText"),
+    ] + op_texts)
     return {
         "txid": txid,
         "coin": detected_coin,
@@ -1716,6 +2027,7 @@ def summarize_tx_json(value, path=None, coin=None, modified=None):
             "ticker": ticker_for_coin(detected_coin),
             "title": title,
             "primaryUrl": urls[0] if urls else "",
+            "mediaCards": media_cards,
             "lines": len(lines),
             "imageLines": image_lines,
             "imageChordLines": image_line_values,
@@ -1735,6 +2047,8 @@ def index_file_path():
     # tarballs, data is a symlink to the user's long-lived datastore. If that
     # symlink is not available on the current machine, fall back to the bundled
     # read-only seed index so Portal can still show the included Dogecoin import.
+    if EXTRA_DATA_ROOTS:
+        return data_path("index", "transactions.index.json")
     try:
         bundled = ROOT / "data-bundled" / "index" / "transactions.index.json"
         if DATA_LINK.is_symlink() and not DATA_LINK_TARGET.exists() and bundled.exists():
@@ -2198,6 +2512,8 @@ class Handler(BaseHTTPRequestHandler):
                         "canonicalTransactionCache": True,
                         "batchReindex": True,
                         "unifiedSqliteIndex": load_chisel_indexer() is not None,
+                        "mainThunderwordCatalog": True,
+                        "tiktokThumbnails": True,
                     },
                 })
                 return
@@ -2205,6 +2521,14 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/config":
                 rel = query.get("path", ["chisel.portal.config.json"])[0]
                 send_json(self, {"ok": True, "path": rel, "config": read_config(rel)})
+                return
+
+            if parsed.path == "/main-streams":
+                send_json(self, {
+                    "ok": True,
+                    "streams": list_main_streams(),
+                    "data_root": str(active_data_root()),
+                })
                 return
 
             if parsed.path == "/list":
@@ -2240,6 +2564,20 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, {"ok": False, "error": "File not found"}, 404)
                     return
                 send_file(self, p)
+                return
+
+            if parsed.path == "/tiktok-thumbnail":
+                source_url = query.get("url", [""])[0]
+                clean_url = tiktok_url_from_url(source_url)
+                if not clean_url:
+                    send_json(self, {"ok": False, "error": "url must be a TikTok video URL"}, 400)
+                    return
+                metadata = tiktok_oembed_metadata(clean_url)
+                thumbnail = str(metadata.get("thumbnailUrl") or "").strip()
+                if not thumbnail:
+                    send_json(self, {"ok": False, "error": "TikTok thumbnail is unavailable", "url": clean_url}, 404)
+                    return
+                send_redirect(self, thumbnail)
                 return
 
             if parsed.path == "/txids":
@@ -2358,6 +2696,17 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, payload, 200 if not errors else 207)
                 return
 
+            if parsed.path == "/main-stream":
+                payload = write_main_stream(body)
+                refresh_index = body.get("refreshIndex", False)
+                if isinstance(refresh_index, str):
+                    refresh_index = refresh_index.strip().lower() in ("1", "true", "yes", "on")
+                else:
+                    refresh_index = bool(refresh_index)
+                payload["indexRefresh"] = refresh_all_indexes(payload["stream"]["coin"]) if refresh_index else {"ok": True, "deferred": True}
+                send_json(self, payload)
+                return
+
             if parsed.path == "/save":
                 rel = body.get("path", "")
                 text = body.get("text", "")
@@ -2390,7 +2739,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     # Filesystem-safe, shorter than hex, still carries enough hex to eyeball-match explorers.
                     filename = base58_from_hex(txid) + "-" + txid[:12] + ".json"
-                p = safe_path("data/transactions/" + coin + "/" + filename)
+                p = data_path("transactions", coin, filename)
                 p.parent.mkdir(parents=True, exist_ok=True)
                 if payload is not None:
                     if isinstance(payload, dict) and not is_txid(payload.get("txid")):
@@ -2399,6 +2748,16 @@ class Handler(BaseHTTPRequestHandler):
                     atomic_write_text(p, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
                 else:
                     atomic_write_text(p, text)
+                main_stream = None
+                if isinstance(body.get("mainThunderword"), dict):
+                    stream_body = dict(body.get("mainThunderword"))
+                    stream_rows = list(stream_body.get("transactions", [])) if isinstance(stream_body.get("transactions"), list) else []
+                    stream_rows.append({
+                        "txid": txid,
+                        "source": stream_body.get("transactionSource", "address-search"),
+                    })
+                    stream_body["transactions"] = stream_rows
+                    main_stream = write_main_stream(stream_body)
                 try:
                     index_file_path().unlink(missing_ok=True)
                 except Exception:
@@ -2413,6 +2772,7 @@ class Handler(BaseHTTPRequestHandler):
                     "filename": p.name,
                     "filenameMode": filename_mode,
                     "indexRefresh": index_refresh,
+                    "mainThunderword": main_stream,
                 })
                 return
 
@@ -2518,7 +2878,7 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, {"ok": False, "error": "txid must be 64 hex characters"}, 400)
                     return
                 filename = str(txid).lower() + "-links.json"
-                p = safe_path("data/links/" + coin + "/" + filename)
+                p = data_path("links", coin, filename)
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
                 send_json(self, {"ok": True, "path": rel_path(p), "size": p.stat().st_size, "txid": str(txid).lower(), "coin": coin})
@@ -2554,10 +2914,29 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    print(f"chisel-fileproxy running at http://{HOST}:{PORT}")
+    server = HTTPServer((HOST, PORT), Handler)
+    scheme = "http"
+    if TLS_ENABLED:
+        cert_path = Path(TLS_CERT).expanduser()
+        key_path = Path(TLS_KEY).expanduser()
+        if not cert_path.is_file():
+            raise FileNotFoundError(f"CHISEL_FILE_CERT does not exist: {cert_path}")
+        if not key_path.is_file():
+            raise FileNotFoundError(f"CHISEL_FILE_KEY does not exist: {key_path}")
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        scheme = "https"
+
+    print(f"chisel-fileproxy running at {scheme}://{HOST}:{PORT}")
     print(f"root: {ROOT}")
-    print("endpoints: /ping /config /txids /tx-index /evm-stream-status /evm-local-catalog /evm-image-catalog /reindex /tx /ipfs /find-assets /raw /list /load /save /import-jist-feed /save-tx /save-evm-tx /save-evm-batch /import-legacy-evm-images")
-    HTTPServer((HOST, PORT), Handler).serve_forever()
+    print("endpoints: /ping /config /main-streams /txids /tx-index /evm-stream-status /evm-local-catalog /evm-image-catalog /reindex /tx /ipfs /find-assets /raw /tiktok-thumbnail /list /load /save /main-stream /import-jist-feed /save-tx /save-evm-tx /save-evm-batch /import-legacy-evm-images")
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
 
 
 if __name__ == "__main__":

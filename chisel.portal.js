@@ -18,8 +18,11 @@
   const PORTAL_ANNOTATIONS_STORAGE_KEY = "chisel.portal.annotations.v1";
   const DEFAULT_PORTAL_CONFIG = {
     fileProxyUrl: DEFAULT_FILE_PROXY_URL,
-    autoSaveFetchedTransactions: false,
+    autoSaveFetchedTransactions: true,
     cacheFetchedTransactionsWithFileProxy: true,
+    persistMainThunderwords: true,
+    autoLoadMainThunderwordFromUrl: true,
+    mainThunderwordReindexDelayMs: 900,
     localFirstTransactions: true,
     autoLoadLocalTransactions: false,
     autoHydrateLocalTransactions: false,
@@ -129,6 +132,10 @@
     conversationAutoLoaded: false,
     config: Object.assign({}, DEFAULT_PORTAL_CONFIG),
     localPollTimer: null,
+    mainThunderword: null,
+    mainThunderwordReindexTimer: null,
+    mainThunderwordReindexPending: false,
+    urlMainThunderwordRequest: null,
     evmCatalogLoaded: Object.create(null),
     staticDatasetLoaded: false,
     staticDatasetReports: [],
@@ -357,6 +364,7 @@
     const url = String(value || "").trim();
     if (!url) return "";
     if (youtubeIdFromUrl(url)) return "YouTube";
+    if (tiktokUrlFromUrl(url)) return "TikTok";
     if (/open\.spotify\.com/i.test(url)) return "Spotify";
     if (/\/ipfs\//i.test(url)) return "IPFS";
     try {
@@ -987,6 +995,7 @@
   function mediaKindForUrl(url) {
     const u = String(url || "").toLowerCase();
     if (youtubeIdFromUrl(u)) return "youtube";
+    if (tiktokUrlFromUrl(url)) return "tiktok";
     if (u.indexOf("open.spotify.com") >= 0) return "spotify";
     if (u.indexOf("archive.org") >= 0) return "archive";
     if (u.indexOf("voca.ro") >= 0 || u.indexOf("vocaroo.com") >= 0) return "audio";
@@ -997,6 +1006,29 @@
   function youtubeThumbnailUrl(videoId) {
     const vid = String(videoId || "").trim();
     return vid ? "https://i.ytimg.com/vi/" + encodeURIComponent(vid) + "/hqdefault.jpg" : "";
+  }
+
+  function tiktokUrlFromUrl(url) {
+    const clean = decodeHtmlEntities(String(url || "")).trim().replace(/[),.;]+$/g, "");
+    if (!clean || clean.length > 2048) return "";
+    try {
+      const parsed = new URL(clean, window.location.href);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";
+      const host = String(parsed.hostname || "").toLowerCase().replace(/\.$/, "");
+      if (host === "tiktok.com" || /\.tiktok\.com$/.test(host) || host === "tik.tok" || /\.tik\.tok$/.test(host)) return clean;
+    } catch (error) {}
+    return "";
+  }
+
+  function tiktokVideoIdFromUrl(url) {
+    const clean = tiktokUrlFromUrl(url);
+    const match = clean.match(/\/(?:@[^/]+\/)?video\/(\d{8,})/i);
+    return match ? match[1] : "";
+  }
+
+  function tiktokThumbnailProxyUrl(url) {
+    const clean = tiktokUrlFromUrl(url);
+    return clean ? getFileProxyUrl() + "/tiktok-thumbnail?url=" + encodeURIComponent(clean) : "";
   }
 
   function htmlAttributeUrls(text) {
@@ -1042,6 +1074,7 @@
       const normalized = normalizeMediaUrl(url);
       if (!normalized) return;
       const videoId = youtubeIdFromUrl(url);
+      const tiktokUrl = tiktokUrlFromUrl(url);
       const title = compactMediaTitle(anchors[index] || wordTitle || rawText || normalized);
       const card = {
         kind: mediaKindForUrl(url),
@@ -1053,6 +1086,10 @@
       if (videoId) {
         card.videoId = videoId;
         card.thumbnailUrl = youtubeThumbnailUrl(videoId);
+      } else if (tiktokUrl) {
+        card.tiktokUrl = tiktokUrl;
+        card.tiktokVideoId = tiktokVideoIdFromUrl(tiktokUrl);
+        card.thumbnailUrl = tiktokThumbnailProxyUrl(tiktokUrl);
       }
       cards.push(card);
     });
@@ -1078,6 +1115,13 @@
       if (vid) {
         copy.videoId = vid;
         copy.thumbnailUrl = copy.thumbnailUrl || youtubeThumbnailUrl(vid);
+      }
+      const tiktokUrl = copy.tiktokUrl || tiktokUrlFromUrl(copy.sourceUrl || copy.url || url);
+      if (tiktokUrl) {
+        if (!copy.kind || copy.kind === "link") copy.kind = "tiktok";
+        copy.tiktokUrl = tiktokUrl;
+        copy.tiktokVideoId = copy.tiktokVideoId || tiktokVideoIdFromUrl(tiktokUrl);
+        copy.thumbnailUrl = copy.thumbnailUrl || tiktokThumbnailProxyUrl(tiktokUrl);
       }
       const key = [String(copy.kind || "link"), String(copy.url || copy.sourceUrl || "").toLowerCase(), String(copy.thumbnailUrl || "").toLowerCase(), String(copy.title || "").toLowerCase()].join("|");
       if (seen[key]) return;
@@ -1518,15 +1562,177 @@
     });
   }
 
-  function loadAddressStream(address, entry, label) {
+  function isPublicMainThunderwordAddress(value) {
+    const address = String(value || "").trim();
+    if (/^0x[0-9a-fA-F]{40}$/.test(address)) return true;
+    if (/^[1-9A-HJ-NP-Za-km-z]{26,40}$/.test(address)) return true;
+    return /^(?:bc1|tb1|ltc1|tltc1|dgb1|rvn1)[ac-hj-np-z02-9]{20,90}$/i.test(address);
+  }
+
+  function canonicalMainThunderwordAddress(value) {
+    const address = String(value || "").trim();
+    return /^0x/i.test(address) ? address.toLowerCase() : address;
+  }
+
+  function mainThunderwordCoin(entry) {
+    return normalizeCoinName(entry && (entry.coin || entry.ticker || entry.name)) || "unknown";
+  }
+
+  function mainThunderwordKey(entry, address) {
+    return mainThunderwordCoin(entry) + ":" + canonicalMainThunderwordAddress(address);
+  }
+
+  function makeMainThunderword(entry, address, label, source, opts) {
+    const clean = canonicalMainThunderwordAddress(address);
+    const coin = mainThunderwordCoin(entry);
+    const options = opts || {};
+    return {
+      key: coin + ":" + clean,
+      coin: coin,
+      ticker: tickerForCoin(coin),
+      address: clean,
+      label: String(label || clean).trim() || clean,
+      source: String(source || "manual").trim() || "manual",
+      sourceTxid: TXID_RE.test(String(options.sourceTxid || "")) ? String(options.sourceTxid).toLowerCase() : "",
+      selectedAt: Date.now()
+    };
+  }
+
+  function mainThunderwordForEntry(entry) {
+    const stream = state.mainThunderword;
+    if (!stream || !entry) return null;
+    return stream.key === mainThunderwordKey(entry, entry.address) ? stream : null;
+  }
+
+  function mainThunderwordPayload(stream, txids) {
+    const ids = uniqueStrings(safeArray(txids).filter(function (txid) { return TXID_RE.test(String(txid || "")); }));
+    return {
+      streamKey: stream.key,
+      coin: stream.coin,
+      ticker: stream.ticker,
+      address: stream.address,
+      label: stream.label,
+      source: stream.source,
+      sourceTxid: stream.sourceTxid,
+      txids: ids,
+      refreshIndex: false
+    };
+  }
+
+  async function persistMainThunderword(stream, txids) {
+    if (!stream || !configBool("persistMainThunderwords", true)) return null;
+    if (!(await fileProxyIsAvailable())) return null;
+    const saved = await fileProxyPostJson("/main-stream", mainThunderwordPayload(stream, txids));
+    stream.localPath = saved.path || stream.localPath || "";
+    stream.savedTransactions = Number(saved.transactions || stream.savedTransactions || 0);
+    state.mainThunderwordReindexPending = true;
+    return saved;
+  }
+
+  function scheduleMainThunderwordReindex() {
+    if (!state.mainThunderwordReindexPending) return;
+    if (state.mainThunderwordReindexTimer) window.clearTimeout(state.mainThunderwordReindexTimer);
+    const delay = Math.max(100, Number(configValue("mainThunderwordReindexDelayMs", 900)) || 900);
+    state.mainThunderwordReindexTimer = window.setTimeout(function () {
+      state.mainThunderwordReindexTimer = null;
+      if (!state.mainThunderwordReindexPending) return;
+      state.mainThunderwordReindexPending = false;
+      fileProxyJson("/reindex").catch(function (error) {
+        state.mainThunderwordReindexPending = true;
+        console.warn("Main thunderword JSON was saved but SQLite reindex is pending:", error);
+      });
+    }, delay);
+  }
+
+  function writeMainThunderwordUrl(stream) {
+    if (!stream || stream.source === "wif" || !window.history || !window.history.replaceState) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("mode", "portal");
+      url.searchParams.set("address", stream.address);
+      url.searchParams.set("coin", stream.coin);
+      window.history.replaceState(null, "", url.toString());
+    } catch (error) {
+      console.warn("Could not update main-thunderword URL:", error);
+    }
+  }
+
+  function promoteMainThunderword(entry, address, label, source, opts) {
+    const clean = canonicalMainThunderwordAddress(address);
+    if (!isPublicMainThunderwordAddress(clean)) {
+      return Promise.reject(new Error("Main thunderword must be a public address or contract. WIF/private material is never stored here."));
+    }
+    const stream = makeMainThunderword(entry, clean, label, source, opts);
+    state.mainThunderword = stream;
+    if (!(opts && opts.updateUrl === false)) writeMainThunderwordUrl(stream);
+    return persistMainThunderword(stream, []).then(function () {
+      scheduleMainThunderwordReindex();
+      return stream;
+    }).catch(function (error) {
+      console.warn("Main thunderword persistence skipped:", error);
+      return stream;
+    });
+  }
+
+  function rememberMainThunderwordTransactions(stream, transactions) {
+    if (!stream || state.mainThunderword !== stream) return;
+    const txids = safeArray(transactions).map(function (row) {
+      return typeof row === "string" ? row : row && row.txid;
+    }).filter(function (txid) { return TXID_RE.test(String(txid || "")); });
+    persistMainThunderword(stream, txids).then(function () {
+      scheduleMainThunderwordReindex();
+    }).catch(function (error) {
+      console.warn("Main thunderword transaction catalog skipped:", error);
+    });
+  }
+
+  function mainThunderwordRequestFromUrl() {
+    try {
+      const params = new URL(window.location.href).searchParams;
+      const address = String(params.get("address") || params.get("thunderword") || params.get("stream") || "").trim();
+      if (!address) return null;
+      return {
+        address: address,
+        coin: String(params.get("coin") || params.get("currency") || "").trim(),
+        label: String(params.get("label") || address).trim() || address
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function entryForMainThunderwordRequest(request) {
+    const fallback = inferIndexForAddress(request.address, state.currentIndex || getSelectedIndex());
+    return request.coin ? indexEntryForCoin(request.coin, fallback) : fallback;
+  }
+
+  function loadMainThunderwordFromUrl() {
+    const request = state.urlMainThunderwordRequest || mainThunderwordRequestFromUrl();
+    if (!request || !configBool("autoLoadMainThunderwordFromUrl", true)) return Promise.resolve(null);
+    state.urlMainThunderwordRequest = request;
+    const entry = entryForMainThunderwordRequest(request);
+    return loadAddressStream(request.address, entry, request.label, {
+      source: "url",
+      updateUrl: false,
+      noReloadIfCurrent: true
+    });
+  }
+
+  function loadAddressStream(address, entry, label, opts) {
     const clean = String(address || "").trim();
     if (!clean) return Promise.reject(new Error("Address is required."));
     const cloned = cloneIndexForAddress(entry || getSelectedIndex(), clean, label || clean);
+    const options = opts || {};
+    const previous = state.mainThunderword;
+    const sameAsCurrent = previous && previous.key === mainThunderwordKey(cloned, clean);
     state.currentIndex = cloned;
     if ($("#portalThunderwordAddress")) $("#portalThunderwordAddress").value = clean;
     setExplorerLink("#portalThunderwordExplorerLink", getThunderwords() ? getThunderwords().getAddressUrl(cloned, clean) : "", "verify address");
-    setText("#portalIndexCaption", (cloned.ticker || cloned.coin || cloned.name || "coin") + " stream: " + clean);
-    return loadAddressIndex(cloned, clean);
+    setText("#portalIndexCaption", (cloned.ticker || cloned.coin || cloned.name || "coin") + " main thunderword: " + clean);
+    return promoteMainThunderword(cloned, clean, label || clean, options.source || "manual", options).then(function (stream) {
+      if (sameAsCurrent && options.noReloadIfCurrent) return stream;
+      return loadAddressIndex(cloned, clean, { mainThunderword: stream });
+    });
   }
 
   function makeDrillButton(address, entry, label) {
@@ -1536,7 +1742,10 @@
     button.textContent = "drill";
     button.title = "Load this address as a rabbit-trail stream";
     button.onclick = function () {
-      loadAddressStream(address, entry || state.currentIndex, label || address).catch(function (error) {
+      loadAddressStream(address, entry || state.currentIndex, label || address, {
+        source: "rabbit-trail",
+        updateUrl: true
+      }).catch(function (error) {
         setStatus(error.message || String(error), true);
       });
     };
@@ -1836,18 +2045,35 @@
   async function saveTransactionToFileProxy(tx, txid, indexEntry, opts) {
     const raw = tx || state.rawJson;
     const id = String(txid || extractTxid(raw) || state.selectedTxid || "").trim();
+    const options = opts || {};
     if (!raw) throw new Error("No transaction JSON is loaded in Portal.");
     if (!TXID_RE.test(id)) throw new Error("Cannot save: loaded transaction does not expose a 64-character txid.");
     const coin = getCurrentCoinName(indexEntry);
+    const mainThunderword = options.mainThunderword || mainThunderwordForEntry(indexEntry);
+    const refreshIndex = options.refreshIndex === false ? false : !mainThunderword;
     const saved = await fileProxyPostJson("/save-tx", {
       txid: id,
       coin: coin,
       json: raw,
       filenameMode: "base58",
-      refreshIndex: !(opts && opts.refreshIndex === false)
+      refreshIndex: refreshIndex,
+      mainThunderword: mainThunderword ? {
+        streamKey: mainThunderword.key,
+        coin: mainThunderword.coin,
+        ticker: mainThunderword.ticker,
+        address: mainThunderword.address,
+        label: mainThunderword.label,
+        source: mainThunderword.source,
+        sourceTxid: mainThunderword.sourceTxid,
+        transactionSource: "fetched-tx"
+      } : undefined
     });
     state.currentSavedPath = saved.path || "";
-    if (!(opts && opts.quiet)) {
+    if (mainThunderword) {
+      state.mainThunderwordReindexPending = true;
+      scheduleMainThunderwordReindex();
+    }
+    if (!options.quiet) {
       setText("#portalSaveTxResult", saved.path ? "saved " + saved.path : pretty(saved));
       setStatus("Saved local jq-format transaction JSON: " + (saved.path || saved.filename || id) + ".", false);
     }
@@ -1864,7 +2090,7 @@
 
   async function autoSaveTransactionMaybe(tx, txid, indexEntry, opts) {
     if (!shouldAutoSaveFetchedTxs()) return null;
-    if (!tx || !tx.vout) return null;
+    if (!tx || typeof tx !== "object") return null;
     if (!(await fileProxyIsAvailable())) return null;
 
     try {
@@ -2540,7 +2766,11 @@
       lookup.onclick = function (event) {
         event.preventDefault();
         event.stopPropagation();
-        loadAddressStream(address, entry, "VIN " + address).catch(function (error) {
+        loadAddressStream(address, entry, "VIN " + address, {
+          source: "rabbit-trail",
+          sourceTxid: row.txid,
+          updateUrl: true
+        }).catch(function (error) {
           setStatus(error.message || String(error), true);
         });
       };
@@ -2651,6 +2881,7 @@
       const media = document.createElement(url ? "a" : "div");
       media.className = "portalEvmMediaCard";
       if (card.videoId || String(card.kind || "").toLowerCase() === "youtube") media.classList.add("isYoutube");
+      if (String(card.kind || "").toLowerCase() === "tiktok") media.classList.add("isTikTok");
       if (url) {
         media.href = url;
         media.target = "_blank";
@@ -3133,7 +3364,7 @@
     if (!(opts && opts.suppressRender) && !(opts && opts.silent) && (state.expandedRowKeys[key] || isVisiblePortalRow(row))) requestPortalRender();
 
     try {
-      const loaded = await loadTransactionForRow(row);
+      const loaded = await loadTransactionForRow(row, opts);
       row.raw = loaded.json;
       row.localPath = loaded.path || row.localPath;
       row.summary = extractSummary(loaded.json, rowIndexEntry(row));
@@ -3913,17 +4144,19 @@
     requestPortalRender();
   }
 
-  async function loadAddressIndex(entryOverride, addressOverride) {
+  async function loadAddressIndex(entryOverride, addressOverride, opts) {
     const api = getThunderwords();
     const entry = entryOverride || getSelectedIndex();
     const address = String(addressOverride || ($("#portalThunderwordAddress") ? $("#portalThunderwordAddress").value.trim() : entry.address) || "").trim();
     const activeEntry = cloneIndexForAddress(entry, address, entry.label || entry.address || address);
+    const mainThunderword = (opts && opts.mainThunderword) || mainThunderwordForEntry(activeEntry);
     const reset = false;
     const generation = reset ? resetPortalRowsForNewLoad() : state.portalLoadGeneration;
     state.currentIndex = activeEntry;
     setStatus("Searching " + (activeEntry.ticker || activeEntry.coin || activeEntry.name) + " ledger/address stream; matching rows will be merged into the existing Portal feed...", false);
     const result = await api.fetchAddressTransactions(activeEntry, address);
     renderThunderwordTxs(result);
+    if (mainThunderword) rememberMainThunderwordTransactions(mainThunderword, result.transactions);
     setText("#portalThunderwordRaw", pretty({ source: result.url, transactions: result.transactions }));
     setStatus("Ledger search discovered " + result.transactions.length + " txid(s). New rows were merged; existing preloaded rows stayed in place.", false);
 
@@ -3940,14 +4173,16 @@
         fetched: true,
         transactions: result.transactions.length,
         error: ""
-      }], generation).catch(function (error) {
+      }], generation, { mainThunderword: mainThunderword }).catch(function (error) {
         setStatus("Background hydration failed: " + (error.message || String(error)), true);
       });
     }, 0);
   }
 
   async function loadThunderwordIndex() {
-    return loadAddressIndex();
+    const entry = getSelectedIndex();
+    const address = $("#portalThunderwordAddress") ? $("#portalThunderwordAddress").value.trim() : entry.address;
+    return loadAddressStream(address, entry, address, { source: "manual", updateUrl: true });
   }
 
 function getPortalFirstCharacter() {
@@ -4161,9 +4396,11 @@ function getPortalFirstCharacter() {
     return rows;
   }
 
-  async function hydratePortalRowsInBackground(rows, rawReport, generation) {
+  async function hydratePortalRowsInBackground(rows, rawReport, generation, opts) {
     if (!configBool("backgroundHydrateTransactions", true)) return;
     const runGeneration = generation || state.portalLoadGeneration;
+    const mainThunderword = opts && opts.mainThunderword === state.mainThunderword ? opts.mainThunderword : null;
+    const saveOptions = mainThunderword ? { mainThunderword: mainThunderword, refreshIndex: false } : {};
 
     const trailRows = [];
     const trails = [];
@@ -4180,7 +4417,11 @@ function getPortalFirstCharacter() {
       const row = state.portalRowKeys[key] || ordered[i];
       const visible = isVisiblePortalRow(row) || !!state.expandedRowKeys[key];
       visibleChanges = visibleChanges || visible;
-      const hydrated = await hydratePortalRow(key, { silent: true, suppressRender: true, deferSort: true });
+      const hydrated = await hydratePortalRow(key, Object.assign({
+        silent: true,
+        suppressRender: true,
+        deferSort: true
+      }, saveOptions));
       if (!hydrated || !hydrated.raw) {
         if ((i + 1) % 4 === 0) {
           if (visibleChanges) requestPortalRender();
@@ -4229,6 +4470,7 @@ function getPortalFirstCharacter() {
         };
       }) }));
       setStatus("Portal background hydration finished: " + state.conversationRows.length + " root transaction(s). Rabbit trails were discovered but not auto-merged.", false);
+      if (mainThunderword) scheduleMainThunderwordReindex();
       requestPortalRender();
       return;
     }
@@ -4260,7 +4502,11 @@ function getPortalFirstCharacter() {
       const key = rowKey(trailRows[k]);
       const row = state.portalRowKeys[key] || trailRows[k];
       trailVisibleChanges = trailVisibleChanges || isVisiblePortalRow(row) || !!state.expandedRowKeys[key];
-      await hydratePortalRow(key, { silent: true, suppressRender: true, deferSort: true });
+      await hydratePortalRow(key, Object.assign({
+        silent: true,
+        suppressRender: true,
+        deferSort: true
+      }, saveOptions));
       if ((k + 1) % 4 === 0) {
         if (trailVisibleChanges) requestPortalRender();
         trailVisibleChanges = false;
@@ -4285,6 +4531,7 @@ function getPortalFirstCharacter() {
       };
     }) }));
     setStatus("Portal background hydration finished: " + state.conversationRows.length + " transaction(s), " + trails.length + " rabbit trail(s).", false);
+    if (mainThunderword) scheduleMainThunderwordReindex();
     requestPortalRender();
   }
 
@@ -4377,6 +4624,7 @@ function getPortalFirstCharacter() {
   }
 
   function shouldAutoLoadConversationStreams() {
+    if (state.urlMainThunderwordRequest || state.mainThunderword) return false;
     if (!configBool("autoLoadConversationStreams", true)) return false;
     try {
       const urlMode = new URL(window.location.href).searchParams.get("mode") || "";
@@ -4390,6 +4638,22 @@ function getPortalFirstCharacter() {
     state.conversationAutoLoaded = true;
     loadConversationStreams().catch(function (error) {
       setStatus("Portal auto-load skipped: " + (error.message || String(error)), true);
+    });
+  }
+
+  function receiveMainThunderwordAccount(event) {
+    const detail = event && event.detail ? event.detail : {};
+    const address = String(detail.address || "").trim();
+    if (!address) return;
+    const fallback = inferIndexForAddress(address, state.currentIndex || getSelectedIndex());
+    const entry = detail.coin ? indexEntryForCoin(detail.coin, fallback) : fallback;
+    const label = String(detail.label || detail.ticker || "WIF account").trim() + " " + address;
+    loadAddressStream(address, entry, label, {
+      source: "wif",
+      updateUrl: false,
+      noReloadIfCurrent: true
+    }).catch(function (error) {
+      setStatus(error.message || String(error), true);
     });
   }
 
@@ -4421,6 +4685,8 @@ function getPortalFirstCharacter() {
 
     loadPortalAnnotations();
     renderThunderwordOptions();
+    state.urlMainThunderwordRequest = mainThunderwordRequestFromUrl();
+    window.addEventListener("chisel:main-account", receiveMainThunderwordAccount);
     renderEmptyTransactionList("Loading bundled static dataset; live ledger searches can add newer records after first paint.");
     loadEmbeddedStaticDataset();
 
@@ -4568,6 +4834,11 @@ function getPortalFirstCharacter() {
     loadPortalConfig().then(function (config) {
       applyPortalConfig(config);
       applyEvmProfileConfig();
+      if (state.urlMainThunderwordRequest) {
+        loadMainThunderwordFromUrl().catch(function (error) {
+          setStatus("Main thunderword URL could not load: " + (error.message || String(error)), true);
+        });
+      }
       if (configBool("autoLoadStaticDataset", true)) {
         loadConfiguredStaticDatasets({ quiet: true }).then(function () {
           if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
@@ -4593,6 +4864,11 @@ function getPortalFirstCharacter() {
       applyPortalConfig(DEFAULT_PORTAL_CONFIG);
       applyEvmProfileConfig();
       setStatus("Portal config skipped: " + (error.message || String(error)), true);
+      if (state.urlMainThunderwordRequest) {
+        loadMainThunderwordFromUrl().catch(function (loadError) {
+          setStatus("Main thunderword URL could not load: " + (loadError.message || String(loadError)), true);
+        });
+      }
       if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
     });
   }
@@ -4609,10 +4885,19 @@ function getPortalFirstCharacter() {
     loadThunderwordIndex: loadThunderwordIndex,
     loadAddressIndex: loadAddressIndex,
     loadAddressStream: loadAddressStream,
+    loadMainThunderwordFromUrl: loadMainThunderwordFromUrl,
+    promoteMainThunderword: promoteMainThunderword,
+    mainThunderwordRequestFromUrl: mainThunderwordRequestFromUrl,
+    isPublicMainThunderwordAddress: isPublicMainThunderwordAddress,
     renderThunderwordOptions: renderThunderwordOptions,
     buildSemantics: buildSemantics,
     extractInputAddresses: extractInputAddresses,
     displayTitleForRow: displayTitleForRow,
+    mediaKindForUrl: mediaKindForUrl,
+    tiktokUrlFromUrl: tiktokUrlFromUrl,
+    tiktokVideoIdFromUrl: tiktokVideoIdFromUrl,
+    buildEvmMediaCardsFromValues: buildEvmMediaCardsFromValues,
+    collectEvmMediaCards: collectEvmMediaCards,
     appendPortalInlineDetails: appendPortalInlineDetails,
     renderSemantics: renderSemantics,
     loadPortalAnnotations: loadPortalAnnotations,
