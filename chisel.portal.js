@@ -4,7 +4,7 @@
   const DEFAULT_DIGIBYTE_TXID = "d8eef1586bb88d192d3284726407c307f0c54b1c023b7ef343e401eb89ea098d";
   const DEFAULT_COLOR_PATH = "b57.json";
   const DEFAULT_THUNDERWORD_INDEX = "digibyteGeneral";
-  const DEFAULT_FILE_PROXY_URL = "http://127.0.0.1:7799";
+  const DEFAULT_FILE_PROXY_URL = "https://rigler.org:7799";
   const DEFAULT_SCALE = 10;
   const DEFAULT_SKIP_PREFIX = 2;
   const DEFAULT_SKIP_SUFFIX = 6;
@@ -2089,18 +2089,51 @@
   }
 
   async function autoSaveTransactionMaybe(tx, txid, indexEntry, opts) {
+    const options = opts || {};
     if (!shouldAutoSaveFetchedTxs()) return null;
     if (!tx || typeof tx !== "object") return null;
     if (!(await fileProxyIsAvailable())) return null;
 
     try {
-        return await saveTransactionToFileProxy(tx, txid || extractTxid(tx), indexEntry, Object.assign({ quiet: true }, opts || {}));
+        return await saveTransactionToFileProxy(tx, txid || extractTxid(tx), indexEntry, Object.assign({ quiet: true }, options));
     } catch (error) {
       console.warn("Portal auto-save failed:", error);
-      if (!(opts && opts.quiet)) setStatus("Local transaction cache failed: " + (error.message || String(error)), true);
+      if (options.throwOnError) throw error;
+      if (!options.quiet) setStatus("Local transaction cache failed: " + (error.message || String(error)), true);
       return null;
     }
-}
+  }
+
+  function shouldCacheLiveRawPortalRow(row) {
+    if (!row || !row.raw || row.localPath) return false;
+    if (row.discoverySource !== "live-search") return false;
+    // EVM records have a separate packet/image writer. This path is for UTXO
+    // address APIs, notably LitecoinSpace, which already return full tx JSON.
+    return canonicalCoinForRow(row) !== "evm";
+  }
+
+  async function cacheLiveRawPortalRowMaybe(row, opts) {
+    if (!shouldCacheLiveRawPortalRow(row)) return null;
+    if (row.rawCachePromise) return row.rawCachePromise;
+
+    const options = Object.assign({}, opts || {}, { quiet: true, throwOnError: true });
+    row.rawCachePromise = autoSaveTransactionMaybe(row.raw, row.txid, rowIndexEntry(row), options);
+    try {
+      const saved = await row.rawCachePromise;
+      if (saved && saved.path) {
+        row.localPath = saved.path;
+        row.rawCacheSavedAt = Date.now();
+        row.rawCacheError = "";
+      }
+      return saved;
+    } catch (error) {
+      row.rawCacheError = error.message || String(error);
+      console.warn("Portal raw address-result cache failed:", error);
+      return null;
+    } finally {
+      delete row.rawCachePromise;
+    }
+  }
 
 
 
@@ -3357,7 +3390,10 @@
   async function hydratePortalRow(key, opts) {
     const row = state.portalRowKeys[key];
     if (!row) return null;
-    if (row.raw || state.pendingHydration[key]) return row;
+    if (row.raw || state.pendingHydration[key]) {
+      if (row.raw) await cacheLiveRawPortalRowMaybe(row, opts);
+      return row;
+    }
 
     state.pendingHydration[key] = true;
     row.loadError = "";
@@ -4409,6 +4445,15 @@ function getPortalFirstCharacter() {
     state.portalRows.forEach(function (existing) { seenChildTx.add(rowKey(existing)); });
     const ordered = rows.slice().sort(compareStreamItems);
     const shouldFetchRabbitTrails = configBool("autoFetchRabbitTrails", false);
+    let savedRawAddressResults = 0;
+    let failedRawAddressResults = 0;
+
+    function rawAddressCacheSummary() {
+      const parts = [];
+      if (savedRawAddressResults) parts.push(savedRawAddressResults + " full address-result JSON saved");
+      if (failedRawAddressResults) parts.push(failedRawAddressResults + " full address-result cache failure" + (failedRawAddressResults === 1 ? "" : "s"));
+      return parts.length ? " " + parts.join("; ") + "." : "";
+    }
 
     let visibleChanges = false;
     for (let i = 0; i < ordered.length; i += 1) {
@@ -4417,11 +4462,15 @@ function getPortalFirstCharacter() {
       const row = state.portalRowKeys[key] || ordered[i];
       const visible = isVisiblePortalRow(row) || !!state.expandedRowKeys[key];
       visibleChanges = visibleChanges || visible;
+      const previousRawCacheSave = row.rawCacheSavedAt || 0;
+      const previousRawCacheError = row.rawCacheError || "";
       const hydrated = await hydratePortalRow(key, Object.assign({
         silent: true,
         suppressRender: true,
         deferSort: true
       }, saveOptions));
+      if (hydrated && hydrated.rawCacheSavedAt && !previousRawCacheSave) savedRawAddressResults += 1;
+      if (hydrated && hydrated.rawCacheError && hydrated.rawCacheError !== previousRawCacheError) failedRawAddressResults += 1;
       if (!hydrated || !hydrated.raw) {
         if ((i + 1) % 4 === 0) {
           if (visibleChanges) requestPortalRender();
@@ -4469,7 +4518,7 @@ function getPortalFirstCharacter() {
           blockHeight: stored.summary && stored.summary.blockHeight
         };
       }) }));
-      setStatus("Portal background hydration finished: " + state.conversationRows.length + " root transaction(s). Rabbit trails were discovered but not auto-merged.", false);
+      setStatus("Portal background hydration finished: " + state.conversationRows.length + " root transaction(s)." + rawAddressCacheSummary() + " Rabbit trails were discovered but not auto-merged.", failedRawAddressResults > 0);
       if (mainThunderword) scheduleMainThunderwordReindex();
       requestPortalRender();
       return;
@@ -4530,7 +4579,7 @@ function getPortalFirstCharacter() {
         blockHeight: stored.summary && stored.summary.blockHeight
       };
     }) }));
-    setStatus("Portal background hydration finished: " + state.conversationRows.length + " transaction(s), " + trails.length + " rabbit trail(s).", false);
+    setStatus("Portal background hydration finished: " + state.conversationRows.length + " transaction(s), " + trails.length + " rabbit trail(s)." + rawAddressCacheSummary(), failedRawAddressResults > 0);
     if (mainThunderword) scheduleMainThunderwordReindex();
     requestPortalRender();
   }
@@ -4923,6 +4972,8 @@ function getPortalFirstCharacter() {
     hydrateLocalRowsInBackground: hydrateLocalRowsInBackground,
     saveCurrentTransaction: saveCurrentTransaction,
     saveTransactionToFileProxy: saveTransactionToFileProxy,
+    shouldCacheLiveRawPortalRow: shouldCacheLiveRawPortalRow,
+    cacheLiveRawPortalRowMaybe: cacheLiveRawPortalRowMaybe,
     saveDiscoveredLinksMaybe: saveDiscoveredLinksMaybe,
     discoverLocalAssets: discoverLocalAssets,
     findRabbitTrailTargets: findRabbitTrailTargets,
