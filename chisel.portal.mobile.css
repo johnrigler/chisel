@@ -1,0 +1,197 @@
+/*
+ * Chisel Portal — compact transaction stream for phones.
+ *
+ * The +/- button is the only collapsed-row action. The actual explorer
+ * verification link remains available after expansion, next to the chain data.
+ */
+
+/* No redundant "details" or "verify" links on a collapsed transaction. */
+.portalStreamItem:not(.isExpanded) .portalStreamVerify {
+  display: none;
+}
+
+/* Reclaim the unused action column on desktop as well. */
+.portalStreamItem:not(.isExpanded) .portalStreamRow {
+  grid-template-columns: 40px 112px 128px 70px minmax(0, 1.75fr) minmax(180px, 0.75fr) 150px;
+}
+
+@media (max-width: 760px) {
+  body[data-mode="portal"] main {
+    width: 100%;
+    padding: 8px;
+  }
+
+  body[data-mode="portal"] .panel {
+    padding: 10px;
+  }
+
+  .portalStreamPanel {
+    min-height: 0;
+  }
+
+  .portalStreamHeader {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .portalStreamHeader .actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .portalStreamHeader .actions > button {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 8px;
+  }
+
+  .portalStreamHeader .compactOption {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .portalFilterBar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+    gap: 7px;
+    padding: 10px;
+  }
+
+  .portalFilterBar .filterLabel,
+  .portalFilterBar input[type="search"] {
+    grid-column: 1 / -1;
+  }
+
+  .portalFilterBar .compactOption {
+    min-width: 0;
+    margin: 0;
+    white-space: nowrap;
+    font-size: 0.78rem;
+  }
+
+  .portalFilterBar input[type="search"] {
+    width: 100%;
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .portalFilterBar .portalPageButton {
+    min-width: 0;
+    padding: 7px 3px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  /* Let the page scroll naturally; there is only one page of rows at a time. */
+  .portalTransactionList {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* A collapsed row is: +  COIN  human title, followed by its time. */
+  .portalStreamRow,
+  .portalStreamItem:not(.isExpanded) .portalStreamRow,
+  .portalStreamItem.isExpanded .portalStreamRow {
+    grid-template-columns: 36px auto minmax(0, 1fr);
+    grid-template-areas:
+      "toggle coin title"
+      "time time time";
+    gap: 3px 7px;
+    min-height: 0;
+    padding: 9px 8px;
+  }
+
+  .portalStreamRow > .portalExpandButton {
+    grid-area: toggle;
+    width: 30px;
+    height: 30px;
+  }
+
+  /* Full images belong in expanded details, not in every feed row. */
+  .portalStreamRow > .portalStreamThumb,
+  .portalStreamRow > .portalStreamMeta,
+  .portalStreamRow > .portalStreamFlags,
+  .portalStreamRow > .portalStreamVerify {
+    display: none;
+  }
+
+  .portalStreamRow > .portalStreamCoin {
+    grid-area: coin;
+    min-width: 38px;
+    padding: 2px 5px;
+    font-size: 11px;
+  }
+
+  .portalStreamRow > .portalStreamTitle {
+    grid-area: title;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .portalStreamRow > .portalStreamTime {
+    grid-area: time;
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: #3b4652;
+    font-size: 11px;
+  }
+
+  /* Verification is useful only once the row is open. */
+  .portalStreamItem.isExpanded .portalStreamRow {
+    grid-template-areas:
+      "toggle coin title"
+      "time time verify";
+  }
+
+  .portalStreamItem.isExpanded .portalStreamRow > .portalStreamVerify {
+    display: block;
+    grid-area: verify;
+    justify-self: end;
+    align-self: center;
+    margin: 0;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  .portalStreamItem.isExpanded .portalStreamVerify > a {
+    margin: 0;
+  }
+
+  .portalInlineDetails {
+    margin: 0 6px 8px;
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .portalEvmMediaGrid,
+  .portalEvmMediaCard {
+    grid-template-columns: 1fr;
+  }
+
+  .portalEvmMediaThumb {
+    width: 100%;
+    height: auto;
+  }
+
+  .portalInlineImageCanvasWrap {
+    padding: 6px;
+  }
+
+  .portalInlineDetails .json {
+    max-height: 48vh;
+  }
+}

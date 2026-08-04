@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.7.13</title>
+  <title>Chisel 2.7.14</title>
 
 
   <style>
@@ -1252,6 +1252,7 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="chisel.portal.mobile.css?2.7.14" />
 </head>
 <body data-mode="portal">
   <header>
@@ -1386,6 +1387,10 @@
 
         <label for="opReturnAscii">OP_RETURN ASCII</label>
         <input id="opReturnAscii" type="text" />
+        <div class="actions">
+          <button id="payloadAnalyzerButton" class="secondaryButton" type="button">ANALYZE / BUILD PAYLOAD</button>
+          <span class="help">Opens the payload satellite for YouTube excerpts, URLs, IPFS CIDs, local file hashes, and ordered artifact plans.</span>
+        </div>
 
         <label for="opReturnHex">OP_RETURN HEX</label>
         <input id="opReturnHex" type="text" />
@@ -1814,6 +1819,11 @@
             <span>Scan four 16-hex stickers or a full WIF against the installed Chisel currency list, then load it back into Chisel.</span>
           </a>
 
+          <a class="toolCard" href="tools/payloadAnalyzer/index.html">
+            <strong>Payload and artifact analyzer</strong>
+            <span>Analyze pasted material, build bounded YouTube URLs, hash local components, split CIDv0 pointers, and return an ordered plan to Etch.</span>
+          </a>
+
           <a class="toolCard" href="tools/keyPrint/index.html">
             <strong>Key instaprint tool</strong>
             <span>Create a long PNG receipt for a WIF/private key and public address, with optional local device storage.</span>
@@ -1848,7 +1858,7 @@
   </main>
 
   <script src="chisel.js?2.7.13"></script>
-  <script src="chisel.unspendable.js?2.7.13"></script>
+  <script src="chisel.unspendable.js?2.7.13b"></script>
   <script src="chisel.sign.js?2.7.13"></script>
   <script src="chisel.ravencoin.js?2.7.13"></script>
   <script src="chisel.digibyte.js?2.7.13"></script>
@@ -1856,7 +1866,7 @@
   <script src="chisel.thunderwords.js?2.7.13"></script>
   <script src="data-bundled/portal-starter.js?2.7.13"></script>
   <script src="chisel.portal.static-data.js?2.7.13"></script>
-  <script src="chisel.portal.js?2.7.13a"></script>
+  <script src="chisel.portal.js?2.7.14"></script>
   <script src="fixtures/etch/etch-fixtures.js?2.7.13"></script>
 
  <script>
@@ -1866,7 +1876,7 @@
   };
 </script>
 
-  <script src="app.js?2.7.13"></script>
-  <script src="chisel.selftest.js?2.7.13"></script>
+  <script src="app.js?2.7.14"></script>
+  <script src="chisel.selftest.js?2.7.13b"></script>
 </body>
 </html>
