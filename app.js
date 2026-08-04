@@ -3,12 +3,13 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.13";
+  const APP_VERSION = "2.7.14";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
   const ENTER_KEY = "Enter";
   const MANUAL_DRAFT_STORAGE_KEY = "chisel.manualEtchDraft.v1";
+  const ARTIFACT_PAYLOAD_STORAGE_KEY = "chisel.pendingPayloadAnalyzer.v1";
 
   const LITECOIN_UNSPENDABLE_MODIFIERS = [
     "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
@@ -100,6 +101,7 @@
     manualRpcCommands: document.querySelector("#manualRpcCommands"),
     manualScratchJson: document.querySelector("#manualScratchJson"),
     wifScanButton: document.querySelector("#wifScanButton"),
+    payloadAnalyzerButton: document.querySelector("#payloadAnalyzerButton"),
     status: document.querySelector("#status"),
     version: document.querySelector("#version"),
     heroTitle: document.querySelector("#heroTitle"),
@@ -2159,6 +2161,111 @@ function onClickAddCommonAddressButton() {
     }
   }
 
+  function getPendingArtifactPayload() {
+    let raw = "";
+
+    try {
+      raw = window.sessionStorage.getItem(ARTIFACT_PAYLOAD_STORAGE_KEY) || window.localStorage.getItem(ARTIFACT_PAYLOAD_STORAGE_KEY) || "";
+    } catch (error) {
+      raw = "";
+    }
+
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function clearPendingArtifactPayload() {
+    try {
+      window.sessionStorage.removeItem(ARTIFACT_PAYLOAD_STORAGE_KEY);
+      window.localStorage.removeItem(ARTIFACT_PAYLOAD_STORAGE_KEY);
+    } catch (error) {}
+  }
+
+  function loadArtifactPayload(payload, sourceLabel) {
+    const recipients = payload && Array.isArray(payload.recipients) ? payload.recipients : [];
+    let addedCount = 0;
+
+    if (!payload || (!payload.opReturnAscii && recipients.length === 0)) {
+      return false;
+    }
+
+    if (payload.currency) {
+      setCurrencyValue(payload.currency);
+    }
+
+    if (typeof payload.opReturnAscii === "string") {
+      elems.opReturnAscii.value = payload.opReturnAscii;
+      elems.opReturnHex.value = "";
+      elems.opReturnAscii.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    recipients.slice(0, 100).forEach(function appendArtifactRecipient(recipient) {
+      const address = recipient && typeof recipient.address === "string" ? recipient.address.trim() : "";
+      const amount = recipient && typeof recipient.amount !== "undefined" ? String(recipient.amount).trim() : "";
+
+      if (!address || !amount || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+        return;
+      }
+
+      addRecipientRow(address, amount, {
+        outputType: recipient.outputType === "standard" ? "standard" : "unspendable",
+        note: typeof recipient.note === "string" ? recipient.note : "artifact analyzer"
+      });
+      addedCount += 1;
+    });
+
+    setSuggestedFeeValue();
+    setGuiMode("etch");
+    setStatusMessage(
+      "Loaded artifact plan from " + (sourceLabel || "payload analyzer") + ": OP_RETURN" +
+      (addedCount ? " and " + addedCount + " ordered output(s)" : "") +
+      ". Existing recipient rows were preserved; review output order before signing.",
+      false
+    );
+
+    return true;
+  }
+
+  function loadPendingArtifactPayloadFromStorage() {
+    const payload = getPendingArtifactPayload();
+
+    if (loadArtifactPayload(payload, "browser storage")) {
+      clearPendingArtifactPayload();
+    }
+  }
+
+  function handleArtifactAnalyzerMessage(event) {
+    if (event.origin !== window.location.origin && event.origin !== "null") {
+      return;
+    }
+
+    const data = event.data || {};
+
+    if (data.type !== "chisel.loadArtifactPayload") {
+      return;
+    }
+
+    if (loadArtifactPayload(data.payload, "analyzer window")) {
+      clearPendingArtifactPayload();
+    }
+  }
+
+  function openPayloadAnalyzer() {
+    const url = "tools/payloadAnalyzer/index.html?currency=" + encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
+    const popup = window.open(url, "chiselPayloadAnalyzer", "width=1120,height=900");
+
+    if (!popup) {
+      window.location.href = url;
+    }
+  }
+
   window.loadWifAndSend = function loadWifAndSend(wif) {
     if (!wif) {
       throw new Error("WIF is required.");
@@ -2307,8 +2414,14 @@ function init() {
       elems.wifScanButton.onclick = openQrScanner;
     }
 
+    if (elems.payloadAnalyzerButton) {
+      elems.payloadAnalyzerButton.onclick = openPayloadAnalyzer;
+    }
+
     window.addEventListener("message", handleQrScannerMessage);
+    window.addEventListener("message", handleArtifactAnalyzerMessage);
     loadPendingQrPayloadFromStorage();
+    loadPendingArtifactPayloadFromStorage();
 
     updateRecipientCostPreview();
     render();

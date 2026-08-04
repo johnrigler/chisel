@@ -708,6 +708,13 @@
     else if (isMacDougallFirst(first) && modifier === "D" && spacer !== "x") record.kind = "free-verse";
     else if (isRepeatedThunderword(text)) record.kind = "thunderword-index";
 
+    // CIDv0 is encoded as two fixed-width 23-character chunks. Do not use the
+    // normal MacDougall padding trimmer here: a valid CID chunk may itself end
+    // in "z", and each address also has two trailing padding characters.
+    if (record.kind === "ipfs-v0-first-half" || record.kind === "ipfs-v0-second-half") {
+      record.payloadBase58Candidate = payload.slice(0, 23);
+    }
+
     return record;
   }
 
@@ -3487,20 +3494,10 @@
       titleWrap.textContent = titleText;
     }
 
-    const verify = document.createElement("span");
-    const details = document.createElement("a");
-    details.className = "portalStreamVerify";
-    details.href = "#";
-    details.textContent = state.expandedRowKeys[row.key] ? "collapse" : "details";
-    details.onclick = function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      togglePortalRowDetails(row.key).catch(function (error) { setStatus(error.message || String(error), true); });
-    };
-    verify.appendChild(details);
-
+    let verify = null;
     const url = rowExplorerUrl(row);
-    if (url) {
+    if (state.expandedRowKeys[row.key] && url) {
+      verify = document.createElement("span");
       const a = document.createElement("a");
       a.className = "portalStreamVerify";
       a.href = url;
@@ -3516,7 +3513,7 @@
     line.appendChild(time);
     line.appendChild(coin);
     line.appendChild(titleWrap);
-    line.appendChild(verify);
+    if (verify) line.appendChild(verify);
     item.appendChild(line);
 
     if (state.expandedRowKeys[row.key]) {
