@@ -1153,12 +1153,12 @@
     return out;
   }
 
-  function firstMediaThumbnail(row) {
+  function firstMediaThumbnailCard(row) {
     const cards = collectEvmMediaCards(row);
     for (let i = 0; i < cards.length; i += 1) {
-      if (cards[i].thumbnailUrl) return cards[i].thumbnailUrl;
+      if (cards[i].thumbnailUrl) return cards[i];
     }
-    return "";
+    return null;
   }
 
   function extractEvmSummary(value, indexEntry) {
@@ -1496,10 +1496,11 @@
       img.loading = "lazy";
       img.src = fileProxyRawUrl(evmImages[0].path);
       cell.appendChild(img);
-      return;
+      return fileProxyRawUrl(evmImages[0].path);
     }
 
-    const mediaThumb = firstMediaThumbnail(row);
+    const mediaCard = firstMediaThumbnailCard(row);
+    const mediaThumb = mediaCard ? String(mediaCard.thumbnailUrl || "").trim() : "";
     if (mediaThumb) {
       const img = document.createElement("img");
       img.className = "portalStreamThumbImage portalStreamThumbRemote";
@@ -1509,14 +1510,14 @@
       img.referrerPolicy = "no-referrer";
       img.src = mediaThumb;
       cell.appendChild(img);
-      return;
+      return normalizeMediaUrl(mediaCard.url || mediaCard.sourceUrl || "");
     }
 
     const lines = imageChordLinesFromRow(row);
     if (!lines.length) {
       cell.className += " isEmpty";
       cell.textContent = "";
-      return;
+      return "";
     }
     const canvas = document.createElement("canvas");
     canvas.className = "portalStreamThumbCanvas";
@@ -1524,6 +1525,7 @@
     const scale = Math.max(1, Number(configValue("inlineImageThumbScale", 2)) || 2);
     paintChordCanvas(canvas, lines, { scale: scale, skipPrefix: DEFAULT_SKIP_PREFIX, skipSuffix: DEFAULT_SKIP_SUFFIX });
     cell.appendChild(canvas);
+    return "";
   }
 
   function decodeMacDougall(line) {
@@ -3466,9 +3468,20 @@
       togglePortalRowDetails(row.key).catch(function (error) { setStatus(error.message || String(error), true); });
     };
 
-    const thumb = document.createElement("span");
+    let thumb = document.createElement("span");
     thumb.className = "portalStreamThumb";
-    appendRowThumbnail(thumb, row);
+    const thumbnailTarget = appendRowThumbnail(thumb, row);
+    if (thumbnailTarget && !thumb.classList.contains("isEmpty")) {
+      const thumbnailLink = document.createElement("a");
+      thumbnailLink.className = thumb.className + " isLinked";
+      thumbnailLink.href = thumbnailTarget;
+      thumbnailLink.target = "_blank";
+      thumbnailLink.rel = "noopener noreferrer";
+      thumbnailLink.title = "open media";
+      thumbnailLink.setAttribute("aria-label", "open media");
+      while (thumb.firstChild) thumbnailLink.appendChild(thumb.firstChild);
+      thumb = thumbnailLink;
+    }
 
     const time = document.createElement("span");
     time.className = "portalStreamTime";
