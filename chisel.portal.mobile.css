@@ -1,8 +1,8 @@
 /*
  * Chisel Portal — compact transaction stream for phones.
  *
- * The +/- button is the only collapsed-row action. The actual explorer
- * verification link remains available after expansion, next to the chain data.
+ * Media remains visible and independently clickable. The +/- button controls
+ * only the transaction details. Explorer verification appears after expansion.
  */
 
 /* No redundant "details" or "verify" links on a collapsed transaction. */
@@ -93,13 +93,14 @@
     overflow: visible;
   }
 
-  /* A collapsed row is: +  COIN  human title, followed by its time. */
+  /* Media is always visible. The +/- button controls everything below it. */
   .portalStreamRow,
   .portalStreamItem:not(.isExpanded) .portalStreamRow,
   .portalStreamItem.isExpanded .portalStreamRow {
     grid-template-columns: 36px auto minmax(0, 1fr);
     grid-template-areas:
       "toggle coin title"
+      "thumb thumb thumb"
       "time time time";
     gap: 3px 7px;
     min-height: 0;
@@ -112,12 +113,49 @@
     height: 30px;
   }
 
-  /* Full images belong in expanded details, not in every feed row. */
-  .portalStreamRow > .portalStreamThumb,
   .portalStreamRow > .portalStreamMeta,
   .portalStreamRow > .portalStreamFlags,
   .portalStreamRow > .portalStreamVerify {
     display: none;
+  }
+
+  .portalStreamRow > .portalStreamThumb {
+    grid-area: thumb;
+    display: flex;
+    width: 100%;
+    height: auto;
+    min-height: 56px;
+    max-height: none;
+    margin-top: 5px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .portalStreamRow > .portalStreamThumb.isEmpty {
+    display: none;
+  }
+
+  .portalStreamRow > .portalStreamThumb.isLinked {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .portalStreamRow > .portalStreamThumb.isLinked:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .portalStreamRow > .portalStreamThumb .portalStreamThumbImage {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    object-fit: contain;
+  }
+
+  .portalStreamRow > .portalStreamThumb .portalStreamThumbCanvas {
+    width: auto;
+    height: auto;
+    max-width: 100%;
   }
 
   .portalStreamRow > .portalStreamCoin {
@@ -154,6 +192,7 @@
   .portalStreamItem.isExpanded .portalStreamRow {
     grid-template-areas:
       "toggle coin title"
+      "thumb thumb thumb"
       "time time verify";
   }
 
