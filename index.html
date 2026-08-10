@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.7.14</title>
+  <title>Chisel 2.7.14e</title>
 
 
   <style>
@@ -69,8 +69,14 @@
     .grid {
       display: grid;
       gap: 12px;
-      grid-template-columns: 180px 1fr;
+      grid-template-columns: 180px minmax(0, 1fr);
       align-items: start;
+    }
+
+    .fieldStack {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
     }
 
     label {
@@ -120,6 +126,8 @@
     .recipientEditor {
       display: grid;
       gap: 8px;
+      min-width: 0;
+      width: 100%;
     }
 
     .recipientRows {
@@ -152,8 +160,19 @@
     .inlineTool {
       display: grid;
       gap: 8px;
-      grid-template-columns: 100px 1fr 120px auto;
       align-items: center;
+    }
+
+    .inlineTool > * {
+      min-width: 0;
+    }
+
+    #spendableTool {
+      grid-template-columns: minmax(240px, 1fr) 160px auto;
+    }
+
+    #unspendableTool {
+      grid-template-columns: minmax(180px, 0.75fr) minmax(260px, 1.5fr) minmax(130px, 0.55fr) auto;
     }
 
     .suggestionBar {
@@ -167,8 +186,9 @@
       max-width: 420px;
     }
 
-    @media (max-width: 760px) {
-      .inlineTool {
+    @media (max-width: 900px) {
+      #spendableTool,
+      #unspendableTool {
         grid-template-columns: 1fr;
       }
     }
@@ -511,6 +531,12 @@
     }
 
     body[data-mode="portal"] main {
+      max-width: none;
+      width: calc(100vw - 32px);
+    }
+
+    body[data-mode="etch"] main,
+    body[data-mode="broadcast"] main {
       max-width: none;
       width: calc(100vw - 32px);
     }
@@ -1223,8 +1249,24 @@
       }
     }
 
+    @media (max-width: 1050px) {
+      body[data-mode="etch"] .grid,
+      body[data-mode="broadcast"] .grid {
+        grid-template-columns: 1fr;
+      }
+
+      body[data-mode="etch"] .grid > label,
+      body[data-mode="broadcast"] .grid > label {
+        padding-top: 0;
+      }
+    }
+
     @media (max-width: 760px) {
       .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .recipientRow {
         grid-template-columns: 1fr;
       }
 
@@ -1252,7 +1294,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="chisel.portal.mobile.css?2.7.14c" />
+  <link rel="stylesheet" href="chisel.portal.mobile.css?2.7.14d" />
 </head>
 <body data-mode="portal">
   <header>
@@ -1386,10 +1428,12 @@
         <input id="feeRvn" type="number" min="0" step="0.00000001" />
 
         <label for="opReturnAscii">OP_RETURN ASCII</label>
-        <input id="opReturnAscii" type="text" />
-        <div class="actions">
-          <button id="payloadAnalyzerButton" class="secondaryButton" type="button">ANALYZE / BUILD PAYLOAD</button>
-          <span class="help">Opens the payload satellite for YouTube excerpts, URLs, IPFS CIDs, local file hashes, and ordered artifact plans.</span>
+        <div class="fieldStack">
+          <input id="opReturnAscii" type="text" />
+          <div class="actions">
+            <button id="payloadAnalyzerButton" class="secondaryButton" type="button">ANALYZE / BUILD PAYLOAD</button>
+            <span class="help">Opens the payload satellite for YouTube excerpts, URLs, IPFS CIDs, local file hashes, and ordered artifact plans.</span>
+          </div>
         </div>
 
         <label for="opReturnHex">OP_RETURN HEX</label>
@@ -1866,7 +1910,7 @@
   <script src="chisel.thunderwords.js?2.7.13"></script>
   <script src="data-bundled/portal-starter.js?2.7.13"></script>
   <script src="chisel.portal.static-data.js?2.7.13"></script>
-  <script src="chisel.portal.js?2.7.14b"></script>
+  <script src="chisel.portal.js?2.7.14d"></script>
   <script src="fixtures/etch/etch-fixtures.js?2.7.13"></script>
 
  <script>
@@ -1876,7 +1920,7 @@
   };
 </script>
 
-  <script src="app.js?2.7.14a"></script>
+  <script src="app.js?2.7.14e"></script>
   <script src="chisel.selftest.js?2.7.13b"></script>
 </body>
 </html>
