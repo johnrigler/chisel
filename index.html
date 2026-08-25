@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.7.14e</title>
+  <title>Chisel 2.7.15c</title>
 
 
   <style>
@@ -1294,7 +1294,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="chisel.portal.mobile.css?2.7.14d" />
+  <link rel="stylesheet" href="chisel.portal.mobile.css?2.7.15" />
 </head>
 <body data-mode="portal">
   <header>
@@ -1431,8 +1431,9 @@
         <div class="fieldStack">
           <input id="opReturnAscii" type="text" />
           <div class="actions">
+            <button id="imageEncoderButton" class="secondaryButton" type="button">BASE57 IMAGE</button>
             <button id="payloadAnalyzerButton" class="secondaryButton" type="button">ANALYZE / BUILD PAYLOAD</button>
-            <span class="help">Opens the payload satellite for YouTube excerpts, URLs, IPFS CIDs, local file hashes, and ordered artifact plans.</span>
+            <span class="help">Build an image from ordered Digibyte outputs, or open the general payload satellite for URLs, IPFS CIDs, local file hashes, and artifact plans.</span>
           </div>
         </div>
 
@@ -1863,6 +1864,11 @@
             <span>Scan four 16-hex stickers or a full WIF against the installed Chisel currency list, then load it back into Chisel.</span>
           </a>
 
+          <a class="toolCard" href="tools/imageEncoder/index.html">
+            <strong>Base57 image encoder</strong>
+            <span>Choose and crop a local image, quantize it through the V1 palette, and load its ordered unspendable Digibyte addresses into Etch.</span>
+          </a>
+
           <a class="toolCard" href="tools/payloadAnalyzer/index.html">
             <strong>Payload and artifact analyzer</strong>
             <span>Analyze pasted material, build bounded YouTube URLs, hash local components, split CIDv0 pointers, and return an ordered plan to Etch.</span>
@@ -1902,7 +1908,8 @@
   </main>
 
   <script src="chisel.js?2.7.13"></script>
-  <script src="chisel.unspendable.js?2.7.13b"></script>
+  <script src="chisel.unspendable.js?2.7.15"></script>
+  <script src="chisel.image.js?2.7.15c"></script>
   <script src="chisel.sign.js?2.7.13"></script>
   <script src="chisel.ravencoin.js?2.7.13"></script>
   <script src="chisel.digibyte.js?2.7.13"></script>
@@ -1910,7 +1917,7 @@
   <script src="chisel.thunderwords.js?2.7.13"></script>
   <script src="data-bundled/portal-starter.js?2.7.13"></script>
   <script src="chisel.portal.static-data.js?2.7.13"></script>
-  <script src="chisel.portal.js?2.7.14d"></script>
+  <script src="chisel.portal.js?2.7.15"></script>
   <script src="fixtures/etch/etch-fixtures.js?2.7.13"></script>
 
  <script>
@@ -1920,7 +1927,7 @@
   };
 </script>
 
-  <script src="app.js?2.7.14e"></script>
-  <script src="chisel.selftest.js?2.7.13b"></script>
+  <script src="app.js?2.7.15c"></script>
+  <script src="chisel.selftest.js?2.7.15c"></script>
 </body>
 </html>

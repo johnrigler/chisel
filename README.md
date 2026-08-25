@@ -18,6 +18,20 @@ The short version: Chisel reads and writes ledger-native artifacts. A UTXO trans
 
 Portal is now static-first: `data-bundled/portal-starter.js` preloads the known public records immediately, `data-bundled/manifest.json` and `data-bundled/index/portal.index.json` describe the same dataset for validation/refresh, and live ledger searches merge newer records without clearing the stream. `bun`, `deno`, `fileProxy`, local nodes, and import scripts remain authoring/publishing tools. They should not be required for a public visitor opening the GitHub/IPFS/rigler.org build.
 
+## v2.7.15c Base57 image capture
+
+The V1 image workflow is available from Etch’s `BASE57 IMAGE` button and from `tools/imageEncoder/`.
+
+- The selected image stays in the browser; Chisel does not upload it.
+- The source is resized onto an adjustable raster, then Top/Bottom/Left/Right margins select a movable 26-column box of up to 100 rows using the existing `b57.json` 57-color palette.
+- A V1 parameter line accepts `Top,Bottom,Left,Right` directly. For `42,134,150,48` on a square source, it recreates the 224×224 raster and 26×48 Lou Reed capture.
+- V1-compatible resize smoothing is the default. Preview scale is display-only and defaults to 5.
+- Every ordered row becomes a checksum-valid Digibyte address whose layout is `S*` + 26 palette glyphs + 6 checksum glyphs.
+- The first form is V1-compatible `SN`. Alternate decoder-safe `S*` prefixes and checksum variants keep identical pixel rows unique without changing their Portal rendering.
+- `WRITE TO CHISEL ETCH` replaces the current recipient list with the ordered 0.0000546 DGB image outputs for review and signing.
+
+The browser self-test includes the V1 Mogwai fixture address `SNMMMBQXiiiiiisrrrriiXQBBMMM12AD3f` and verifies the encoder → Etch → Portal row contract.
+
 
 ## v2.7.1 Dogecoin local import
 
