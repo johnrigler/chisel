@@ -3,6 +3,11 @@
 
   const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const BASE58CHECK_STEM_LENGTH = 28;
+  const BASE58CHECK_SUFFIX_LENGTH = 6;
+  const BASE58CHECK_SUFFIX_SPACE = 58n ** BigInt(BASE58CHECK_SUFFIX_LENGTH);
+  const UINT32_SPACE = 2n ** 32n;
+  const VERSIONED_PAYLOAD_LENGTH = 21;
 
   // Exact legacy MacDougal substitution table.
   // Each glyph in MACDOUGAL maps to the Base58 glyph at the same index in B58.
@@ -73,6 +78,58 @@
     });
 
     return merged;
+  }
+
+  function bytesToBigInt(bytes) {
+    return Array.from(bytes).reduce(function reduceByte(value, byte) {
+      return (value << 8n) + BigInt(byte);
+    }, 0n);
+  }
+
+  function base58ToBigInt(value) {
+    const normalized = String(value || "");
+
+    assert(normalized.length > 0, "Base58 value is required.");
+
+    return Array.from(normalized).reduce(function reduceCharacter(total, character) {
+      const index = B58.indexOf(character);
+
+      assert(index !== -1, "Invalid Base58 character: " + character);
+
+      return (total * 58n) + BigInt(index);
+    }, 0n);
+  }
+
+  function bigIntToFixedBase58(value, length) {
+    let remaining = BigInt(value);
+    let output = "";
+
+    assert(remaining >= 0n, "Base58 integer cannot be negative.");
+
+    for (let index = 0; index < length; index += 1) {
+      output = B58[Number(remaining % 58n)] + output;
+      remaining /= 58n;
+    }
+
+    assert(remaining === 0n, "Base58 integer does not fit the requested width.");
+
+    return output;
+  }
+
+  function bigIntToFixedBytes(value, length) {
+    let remaining = BigInt(value);
+    const bytes = new Uint8Array(length);
+
+    assert(remaining >= 0n, "Byte integer cannot be negative.");
+
+    for (let index = length - 1; index >= 0; index -= 1) {
+      bytes[index] = Number(remaining & 255n);
+      remaining >>= 8n;
+    }
+
+    assert(remaining === 0n, "Integer does not fit the requested byte width.");
+
+    return bytes;
   }
 
   async function sha256Bytes(bytes) {
@@ -219,6 +276,71 @@
     assert(seedIndex < SEEDS.length, "No seed for prefix character: " + normalizedPrefix[0]);
 
     return new Uint8Array([SEEDS[seedIndex]]);
+  }
+
+  function makeRawBase58Stem(prefix, rawBody) {
+    const normalizedPrefix = String(prefix || "");
+    const normalizedBody = String(rawBody || "");
+    const message = normalizedPrefix + normalizedBody;
+
+    assert(normalizedPrefix.length > 0, "Prefix is required.");
+    assert(message.length <= BASE58CHECK_STEM_LENGTH, "Unspendable prefix + raw body is too long. Maximum pre-checksum length is 28 Base58 characters.");
+
+    Array.from(message).forEach(function validateCharacter(character) {
+      assert(isBase58(character), "Raw body contains a non-Base58 character: " + character);
+    });
+
+    return message.padEnd(BASE58CHECK_STEM_LENGTH, "z");
+  }
+
+  async function findChecksumSuffixes(stem) {
+    const normalizedStem = String(stem || "");
+
+    assert(normalizedStem.length === BASE58CHECK_STEM_LENGTH, "Base58Check stem must be exactly 28 characters.");
+
+    Array.from(normalizedStem).forEach(function validateCharacter(character) {
+      assert(isBase58(character), "Base58Check stem contains a non-Base58 character: " + character);
+    });
+
+    const versionBytes = getVersionBytes(normalizedStem);
+    const shiftedStem = base58ToBigInt(normalizedStem) * BASE58CHECK_SUFFIX_SPACE;
+    const low32 = shiftedStem & (UINT32_SPACE - 1n);
+    const highPayload = shiftedStem >> 32n;
+    const maximumCarry = Number((low32 + BASE58CHECK_SUFFIX_SPACE - 1n) / UINT32_SPACE);
+    const candidates = [];
+
+    for (let carry = 0; carry <= maximumCarry; carry += 1) {
+      const payloadInteger = highPayload + BigInt(carry);
+      const versionedPayload = bigIntToFixedBytes(payloadInteger, VERSIONED_PAYLOAD_LENGTH);
+
+      if (versionedPayload[0] !== versionBytes[0]) {
+        continue;
+      }
+
+      const checksum = (await doubleSha256Bytes(versionedPayload)).slice(0, 4);
+      const checksumInteger = bytesToBigInt(checksum);
+      const baseSuffix = (checksumInteger - low32) & (UINT32_SPACE - 1n);
+      const baseCarry = (low32 + baseSuffix) / UINT32_SPACE;
+      const carryDelta = BigInt(carry) - baseCarry;
+
+      if (carryDelta < 0n) {
+        continue;
+      }
+
+      const suffixInteger = baseSuffix + (carryDelta * UINT32_SPACE);
+
+      if (suffixInteger >= BASE58CHECK_SUFFIX_SPACE) {
+        continue;
+      }
+
+      if (((low32 + suffixInteger) / UINT32_SPACE) !== BigInt(carry)) {
+        continue;
+      }
+
+      candidates.push(normalizedStem + bigIntToFixedBase58(suffixInteger, BASE58CHECK_SUFFIX_LENGTH));
+    }
+
+    return candidates;
   }
 
   function isBase58(character) {
@@ -602,6 +724,24 @@
     return base58CheckEncode(payloadBytes, versionBytes);
   }
 
+  async function generateRawBase58Variants(prefix, rawBody) {
+    const stem28 = makeRawBase58Stem(prefix, rawBody);
+    const addresses = await findChecksumSuffixes(stem28);
+
+    assert(addresses.length > 0, "No Base58Check address preserves the requested raw 28-character stem.");
+
+    return addresses;
+  }
+
+  async function generateRawBase58(prefix, rawBody, variantIndex) {
+    const addresses = await generateRawBase58Variants(prefix, rawBody);
+    const normalizedIndex = Number.isFinite(Number(variantIndex)) ? Math.max(0, Math.floor(Number(variantIndex))) : 0;
+
+    assert(normalizedIndex < addresses.length, "Raw Base58 address variant " + normalizedIndex + " is unavailable; this stem has " + addresses.length + " variant(s).");
+
+    return addresses[normalizedIndex];
+  }
+
   async function inspect(prefix, body) {
     const encodedBody = encodeMacDougal(body || "");
     const address = await generate(prefix, body || "");
@@ -640,6 +780,10 @@
     encodeReadableMacDougal: encodeReadableMacDougal,
     titleSpaceReadableMacDougal: titleSpaceReadableMacDougal,
     generate: generate,
+    generateRawBase58: generateRawBase58,
+    generateRaw: generateRawBase58,
+    generateRawBase58Variants: generateRawBase58Variants,
+    findChecksumSuffixes: findChecksumSuffixes,
     inspect: inspect,
     bytesToHex: bytesToHex,
     hexToBytes: hexToBytes,

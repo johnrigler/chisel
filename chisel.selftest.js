@@ -63,6 +63,68 @@
     return JSON.parse(text);
   }
 
+  async function runBase57ImageTest(log) {
+    const imageApi = window.CHISEL_IMAGE;
+    const unspendable = window.CHISEL_UNSPENDABLE;
+    const fixtureRow = "MMMBQXiiiiiisrrrriiXQBBMMM";
+    const fixtureAddress = "SNMMMBQXiiiiiisrrrriiXQBBMMM12AD3f";
+
+    assert(imageApi, "window.CHISEL_IMAGE is not installed.");
+    assert(unspendable && typeof unspendable.generateRawBase58 === "function", "Raw Base58 address generation is unavailable.");
+
+    const generatedFixture = await unspendable.generateRawBase58("SN", fixtureRow);
+    assertEqual(generatedFixture, fixtureAddress, "V1 Mogwai Base57 address");
+    log.pass("Raw Base58 generation reproduces the V1 Mogwai wire-format fixture.");
+
+    const repeatedAddresses = await imageApi.rowsToAddresses(new Array(10).fill(fixtureRow));
+    assertEqual(new Set(repeatedAddresses).size, repeatedAddresses.length, "Repeated image-row address count");
+    assertEqual(repeatedAddresses[0], fixtureAddress, "First repeated image-row address");
+    assert(repeatedAddresses[9].indexOf("SM") === 0, "Repeated image rows did not advance to the next decoder-safe S* namespace.");
+    repeatedAddresses.forEach(function verifyDecodedRow(address) {
+      assertEqual(imageApi.addressToRow(address), fixtureRow, "Base57 address payload");
+    });
+    log.pass("Repeated pixel rows receive unique Digibyte addresses without changing their decoded pixels.");
+
+    const palette = imageApi.parsePalette(await fetchJson("b57.json"));
+    const blackPixels = new Uint8ClampedArray(imageApi.COLUMNS * 4);
+
+    for (let offset = 3; offset < blackPixels.length; offset += 4) {
+      blackPixels[offset] = 255;
+    }
+
+    const blackRows = imageApi.quantizeImageData({
+      width: imageApi.COLUMNS,
+      height: 1,
+      data: blackPixels
+    }, palette);
+    assertEqual(blackRows[0], "M".repeat(imageApi.COLUMNS), "Black Base57 palette row");
+
+    const payload = imageApi.buildEtchPayload(repeatedAddresses);
+    assertEqual(payload.currency, "digibyte", "Base57 Etch currency");
+    assertEqual(payload.replaceRecipients, true, "Base57 Etch recipient replacement");
+    assertEqual(payload.recipients.length, repeatedAddresses.length, "Base57 Etch recipient count");
+    assert(payload.recipients.every(function isUnspendable(recipient) {
+      return recipient.outputType === "unspendable" && recipient.amount === imageApi.DEFAULT_AMOUNT_DGB;
+    }), "Base57 Etch payload contains an invalid output.");
+
+    assert(window.CHISEL_PORTAL && typeof window.CHISEL_PORTAL.paintChordCanvas === "function", "Portal Base57 painter is unavailable.");
+    const canvasContext = {
+      fillStyle: "",
+      fillRect: function () {}
+    };
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: function () { return canvasContext; }
+    };
+    const portalStats = window.CHISEL_PORTAL.paintChordCanvas(canvas, repeatedAddresses, { scale: 2 });
+    assertEqual(portalStats.cols, imageApi.COLUMNS, "Portal Base57 column count");
+    assertEqual(portalStats.rows, repeatedAddresses.length, "Portal Base57 row count");
+    assertEqual(canvas.width, imageApi.COLUMNS * 2, "Portal Base57 canvas width");
+    assertEqual(canvas.height, repeatedAddresses.length * 2, "Portal Base57 canvas height");
+    log.pass("Palette quantization, Etch payload generation, and Portal image round trip passed.");
+  }
+
   function makeLog(outputId) {
     const output = $(outputId);
     const lines = [];
@@ -378,6 +440,7 @@
     const log = makeLog("selfTestOutput");
     log.reset("Chisel browser self-test");
     try {
+      await runBase57ImageTest(log);
       await runPortalStaticDataCharacterizationTest(log);
       await runPortalBootTest(log);
       await runPortalUiTest(log);
@@ -541,6 +604,7 @@
 
   window.CHISEL_SELFTEST = {
     runAllSelfTests: runAllSelfTests,
+    runBase57ImageTest: function () { return runBase57ImageTest(makeLog("selfTestOutput")); },
     runPortalStaticDataCharacterizationTest: function () { return runPortalStaticDataCharacterizationTest(makeLog("selfTestOutput")); },
     runEtchFixtureTest: function () { return runEtchFixtureTest(makeLog("selfTestOutput")); },
     runDataBundledLinksTest: function () { return runDataBundledLinksTest(makeLog("selfTestOutput")); },

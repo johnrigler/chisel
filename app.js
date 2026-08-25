@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.14e";
+  const APP_VERSION = "2.7.15c";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -101,6 +101,7 @@
     manualRpcCommands: document.querySelector("#manualRpcCommands"),
     manualScratchJson: document.querySelector("#manualScratchJson"),
     wifScanButton: document.querySelector("#wifScanButton"),
+    imageEncoderButton: document.querySelector("#imageEncoderButton"),
     payloadAnalyzerButton: document.querySelector("#payloadAnalyzerButton"),
     status: document.querySelector("#status"),
     version: document.querySelector("#version"),
@@ -2190,6 +2191,7 @@ function onClickAddCommonAddressButton() {
 
   function loadArtifactPayload(payload, sourceLabel) {
     const recipients = payload && Array.isArray(payload.recipients) ? payload.recipients : [];
+    const replaceRecipients = Boolean(payload && payload.replaceRecipients);
     let addedCount = 0;
 
     if (!payload || (!payload.opReturnAscii && recipients.length === 0)) {
@@ -2204,6 +2206,10 @@ function onClickAddCommonAddressButton() {
       elems.opReturnAscii.value = payload.opReturnAscii;
       elems.opReturnHex.value = "";
       elems.opReturnAscii.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    if (replaceRecipients && elems.recipientRows) {
+      elems.recipientRows.innerHTML = "";
     }
 
     recipients.slice(0, 100).forEach(function appendArtifactRecipient(recipient) {
@@ -2226,7 +2232,9 @@ function onClickAddCommonAddressButton() {
     setStatusMessage(
       "Loaded artifact plan from " + (sourceLabel || "payload analyzer") + ": OP_RETURN" +
       (addedCount ? " and " + addedCount + " ordered output(s)" : "") +
-      ". Existing recipient rows were preserved; review output order before signing.",
+      (replaceRecipients
+        ? ". Existing recipient rows were replaced; review output order before signing."
+        : ". Existing recipient rows were preserved; review output order before signing."),
       false
     );
 
@@ -2260,6 +2268,15 @@ function onClickAddCommonAddressButton() {
   function openPayloadAnalyzer() {
     const url = "tools/payloadAnalyzer/index.html?currency=" + encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
     const popup = window.open(url, "chiselPayloadAnalyzer", "width=1120,height=900");
+
+    if (!popup) {
+      window.location.href = url;
+    }
+  }
+
+  function openImageEncoder() {
+    const url = "tools/imageEncoder/index.html";
+    const popup = window.open(url, "chiselImageEncoder", "width=1180,height=900");
 
     if (!popup) {
       window.location.href = url;
@@ -2416,6 +2433,10 @@ function init() {
 
     if (elems.payloadAnalyzerButton) {
       elems.payloadAnalyzerButton.onclick = openPayloadAnalyzer;
+    }
+
+    if (elems.imageEncoderButton) {
+      elems.imageEncoderButton.onclick = openImageEncoder;
     }
 
     window.addEventListener("message", handleQrScannerMessage);
