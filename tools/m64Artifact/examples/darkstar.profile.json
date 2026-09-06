@@ -1,0 +1,28 @@
+{
+  "alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
+  "tokens": [
+    ".getContext(\"2d\")",
+    ".beginPath()",
+    ".closePath()",
+    ".lineTo(",
+    ".moveTo(",
+    ".fill()",
+    "function",
+    "const",
+    "return",
+    "canvas",
+    "width",
+    "height",
+    "ctx",
+    "(",
+    ")",
+    "{",
+    "}",
+    ";",
+    ",",
+    "=",
+    ".",
+    "*",
+    "+"
+  ]
+}
