@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chisel Examples</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0b0d10; color: #e6edf3; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    header { border-bottom: 1px solid #222a33; background: #0f1318; }
+    header div, main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1, h2, p { margin: 0; }
+    main { display: grid; gap: 16px; }
+    .panel { background: #11161c; border: 1px solid #222a33; border-radius: 12px; padding: 16px; display: grid; gap: 12px; }
+    .muted { color: #91a4b7; line-height: 1.5; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card { display: grid; gap: 8px; border: 1px solid #263241; border-radius: 12px; padding: 14px; background: #0a0f14; color: #d7e2ee; text-decoration: none; min-height: 130px; }
+    .card strong { color: #e6edf3; font-size: 15px; }
+    .card span { color: #91a4b7; font-size: 13px; line-height: 1.45; }
+    .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    .nav a { display: inline-block; padding: 10px 12px; border-radius: 10px; background: #1d2630; color: #d7e2ee; border: 1px solid #2c3642; text-decoration: none; font-size: 13px; font-weight: 700; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header><div><h1>Chisel Examples</h1></div></header>
+  <main>
+    <section class="panel">
+      <div class="nav"><a href="../?mode=tools">Tools</a><a href="../">Chisel</a></div>
+      <p class="muted">Runnable examples and specimen artifacts. These demonstrate Chisel tools without defining the core application.</p>
+    </section>
+    <section class="panel">
+      <h2>Examples</h2>
+      <div class="grid">
+        <a class="card" href="../tools/m64Artifact/examples/darkstar-raster.html">
+          <strong>Dark Star raster</strong>
+          <span>Deterministic colorful raster generator used to test staging, hydration, and exact output reconstruction.</span>
+        </a>
+        <a class="card" href="../tools/m64Artifact/examples/darkstar.artifact.json">
+          <strong>Dark Star M64 artifact</strong>
+          <span>The packaged artifact JSON containing runtime metadata, token profile, input, and M64 payload.</span>
+        </a>
+        <a class="card" href="../tools/m64Artifact/examples/darkstar.m64.txt">
+          <strong>Dark Star M64 payload</strong>
+          <span>The compact transport payload by itself.</span>
+        </a>
+        <a class="card" href="../tools/m64Artifact/index.html">
+          <strong>M64 workbench</strong>
+          <span>Stage controlled JavaScript into canonical form, token bytes, M64, hydration, and a runtime test.</span>
+        </a>
+        <a class="card" href="../tools/m64Artifact/hydrate.html">
+          <strong>M64 hydrator</strong>
+          <span>Load a packaged artifact, hydrate its code, and run it in the small browser runtime.</span>
+        </a>
+        <a class="card" href="../tools/m64Artifact/polygon.html">
+          <strong>Polygon carrier</strong>
+          <span>Publish or retrieve artifact data using Polygon transaction calldata.</span>
+        </a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
