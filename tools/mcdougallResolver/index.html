@@ -1,399 +1,241 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chisel Litecoin McDougall Resolver</title>
-  <style>
-    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    * { box-sizing: border-box; }
-    body { margin: 0; background: #0b0d10; color: #e6edf3; }
-    main { max-width: 1100px; margin: 0 auto; padding: 24px; display: grid; gap: 16px; }
-    .panel { border: 1px solid #263241; border-radius: 12px; padding: 16px; background: #11161c; display: grid; gap: 12px; }
-    h1,h2,p { margin: 0; }
-    p { line-height: 1.5; color: #9fb0c0; }
-    .row { display: grid; gap: 10px; grid-template-columns: minmax(0,1fr) auto auto; }
-    input, select, button, textarea { font: inherit; }
-    input, select, textarea { width: 100%; padding: 11px 12px; border: 1px solid #2c3642; border-radius: 9px; background: #05080b; color: #e6edf3; }
-    button { border: 1px solid #4f46e5; border-radius: 9px; padding: 11px 14px; background: #312e81; color: #fff; cursor: pointer; font-weight: 700; }
-    button.secondary { background: #1d2630; border-color: #2c3642; }
-    button:disabled { opacity: .55; cursor: default; }
-    pre, code.block { display: block; margin: 0; padding: 12px; border: 1px solid #263241; border-radius: 9px; background: #05080b; white-space: pre-wrap; word-break: break-word; overflow: auto; }
-    .ok { color: #a3e635; }
-    .warn { color: #ffd166; }
-    .error { color: #ff7b7b; }
-    .meta { display: grid; gap: 8px; grid-template-columns: 180px minmax(0, 1fr); }
-    .meta > div:nth-child(odd) { color: #91a4b7; }
-    a { color: #7dd3fc; overflow-wrap: anywhere; }
-    canvas { width: 100%; max-width: 900px; height: auto; min-height: 260px; border: 1px solid #263241; border-radius: 10px; background: #fff; }
-    .warningBox { border: 1px solid #755c16; background: rgba(255,209,102,.08); border-radius: 10px; padding: 12px; color: #ffd166; line-height: 1.45; }
-    @media (max-width: 760px) { .row, .meta { grid-template-columns: 1fr; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chisel Litecoin McDougall Resolver</title>
+<style>
+:root{color-scheme:dark;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}body{margin:0;background:#0b0d10;color:#e6edf3}
+main{max-width:1100px;margin:auto;padding:24px;display:grid;gap:16px}
+.panel{border:1px solid #263241;border-radius:12px;padding:16px;background:#11161c;display:grid;gap:12px}
+h1,h2,p{margin:0}p{line-height:1.5;color:#9fb0c0}
+.row{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) auto auto}
+input,select,button{font:inherit}input,select{width:100%;padding:11px 12px;border:1px solid #2c3642;border-radius:9px;background:#05080b;color:#e6edf3}
+button{border:1px solid #4f46e5;border-radius:9px;padding:11px 14px;background:#312e81;color:#fff;cursor:pointer;font-weight:700}
+button.secondary{background:#1d2630;border-color:#2c3642}button:disabled{opacity:.55;cursor:default}
+pre,code.block{display:block;margin:0;padding:12px;border:1px solid #263241;border-radius:9px;background:#05080b;white-space:pre-wrap;word-break:break-word;overflow:auto}
+.ok{color:#a3e635}.warn{color:#ffd166}.error{color:#ff7b7b}
+.meta{display:grid;gap:8px;grid-template-columns:190px minmax(0,1fr)}.meta>div:nth-child(odd){color:#91a4b7}
+a{color:#7dd3fc;overflow-wrap:anywhere}
+canvas{width:100%;max-width:900px;height:auto;min-height:260px;border:1px solid #263241;border-radius:10px;background:#fff}
+.warningBox{border:1px solid #755c16;background:rgba(255,209,102,.08);border-radius:10px;padding:12px;color:#ffd166;line-height:1.45}
+@media(max-width:760px){.row,.meta{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <main>
-  <section class="panel">
-    <h1>Litecoin McDougall Resolver</h1>
-    <p>Start with only a Litecoin block-height:transaction-index locator. Chisel resolves the transaction from Litecoin, follows the v1 backward pointer, reconstructs the McDougall byte stream, hydrates JavaScript, and optionally executes it.</p>
-  </section>
+<section class="panel">
+  <h1>Litecoin McDougall Resolver</h1>
+  <p>Start with only a Litecoin block-height:transaction-index locator. Chisel resolves the root transaction, follows its backward locator, reconstructs the McDougall byte stream, hydrates JavaScript, and optionally executes it.</p>
+</section>
 
-  <section class="panel">
-    <div class="row">
-      <input id="locator" value="3172924:19" spellcheck="false" aria-label="Litecoin locator">
-      <select id="network" aria-label="Network">
-        <option value="mainnet">Litecoin mainnet</option>
-        <option value="testnet">Litecoin testnet</option>
-      </select>
-      <button id="resolve">RESOLVE</button>
-    </div>
-    <div id="status" class="warn">Ready. Transaction positions are zero-based.</div>
-  </section>
+<section class="panel">
+  <div class="row">
+    <input id="locator" value="3172924:19" spellcheck="false" aria-label="Litecoin locator">
+    <select id="network" aria-label="Network">
+      <option value="mainnet">Litecoin mainnet</option>
+      <option value="testnet">Litecoin testnet</option>
+    </select>
+    <button id="resolve">RESOLVE</button>
+  </div>
+  <div id="status" class="warn">Ready. Transaction positions are zero-based.</div>
+</section>
 
-  <section class="panel" id="receiptPanel" hidden>
-    <h2>Resolved artifact</h2>
-    <div id="meta" class="meta"></div>
-  </section>
+<section class="panel" id="receiptPanel" hidden>
+  <h2>Resolved artifact</h2>
+  <div id="meta" class="meta"></div>
+</section>
 
-  <section class="panel" id="bytesPanel" hidden>
-    <h2>Ledger bytes</h2>
-    <p>Root OP_RETURN</p>
-    <code class="block" id="rootHex"></code>
-    <p>Previous OP_RETURN</p>
-    <code class="block" id="previousHex"></code>
-    <p>Reconstructed McDougall abstract stream</p>
-    <code class="block" id="abstractHex"></code>
-  </section>
+<section class="panel" id="bytesPanel" hidden>
+  <h2>Ledger bytes</h2>
+  <p>Root OP_RETURN</p><code class="block" id="rootHex"></code>
+  <p>Predecessor OP_RETURN</p><code class="block" id="previousHex"></code>
+  <p>Reconstructed McDougall abstract stream</p><code class="block" id="abstractHex"></code>
+</section>
 
-  <section class="panel" id="hydratePanel" hidden>
-    <h2>Hydrated JavaScript</h2>
-    <pre id="hydrated"></pre>
-    <div class="warningBox">RUN executes JavaScript reconstructed from public ledger data. Resolution and hydration do not execute it. Inspect the hydrated source first.</div>
-    <div>
-      <button id="run" disabled>RUN HYDRATED JS</button>
-      <button id="clear" class="secondary">CLEAR CANVAS</button>
-    </div>
-    <canvas id="canvas" width="900" height="500"></canvas>
-  </section>
+<section class="panel" id="hydratePanel" hidden>
+  <h2>Hydrated JavaScript</h2>
+  <pre id="hydrated"></pre>
+  <div class="warningBox">RUN executes JavaScript reconstructed from public ledger data. RESOLVE and hydration do not execute it. Inspect the hydrated source first.</div>
+  <div><button id="run" disabled>RUN HYDRATED JS</button> <button id="clear" class="secondary">CLEAR CANVAS</button></div>
+  <canvas id="canvas" width="900" height="500"></canvas>
+</section>
 
-  <section class="panel">
-    <h2>v1 specimen rules</h2>
-    <p>The root payload is <code>01 || previous-height-u24be || previous-tx-index-u8 || tail-bytes</code>. The predecessor transaction contains the first raw McDougall bytes. This first resolver deliberately implements the two-transaction Litecoin specimen only. It is not yet a general recursive or cross-chain format.</p>
-  </section>
+<section class="panel">
+  <h2>Specimen formats accepted</h2>
+  <p>The live two-transaction specimen at <code>3172924:19</code> is unversioned: <code>previous-height-u24be || previous-tx-index-u8 || tail-bytes</code>. The resolver also accepts the proposed versioned form <code>01 || previous-height-u24be || previous-tx-index-u8 || tail-bytes</code>.</p>
+</section>
 </main>
 
 <script src="../../chisel.js?2.7.16"></script>
 <script>
-(function () {
-  "use strict";
+(function(){
+"use strict";
 
-  const TOKENS = [
-    '.getContext("2d")',
-    '.beginPath()',
-    '.closePath()',
-    '.lineTo(',
-    '.moveTo(',
-    '.fill()',
-    'function',
-    'const',
-    'return',
-    'canvas',
-    'width',
-    'height',
-    'ctx',
-    '(',
-    ')',
-    '{',
-    '}',
-    ';',
-    ',',
-    '=',
-    '.',
-    '*',
-    '+'
-  ];
+const TOKENS=[
+'.getContext("2d")','.beginPath()','.closePath()','.lineTo(','.moveTo(','.fill()',
+'function','const','return','canvas','width','height','ctx','(',')','{','}',';',',','=','.','*','+'
+];
 
-  const elems = {
-    locator: document.getElementById('locator'),
-    network: document.getElementById('network'),
-    resolve: document.getElementById('resolve'),
-    status: document.getElementById('status'),
-    receiptPanel: document.getElementById('receiptPanel'),
-    bytesPanel: document.getElementById('bytesPanel'),
-    hydratePanel: document.getElementById('hydratePanel'),
-    meta: document.getElementById('meta'),
-    rootHex: document.getElementById('rootHex'),
-    previousHex: document.getElementById('previousHex'),
-    abstractHex: document.getElementById('abstractHex'),
-    hydrated: document.getElementById('hydrated'),
-    run: document.getElementById('run'),
-    clear: document.getElementById('clear'),
-    canvas: document.getElementById('canvas')
-  };
+const E={
+ locator:document.getElementById("locator"),network:document.getElementById("network"),
+ resolve:document.getElementById("resolve"),status:document.getElementById("status"),
+ receiptPanel:document.getElementById("receiptPanel"),bytesPanel:document.getElementById("bytesPanel"),
+ hydratePanel:document.getElementById("hydratePanel"),meta:document.getElementById("meta"),
+ rootHex:document.getElementById("rootHex"),previousHex:document.getElementById("previousHex"),
+ abstractHex:document.getElementById("abstractHex"),hydrated:document.getElementById("hydrated"),
+ run:document.getElementById("run"),clear:document.getElementById("clear"),canvas:document.getElementById("canvas")
+};
+let lastHydrated="";
 
-  let lastHydrated = '';
+function apiBase(n){return n==="testnet"?"https://litecoinspace.org/testnet/api":"https://litecoinspace.org/api"}
+function explorerBase(n){return n==="testnet"?"https://litecoinspace.org/testnet/":"https://litecoinspace.org/"}
+function status(t,k){E.status.textContent=t;E.status.className=k||"warn"}
 
-  function baseUrl(network) {
-    return network === 'testnet'
-      ? 'https://litecoinspace.org/testnet/api'
-      : 'https://litecoinspace.org/api';
-  }
+function parseLocator(t){
+ const m=String(t||"").trim().match(/^(\d+):(\d+)$/);
+ if(!m)throw new Error("Locator must be blockHeight:zeroBasedTxIndex");
+ const height=Number(m[1]),index=Number(m[2]);
+ if(!Number.isSafeInteger(height)||height<0)throw new Error("Invalid block height.");
+ if(!Number.isSafeInteger(index)||index<0)throw new Error("Invalid transaction index.");
+ return {height,index,text:height+":"+index};
+}
+function hexToBytes(hex){
+ const s=String(hex||"").trim().toLowerCase();
+ if(!/^[0-9a-f]*$/.test(s)||s.length%2)throw new Error("Invalid hex.");
+ const b=new Uint8Array(s.length/2);
+ for(let i=0;i<b.length;i++)b[i]=parseInt(s.slice(i*2,i*2+2),16);
+ return b;
+}
+function bytesToHex(b){return Array.from(b,x=>x.toString(16).padStart(2,"0")).join("")}
+function concat(a,b){const o=new Uint8Array(a.length+b.length);o.set(a);o.set(b,a.length);return o}
 
-  function explorerBase(network) {
-    return network === 'testnet'
-      ? 'https://litecoinspace.org/testnet/'
-      : 'https://litecoinspace.org/';
-  }
+function decodePush(scriptHex){
+ const b=hexToBytes(scriptHex);
+ if(b.length<2||b[0]!==0x6a)return null;
+ let p=1,op=b[p++],len;
+ if(op<=75)len=op;
+ else if(op===0x4c){if(p>=b.length)throw new Error("Truncated OP_PUSHDATA1.");len=b[p++]}
+ else if(op===0x4d){if(p+1>=b.length)throw new Error("Truncated OP_PUSHDATA2.");len=b[p]|(b[p+1]<<8);p+=2}
+ else if(op===0x4e){if(p+3>=b.length)throw new Error("Truncated OP_PUSHDATA4.");len=(b[p]|(b[p+1]<<8)|(b[p+2]<<16)|(b[p+3]<<24))>>>0;p+=4}
+ else return null;
+ if(p+len>b.length)throw new Error("OP_RETURN push exceeds script length.");
+ return b.slice(p,p+len);
+}
+function extractOpReturn(tx){
+ const v=tx&&Array.isArray(tx.vout)?tx.vout:[];
+ for(let i=0;i<v.length;i++){
+   const s=v[i]&&(v[i].scriptpubkey||v[i].scriptPubKey||v[i].script_hex||"");
+   if(!s)continue;
+   const pushed=decodePush(s);
+   if(pushed&&pushed.length)return {bytes:pushed,vout:i,scriptHex:String(s).toLowerCase()};
+ }
+ throw new Error("No pushed OP_RETURN payload found.");
+}
+async function fetchText(url){
+ if(window.CHISEL&&typeof CHISEL.fetchText==="function")return String(await CHISEL.fetchText(url)).trim().replace(/^"|"$/g,"");
+ const r=await fetch(url);if(!r.ok)throw new Error("HTTP "+r.status+" for "+url);return (await r.text()).trim().replace(/^"|"$/g,"");
+}
+async function fetchJson(url){
+ if(window.CHISEL&&typeof CHISEL.fetchJson==="function")return CHISEL.fetchJson(url);
+ const r=await fetch(url);if(!r.ok)throw new Error("HTTP "+r.status+" for "+url);return r.json();
+}
+async function resolveLocator(text,network){
+ const l=parseLocator(text),api=apiBase(network),ex=explorerBase(network);
+ const blockHash=await fetchText(api+"/block-height/"+l.height);
+ const txid=await fetchText(api+"/block/"+encodeURIComponent(blockHash)+"/txid/"+l.index);
+ const tx=await fetchJson(api+"/tx/"+encodeURIComponent(txid));
+ return {
+   locator:l.text,height:l.height,index:l.index,blockHash,txid,tx,
+   opReturn:extractOpReturn(tx),
+   txUrl:ex+"tx/"+txid,blockUrl:ex+"block/"+blockHash,heightUrl:ex+"block-height/"+l.height
+ };
+}
+function decodeRoot(bytes){
+ if(bytes.length<4)throw new Error("Root payload must contain at least a 4-byte predecessor locator.");
+ let offset=0,format="unversioned-specimen",version=null;
+ if(bytes[0]===0x01){
+   if(bytes.length<5)throw new Error("Versioned root payload must be at least 5 bytes.");
+   offset=1;format="versioned-v1";version=1;
+ }
+ const h=(bytes[offset]<<16)|(bytes[offset+1]<<8)|bytes[offset+2];
+ const i=bytes[offset+3];
+ if(h<=0)throw new Error("Decoded predecessor block height is invalid.");
+ return {
+   format,version,previousHeight:h,previousIndex:i,previousLocator:h+":"+i,
+   tail:bytes.slice(offset+4),headerBytes:offset+4
+ };
+}
+function hydrate(bytes){
+ let out="";
+ for(let i=0;i<bytes.length;i++){
+   const b=bytes[i];
+   if(b<0x80)out+=String.fromCharCode(b);
+   else if(b<0x80+TOKENS.length)out+=TOKENS[b-0x80];
+   else throw new Error("Unknown McDougall token 0x"+b.toString(16).padStart(2,"0")+" at offset "+i+".");
+ }
+ return out;
+}
+function addMeta(label,value,href){
+ const a=document.createElement("div"),b=document.createElement("div");a.textContent=label;
+ if(href){const l=document.createElement("a");l.href=href;l.target="_blank";l.rel="noopener noreferrer";l.textContent=value;b.appendChild(l)}
+ else b.textContent=value;
+ E.meta.append(a,b);
+}
+function clearCanvas(){E.canvas.getContext("2d").clearRect(0,0,E.canvas.width,E.canvas.height)}
 
-  function setStatus(text, kind) {
-    elems.status.textContent = text;
-    elems.status.className = kind || 'warn';
-  }
+async function resolveArtifact(){
+ const network=E.network.value==="testnet"?"testnet":"mainnet";
+ const rootLocator=parseLocator(E.locator.value).text;
+ E.resolve.disabled=true;E.run.disabled=true;lastHydrated="";
+ E.receiptPanel.hidden=E.bytesPanel.hidden=E.hydratePanel.hidden=true;
+ status("Resolving root "+rootLocator+" from Litecoin...","warn");
+ try{
+   const root=await resolveLocator(rootLocator,network);
+   const info=decodeRoot(root.opReturn.bytes);
+   status("Root found as "+info.format+". Resolving predecessor "+info.previousLocator+"...","warn");
+   const prev=await resolveLocator(info.previousLocator,network);
+   const abstract=concat(prev.opReturn.bytes,info.tail);
+   const hydrated=hydrate(abstract);
 
-  function parseLocator(text) {
-    const match = String(text || '').trim().match(/^(\d+):(\d+)$/);
-    if (!match) throw new Error('Locator must be blockHeight:zeroBasedTxIndex');
-    const height = Number(match[1]);
-    const index = Number(match[2]);
-    if (!Number.isSafeInteger(height) || height < 0) throw new Error('Invalid block height.');
-    if (!Number.isSafeInteger(index) || index < 0) throw new Error('Invalid transaction index.');
-    return { height, index, text: height + ':' + index };
-  }
+   E.meta.innerHTML="";
+   addMeta("chain",network==="testnet"?"TLTC":"LTC");
+   addMeta("root locator",root.locator);
+   addMeta("root format",info.format);
+   addMeta("root txid",root.txid,root.txUrl);
+   addMeta("root block",root.height+" / tx["+root.index+"]",root.heightUrl);
+   addMeta("predecessor locator",prev.locator);
+   addMeta("predecessor txid",prev.txid,prev.txUrl);
+   addMeta("predecessor block",prev.height+" / tx["+prev.index+"]",prev.heightUrl);
+   addMeta("predecessor bytes",String(prev.opReturn.bytes.length));
+   addMeta("root tail bytes",String(info.tail.length));
+   addMeta("reconstructed bytes",String(abstract.length));
+   addMeta("hydrated JS bytes",String(new TextEncoder().encode(hydrated).length));
 
-  function hexToBytes(hex) {
-    const clean = String(hex || '').trim().toLowerCase();
-    if (!/^[0-9a-f]*$/.test(clean) || clean.length % 2) throw new Error('Invalid hex payload.');
-    const out = new Uint8Array(clean.length / 2);
-    for (let i = 0; i < out.length; i += 1) out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
-    return out;
-  }
-
-  function bytesToHex(bytes) {
-    return Array.from(bytes, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-  }
-
-  function concatBytes(a, b) {
-    const out = new Uint8Array(a.length + b.length);
-    out.set(a, 0);
-    out.set(b, a.length);
-    return out;
-  }
-
-  function decodePush(scriptHex) {
-    const bytes = hexToBytes(scriptHex);
-    if (bytes.length < 2 || bytes[0] !== 0x6a) return null;
-    let p = 1;
-    const opcode = bytes[p++];
-    let length;
-    if (opcode <= 75) {
-      length = opcode;
-    } else if (opcode === 0x4c) {
-      if (p >= bytes.length) throw new Error('Truncated OP_PUSHDATA1.');
-      length = bytes[p++];
-    } else if (opcode === 0x4d) {
-      if (p + 1 >= bytes.length) throw new Error('Truncated OP_PUSHDATA2.');
-      length = bytes[p] | (bytes[p + 1] << 8);
-      p += 2;
-    } else if (opcode === 0x4e) {
-      if (p + 3 >= bytes.length) throw new Error('Truncated OP_PUSHDATA4.');
-      length = (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
-      p += 4;
-    } else {
-      return null;
-    }
-    if (p + length > bytes.length) throw new Error('OP_RETURN push length exceeds script length.');
-    return bytes.slice(p, p + length);
-  }
-
-  function extractOpReturn(tx) {
-    const outputs = tx && Array.isArray(tx.vout) ? tx.vout : [];
-    for (let i = 0; i < outputs.length; i += 1) {
-      const scriptHex = outputs[i] && (outputs[i].scriptpubkey || outputs[i].scriptPubKey || outputs[i].script_hex || '');
-      if (!scriptHex) continue;
-      const pushed = decodePush(scriptHex);
-      if (pushed && pushed.length) return { bytes: pushed, vout: i, scriptHex: String(scriptHex).toLowerCase() };
-    }
-    throw new Error('No pushed OP_RETURN payload found in transaction.');
-  }
-
-  async function fetchText(url) {
-    if (window.CHISEL && typeof CHISEL.fetchText === 'function') return String(await CHISEL.fetchText(url)).trim().replace(/^"|"$/g, '');
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + url);
-    return (await response.text()).trim().replace(/^"|"$/g, '');
-  }
-
-  async function fetchJson(url) {
-    if (window.CHISEL && typeof CHISEL.fetchJson === 'function') return CHISEL.fetchJson(url);
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + url);
-    return response.json();
-  }
-
-  async function resolveLocator(locatorText, network) {
-    const locator = parseLocator(locatorText);
-    const api = baseUrl(network);
-    const explorer = explorerBase(network);
-    const blockHash = await fetchText(api + '/block-height/' + locator.height);
-    const txid = await fetchText(api + '/block/' + encodeURIComponent(blockHash) + '/txid/' + locator.index);
-    const tx = await fetchJson(api + '/tx/' + encodeURIComponent(txid));
-    const opReturn = extractOpReturn(tx);
-    return {
-      locator: locator.text,
-      height: locator.height,
-      index: locator.index,
-      blockHash: blockHash,
-      txid: txid,
-      tx: tx,
-      opReturn: opReturn,
-      txUrl: explorer + 'tx/' + txid,
-      blockUrl: explorer + 'block/' + blockHash,
-      heightUrl: explorer + 'block-height/' + locator.height
-    };
-  }
-
-  function decodeRootV1(bytes) {
-    if (bytes.length < 5) throw new Error('v1 root payload must be at least 5 bytes.');
-    if (bytes[0] !== 0x01) throw new Error('Unsupported root version 0x' + bytes[0].toString(16).padStart(2, '0') + '. Expected 0x01.');
-    const height = (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
-    const index = bytes[4];
-    return {
-      version: 1,
-      previousLocator: height + ':' + index,
-      previousHeight: height,
-      previousIndex: index,
-      tail: bytes.slice(5)
-    };
-  }
-
-  function hydrate(bytes) {
-    let out = '';
-    for (let i = 0; i < bytes.length; i += 1) {
-      const b = bytes[i];
-      if (b < 0x80) {
-        out += String.fromCharCode(b);
-      } else if (b >= 0x80 && b < 0x80 + TOKENS.length) {
-        out += TOKENS[b - 0x80];
-      } else {
-        throw new Error('Unknown McDougall token byte 0x' + b.toString(16).padStart(2, '0') + ' at offset ' + i + '.');
-      }
-    }
-    return out;
-  }
-
-  function addMeta(label, value, href) {
-    const a = document.createElement('div');
-    const b = document.createElement('div');
-    a.textContent = label;
-    if (href) {
-      const link = document.createElement('a');
-      link.href = href;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = value;
-      b.appendChild(link);
-    } else {
-      b.textContent = value;
-    }
-    elems.meta.append(a, b);
-  }
-
-  function clearCanvas() {
-    const ctx = elems.canvas.getContext('2d');
-    ctx.clearRect(0, 0, elems.canvas.width, elems.canvas.height);
-  }
-
-  async function resolveArtifact() {
-    const network = elems.network.value === 'testnet' ? 'testnet' : 'mainnet';
-    const rootLocator = parseLocator(elems.locator.value).text;
-    elems.resolve.disabled = true;
-    elems.run.disabled = true;
-    lastHydrated = '';
-    elems.receiptPanel.hidden = true;
-    elems.bytesPanel.hidden = true;
-    elems.hydratePanel.hidden = true;
-    setStatus('Resolving root ' + rootLocator + ' from Litecoin...', 'warn');
-
-    try {
-      const root = await resolveLocator(rootLocator, network);
-      const rootInfo = decodeRootV1(root.opReturn.bytes);
-      setStatus('Root found. Resolving predecessor ' + rootInfo.previousLocator + '...', 'warn');
-      const previous = await resolveLocator(rootInfo.previousLocator, network);
-      const abstract = concatBytes(previous.opReturn.bytes, rootInfo.tail);
-      const hydrated = hydrate(abstract);
-
-      elems.meta.innerHTML = '';
-      addMeta('chain', network === 'testnet' ? 'TLTC' : 'LTC');
-      addMeta('root locator', root.locator);
-      addMeta('root txid', root.txid, root.txUrl);
-      addMeta('root block', root.height + ' / tx[' + root.index + ']', root.heightUrl);
-      addMeta('root OP_RETURN vout', String(root.opReturn.vout));
-      addMeta('protocol', 'McDougall Litecoin specimen v1');
-      addMeta('previous locator', rootInfo.previousLocator);
-      addMeta('previous txid', previous.txid, previous.txUrl);
-      addMeta('previous block', previous.height + ' / tx[' + previous.index + ']', previous.heightUrl);
-      addMeta('previous OP_RETURN vout', String(previous.opReturn.vout));
-      addMeta('previous payload bytes', String(previous.opReturn.bytes.length));
-      addMeta('tail bytes', String(rootInfo.tail.length));
-      addMeta('reconstructed bytes', String(abstract.length));
-      addMeta('hydrated JS bytes', String(new TextEncoder().encode(hydrated).length));
-
-      elems.rootHex.textContent = bytesToHex(root.opReturn.bytes);
-      elems.previousHex.textContent = bytesToHex(previous.opReturn.bytes);
-      elems.abstractHex.textContent = bytesToHex(abstract);
-      elems.hydrated.textContent = hydrated;
-      elems.receiptPanel.hidden = false;
-      elems.bytesPanel.hidden = false;
-      elems.hydratePanel.hidden = false;
-      lastHydrated = hydrated;
-      elems.run.disabled = false;
-      setStatus('Resolved ' + root.locator + ' → ' + rootInfo.previousLocator + '. Hydrated source is ready for inspection.', 'ok');
-
-      try {
-        const url = new URL(location.href);
-        url.searchParams.set('locator', root.locator);
-        url.searchParams.set('network', network);
-        history.replaceState(null, '', url.toString());
-      } catch (error) {}
-    } catch (error) {
-      console.error(error);
-      setStatus(error && error.message ? error.message : String(error), 'error');
-    } finally {
-      elems.resolve.disabled = false;
-    }
-  }
-
-  function runHydrated() {
-    if (!lastHydrated) return;
-    clearCanvas();
-    try {
-      const execute = new Function('canvas', lastHydrated + '\n;if(typeof a!=="function") throw new Error("Hydrated artifact does not define entry function a()."); return a(canvas);');
-      execute(elems.canvas);
-      setStatus('Hydrated ledger artifact executed.', 'ok');
-    } catch (error) {
-      console.error(error);
-      setStatus('Execution failed: ' + (error && error.message ? error.message : String(error)), 'error');
-    }
-  }
-
-  elems.resolve.addEventListener('click', resolveArtifact);
-  elems.run.addEventListener('click', runHydrated);
-  elems.clear.addEventListener('click', clearCanvas);
-  elems.locator.addEventListener('keydown', function (event) {
-    if (event.key === 'Enter') resolveArtifact();
-  });
-
-  try {
-    const params = new URL(location.href).searchParams;
-    if (params.get('locator')) elems.locator.value = params.get('locator');
-    if (params.get('network') === 'testnet') elems.network.value = 'testnet';
-  } catch (error) {}
-
-  window.CHISEL_MCDOUGALL_LTC_V1 = {
-    parseLocator: parseLocator,
-    resolveLocator: resolveLocator,
-    decodeRootV1: decodeRootV1,
-    hydrate: hydrate
-  };
+   E.rootHex.textContent=bytesToHex(root.opReturn.bytes);
+   E.previousHex.textContent=bytesToHex(prev.opReturn.bytes);
+   E.abstractHex.textContent=bytesToHex(abstract);
+   E.hydrated.textContent=hydrated;
+   lastHydrated=hydrated;
+   E.receiptPanel.hidden=E.bytesPanel.hidden=E.hydratePanel.hidden=false;
+   E.run.disabled=false;
+   status("Resolved "+root.locator+" → "+prev.locator+". Reconstructed "+abstract.length+" McDougall bytes. Inspect source, then RUN if desired.","ok");
+ }catch(err){
+   console.error(err);status(err&&err.message?err.message:String(err),"error");
+ }finally{E.resolve.disabled=false}
+}
+E.resolve.onclick=resolveArtifact;
+E.locator.onkeydown=e=>{if(e.key==="Enter")resolveArtifact()};
+E.clear.onclick=clearCanvas;
+E.run.onclick=function(){
+ if(!lastHydrated)return;
+ try{
+   clearCanvas();
+   const fn=new Function("canvas",lastHydrated+';if(typeof a!=="function")throw new Error("Hydrated artifact did not define a(canvas).");a(canvas);');
+   fn(E.canvas);status("Hydrated JavaScript executed.","ok");
+ }catch(err){console.error(err);status("Execution failed: "+(err&&err.message?err.message:String(err)),"error")}
+};
 })();
 </script>
 </body>
