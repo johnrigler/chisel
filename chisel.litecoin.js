@@ -200,3 +200,18 @@
     unspendableModifiers: ["K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "a", "b", "c", "d", "e", "f", "g", "h"]
   }));
 })();
+
+(function loadLitecoinReceiptTracker() {
+  if (typeof document === "undefined") return;
+  const current = document.currentScript;
+  const script = document.createElement("script");
+  script.async = false;
+  try {
+    script.src = current && current.src
+      ? new URL("chisel.litecoin.receipt.js?2.7.16", current.src).toString()
+      : "chisel.litecoin.receipt.js?2.7.16";
+  } catch (error) {
+    script.src = "chisel.litecoin.receipt.js?2.7.16";
+  }
+  document.head.appendChild(script);
+})();
