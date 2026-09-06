@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.15c";
+  const APP_VERSION = "2.7.16";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -872,7 +872,10 @@ function getResolvedOpReturnHexForFee() {
   // DOM setters
   //
   function setAppVersion() {
-    elems.version.textContent = APP_NAME + " v" + APP_VERSION;
+    const label = APP_NAME + " v" + APP_VERSION;
+    elems.version.textContent = label;
+    document.title = "Chisel " + APP_VERSION;
+    window.CHISEL_APP_VERSION = APP_VERSION;
   }
 
 function setCurrencyOptions() {
