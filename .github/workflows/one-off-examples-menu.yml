@@ -20,6 +20,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           app_path = Path('app.js')
           app = app_path.read_text()
@@ -57,64 +58,58 @@ jobs:
               raise SystemExit('Expected mode nav block not found')
           index = index.replace(old_nav, new_nav, 1)
 
-          examples_panel = '''    <section class="modePanel" data-mode-panel="examples">
-            <section class="panel hero">
-              <h2>Examples</h2>
-              <p class="muted">Runnable artifacts and reference outputs. These are examples of Chisel's portable-tool approach, not extra transaction modes.</p>
-              <div class="toolGrid">
-                <a class="toolCard" href="tools/m64Artifact/index.html">
-                  <strong>M64 artifact workbench</strong>
-                  <span>Stage controlled JavaScript through canonicalization, token bytes, M64 transport, hydration, and an isolated browser test.</span>
-                </a>
-                <a class="toolCard" href="tools/m64Artifact/examples/darkstar-raster.html">
-                  <strong>Dark Star raster example</strong>
-                  <span>Run the compact deterministic raster engine that reconstructs the larger Dark Star image from a small program and parameters.</span>
-                </a>
-                <a class="toolCard" href="tools/m64Artifact/hydrate.html">
-                  <strong>M64 hydrator</strong>
-                  <span>Load an M64 artifact, hydrate it back into its controlled source form, and execute the declared entry point.</span>
-                </a>
-                <a class="toolCard" href="tools/m64Artifact/polygon.html">
-                  <strong>Polygon artifact carrier</strong>
-                  <span>Publish and retrieve exact artifact bytes through Polygon transaction calldata with an injected EVM wallet.</span>
-                </a>
-              </div>
-            </section>
-          </section>
-
-          '''
+          examples_panel = (
+              '    <section class="modePanel" data-mode-panel="examples">\n'
+              '      <section class="panel hero">\n'
+              '        <h2>Examples</h2>\n'
+              '        <p class="muted">Runnable artifacts and reference outputs. These are examples of Chisel\'s portable-tool approach, not extra transaction modes.</p>\n'
+              '        <div class="toolGrid">\n'
+              '          <a class="toolCard" href="tools/m64Artifact/index.html">\n'
+              '            <strong>M64 artifact workbench</strong>\n'
+              '            <span>Stage controlled JavaScript through canonicalization, token bytes, M64 transport, hydration, and an isolated browser test.</span>\n'
+              '          </a>\n'
+              '          <a class="toolCard" href="tools/m64Artifact/examples/darkstar-raster.html">\n'
+              '            <strong>Dark Star raster example</strong>\n'
+              '            <span>Run the compact deterministic raster engine that reconstructs the larger Dark Star image from a small program and parameters.</span>\n'
+              '          </a>\n'
+              '          <a class="toolCard" href="tools/m64Artifact/hydrate.html">\n'
+              '            <strong>M64 hydrator</strong>\n'
+              '            <span>Load an M64 artifact, hydrate it back into its controlled source form, and execute the declared entry point.</span>\n'
+              '          </a>\n'
+              '          <a class="toolCard" href="tools/m64Artifact/polygon.html">\n'
+              '            <strong>Polygon artifact carrier</strong>\n'
+              '            <span>Publish and retrieve exact artifact bytes through Polygon transaction calldata with an injected EVM wallet.</span>\n'
+              '          </a>\n'
+              '        </div>\n'
+              '      </section>\n'
+              '    </section>\n\n'
+          )
           marker = '    <section class="modePanel" data-mode-panel="tools">'
           if marker not in index:
               raise SystemExit('Expected Tools panel marker not found')
           index = index.replace(marker, examples_panel + marker, 1)
 
-          old_broken = '''          <a class="toolCard" href="tools/imageEncoder/index.html">
-                <strong>Base57 image encoder</strong>
-                <span>Choose and crop a local image, quantize it through the V1 palette, and load its ordered unspendable Digibyte addresses into Etch.</span>
-              </a>
+          image_pattern = re.compile(r'\n\s*<a class="toolCard" href="tools/imageEncoder/index\.html">.*?</a>', re.S)
+          payload_pattern = re.compile(r'\n\s*<a class="toolCard" href="tools/payloadAnalyzer/index\.html">.*?</a>', re.S)
+          if not image_pattern.search(index):
+              raise SystemExit('imageEncoder Tools card not found')
+          if not payload_pattern.search(index):
+              raise SystemExit('payloadAnalyzer Tools card not found')
 
-              <a class="toolCard" href="tools/payloadAnalyzer/index.html">
-                <strong>Payload and artifact analyzer</strong>
-                <span>Analyze pasted material, build bounded YouTube URLs, hash local components, split CIDv0 pointers, and return an ordered plan to Etch.</span>
-              </a>
-          '''
-          replacement = '''          <a class="toolCard" href="tools/m64Artifact/index.html">
-                <strong>M64 artifact workbench</strong>
-                <span>Canonicalize, crush, encode, hydrate, and test compact controlled-JavaScript artifacts, including the Dark Star example.</span>
-              </a>
-
-              <a class="toolCard" href="tools/mcdougallResolver/index.html">
-                <strong>MacDougall resolver</strong>
-                <span>Resolve and inspect MacDougall-style encoded references with the standalone browser tool.</span>
-              </a>
-          '''
-          # Normalize the intentionally indented block strings back to index.html indentation.
-          old_broken = old_broken.replace('              ', '          ')
-          replacement = replacement.replace('              ', '          ')
-          if old_broken not in index:
-              raise SystemExit('Expected broken Tools cards not found')
-          index = index.replace(old_broken, replacement, 1)
-
+          image_card = (
+              '\n          <a class="toolCard" href="tools/m64Artifact/index.html">\n'
+              '            <strong>M64 artifact workbench</strong>\n'
+              '            <span>Canonicalize, crush, encode, hydrate, and test compact controlled-JavaScript artifacts, including the Dark Star example.</span>\n'
+              '          </a>'
+          )
+          payload_card = (
+              '\n          <a class="toolCard" href="tools/mcdougallResolver/index.html">\n'
+              '            <strong>MacDougall resolver</strong>\n'
+              '            <span>Resolve and inspect MacDougall-style encoded references with the standalone browser tool.</span>\n'
+              '          </a>'
+          )
+          index = image_pattern.sub(image_card, index, count=1)
+          index = payload_pattern.sub(payload_card, index, count=1)
           index = index.replace('?rev=20260906a', '?rev=20260906b')
           index_path.write_text(index)
           PY
