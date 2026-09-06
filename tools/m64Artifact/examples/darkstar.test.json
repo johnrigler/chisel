@@ -1,0 +1,13 @@
+{
+  "source_bytes": 1108,
+  "canonical_bytes": 920,
+  "abstract_bytes": 833,
+  "m64_characters": 1111,
+  "hydrated_bytes": 920,
+  "rgb_bytes": 3780000,
+  "sha256_rgb": "f8ae0fb9eb89714ab56dcf583ee1481bce22f16f22e0493ca66a9a34047b5d62",
+  "hydrate_equality": true,
+  "canonical_matches_original": true,
+  "hydrated_matches_original": true,
+  "entry": "a"
+}
