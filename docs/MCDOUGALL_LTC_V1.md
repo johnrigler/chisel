@@ -1,43 +1,53 @@
 # McDougall Litecoin specimen v1
 
-This note freezes the first working two-transaction Litecoin resurrection specimen used by Chisel.
+This note records the first working two-transaction Litecoin resurrection specimen used by Chisel.
 
-## Root locator
+## Canonical root locator
 
-The artifact is addressed by the compact Litecoin locator:
+The clean canonical root is:
 
 ```text
-3172924:19
+3172942:28
 ```
 
 Transaction positions are zero-based within the block transaction array.
 
-## What is actually on Litecoin
-
-The live root transaction does **not** contain the proposed leading `01` version byte. Its OP_RETURN begins directly with the four-byte predecessor locator:
+The compact four-byte locator for this root is:
 
 ```text
-previous-height-u24be || previous-tx-index-u8 || tail-bytes
+30 6a 4e 1c
 ```
 
-For this specimen the predecessor locator is:
+## Root payload
+
+The canonical root uses the proposed versioned v1 form:
+
+```text
+01 || previous-height-u24be || previous-tx-index-u8 || tail-bytes
+```
+
+Its predecessor locator is:
 
 ```text
 3172893:13
 ```
 
-Its compact four-byte encoding is:
+whose compact encoding is:
 
 ```text
 30 6a 1d 0d
 ```
 
-The observed root payload therefore begins with `0x30`, not `0x01`. The resolver treats this exact ledger artifact as the unversioned specimen format.
-
-The proposed versioned form remains supported for later artifacts:
+The intended canonical root payload is therefore:
 
 ```text
-01 || previous-height-u24be || previous-tx-index-u8 || tail-bytes
+01 30 6a 1d 0d 92 65 95 94 32 8e 91 63 82 91 63 85 91 90
+```
+
+or, without spaces:
+
+```text
+01306a1d0d92659594328e9163829163859190
 ```
 
 ## Predecessor
@@ -48,7 +58,7 @@ The predecessor transaction is the transaction whose txid is:
 99d2afeed6dc496e4e0f13d1cd304db9cd6adb1d0f90b02dc1e7641cf7bc022b
 ```
 
-It carries the first 80 raw McDougall abstract bytes in OP_RETURN. The root carries the backward locator and final 14 abstract bytes. Reassembly is:
+It carries the first 80 raw McDougall abstract bytes in OP_RETURN. The canonical root carries the version byte, backward locator, and final 14 abstract bytes. Reassembly is:
 
 ```text
 abstract = predecessorPayload || rootTail
@@ -59,6 +69,16 @@ For the trapezoid specimen this reconstructs a 94-byte abstract stream which hyd
 ```js
 function a(b){const c=b.getContext("2d");const d=b.width;const e=b.height;c.beginPath();c.moveTo(d*.2,e*.8);c.lineTo(d*.8,e*.8);c.lineTo(d*.65,e*.2);c.lineTo(d*.35,e*.2);c.closePath();c.fill();}
 ```
+
+## Earlier compatibility specimen
+
+The earlier root at:
+
+```text
+3172924:19
+```
+
+stored the hexadecimal characters as ASCII text in OP_RETURN rather than storing the 19 payload bytes directly. Chisel keeps compatibility logic that detects an ASCII-hex OP_RETURN and unwraps it once before parsing the McDougall root. It remains a useful historical specimen but is not the canonical compact example.
 
 ## McDougall token profile
 
@@ -98,10 +118,10 @@ Open:
 tools/mcdougallResolver/
 ```
 
-The tool accepts a `blockHeight:txIndex` root locator. It resolves block height to block hash through Litecoinspace, resolves the zero-based transaction position to a txid, reads OP_RETURN, decodes either the live unversioned specimen or the proposed versioned v1 header, follows the backward pointer, concatenates the abstract bytes, hydrates JavaScript, and keeps execution behind a separate RUN button.
+The default locator is now `3172942:28`. The resolver resolves block height to block hash through Litecoinspace, gets the zero-based transaction at that position, reads OP_RETURN, follows the backward pointer to `3172893:13`, concatenates the abstract bytes, hydrates JavaScript, and keeps execution behind a separate RUN button.
 
-The default locator is the live specimen `3172924:19`.
+The resolver also retains support for the earlier ASCII-hex transport form at `3172924:19`.
 
 ## Deliberate limits
 
-This is a specimen format, not yet the final general protocol. The current resolver assumes one backward hop, a 24-bit block height, an 8-bit transaction index, Litecoin mainnet/testnet lookup through Litecoinspace-compatible endpoints, and the fixed McDougall token profile above. It does not yet include recursive chains, cross-chain locators, embedded profile identifiers, content hashes, signatures, or a larger transaction-index encoding.
+This is still a specimen format, not the final general protocol. The current resolver assumes one backward hop, a 24-bit block height, an 8-bit transaction index, Litecoin mainnet/testnet lookup through Litecoinspace-compatible endpoints, and the fixed McDougall token profile above. It does not yet include recursive chains, cross-chain locators, embedded profile identifiers, content hashes, signatures, or a larger transaction-index encoding.
