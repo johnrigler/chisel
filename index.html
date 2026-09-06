@@ -347,6 +347,7 @@
     body[data-mode="broadcast"] .modePanel[data-mode-panel="etch"],
     body[data-mode="review"] .modePanel[data-mode-panel="review"],
     body[data-mode="portal"] .modePanel[data-mode-panel="portal"],
+    body[data-mode="examples"] .modePanel[data-mode-panel="examples"],
     body[data-mode="tools"] .modePanel[data-mode-panel="tools"] {
       display: grid;
     }
@@ -1294,7 +1295,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20260906a" />
+  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20260906b" />
 </head>
 <body data-mode="portal">
   <header>
@@ -1311,6 +1312,7 @@
         <button class="modeButton" type="button" data-mode-target="start">Start</button>
         <button class="modeButton" type="button" data-mode-target="etch">Etch</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
+        <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
         <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
       </div>
       <div class="compactHint" id="modeHint">Portal mode is the default reader. Etch mode creates/signs/sends transactions in either one pass or separate copy/paste steps.</div>
@@ -1854,6 +1856,31 @@
       </details>
     </section>
 
+    <section class="modePanel" data-mode-panel="examples">
+      <section class="panel hero">
+        <h2>Examples</h2>
+        <p class="muted">Runnable artifacts and reference outputs. These are examples of Chisel's portable-tool approach, not extra transaction modes.</p>
+        <div class="toolGrid">
+          <a class="toolCard" href="tools/m64Artifact/index.html">
+            <strong>M64 artifact workbench</strong>
+            <span>Stage controlled JavaScript through canonicalization, token bytes, M64 transport, hydration, and an isolated browser test.</span>
+          </a>
+          <a class="toolCard" href="tools/m64Artifact/examples/darkstar-raster.html">
+            <strong>Dark Star raster example</strong>
+            <span>Run the compact deterministic raster engine that reconstructs the larger Dark Star image from a small program and parameters.</span>
+          </a>
+          <a class="toolCard" href="tools/m64Artifact/hydrate.html">
+            <strong>M64 hydrator</strong>
+            <span>Load an M64 artifact, hydrate it back into its controlled source form, and execute the declared entry point.</span>
+          </a>
+          <a class="toolCard" href="tools/m64Artifact/polygon.html">
+            <strong>Polygon artifact carrier</strong>
+            <span>Publish and retrieve exact artifact bytes through Polygon transaction calldata with an injected EVM wallet.</span>
+          </a>
+        </div>
+      </section>
+    </section>
+
     <section class="modePanel" data-mode-panel="tools">
       <section class="panel hero">
         <h2>Tools</h2>
@@ -1863,15 +1890,13 @@
             <strong>QR / WIF scanner</strong>
             <span>Scan four 16-hex stickers or a full WIF against the installed Chisel currency list, then load it back into Chisel.</span>
           </a>
-
-          <a class="toolCard" href="tools/imageEncoder/index.html">
-            <strong>Base57 image encoder</strong>
-            <span>Choose and crop a local image, quantize it through the V1 palette, and load its ordered unspendable Digibyte addresses into Etch.</span>
+          <a class="toolCard" href="tools/m64Artifact/index.html">
+            <strong>M64 artifact workbench</strong>
+            <span>Canonicalize, crush, encode, hydrate, and test compact controlled-JavaScript artifacts, including the Dark Star example.</span>
           </a>
-
-          <a class="toolCard" href="tools/payloadAnalyzer/index.html">
-            <strong>Payload and artifact analyzer</strong>
-            <span>Analyze pasted material, build bounded YouTube URLs, hash local components, split CIDv0 pointers, and return an ordered plan to Etch.</span>
+          <a class="toolCard" href="tools/mcdougallResolver/index.html">
+            <strong>MacDougall resolver</strong>
+            <span>Resolve and inspect MacDougall-style encoded references with the standalone browser tool.</span>
           </a>
 
           <a class="toolCard" href="tools/keyPrint/index.html">
@@ -1907,18 +1932,18 @@
     </section>
   </main>
 
-  <script src="chisel.js?rev=20260906a"></script>
-  <script src="chisel.unspendable.js?rev=20260906a"></script>
-  <script src="chisel.image.js?rev=20260906a"></script>
-  <script src="chisel.sign.js?rev=20260906a"></script>
-  <script src="chisel.ravencoin.js?rev=20260906a"></script>
-  <script src="chisel.digibyte.js?rev=20260906a"></script>
-  <script src="chisel.litecoin.js?rev=20260906a"></script>
-  <script src="chisel.thunderwords.js?rev=20260906a"></script>
-  <script src="data-bundled/portal-starter.js?rev=20260906a"></script>
-  <script src="chisel.portal.static-data.js?rev=20260906a"></script>
-  <script src="chisel.portal.js?rev=20260906a"></script>
-  <script src="fixtures/etch/etch-fixtures.js?rev=20260906a"></script>
+  <script src="chisel.js?rev=20260906b"></script>
+  <script src="chisel.unspendable.js?rev=20260906b"></script>
+  <script src="chisel.image.js?rev=20260906b"></script>
+  <script src="chisel.sign.js?rev=20260906b"></script>
+  <script src="chisel.ravencoin.js?rev=20260906b"></script>
+  <script src="chisel.digibyte.js?rev=20260906b"></script>
+  <script src="chisel.litecoin.js?rev=20260906b"></script>
+  <script src="chisel.thunderwords.js?rev=20260906b"></script>
+  <script src="data-bundled/portal-starter.js?rev=20260906b"></script>
+  <script src="chisel.portal.static-data.js?rev=20260906b"></script>
+  <script src="chisel.portal.js?rev=20260906b"></script>
+  <script src="fixtures/etch/etch-fixtures.js?rev=20260906b"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -1927,7 +1952,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20260906a"></script>
-  <script src="chisel.selftest.js?rev=20260906a"></script>
+  <script src="app.js?rev=20260906b"></script>
+  <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
