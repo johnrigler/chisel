@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dark Star Raster M64 Example</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b0b0e;color:#eee;font:14px system-ui,sans-serif}main{max-width:1250px;margin:auto;padding:12px}.grid{display:grid;grid-template-columns:330px 1fr;gap:12px}textarea,button{font:13px ui-monospace,monospace;color:#eee;background:#111;border:1px solid #444}textarea{width:100%;min-height:430px;padding:8px}button{padding:8px 10px;margin:7px 5px 7px 0}canvas{display:block;max-width:100%;height:auto;background:#000;border:1px solid #333}.status{white-space:pre-wrap;font:12px ui-monospace,monospace;color:#aaa}@media(max-width:760px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main>
+<h1>Dark Star Raster</h1>
+<p>Compact host for the extracted deterministic raster core used by the M64 specimen.</p>
+<div class="grid"><section><textarea id="recipe"></textarea><button id="render">Render</button><button id="ppm">Download PPM</button><div id="status" class="status"></div></section><section><canvas id="canvas" width="1400" height="900"></canvas></section></div>
+<script src="darkstar-core.js"></script>
+<script>
+const S=id=>document.getElementById(id),defaults={seed:124771,width:1400,height:900,lines:1600,yLeft:120,yRight:160,dyLeft:1,dyRight:2,slopeEvery:73,ddyLeft:0,ddyRight:-1,r:24,g:98,b:180,dr:1,dg:2,db:-1,colorEvery:137,ddr:1,ddg:-1,ddb:1};let pixels=null,last=null;
+S("recipe").value=JSON.stringify(defaults,null,2);
+function imageData(buf,w,h){const out=new Uint8ClampedArray(w*h*4);for(let s=0,d=0;s<buf.length;s+=3,d+=4){out[d]=buf[s];out[d+1]=buf[s+1];out[d+2]=buf[s+2];out[d+3]=255}return new ImageData(out,w,h)}
+async function sha(buf){if(!crypto?.subtle)return"";const h=await crypto.subtle.digest("SHA-256",buf);return[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("")}
+async function render(){try{const p=JSON.parse(S("recipe").value);if(!Number.isInteger(p.width)||!Number.isInteger(p.height)||p.width<1||p.height<1)throw Error("bad width/height");const t=performance.now();pixels=darkStar(p);last=p;const c=S("canvas");c.width=p.width;c.height=p.height;c.getContext("2d",{alpha:false}).putImageData(imageData(pixels,p.width,p.height),0,0);const h=await sha(pixels);S("status").textContent=`${p.width} x ${p.height}\n${pixels.length} RGB bytes\n${(performance.now()-t).toFixed(1)} ms`+(h?`\nSHA-256 ${h}`:"")}catch(e){S("status").textContent=e.stack||e}}
+function ppm(){if(!pixels||!last)return;const head=new TextEncoder().encode(`P6\n${last.width} ${last.height}\n255\n`),blob=new Blob([head,pixels],{type:"image/x-portable-pixmap"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`darkstar-${last.seed}.ppm`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+S("render").onclick=render;S("ppm").onclick=ppm;render();
+</script></main></body></html>
