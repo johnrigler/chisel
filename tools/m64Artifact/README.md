@@ -24,7 +24,7 @@ M64 is not an image format. It is a transport encoding for an abstract byte stre
 
 - `index.html` - generic source -> canonical JS -> abstract tokens -> M64 -> hydrate -> sandboxed test workbench
 - `polygon.html` - pure browser EIP-1193 carrier for writing arbitrary UTF-8 artifact text into Polygon transaction calldata and reading it back
-- `examples/darkstar-raster.html` - the original deterministic Dark Star raster/pattern generator
+- `examples/darkstar-raster.html` - compact standalone host for the deterministic Dark Star raster/pattern core
 - `examples/darkstar-core.js` - extracted image-producing core
 - `examples/darkstar-core.canonical.js` - known-good canonical/minified core
 - `examples/darkstar.m64.txt` - known-good M64 staging payload
