@@ -1,0 +1,130 @@
+name: One-off examples menu updater
+
+on:
+  push:
+    branches:
+      - examples-menu
+
+permissions:
+  contents: write
+
+jobs:
+  patch-menu:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add Examples mode and repair Tools links
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app_path = Path('app.js')
+          app = app_path.read_text()
+
+          old = 'const APP_VERSION = "2.7.16";'
+          new = 'const APP_VERSION = "2.7.17";'
+          if old not in app:
+              raise SystemExit('Expected APP_VERSION 2.7.16 not found')
+          app = app.replace(old, new, 1)
+
+          old_hint = '    portal: "Portal mode is the default Chisel-aware block explorer view over Thunderword indexes and transaction semantics.",\n    tools: "Tools mode links to QR/WIF scanning, label generation, legacy decoding, and support utilities without crowding the etcher."'
+          new_hint = '    portal: "Portal mode is the default Chisel-aware block explorer view over Thunderword indexes and transaction semantics.",\n    examples: "Examples mode collects runnable artifacts and reference outputs without mixing them into the transaction workbench.",\n    tools: "Tools mode links to QR/WIF scanning, label generation, legacy decoding, and support utilities without crowding the etcher."'
+          if old_hint not in app:
+              raise SystemExit('Expected MODE_HINTS block not found')
+          app = app.replace(old_hint, new_hint, 1)
+
+          old_modes = '    if (value === "review" || value === "portal" || value === "tools") {\n      return value;\n    }'
+          new_modes = '    if (value === "review" || value === "portal" || value === "examples" || value === "tools") {\n      return value;\n    }'
+          if old_modes not in app:
+              raise SystemExit('Expected normalizeMode block not found')
+          app = app.replace(old_modes, new_modes, 1)
+          app_path.write_text(app)
+
+          index_path = Path('index.html')
+          index = index_path.read_text()
+
+          old_css = '    body[data-mode="portal"] .modePanel[data-mode-panel="portal"],\n    body[data-mode="tools"] .modePanel[data-mode-panel="tools"] {\n      display: grid;\n    }'
+          new_css = '    body[data-mode="portal"] .modePanel[data-mode-panel="portal"],\n    body[data-mode="examples"] .modePanel[data-mode-panel="examples"],\n    body[data-mode="tools"] .modePanel[data-mode-panel="tools"] {\n      display: grid;\n    }'
+          if old_css not in index:
+              raise SystemExit('Expected modePanel CSS block not found')
+          index = index.replace(old_css, new_css, 1)
+
+          old_nav = '        <button class="modeButton" type="button" data-mode-target="review">Review</button>\n        <button class="modeButton" type="button" data-mode-target="tools">Tools</button>'
+          new_nav = '        <button class="modeButton" type="button" data-mode-target="review">Review</button>\n        <button class="modeButton" type="button" data-mode-target="examples">Examples</button>\n        <button class="modeButton" type="button" data-mode-target="tools">Tools</button>'
+          if old_nav not in index:
+              raise SystemExit('Expected mode nav block not found')
+          index = index.replace(old_nav, new_nav, 1)
+
+          examples_panel = '''    <section class="modePanel" data-mode-panel="examples">
+      <section class="panel hero">
+        <h2>Examples</h2>
+        <p class="muted">Runnable artifacts and reference outputs. These are examples of Chisel's portable-tool approach, not extra transaction modes.</p>
+        <div class="toolGrid">
+          <a class="toolCard" href="tools/m64Artifact/index.html">
+            <strong>M64 artifact workbench</strong>
+            <span>Stage controlled JavaScript through canonicalization, token bytes, M64 transport, hydration, and an isolated browser test.</span>
+          </a>
+          <a class="toolCard" href="tools/m64Artifact/examples/darkstar-raster.html">
+            <strong>Dark Star raster example</strong>
+            <span>Run the compact deterministic raster engine that reconstructs the larger Dark Star image from a small program and parameters.</span>
+          </a>
+          <a class="toolCard" href="tools/m64Artifact/hydrate.html">
+            <strong>M64 hydrator</strong>
+            <span>Load an M64 artifact, hydrate it back into its controlled source form, and execute the declared entry point.</span>
+          </a>
+          <a class="toolCard" href="tools/m64Artifact/polygon.html">
+            <strong>Polygon artifact carrier</strong>
+            <span>Publish and retrieve exact artifact bytes through Polygon transaction calldata with an injected EVM wallet.</span>
+          </a>
+        </div>
+      </section>
+    </section>
+
+'''
+          marker = '    <section class="modePanel" data-mode-panel="tools">'
+          if marker not in index:
+              raise SystemExit('Expected Tools panel marker not found')
+          index = index.replace(marker, examples_panel + marker, 1)
+
+          old_broken = '''          <a class="toolCard" href="tools/imageEncoder/index.html">
+            <strong>Base57 image encoder</strong>
+            <span>Choose and crop a local image, quantize it through the V1 palette, and load its ordered unspendable Digibyte addresses into Etch.</span>
+          </a>
+
+          <a class="toolCard" href="tools/payloadAnalyzer/index.html">
+            <strong>Payload and artifact analyzer</strong>
+            <span>Analyze pasted material, build bounded YouTube URLs, hash local components, split CIDv0 pointers, and return an ordered plan to Etch.</span>
+          </a>
+'''
+          replacement = '''          <a class="toolCard" href="tools/m64Artifact/index.html">
+            <strong>M64 artifact workbench</strong>
+            <span>Canonicalize, crush, encode, hydrate, and test compact controlled-JavaScript artifacts, including the Dark Star example.</span>
+          </a>
+
+          <a class="toolCard" href="tools/mcdougallResolver/index.html">
+            <strong>MacDougall resolver</strong>
+            <span>Resolve and inspect MacDougall-style encoded references with the standalone browser tool.</span>
+          </a>
+'''
+          if old_broken not in index:
+              raise SystemExit('Expected broken Tools cards not found')
+          index = index.replace(old_broken, replacement, 1)
+
+          index = index.replace('?rev=20260906a', '?rev=20260906b')
+          index_path.write_text(index)
+          PY
+
+      - name: Remove one-off workflow
+        run: git rm .github/workflows/one-off-examples-menu.yml
+
+      - name: Commit menu cleanup
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js index.html .github/workflows/one-off-examples-menu.yml
+          git commit -m "Add Examples menu and repair Tools links"
+          git push origin HEAD:examples-menu
