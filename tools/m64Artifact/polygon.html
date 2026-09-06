@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chisel Polygon Artifact Carrier</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0b0e;--panel:#15151a;--line:#353540;--ink:#ececf1;--muted:#9c9ca9;--good:#acd6ac;--bad:#e5abab}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1100px;margin:auto;padding:16px}h1{font-size:19px;margin:0 0 4px}.muted,.note{color:var(--muted)}.panel{border:1px solid var(--line);background:var(--panel);padding:12px;margin-top:12px}textarea,input,select,button{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink);background:#0f0f14;border:1px solid #3b3b47;border-radius:3px}textarea{width:100%;min-height:230px;padding:8px;resize:vertical}input,select{width:100%;padding:7px}button{padding:8px 10px;cursor:pointer;margin:5px 5px 5px 0}button:hover{background:#24242d}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.labelrow{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:center;margin:6px 0}.status{white-space:pre-wrap;word-break:break-word;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.good{color:var(--good)}.bad{color:var(--bad)}.note{font-size:12px;margin-top:7px}@media(max-width:760px){.row{grid-template-columns:1fr}.labelrow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>CHISEL POLYGON ARTIFACT CARRIER</h1>
+<div class="muted">Store and recover exact UTF-8 artifact text in Polygon transaction calldata. No contract and no external JavaScript library.</div>
+
+<section class="panel">
+  <div class="labelrow"><label for="provider">Injected wallet</label><select id="provider"></select></div>
+  <button id="refreshBtn">Refresh wallets</button>
+  <button id="connectBtn">Connect + switch to Polygon</button>
+  <div id="walletStatus" class="status">wallet not connected</div>
+</section>
+
+<div class="row">
+  <section class="panel">
+    <h3>Text to carry</h3>
+    <textarea id="payload" spellcheck="false" placeholder="Paste chisel-m64-artifact JSON or any UTF-8 text here"></textarea>
+    <div id="size" class="note">0 UTF-8 bytes</div>
+    <button id="sendBtn">Send zero-value self transaction</button>
+    <div class="note">The wallet will show a real Polygon transaction and gas cost. The exact textarea bytes become the transaction data field.</div>
+  </section>
+
+  <section class="panel">
+    <h3>Retrieve transaction</h3>
+    <input id="txid" placeholder="0x... transaction hash">
+    <button id="readBtn">Read transaction data</button>
+    <button id="copyBtn">Copy recovered text</button>
+    <textarea id="recovered" spellcheck="false" placeholder="Recovered UTF-8 text"></textarea>
+  </section>
+</div>
+
+<section class="panel">
+  <h3>Status</h3>
+  <div id="status" class="status">idle</div>
+</section>
+</main>
+<script>
+"use strict";
+const S=id=>document.getElementById(id);
+const providers=[];
+let activeProvider=null,activeAccount="";
+const POLYGON={chainId:"0x89",chainName:"Polygon Mainnet",nativeCurrency:{name:"POL",symbol:"POL",decimals:18},rpcUrls:["https://polygon-rpc.com/"],blockExplorerUrls:["https://polygonscan.com/"]};
+function textBytes(s){return new TextEncoder().encode(s)}
+function bytesToHex(bytes){let out="0x";for(const b of bytes)out+=b.toString(16).padStart(2,"0");return out}
+function hexToBytes(hex){if(typeof hex!=="string")throw new Error("Transaction input is not a string");hex=hex.startsWith("0x")?hex.slice(2):hex;if(hex.length%2)throw new Error("Odd-length hex data");const out=new Uint8Array(hex.length/2);for(let i=0;i<out.length;i++){const v=parseInt(hex.slice(i*2,i*2+2),16);if(Number.isNaN(v))throw new Error("Invalid hex data");out[i]=v}return out}
+function hexInt(v){return v==null?null:parseInt(v,16)}
+function show(text,ok){S("status").textContent=text;S("status").className="status "+(ok===true?"good":ok===false?"bad":"")}
+function walletShow(text,ok){S("walletStatus").textContent=text;S("walletStatus").className="status "+(ok===true?"good":ok===false?"bad":"")}
+function addProvider(provider,name,id){if(!provider||typeof provider.request!=="function")return;if(providers.some(x=>x.provider===provider))return;providers.push({provider,name:name||"Injected EVM wallet",id:id||("p"+providers.length)})}
+function rebuildSelect(){const sel=S("provider"),previous=sel.value;sel.textContent="";providers.forEach((p,i)=>{const o=document.createElement("option");o.value=String(i);o.textContent=p.name;sel.appendChild(o)});if(providers.length===0){const o=document.createElement("option");o.value="";o.textContent="No injected EVM wallet detected";sel.appendChild(o)}else if(previous&&Number(previous)<providers.length)sel.value=previous}
+function discover(){providers.length=0;if(window.backpack&&window.backpack.ethereum)addProvider(window.backpack.ethereum,"Backpack", "backpack");if(window.ethereum)addProvider(window.ethereum,"window.ethereum", "ethereum");window.dispatchEvent(new Event("eip6963:requestProvider"));setTimeout(rebuildSelect,150);rebuildSelect()}
+window.addEventListener("eip6963:announceProvider",ev=>{const d=ev.detail;if(d&&d.provider){addProvider(d.provider,d.info&&d.info.name,d.info&&d.info.uuid);rebuildSelect()}});
+function selectedProvider(){const i=Number(S("provider").value);if(!Number.isInteger(i)||!providers[i])throw new Error("No wallet provider selected");return providers[i]}
+async function ensurePolygon(provider){try{await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:POLYGON.chainId}]})}catch(err){const code=err&&err.code;if(code===4902||code===-32603){await provider.request({method:"wallet_addEthereumChain",params:[POLYGON]});await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:POLYGON.chainId}]})}else throw err}}
+async function connect(){try{const chosen=selectedProvider();activeProvider=chosen.provider;const accounts=await activeProvider.request({method:"eth_requestAccounts"});if(!accounts||!accounts[0])throw new Error("Wallet returned no account");activeAccount=accounts[0];await ensurePolygon(activeProvider);const chain=await activeProvider.request({method:"eth_chainId"});walletShow("connected: "+chosen.name+"\naccount: "+activeAccount+"\nchainId: "+chain,true);return activeProvider}catch(err){walletShow("CONNECT ERROR\n"+(err.stack||err),false);throw err}}
+async function providerReady(){if(activeProvider&&activeAccount)return activeProvider;return connect()}
+async function waitForReceipt(provider,hash){for(let i=0;i<80;i++){const r=await provider.request({method:"eth_getTransactionReceipt",params:[hash]});if(r&&r.blockNumber)return r;show("submitted: "+hash+"\nwaiting for block confirmation... check "+(i+1));await new Promise(r=>setTimeout(r,3000))}return null}
+async function send(){try{const provider=await providerReady(),text=S("payload").value,bytes=textBytes(text);if(!bytes.length)throw new Error("Payload is empty");show("requesting wallet signature\nUTF-8 bytes: "+bytes.length);const hash=await provider.request({method:"eth_sendTransaction",params:[{from:activeAccount,to:activeAccount,value:"0x0",data:bytesToHex(bytes)}]});S("txid").value=hash;show("submitted: "+hash+"\nUTF-8 bytes: "+bytes.length+"\nwaiting for inclusion...");const receipt=await waitForReceipt(provider,hash);if(!receipt){show("submitted but receipt was not observed before timeout\ntransaction: "+hash,false);return}const block=hexInt(receipt.blockNumber),pos=hexInt(receipt.transactionIndex);show("MINED\ntransaction: "+hash+"\nblock: "+block+"\nposition: "+pos+"\nlocator: P:"+hash+"\nUTF-8 bytes: "+bytes.length,true)}catch(err){show("SEND ERROR\n"+(err.stack||err),false)}}
+async function read(){try{const provider=await providerReady(),hash=S("txid").value.trim();if(!/^0x[0-9a-fA-F]{64}$/.test(hash))throw new Error("Expected a 32-byte transaction hash");const tx=await provider.request({method:"eth_getTransactionByHash",params:[hash]});if(!tx)throw new Error("Transaction not found through selected wallet RPC");const bytes=hexToBytes(tx.input||tx.data||"0x");const text=new TextDecoder("utf-8",{fatal:true}).decode(bytes);S("recovered").value=text;const block=hexInt(tx.blockNumber),pos=hexInt(tx.transactionIndex);show("RECOVERED\ntransaction: "+hash+"\nblock: "+(block==null?"pending":block)+"\nposition: "+(pos==null?"pending":pos)+"\nfrom: "+tx.from+"\nto: "+tx.to+"\nUTF-8 bytes: "+bytes.length,true)}catch(err){show("READ ERROR\n"+(err.stack||err),false)}}
+async function copyRecovered(){try{await navigator.clipboard.writeText(S("recovered").value);show("recovered text copied",true)}catch{show("clipboard unavailable; select the recovered text manually",false)}}
+S("payload").addEventListener("input",()=>S("size").textContent=textBytes(S("payload").value).length+" UTF-8 bytes");
+S("refreshBtn").onclick=discover;S("connectBtn").onclick=connect;S("sendBtn").onclick=send;S("readBtn").onclick=read;S("copyBtn").onclick=copyRecovered;
+discover();
+</script>
+</body>
+</html>
