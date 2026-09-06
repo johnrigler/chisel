@@ -1,51 +1,118 @@
 # Chisel M64 Artifact Workbench
 
-This directory turns the McDougall/M64 experiments into a generic Chisel tool.
+M64 is a compact transport for an abstract byte stream. It is not an image format and it is not inherently JavaScript-specific.
 
-The important separation is:
+The current pipeline is:
 
 ```text
 source/data
    |
 canonical form
    |
-token abstraction
+dictionary collection / lookup
+   |
+dictionary-index byte stream
    |
 M64 transport
    |
-hydration
+dictionary hydration
    |
 runtime
 ```
 
-M64 is not an image format. It is a transport encoding for an abstract byte stream. The current workbench uses it primarily for compact JavaScript artifacts, but the transport layer does not require JavaScript.
+## M64 v2 dictionary encoding
 
-## Files
+The original staging format had a hard ceiling of 64 profile tokens. That ceiling is removed.
 
-- `index.html` - generic source -> canonical JS -> abstract tokens -> M64 -> hydrate -> sandboxed test workbench
-- `polygon.html` - pure browser EIP-1193 carrier for writing arbitrary UTF-8 artifact text into Polygon transaction calldata and reading it back
-- `examples/darkstar-raster.html` - compact standalone host for the deterministic Dark Star raster/pattern core
-- `examples/darkstar-core.js` - extracted image-producing core
-- `examples/darkstar-core.canonical.js` - known-good canonical/minified core
-- `examples/darkstar.m64.txt` - known-good M64 staging payload
-- `examples/darkstar.profile.json` - token profile used for the staging payload
-- `examples/darkstar.artifact.json` - self-contained artifact package
-- `examples/darkstar.test.json` - byte counts and known RGB SHA-256
+Dictionary references now have two forms:
 
-## Artifact model
+```text
+0x80..0xBF       dictionary indexes 0..63
+0xC0 <varuint>   dictionary indexes 64 and above
+0x00..0x7F       literal canonical ASCII
+```
 
-The first package format is intentionally small and descriptive:
+The first 64 terms therefore retain the cheapest possible one-byte references. Larger dictionaries use a compact variable-length integer only when the index exceeds 63.
+
+A dictionary can now grow monotonically without changing the M64 transport. Thousands or millions of terms are possible in principle. The practical limit is the dictionary implementation, not M64.
+
+## Automatic collection
+
+The workbench starts with a small seed dictionary and scans canonical source for lexical terms. Newly encountered terms are appended to the dictionary and immediately become reusable references.
+
+That means terms such as:
+
+```text
+function
+return
+Uint8Array
+width
+height
+drawLine
+```
+
+need not be emitted repeatedly into the abstract stream once they have dictionary indexes.
+
+The current collector is intentionally simple. It collects identifier/word-like terms of two or more characters. Manual dictionary entries can still represent punctuation, operators, method fragments, common phrases, or other repeated byte sequences.
+
+## External dictionary lookup
+
+The core codec no longer assumes that the dictionary must be an embedded array. `m64.js` exposes chain-neutral lookup hooks:
+
+```text
+collectDictionaryTerms(source, knownTerms)
+resolveTerms(terms, termToIndexLookup)
+tokenizeResolved(source, termToIndexMap)
+dictionaryIndexes(bytes)
+hydrateLookup(payload, alphabet, indexToTermLookup)
+```
+
+This is the intended bridge to a shared ledger dictionary.
+
+For a JavaScript dictionary contract, the flow can be:
+
+```text
+canonical source
+   |
+collect terms
+   |
+contract lookup(term) -> numeric id
+   |
+add missing term to contract
+   |
+contract returns stable numeric id
+   |
+M64 stores only ids + unavoidable literals
+```
+
+Hydration performs the inverse operation:
+
+```text
+M64 payload
+   |
+extract dictionary ids
+   |
+contract/cache lookup(id) -> term
+   |
+reconstruct canonical source
+```
+
+M64 itself does not care whether those lookups come from an EVM contract, a locally cached mirror, IPFS, DigiByte/Litecoin metadata, or another registry.
+
+## Current artifact package
+
+The workbench currently exports a self-contained version 2 artifact with an embedded dictionary snapshot so the artifact can still be tested without any network dependency:
 
 ```json
 {
   "kind": "chisel-m64-artifact",
-  "version": 1,
+  "version": 2,
   "type": "javascript",
   "runtime": "CHISEL-PURE1",
   "entry": "a",
   "profile": {
     "kind": "m64-profile",
-    "version": 1,
+    "version": 2,
     "alphabet": "...64 characters...",
     "tokens": ["function", "return", "..."]
   },
@@ -54,13 +121,27 @@ The first package format is intentionally small and descriptive:
 }
 ```
 
-The profile is embedded for now so an artifact can hydrate without an external registry. Later versions can replace an embedded profile with a content hash or ledger reference once profiles become stable and reusable.
+That embedded snapshot is staging scaffolding, not the desired final ledger format. Once the shared dictionary contract is wired into the publisher/hydrator, the artifact should carry a dictionary reference or contract identity rather than repeating the dictionary terms.
+
+Conceptually the final package becomes closer to:
+
+```json
+{
+  "kind": "chisel-m64-artifact",
+  "version": 3,
+  "language": "javascript",
+  "dictionary": "<ledger dictionary reference>",
+  "runtime": "CHISEL-PURE1",
+  "entry": 1234,
+  "payload": "...M64..."
+}
+```
+
+The exact external-dictionary package schema is not frozen yet.
 
 ## CHISEL-PURE1
 
-`CHISEL-PURE1` is the first execution convention.
-
-A hydrated artifact defines a plain JavaScript entry function and the host invokes:
+A hydrated JavaScript artifact defines a plain entry function and the host invokes:
 
 ```js
 entry(input)
@@ -68,77 +149,16 @@ entry(input)
 
 The result should be structured-cloneable data such as a string, number, object, array, `ArrayBuffer`, or typed array.
 
-This is deliberately not an image-specific interface. A PURE1 artifact can implement:
+This is deliberately not image-specific. A PURE1 artifact can implement raster generation, MIDI generation, text transformation, encoding/decoding, transaction serialization, parsers, or other deterministic protocol logic.
 
-- a raster generator
-- text transformation
-- address encoding/decoding
-- transaction serialization
-- parsers
-- procedural data generation
-- MIDI or other binary file generation
-- compact protocol logic
+## Files
 
-The workbench recognizes one convenience case: if an artifact returns a `Uint8Array` whose size is `input.width * input.height * 3`, it previews those bytes as RGB24. That preview rule is a workbench adapter, not part of M64 itself.
-
-## Runtime isolation
-
-The workbench runs hydrated artifacts in a sandboxed iframe with a restrictive CSP and no same-origin privilege. This reduces accidental access to the parent page, local storage, injected wallets, and network endpoints.
-
-This is not a proof-grade sandbox. Untrusted JavaScript can still consume CPU or memory. The workbench destroys the execution frame after a timeout, but the artifact should still be treated as code.
-
-Future runtimes can explicitly define additional capabilities, for example canvas, audio, network, or wallet access. Those should be separate runtime profiles rather than silently exposing browser globals to every artifact.
-
-## Dark Star staging result
-
-The first larger test extracts the deterministic renderer from Dark Star Raster v1.
-
-Known staging numbers:
-
-```text
-readable raster core:    1108 bytes
-canonical JS:             920 bytes
-abstract token stream:    833 bytes
-M64 transport:           1111 characters
-generated RGB raster: 3,780,000 bytes
-```
-
-Known RGB SHA-256:
-
-```text
-f8ae0fb9eb89714ab56dcf583ee1481bce22f16f22e0493ca66a9a34047b5d62
-```
-
-The stored M64 hydrates exactly to the canonical JavaScript, and both the canonical and hydrated forms reproduce the same RGB byte stream.
-
-The current token profile is inherited from the earlier trapezoid experiment and is not optimized for this renderer. That is useful: it proves the transport before profile tuning. A later profile can be optimized independently without changing the runtime model.
+- `m64.js` - canonicalization, growing dictionary codec, external lookup hooks, M64 transport
+- `index.html` - source -> dictionary -> M64 -> hydrate -> sandboxed test workbench
+- `hydrate.html` - standalone v2 artifact hydrator/tester
+- `polygon.html` - browser EIP-1193 carrier for writing artifact text into Polygon transaction calldata
+- `examples/` - Dark Star renderer staging material and earlier examples
 
 ## Polygon carrier
 
-`polygon.html` does not deploy a contract. It uses an injected EIP-1193 wallet and sends a zero-value self-transaction whose `data` field is the UTF-8 bytes of the artifact text.
-
-That page is intentionally separate from the workbench:
-
-1. build/test an artifact
-2. export artifact JSON
-3. paste the JSON into the Polygon carrier
-4. send it
-5. record the transaction hash
-6. retrieve the transaction later and recover the exact text
-7. import the recovered artifact into the workbench/hydrator
-
-The carrier recognizes EIP-6963 providers where available and also falls back to common injected providers such as MetaMask or Backpack.
-
-## Cross-ledger direction
-
-The artifact package and the carrier are separate. A future manifest can point at chunks on different ledgers without changing M64 itself. Candidate compact reference families include:
-
-```text
-L:<litecoin locator or tx reference>
-P:<polygon transaction hash>
-C:<polygon contract address>
-D:<digibyte reference>
-I:<ipfs cid>
-```
-
-That is not implemented as a finalized protocol here. The current tool is the staging layer: create, compact, hydrate, test, package, and carry artifacts without binding the artifact model to one chain.
+`polygon.html` remains intentionally separate from the compression layer. It carries arbitrary UTF-8 artifact text in transaction calldata. M64 and the dictionary model therefore remain independent of Polygon and can later be referenced from multiple ledgers.
