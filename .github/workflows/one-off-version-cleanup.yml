@@ -1,0 +1,71 @@
+name: One-off Chisel version cleanup
+
+on:
+  push:
+    branches:
+      - version-source-of-truth
+
+permissions:
+  contents: write
+
+jobs:
+  patch-version:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make app.js the semantic version source of truth
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          app_path = Path('app.js')
+          app = app_path.read_text()
+
+          old_version = 'const APP_VERSION = "2.7.15c";'
+          new_version = 'const APP_VERSION = "2.7.16";'
+          if old_version not in app:
+              raise SystemExit('Expected APP_VERSION 2.7.15c not found in app.js')
+          app = app.replace(old_version, new_version, 1)
+
+          old_setter = '''  function setAppVersion() {
+            elems.version.textContent = APP_NAME + " v" + APP_VERSION;
+          }'''
+          new_setter = '''  function setAppVersion() {
+            const label = APP_NAME + " v" + APP_VERSION;
+            elems.version.textContent = label;
+            document.title = "Chisel " + APP_VERSION;
+            window.CHISEL_APP_VERSION = APP_VERSION;
+          }'''
+          if old_setter not in app:
+              raise SystemExit('Expected setAppVersion() body not found in app.js')
+          app = app.replace(old_setter, new_setter, 1)
+          app_path.write_text(app)
+
+          index_path = Path('index.html')
+          index = index_path.read_text()
+          old_title = '<title>Chisel 2.7.15c</title>'
+          if old_title not in index:
+              raise SystemExit('Expected hardcoded Chisel title not found in index.html')
+          index = index.replace(old_title, '<title>Chisel</title>', 1)
+
+          # These query strings are cache revisions, not the Chisel semantic version.
+          # Give them an explicit rev= namespace so they cannot be mistaken for APP_VERSION.
+          index = re.sub(r'([A-Za-z0-9_./-]+\.(?:js|css))\?2\.7\.[A-Za-z0-9.]+', r'\1?rev=20260906a', index)
+          index_path.write_text(index)
+          PY
+
+      - name: Remove this one-off workflow
+        run: git rm .github/workflows/one-off-version-cleanup.yml
+
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js index.html .github/workflows/one-off-version-cleanup.yml
+          git commit -m "Centralize Chisel app version in app.js"
+          git push origin HEAD:version-source-of-truth
