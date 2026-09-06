@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.16";
+  const APP_VERSION = "2.7.17";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -1949,6 +1949,7 @@ function onClickAddCommonAddressButton() {
     etch: "Etch mode builds UTXO transactions. Use RUN ALL for the old one-pass path or the manual pipeline to stop after each raw-transaction step.",
     review: "Review mode exposes the transaction spine: account, UTXOs, VIN, VOUT, raw hex, signed hex, and broadcast result.",
     portal: "Portal mode is the default Chisel-aware block explorer view over Thunderword indexes and transaction semantics.",
+    examples: "Examples mode collects runnable artifacts and reference outputs without mixing them into the transaction workbench.",
     tools: "Tools mode links to QR/WIF scanning, label generation, legacy decoding, and support utilities without crowding the etcher."
   };
 
@@ -1961,7 +1962,7 @@ function onClickAddCommonAddressButton() {
       return "etch";
     }
 
-    if (value === "review" || value === "portal" || value === "tools") {
+    if (value === "review" || value === "portal" || value === "examples" || value === "tools") {
       return value;
     }
 
