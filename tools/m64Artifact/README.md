@@ -20,6 +20,14 @@ dictionary hydration
 runtime
 ```
 
+## Design notes
+
+The broader ledger/dictionary/IPFS direction is recorded in:
+
+- [`LEDGER_IPFS_ARCHITECTURE.md`](LEDGER_IPFS_ARCHITECTURE.md) - EVM as durable data/reference substrate, plural append-only dictionaries, contract/transaction references, cross-ledger graphs, deterministic IPFS/CAR reconstruction, and recovery from zero hosted IPFS copies.
+
+That document intentionally separates implemented M64 v2 mechanics from architectural ideas that are not yet a frozen protocol.
+
 ## M64 v2 dictionary encoding
 
 The original staging format had a hard ceiling of 64 profile tokens. That ceiling is removed.
@@ -157,6 +165,7 @@ This is deliberately not image-specific. A PURE1 artifact can implement raster g
 - `index.html` - source -> dictionary -> M64 -> hydrate -> sandboxed test workbench
 - `hydrate.html` - standalone v2 artifact hydrator/tester
 - `polygon.html` - browser EIP-1193 carrier for writing artifact text into Polygon transaction calldata
+- `LEDGER_IPFS_ARCHITECTURE.md` - design notes for ledger references, shared dictionaries, cross-ledger objects, and deterministic IPFS recovery
 - `examples/` - Dark Star renderer staging material and earlier examples
 
 ## Polygon carrier
