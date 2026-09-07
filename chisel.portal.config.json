@@ -1,5 +1,5 @@
 {
-  "fileProxyUrl":  "https://rigler.org:7799",
+  "fileProxyUrl": "https://rigler.org:7799",
   "autoSaveFetchedTransactions": true,
   "cacheFetchedTransactionsWithFileProxy": true,
   "persistMainThunderwords": true,
@@ -9,6 +9,10 @@
   "autoLoadLocalTransactions": true,
   "autoHydrateLocalTransactions": true,
   "pollLocalTransactionsMs": 0,
+  "liveLedgerRefresh": true,
+  "liveLedgerRefreshMs": 120000,
+  "liveLedgerRefreshOnFocus": true,
+  "liveLedgerRefreshFocusStaleMs": 60000,
   "autoSelectNewest": false,
   "saveDiscoveredLinks": true,
   "rabbitTrailSenders": true,
@@ -35,9 +39,10 @@
   "portalFilterEvmJethro": true,
   "portalFilterOther": true,
   "portalFilterDogecoin": true,
-  "autoLoadStaticDataset": false,
+  "autoLoadStaticDataset": true,
   "autoSearchLedgersAfterStatic": true,
   "staticManifestPaths": [
+    "data/manifest.json",
     "data-bundled/manifest.json"
   ],
   "staticManifestMirrors": [
