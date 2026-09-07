@@ -200,6 +200,180 @@
     };
   }
 
+  function normalizeProbeCoin(value) {
+    const compact = String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const aliases = {
+      dgb: "digibyte",
+      digibyte: "digibyte",
+      rvn: "ravencoin",
+      raven: "ravencoin",
+      ravencoin: "ravencoin",
+      ltc: "litecoin",
+      litecoin: "litecoin",
+      tltc: "litecointestnet",
+      litecointestnet: "litecointestnet",
+      btc: "bitcoin",
+      bitcoin: "bitcoin",
+      doge: "dogecoin",
+      dogecoin: "dogecoin",
+      polygon: "evm",
+      matic: "evm",
+      eth: "evm",
+      evm: "evm"
+    };
+    return aliases[compact] || compact;
+  }
+
+  function portalModeActive() {
+    if (root.document && root.document.body && root.document.body.dataset && root.document.body.dataset.mode === "portal") return true;
+    try {
+      return new URL(root.location.href).searchParams.get("mode") === "portal";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function existingPortalTxids(portal) {
+    const seen = new Set();
+    const rows = portal && portal.state && Array.isArray(portal.state.portalRows) ? portal.state.portalRows : [];
+    rows.forEach(function (row) {
+      const txid = String(row && row.txid || "").replace(/^0x/i, "").toLowerCase();
+      if (/^[0-9a-f]{64}$/.test(txid)) seen.add(txid);
+    });
+    return seen;
+  }
+
+  function probeIndexes(portal, thunderwords) {
+    const stream = portal && portal.state ? portal.state.mainThunderword : null;
+    if (stream) {
+      let current = portal.state.currentIndex || null;
+      const wantedCoin = normalizeProbeCoin(stream.coin || stream.ticker);
+      if (!current || !current.canFetchAddress || normalizeProbeCoin(current.coin || current.ticker || current.name) !== wantedCoin) {
+        current = thunderwords.listIndexes().find(function (entry) {
+          return entry.canFetchAddress && normalizeProbeCoin(entry.coin || entry.ticker || entry.name) === wantedCoin;
+        }) || current;
+      }
+      if (!current || !current.canFetchAddress) return [];
+      return [Object.assign({}, current, { address: stream.address })];
+    }
+
+    return thunderwords.listIndexes().filter(function (entry) {
+      return entry && entry.group === "general" && entry.canFetchAddress && entry.address;
+    });
+  }
+
+  function installLiveLedgerRefresh(options) {
+    if (root.__CHISEL_PORTAL_LIVE_REFRESH__) return root.__CHISEL_PORTAL_LIVE_REFRESH__;
+    const defaults = options || {};
+    const controller = {
+      running: false,
+      timer: null,
+      lastProbeAt: 0,
+      lastChangeAt: 0,
+      lastNewTxids: [],
+      errors: []
+    };
+
+    function configValue(name, fallback) {
+      const portal = root.CHISEL_PORTAL;
+      const config = portal && portal.state && portal.state.config ? portal.state.config : {};
+      return Object.prototype.hasOwnProperty.call(config, name) ? config[name] : fallback;
+    }
+
+    function intervalMs() {
+      const requested = Number(configValue("liveLedgerRefreshMs", defaults.liveLedgerRefreshMs == null ? 120000 : defaults.liveLedgerRefreshMs));
+      if (!Number.isFinite(requested) || requested <= 0) return 0;
+      return Math.max(30000, requested);
+    }
+
+    async function refresh() {
+      const portal = root.CHISEL_PORTAL;
+      const thunderwords = root.CHISEL_THUNDERWORDS;
+      if (controller.running || !portalModeActive() || !portal || !portal.state || !thunderwords || typeof thunderwords.fetchAddressTransactions !== "function") return { changed: false, skipped: true };
+      if (configValue("liveLedgerRefresh", true) === false) return { changed: false, disabled: true };
+
+      controller.running = true;
+      controller.errors = [];
+      const known = existingPortalTxids(portal);
+      const indexes = probeIndexes(portal, thunderwords);
+      const newTxids = [];
+      let changedEntry = null;
+      try {
+        for (let i = 0; i < indexes.length; i += 1) {
+          const entry = indexes[i];
+          try {
+            const result = await thunderwords.fetchAddressTransactions(entry, entry.address);
+            const transactions = result && Array.isArray(result.transactions) ? result.transactions : [];
+            for (let j = 0; j < transactions.length; j += 1) {
+              const txid = String(transactions[j] && transactions[j].txid || "").replace(/^0x/i, "").toLowerCase();
+              if (/^[0-9a-f]{64}$/.test(txid) && !known.has(txid) && newTxids.indexOf(txid) < 0) {
+                newTxids.push(txid);
+                changedEntry = changedEntry || entry;
+              }
+            }
+          } catch (error) {
+            controller.errors.push({
+              index: entry.name || entry.label || entry.address,
+              error: error.message || String(error)
+            });
+          }
+        }
+
+        controller.lastProbeAt = Date.now();
+        controller.lastNewTxids = newTxids.slice();
+        if (!newTxids.length) return { changed: false, newTxids: [] };
+
+        const stream = portal.state.mainThunderword;
+        if (stream && typeof portal.loadAddressIndex === "function") {
+          const entry = changedEntry || portal.state.currentIndex;
+          await portal.loadAddressIndex(Object.assign({}, entry, { address: stream.address }), stream.address, { mainThunderword: stream });
+        } else if (typeof portal.loadConversationStreams === "function") {
+          await portal.loadConversationStreams({ reset: false });
+        }
+        controller.lastChangeAt = Date.now();
+        return { changed: true, newTxids: newTxids };
+      } finally {
+        controller.running = false;
+      }
+    }
+
+    function schedule() {
+      if (controller.timer) root.clearTimeout(controller.timer);
+      const ms = intervalMs();
+      if (!ms) {
+        controller.timer = null;
+        return;
+      }
+      controller.timer = root.setTimeout(function tick() {
+        refresh().catch(function (error) {
+          controller.errors.push({ index: "refresh", error: error.message || String(error) });
+        }).finally(schedule);
+      }, ms);
+    }
+
+    controller.refresh = refresh;
+    controller.schedule = schedule;
+    root.__CHISEL_PORTAL_LIVE_REFRESH__ = controller;
+
+    function start() {
+      schedule();
+      root.setTimeout(function () {
+        refresh().catch(function () {});
+      }, Math.max(5000, Number(defaults.initialDelayMs) || 15000));
+    }
+
+    if (root.document && root.document.readyState === "loading") root.document.addEventListener("DOMContentLoaded", start);
+    else start();
+
+    root.addEventListener("focus", function () {
+      if (configValue("liveLedgerRefreshOnFocus", true) === false) return;
+      const staleAfter = Math.max(30000, Number(configValue("liveLedgerRefreshFocusStaleMs", 60000)) || 60000);
+      if (!controller.lastProbeAt || Date.now() - controller.lastProbeAt >= staleAfter) refresh().catch(function () {});
+    });
+
+    return controller;
+  }
+
   root.CHISEL_PORTAL_STATIC_DATA = {
     isAbsoluteUrl: isAbsoluteUrl,
     trimUrlSlash: trimUrlSlash,
@@ -208,6 +382,9 @@
     normalizePathList: normalizePathList,
     rawPathsForRow: rawPathsForRow,
     createNormalizer: createNormalizer,
-    createTransport: createTransport
+    createTransport: createTransport,
+    installLiveLedgerRefresh: installLiveLedgerRefresh
   };
+
+  installLiveLedgerRefresh();
 })(window);
