@@ -1,5 +1,5 @@
 {
-  "fileProxyUrl":  "https://rigler.org:7799",
+  "fileProxyUrl": "https://rigler.org:7799",
   "autoSaveFetchedTransactions": true,
   "cacheFetchedTransactionsWithFileProxy": true,
   "persistMainThunderwords": true,
@@ -35,9 +35,10 @@
   "portalFilterEvmJethro": true,
   "portalFilterOther": true,
   "portalFilterDogecoin": true,
-  "autoLoadStaticDataset": false,
+  "autoLoadStaticDataset": true,
   "autoSearchLedgersAfterStatic": true,
   "staticManifestPaths": [
+    "data/manifest.json",
     "data-bundled/manifest.json"
   ],
   "staticManifestMirrors": [
