@@ -2,7 +2,7 @@
 
 Status: design direction, not a frozen protocol.
 
-This document records the architectural ideas around M64, Polygon/EVM storage, shared dictionaries, cross-ledger references, and deterministic IPFS recovery. Some of the M64 v2 codec pieces already exist in `m64.js`; most of the ledger graph and IPFS reconstruction model described here is still design work.
+This document records the architectural ideas around M64, Polygon/EVM storage, shared dictionaries, cross-ledger references, deterministic IPFS recovery, and ledger-native discovery/bootstrap. Some of the M64 v2 codec pieces already exist in `m64.js`; most of the ledger graph, discovery, and IPFS reconstruction model described here is still design work.
 
 ## Core premise
 
@@ -325,6 +325,135 @@ Polygon M64 artifact
 
 The client resolver is the common execution environment for this graph.
 
+## Discovery is part of recoverability
+
+Recoverable bytes are not enough if there is no practical way to find the first object.
+
+The architecture should therefore treat discovery/bootstrap as a separate layer from content reconstruction.
+
+Possible discovery roots include:
+
+```text
+known public address / identity
+known contract address
+known transaction hash
+known thunderword / beacon address
+known Litecoin or DigiByte marker
+known IPFS CID
+human-readable metadata copied from a block explorer
+```
+
+No single discovery mechanism needs to be authoritative. Redundant paths are desirable.
+
+## The all-ones Polygon beacon / thunderword convention
+
+One historical Chisel/Polygon convention has been to use the Ethereum-style all-ones address as a low-traffic beacon/burn namespace:
+
+```text
+0x1111111111111111111111111111111111111111
+```
+
+The conventional all-zero address is much more widely used as a burn/null address. The all-ones address is useful here precisely because it is less crowded.
+
+Earlier bootstrap/tool experiments could be sent toward that address with human-readable or directly inspectable transaction data. A person using a block explorer could:
+
+```text
+1. search the all-ones address
+2. inspect its relatively small transaction history
+3. recognize the publishing/sender address
+4. inspect that publisher's transaction data
+5. recover a bootstrap instruction, locator, tool, or later ledger reference
+```
+
+This is not meant to make the burn address an application server or protocol authority. It is a public landmark: a deliberately memorable place to start looking.
+
+An automated resolver should not depend on one commercial explorer's index. Standard EVM JSON-RPC does not provide a universal `transactionsByAddress` query. Long-term machine recovery may therefore require an archive/indexing service, scanning blocks, a locally built index, logs/events designed for discovery, or another redundant locator. The important property is that the underlying transactions remain ledger data even if a particular explorer disappears.
+
+## Identity can be a root of the graph
+
+A public/private key pair can itself become a discovery anchor.
+
+If the recovering user possesses the private key, the corresponding public address is deterministic. That address can identify transactions, signatures, contracts, manifests, or beacon entries published by the same identity.
+
+Conceptually:
+
+```text
+private key / deterministic wallet seed
+        |
+        v
+public identity address
+        |
+        v
+discover bootstrap transactions / contracts / beacon entries
+        |
+        v
+follow ledger references
+        |
+        v
+resolve dictionaries + M64 artifacts
+        |
+        v
+reconstruct canonical files
+        |
+        v
+verify/recreate IPFS
+```
+
+This creates the possibility of recovery from very little local state.
+
+In the strongest version, ordinary hosting, GitHub, domain names, current IPFS pins, and local working directories may all be gone. The retained secret/key material plus public ledger history and a sufficiently specified resolver can still provide a path back to the published system.
+
+The system should not require a literal human-memorized brain wallet. Human-generated passphrases are generally weak key material and can be brute-forced. A safer version of the same architectural idea is a standard high-entropy deterministic wallet seed or other securely stored deterministic secret. The relevant property is reproducible identity, not memorability by itself.
+
+## Bootstrap objects should be unusually simple
+
+The first recoverable object should require as little infrastructure as possible to understand.
+
+A useful bootstrap artifact might deliberately be:
+
+- plain UTF-8 or ASCII
+- visible in a block explorer without specialized decoding
+- small enough to copy and paste manually
+- self-identifying
+- versioned
+- explicit about the next ledger locator(s)
+- optionally signed by the identity address
+
+For example, an early bootstrap layer could conceptually say:
+
+```text
+CHISEL-BOOT1
+M64=C:0x...
+ROOT=P:0x...
+IPFS=I:bafy...
+```
+
+The exact encoding is not frozen. The point is that the recovery ladder should begin with something much simpler than the system it eventually reconstructs.
+
+This preserves the useful property of the earlier Polygon attempts: a person who knows roughly where to look can inspect the ledger directly and recover enough information to reach the next layer.
+
+## Multiple paths back to the same object
+
+A mature artifact should be discoverable through several independent routes when practical:
+
+```text
+identity address
+     |
+     +-- all-ones beacon transaction
+     |
+     +-- known dictionary contract
+     |
+     +-- Polygon artifact transaction
+     |
+     +-- Litecoin/DigiByte reference
+     |
+     +-- IPFS checkpoint CID
+```
+
+These should converge on the same immutable/checkpointed artifact graph.
+
+This means the disappearance of one index, domain, gateway, repository, explorer, or pinning provider does not necessarily destroy discoverability.
+
 ## IPFS is a distribution/checkpoint layer, not the only source of truth
 
 A major design goal is ledger-complete recovery.
@@ -461,6 +590,8 @@ reusable independently addressable vocabularies
     +
 ledger references
     +
+identity/beacon discovery
+    +
 client-side reconstruction
     +
 deterministic IPFS checkpoint/republication
@@ -469,6 +600,8 @@ deterministic IPFS checkpoint/republication
 Repeated code vocabulary can be represented by small symbol references instead of repeated source strings. Shared dictionaries are amortized across many artifacts.
 
 This begins to resemble a ledger-backed linker/loader or portable symbol system more than ordinary text compression.
+
+The additional discovery layer makes it possible to treat identity/key material as a root from which the rest of the system can potentially be rediscovered rather than merely decoded.
 
 ## Current implementation versus future direction
 
@@ -482,6 +615,10 @@ Already present in the M64 workbench:
 - local hydration and execution testing
 - Polygon transaction-data carrier page
 
+Historical/experimental convention already used outside the current M64 codec:
+
+- all-ones Polygon address as a low-volume thunderword/beacon location for human-discoverable bootstrap data
+
 Not yet a frozen or complete protocol:
 
 - production dictionary smart contract
@@ -493,6 +630,8 @@ Not yet a frozen or complete protocol:
 - deterministic IPFS reconstruction profile
 - CAR generation/recovery workflow
 - ledger-to-IPFS recovery tool
+- identity-to-bootstrap discovery convention
+- automated beacon/index reconstruction independent of commercial explorers
 
 ## Near-term experiments
 
@@ -506,6 +645,8 @@ Useful next experiments, without prematurely freezing the protocol:
 6. Test a child/extension dictionary that references a frozen parent.
 7. Define one small deterministic IPFS reconstruction profile.
 8. Reconstruct a complete static executable from ledger data, compute its CID, delete all local copies, and reproduce the same CID from the ledger graph alone.
+9. Publish a minimal plain-text Polygon bootstrap object through the all-ones beacon convention and recover it without using any Chisel-specific local state.
+10. Starting only from a known public identity address plus public ledger access, rediscover the bootstrap object and walk the graph to a verified IPFS CID.
 
 The measurements should determine whether the architecture is merely elegant or materially useful.
 
@@ -518,4 +659,13 @@ availability may fall to zero;
 recoverability should not.
 ```
 
-If the ledgers remain readable and the reconstruction conventions remain specified, an M64 artifact should be capable of being brought back into a verifiable IPFS/executable form even after its ordinary hosted copies have disappeared.
+A stronger bootstrap formulation is:
+
+```text
+retain identity/key material
++ retain public ledger history
++ retain the reconstruction specification
+= a path back to the executable system
+```
+
+If the ledgers remain readable and the reconstruction conventions remain specified, an M64 artifact should be capable of being found, reconstructed, verified, and brought back into an IPFS/executable form even after its ordinary hosted copies have disappeared.
