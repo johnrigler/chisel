@@ -91,7 +91,7 @@ test('hand-auditable ABI contains the carrier-neutral Packet surface',async()=>{
   assert.deepEqual(publish.inputs.map(x=>x.type),['bytes32','bytes32','uint256','bytes']);
 });
 
-test('captured deployment artifact is internally self-consistent while CI refreshes exact source output',async()=>{
+test('captured deployment artifact matches its CI bytecode hash and includes Packet ABI',async()=>{
   const artifact=JSON.parse(await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.compiled.json',import.meta.url),'utf8'));
   assert.equal(artifact.kind,'chisel-solidity-artifact');
   assert.equal(artifact.contractName,'M64Dictionary');
@@ -99,6 +99,10 @@ test('captured deployment artifact is internally self-consistent while CI refres
   assert.match(artifact.bytecode,/^0x[0-9a-f]+$/i);
   const hash=createHash('sha256').update(Buffer.from(artifact.bytecode.slice(2),'hex')).digest('hex');
   assert.equal(hash,artifact.bytecodeSha256);
+  assert.equal(hash,'b42f227850b4390116f0969aadf50ab628f1aac4425de1f06bc3642d3b6259db');
   const functions=new Set(artifact.abi.filter(x=>x.type==='function').map(x=>x.name));
-  for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms'])assert.ok(functions.has(name));
+  for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms','publishPacket'])assert.ok(functions.has(name));
+  const packet=artifact.abi.find(x=>x.type==='event'&&x.name==='Packet');
+  assert.ok(packet);
+  assert.deepEqual(packet.inputs.filter(x=>x.indexed).map(x=>x.name),['namespace','objectId','part']);
 });
