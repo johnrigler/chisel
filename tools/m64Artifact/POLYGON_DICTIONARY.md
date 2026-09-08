@@ -86,10 +86,10 @@ source blob SHA: ea45c92a5ecc03328cdb22a13beba8bfcf9327fa
 compiled-from commit: 27b89c2a66643dc360085b793ee1afefe81b37a1
 CI artifact id: 10042240484
 CI artifact digest: sha256:6bdbce2af0c2b2bf4ad1d175df8b3498e0abb4d5fa60f393c3789b58b2b0c45d
-creation bytecode SHA-256: fc8e0412562b3c90a8989ec578315497d2d1734488da8137acd2094a27cf8764
+creation bytecode SHA-256 (decoded bytes): a5c12de54f73cf070319f2d5cf47838c16a8c66a1251cbc43ccfb5a5a9a1b817
 ```
 
-`tests/m64.evm.test.mjs` recomputes the bytecode SHA-256 and checks the expected ABI surface. This prevents a hand-edited deployment payload from quietly replacing the CI output.
+The hash above is over the decoded creation bytecode bytes, not the ASCII hexadecimal text in the compiler `.bin` file. `tests/m64.evm.test.mjs` recomputes the decoded-byte SHA-256 and checks the expected ABI surface, while CI also recompiles Solidity and requires the fresh `.bin` to match the captured bytecode exactly. This prevents a hand-edited deployment payload from quietly replacing the CI output.
 
 ## Browser deployment
 
