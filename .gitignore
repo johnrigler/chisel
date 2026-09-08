@@ -8,5 +8,6 @@ tools/m64Artifact/node_modules/
 tools/m64Artifact/artifacts/
 tools/m64Artifact/cache/
 tools/m64Artifact/dist/
+tools/m64Artifact/.standalone-artifacts/
 tools/m64Artifact/ignition/deployments/
 tools/m64Artifact/.env
