@@ -8,16 +8,16 @@ This document is the durable order of operations for the next Chisel work. It is
 
 - Portal public reads should not require fileProxy. Static/bundled/public ledger sources are the public runtime path; fileProxy remains a local write/import/SQLite helper.
 - M64 v2 already supports a 64-character transport alphabet, literal ASCII bytes, compact dictionary indexes 0..63, variable-length dictionary indexes above 63, a growing dictionary, external term/index lookup hooks, hydration, a browser workbench, and a Polygon calldata carrier.
-- The M64 external-dictionary artifact schema is not frozen.
-- Chisel does not yet have enough automated fixtures to safely refactor signing, serialization, fee selection, UTXO selection, or broadcasting.
+- A first executable M64 v3 external-dictionary schema validator now lives beside the v2 codec in `tools/m64Artifact/m64.artifact.js`. It does not yet make the v2 hydrator consume v3 artifacts or deploy a live dictionary contract.
+- Chisel now has a small GitHub Actions regression floor, but it still does not have enough transaction fixtures to safely refactor signing, serialization, fee selection, UTXO selection, or broadcasting.
 
 ## Order of operations
 
 ### 1. Build a small regression floor
 
-Do this before major protocol or transaction-core changes.
+Status: first tranche implemented and running in GitHub Actions.
 
-First tranche:
+Completed first tranche:
 
 - M64 byte transport encode/decode round trip.
 - M64 stage/hydrate equality.
@@ -25,7 +25,7 @@ First tranche:
 - external dictionary lookup/hydration.
 - malformed/reserved M64 byte rejection.
 - current artifact-version validation boundary.
-- syntax checks for the M64 codec, Portal static-data helper, and fileProxy entry points.
+- syntax checks for the M64 codec/artifact helper, Portal static-data helper, Thunderword adapter, and fileProxy entry points.
 
 Next fixtures to add incrementally:
 
@@ -40,41 +40,53 @@ Safety rule: do not perform broad rewrites of signing, fee, UTXO selection, seri
 
 ### 2. Freeze M64 v3 as a protocol
 
+Status: executable draft schema started; not yet frozen as a live publishing/hydration protocol.
+
 The next M64 problem is protocol stability, not cleverer compression.
 
 M64 itself should remain language-neutral. A JavaScript source adapter may produce canonical bytes, but the transport and dictionary layers should not know JavaScript syntax.
 
-A v3 artifact should define, at minimum:
+The current executable v3 draft requires this field shape:
 
 ```json
 {
   "kind": "chisel-m64-artifact",
   "version": 3,
   "language": "javascript",
-  "languageVersion": "<declared source level>",
+  "languageVersion": "es2026",
   "codec": "m64-dict-v1",
   "canonicalizer": "js-canonical-v1",
   "dictionary": {
-    "chain": "<chain identity>",
-    "contract": "<dictionary identity>",
-    "version": 1
+    "kind": "ledger-dictionary",
+    "ref": "eip155:137:0x...",
+    "version": 1,
+    "language": "javascript"
   },
   "runtime": "CHISEL-PURE1",
-  "entry": "<entry reference>",
+  "entry": "a",
   "payload": "<M64>",
   "canonicalBytes": 0,
-  "sha256": "<canonical source hash>"
+  "sha256": "<64 lowercase hex characters>"
 }
 ```
 
-The exact field representation may change before v3 is declared frozen, but the concepts should not disappear.
+`m64-dict-v1` fixes the transport alphabet to:
+
+```text
+ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
+```
+
+The v3 validator checks package/version fields, JavaScript/runtime identifiers, dictionary identity/version/language agreement, structural M64 payload validity, canonical byte count, and SHA-256 field shape. It does **not** yet prove that the referenced dictionary exists, that the payload hydrates against that dictionary, or that the supplied hash matches reconstructed canonical source. Those belong to the resolver/hydrator path.
 
 Important distinction:
 
 - dictionary identity says what shared vocabulary is being used;
-- language identifies the source family;
-- languageVersion/canonicalizer belong to the artifact, not to the dictionary contract;
+- artifact `language` identifies the source family;
+- dictionary `language` must agree with the artifact language;
+- `languageVersion` and `canonicalizer` belong to the artifact, not to the dictionary contract;
 - M64 transport remains independent of JavaScript, Polygon, and any one storage provider.
+
+Keep the legacy `validateArtifact()` v2 boundary intact until the current workbench/hydrator has an explicit v3 resolver. v3 is validated separately through `validateArtifactV3()` so old UI code cannot accidentally accept an artifact it cannot hydrate.
 
 ### 3. Separate the JavaScript adapter from M64 core
 
@@ -90,7 +102,7 @@ m64.artifact.js      v2/v3 artifact validation and integrity fields
 m64.js               compatibility facade, if needed
 ```
 
-Do not break the current workbench merely to achieve file purity. Preserve the `ChiselM64` compatibility API while extracting pieces incrementally.
+`m64.artifact.js` now exists as the first extraction. Continue incrementally and preserve the `ChiselM64` compatibility API while moving internals.
 
 The JavaScript adapter must either correctly handle modern JavaScript lexical forms (including template literals and regular-expression literals) or explicitly reject syntax it cannot safely canonicalize. Silent source corruption is unacceptable.
 
@@ -180,9 +192,9 @@ Refactor when one of these conditions is true:
 
 Otherwise prefer shipping the protocol milestone over aesthetic restructuring.
 
-## Immediate next patch after this roadmap/test floor
+## Immediate next patch
 
-Define the M64 v3 artifact schema as executable validation code and tests, without yet deploying a live dictionary contract. Preserve v2 import/hydration compatibility. Then extract or wrap the JavaScript canonicalizer behind an explicit adapter boundary.
+Extract or wrap the JavaScript canonicalizer behind an explicit adapter boundary and add fixtures for syntax that the current mini-lexer must not silently corrupt, especially template literals and regular-expression literals. In parallel, define the resolver interface that turns a v3 `dictionary.ref` plus dictionary IDs into terms. Do not deploy a production dictionary contract until those client boundaries are testable.
 
 ## Related documents
 
