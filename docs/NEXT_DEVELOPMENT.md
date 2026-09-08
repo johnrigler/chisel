@@ -8,7 +8,8 @@ This document is the durable order of operations for the next Chisel work. It is
 
 - Portal public reads should not require fileProxy. Static/bundled/public ledger sources are the public runtime path; fileProxy remains a local write/import/SQLite helper.
 - M64 v2 already supports a 64-character transport alphabet, literal ASCII bytes, compact dictionary indexes 0..63, variable-length dictionary indexes above 63, a growing dictionary, external term/index lookup hooks, hydration, a browser workbench, and a Polygon calldata carrier.
-- A first executable M64 v3 external-dictionary schema validator now lives beside the v2 codec in `tools/m64Artifact/m64.artifact.js`. It does not yet make the v2 hydrator consume v3 artifacts or deploy a live dictionary contract.
+- `tools/m64Artifact/m64.artifact.js` provides the first executable M64 v3 external-dictionary schema boundary. It does not yet make the v2 hydrator consume v3 artifacts or deploy a live dictionary contract.
+- `tools/m64Artifact/m64.javascript.js` now provides an explicit conservative `js-canonical-v1` adapter. New v3 JavaScript publishing should use this boundary rather than calling the legacy mini-canonicalizer directly.
 - Chisel now has a small GitHub Actions regression floor, but it still does not have enough transaction fixtures to safely refactor signing, serialization, fee selection, UTXO selection, or broadcasting.
 
 ## Order of operations
@@ -24,8 +25,9 @@ Completed first tranche:
 - dictionary references above index 63.
 - external dictionary lookup/hydration.
 - malformed/reserved M64 byte rejection.
-- current artifact-version validation boundary.
-- syntax checks for the M64 codec/artifact helper, Portal static-data helper, Thunderword adapter, and fileProxy entry points.
+- v2/v3 artifact validation boundaries.
+- JavaScript adapter fixtures for ordinary division, template-literal rejection, regex-literal rejection, and the current Dark Star source.
+- syntax checks for the M64 codec/artifact/JavaScript helpers, Portal static-data helper, Thunderword adapter, and fileProxy entry points.
 
 Next fixtures to add incrementally:
 
@@ -90,9 +92,21 @@ Keep the legacy `validateArtifact()` v2 boundary intact until the current workbe
 
 ### 3. Separate the JavaScript adapter from M64 core
 
-The current `tools/m64Artifact/m64.js` contains both generic transport/dictionary behavior and a deliberately small JavaScript canonicalizer.
+Status: first adapter boundary implemented; safe subset still intentionally incomplete.
 
-Before claiming arbitrary JavaScript source support, make this boundary explicit. A likely physical split is:
+`m64.javascript.js` now exposes:
+
+```text
+inspectJavascriptV1(source)
+canonicalizeJavascriptV1(source, identifierMap)
+JS_CANONICAL_V1.id
+```
+
+`js-canonical-v1` is deliberately conservative. It accepts the current Dark Star staging source and ordinary division but rejects syntax that the old mini-canonicalizer can silently corrupt, including template literals and regular-expression literals/ambiguous slash positions. It also rejects unterminated strings/comments and unbalanced parentheses found by preflight.
+
+Existing v2 workbench behavior remains unchanged. New v3 JavaScript publishing should use `canonicalizeJavascriptV1()`.
+
+Continue the physical split incrementally:
 
 ```text
 m64.core.js          byte transport and varuint dictionary references
@@ -102,11 +116,13 @@ m64.artifact.js      v2/v3 artifact validation and integrity fields
 m64.js               compatibility facade, if needed
 ```
 
-`m64.artifact.js` now exists as the first extraction. Continue incrementally and preserve the `ChiselM64` compatibility API while moving internals.
+`m64.artifact.js` and `m64.javascript.js` now exist as the first extractions. Preserve the `ChiselM64` compatibility API while moving internals.
 
-The JavaScript adapter must either correctly handle modern JavaScript lexical forms (including template literals and regular-expression literals) or explicitly reject syntax it cannot safely canonicalize. Silent source corruption is unacceptable.
+Do not widen `js-canonical-v1` casually. Any newly accepted JavaScript lexical form should have regression fixtures showing that canonicalization does not alter its semantics or source tokens unexpectedly.
 
 ### 4. Implement the shared ledger dictionary
+
+Status: next primary protocol task.
 
 The dictionary contract should be intentionally simple. The ledger is durable vocabulary storage, not the M64 execution engine.
 
@@ -132,6 +148,8 @@ Requirements:
 - artifacts reference dictionary identity/version rather than embedding the complete dictionary snapshot.
 
 Start with JavaScript as the first dictionary namespace. Other languages can have independent dictionaries later without changing M64.
+
+Before deploying a production contract, define a client resolver interface for `dictionary.ref` so the same hydrator can resolve terms from a local test dictionary, an EVM contract, cached static JSON, or later IPFS mirrors.
 
 ### 5. Measure compression and ledger cost
 
@@ -194,7 +212,7 @@ Otherwise prefer shipping the protocol milestone over aesthetic restructuring.
 
 ## Immediate next patch
 
-Extract or wrap the JavaScript canonicalizer behind an explicit adapter boundary and add fixtures for syntax that the current mini-lexer must not silently corrupt, especially template literals and regular-expression literals. In parallel, define the resolver interface that turns a v3 `dictionary.ref` plus dictionary IDs into terms. Do not deploy a production dictionary contract until those client boundaries are testable.
+Define the external dictionary resolver interface and a local/in-memory reference implementation. Use it to perform an end-to-end v3 test: canonical JavaScript -> resolved dictionary IDs -> M64 payload -> v3 artifact -> dictionary resolution -> hydrated canonical source -> byte count/hash verification. Keep the resolver transport-neutral so a later Polygon contract is one provider, not the protocol itself.
 
 ## Related documents
 
