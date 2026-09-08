@@ -33,7 +33,9 @@ The immediate objective is **not** to invent another compression scheme. It is t
 5. measure marginal artifact cost after vocabulary already exists on-ledger;
 6. use the result for the staged recursive Chisel rebuild experiment.
 
-The JavaScript language/version and canonicalizer assumptions belong to the artifact metadata. They should not be baked into the dictionary contract itself. M64 transport should remain usable for JavaScript, Python, MIDI/binary generators, or other deterministic payload families.
+The first regression floor is now active, and an executable v3 schema validator has been started in `m64.artifact.js`. The JavaScript language/version and canonicalizer assumptions belong to artifact metadata. The dictionary can declare its language, but JavaScript language-version details should not be baked into the dictionary contract itself.
+
+M64 transport should remain usable for JavaScript, Python, MIDI/binary generators, or other deterministic payload families.
 
 ## Design notes
 
@@ -41,7 +43,7 @@ The broader ledger/dictionary/IPFS direction is recorded in:
 
 - [`LEDGER_IPFS_ARCHITECTURE.md`](LEDGER_IPFS_ARCHITECTURE.md) - EVM as durable data/reference substrate, plural append-only dictionaries, contract/transaction references, cross-ledger graphs, deterministic IPFS/CAR reconstruction, and recovery from zero hosted IPFS copies.
 
-That document intentionally separates implemented M64 v2 mechanics from architectural ideas that are not yet a frozen protocol.
+That document intentionally separates implemented M64 mechanics from architectural ideas that are not yet a frozen live protocol.
 
 ## M64 v2 dictionary encoding
 
@@ -122,7 +124,7 @@ reconstruct canonical source
 
 M64 itself does not care whether those lookups come from an EVM contract, a locally cached mirror, IPFS, DigiByte/Litecoin metadata, or another registry.
 
-## Current artifact package
+## Current v2 artifact package
 
 The workbench currently exports a self-contained version 2 artifact with an embedded dictionary snapshot so the artifact can still be tested without any network dependency:
 
@@ -144,36 +146,63 @@ The workbench currently exports a self-contained version 2 artifact with an embe
 }
 ```
 
-That embedded snapshot is staging scaffolding, not the desired final ledger format. Once the shared dictionary contract is wired into the publisher/hydrator, the artifact should carry a dictionary reference or contract identity rather than repeating the dictionary terms.
+That embedded snapshot is staging scaffolding, not the desired final ledger format.
 
-Conceptually the final package becomes closer to:
+The legacy `validateArtifact()` path intentionally remains v2-only so the existing workbench and `hydrate.html` cannot accidentally accept a v3 artifact that they do not yet know how to resolve.
+
+## Executable M64 v3 draft
+
+`m64.artifact.js` adds a separate `validateArtifactV3()` boundary. The current executable draft is:
 
 ```json
 {
   "kind": "chisel-m64-artifact",
   "version": 3,
   "language": "javascript",
-  "languageVersion": "<declared source level>",
+  "languageVersion": "es2026",
   "codec": "m64-dict-v1",
   "canonicalizer": "js-canonical-v1",
   "dictionary": {
-    "chain": "<chain identity>",
-    "contract": "<dictionary identity>",
-    "version": 1
+    "kind": "ledger-dictionary",
+    "ref": "eip155:137:0x...",
+    "version": 1,
+    "language": "javascript"
   },
   "runtime": "CHISEL-PURE1",
-  "entry": "<entry reference>",
+  "entry": "a",
   "payload": "...M64...",
   "canonicalBytes": 0,
-  "sha256": "<canonical source hash>"
+  "sha256": "<64 lowercase hex characters>"
 }
 ```
 
-This is the working direction, not yet the frozen v3 schema. v2 import/hydration compatibility should remain while v3 is introduced.
+For `m64-dict-v1`, the transport alphabet is fixed rather than repeated in every artifact:
+
+```text
+ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
+```
+
+The current validator checks:
+
+- package kind/version;
+- JavaScript language and declared language version;
+- codec and canonicalizer IDs;
+- dictionary kind/reference/version/language;
+- dictionary language agreement with the artifact language;
+- `CHISEL-PURE1` runtime and JavaScript entry identifier;
+- structural M64 payload validity, including reserved/truncated dictionary-reference bytes;
+- canonical byte-count shape;
+- lowercase SHA-256 field shape.
+
+It intentionally does **not** yet verify that the dictionary reference exists, hydrate the payload against that dictionary, or recompute the canonical SHA-256. Those checks belong to the resolver/hydrator path, which is the next protocol layer.
+
+This should still be treated as an executable draft until the JavaScript adapter and external dictionary resolver use it end-to-end.
 
 ## JavaScript adapter boundary
 
 The current `m64.js` contains a deliberately small JavaScript canonicalizer alongside the generic transport/dictionary logic. That is staging code, not a claim that arbitrary modern JavaScript can already be canonicalized safely.
+
+`m64.artifact.js` is the first physical extraction from the monolithic staging file. Continue moving concerns behind stable compatibility APIs rather than rewriting the workbench all at once.
 
 Before v3 is called stable, JavaScript-specific canonicalization should sit behind an explicit adapter boundary and must either correctly handle lexical forms such as template literals and regular-expression literals or reject unsupported syntax. Silent source corruption is not an acceptable fallback.
 
@@ -191,17 +220,18 @@ This is deliberately not image-specific. A PURE1 artifact can implement raster g
 
 ## Regression tests
 
-The first protocol-floor tests live in `../../tests/m64.test.mjs` and are intended to run both locally and in GitHub Actions:
+The protocol-floor tests live in `../../tests/m64.test.mjs` and run in GitHub Actions:
 
 ```bash
 node --test tests/m64.test.mjs
 ```
 
-They currently cover byte transport round trips, stage/hydrate equality, dictionary IDs above 63, external dictionary hydration, malformed/reserved encoding rejection, and the current v2 artifact validation boundary.
+They cover byte transport round trips, stage/hydrate equality, dictionary IDs above 63, external dictionary hydration, malformed/reserved encoding rejection, the v2 workbench validation boundary, and the v3 external-dictionary schema validator.
 
 ## Files
 
-- `m64.js` - canonicalization, growing dictionary codec, external lookup hooks, M64 transport
+- `m64.js` - current compatibility facade plus canonicalization, growing dictionary codec, external lookup hooks, and M64 transport
+- `m64.artifact.js` - M64 v3 artifact/dictionary-reference validation boundary
 - `index.html` - source -> dictionary -> M64 -> hydrate -> sandboxed test workbench
 - `hydrate.html` - standalone v2 artifact hydrator/tester
 - `polygon.html` - browser EIP-1193 carrier for writing artifact text into Polygon transaction calldata
