@@ -10,10 +10,12 @@ if (!globalThis.crypto) {
 globalThis.window = globalThis;
 await import('../../vendor/elliptic-6-6-1.min.js');
 await import('../../chisel.secp256k1.js');
+await import('../../chisel.secp256k1.noble.js');
 
 const LegacyEC = globalThis.elliptic.ec;
 const legacy = new LegacyEC('secp256k1');
 const boundary = globalThis.ChiselSecp256k1;
+const nobleBackend = globalThis.ChiselNobleSecp256k1.createBackend(noble);
 
 function bytesToHex(bytes) {
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
@@ -50,26 +52,26 @@ const vectors = [
   },
 ];
 
-test('Noble and Chisel elliptic derive the same compressed and uncompressed public keys', () => {
+test('Noble adapter and Chisel elliptic derive the same public keys', () => {
   for (const vector of vectors) {
     const legacyKey = legacy.keyFromPrivate(bytesToHex(vector.privateKey), 'hex');
     const legacyCompressed = Uint8Array.from(legacyKey.getPublic().encode('array', true));
     const legacyUncompressed = Uint8Array.from(legacyKey.getPublic().encode('array', false));
 
     assert.deepEqual(
-      [...noble.getPublicKey(vector.privateKey, true)],
+      [...nobleBackend.getPublicKey(vector.privateKey, true)],
       [...legacyCompressed],
       vector.name + ' compressed public key',
     );
     assert.deepEqual(
-      [...noble.getPublicKey(vector.privateKey, false)],
+      [...nobleBackend.getPublicKey(vector.privateKey, false)],
       [...legacyUncompressed],
       vector.name + ' uncompressed public key',
     );
   }
 });
 
-test('Noble matches legacy deterministic low-S signatures on ordinary vectors', async () => {
+test('Noble adapter matches legacy deterministic low-S signatures on ordinary vectors', async () => {
   for (const vector of vectors) {
     const legacySignature = legacy.sign(
       Array.from(vector.digest),
@@ -78,11 +80,7 @@ test('Noble matches legacy deterministic low-S signatures on ordinary vectors', 
       { canonical: true },
     );
     const legacyCompact = compactLegacySignature(legacySignature);
-    const nobleCompact = await noble.signAsync(vector.digest, vector.privateKey, {
-      prehash: false,
-      lowS: true,
-      format: 'compact',
-    });
+    const nobleCompact = await nobleBackend.signDigest(vector.digest, vector.privateKey);
 
     assert.deepEqual([...nobleCompact], [...legacyCompact], vector.name + ' compact signature');
     assert.deepEqual(
@@ -93,10 +91,10 @@ test('Noble matches legacy deterministic low-S signatures on ordinary vectors', 
   }
 });
 
-test('Noble verifies legacy signatures and legacy elliptic verifies Noble signatures', async () => {
+test('Noble adapter verifies legacy signatures and legacy elliptic verifies Noble signatures', async () => {
   for (const vector of vectors) {
     const legacyKey = legacy.keyFromPrivate(bytesToHex(vector.privateKey), 'hex');
-    const publicKey = noble.getPublicKey(vector.privateKey, true);
+    const publicKey = nobleBackend.getPublicKey(vector.privateKey, true);
     const legacySignature = legacy.sign(
       Array.from(vector.digest),
       bytesToHex(vector.privateKey),
@@ -104,18 +102,10 @@ test('Noble verifies legacy signatures and legacy elliptic verifies Noble signat
       { canonical: true },
     );
     const legacyCompact = compactLegacySignature(legacySignature);
-    const nobleCompact = await noble.signAsync(vector.digest, vector.privateKey, {
-      prehash: false,
-      lowS: true,
-      format: 'compact',
-    });
+    const nobleCompact = await nobleBackend.signDigest(vector.digest, vector.privateKey);
 
     assert.equal(
-      noble.verify(legacyCompact, vector.digest, publicKey, {
-        prehash: false,
-        lowS: true,
-        format: 'compact',
-      }),
+      nobleBackend.verifyDigest(vector.digest, legacyCompact, publicKey),
       true,
       vector.name + ' Noble verifies legacy',
     );
