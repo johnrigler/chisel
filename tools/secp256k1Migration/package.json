@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Temporary parity harness for replacing Chisel's vendored elliptic signer with @noble/secp256k1.",
   "scripts": {
-    "test": "node --test parity.test.mjs"
+    "test": "node --test parity.test.mjs transaction-parity.test.mjs"
   },
   "devDependencies": {
     "@noble/secp256k1": "3.2.0"
