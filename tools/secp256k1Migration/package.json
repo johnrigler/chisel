@@ -1,0 +1,13 @@
+{
+  "name": "chisel-secp256k1-migration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Temporary parity harness for replacing Chisel's vendored elliptic signer with @noble/secp256k1.",
+  "scripts": {
+    "test": "node --test parity.test.mjs"
+  },
+  "devDependencies": {
+    "@noble/secp256k1": "3.2.0"
+  }
+}
