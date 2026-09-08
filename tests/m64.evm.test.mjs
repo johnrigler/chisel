@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
 await import('../tools/m64Artifact/m64.js');
 await import('../tools/m64Artifact/m64.dictionary.js');
@@ -65,4 +66,16 @@ test('Solidity dictionary source exposes append/read methods and no owner mutati
   assert.doesNotMatch(source,/function\s+owner\s*\(/i);
   assert.doesNotMatch(source,/\bonlyOwner\b/);
   assert.doesNotMatch(source,/function\s+(transferOwnership|renounceOwnership|delete|remove|edit|update|setTerm)\b/i);
+});
+
+test('captured deployment artifact matches its CI bytecode hash and expected ABI',async()=>{
+  const artifact=JSON.parse(await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.compiled.json',import.meta.url),'utf8'));
+  assert.equal(artifact.kind,'chisel-solidity-artifact');
+  assert.equal(artifact.contractName,'M64Dictionary');
+  assert.equal(artifact.compiler,'solcjs 0.8.30');
+  assert.match(artifact.bytecode,/^0x[0-9a-f]+$/i);
+  const hash=createHash('sha256').update(Buffer.from(artifact.bytecode.slice(2),'hex')).digest('hex');
+  assert.equal(hash,artifact.bytecodeSha256);
+  const functions=new Set(artifact.abi.filter(x=>x.type==='function').map(x=>x.name));
+  for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms'])assert.ok(functions.has(name));
 });
