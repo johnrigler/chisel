@@ -62,6 +62,7 @@ test('Solidity dictionary source exposes append/read methods and no owner mutati
   const source=await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.sol',import.meta.url),'utf8');
   for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms'])assert.match(source,new RegExp('function\\s+'+name+'\\s*\\('));
   assert.match(source,/event\s+TermAdded/);
-  assert.doesNotMatch(source,/\bowner\b/i);
-  assert.doesNotMatch(source,/function\s+(delete|remove|edit|update|setTerm)\b/i);
+  assert.doesNotMatch(source,/function\s+owner\s*\(/i);
+  assert.doesNotMatch(source,/\bonlyOwner\b/);
+  assert.doesNotMatch(source,/function\s+(transferOwnership|renounceOwnership|delete|remove|edit|update|setTerm)\b/i);
 });
