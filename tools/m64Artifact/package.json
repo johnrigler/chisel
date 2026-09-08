@@ -6,6 +6,7 @@
   "description": "Hardhat 3 development, test, and deployment workspace for Chisel M64 contracts.",
   "scripts": {
     "compile": "hardhat compile",
+    "compile:standalone": "node scripts/compile-standalone.mjs",
     "test": "hardhat test mocha",
     "test:all": "hardhat test",
     "demo": "hardhat run scripts/demo.ts",
@@ -24,6 +25,7 @@
     "ethers": "^6.15.0",
     "hardhat": "^3.16.0",
     "mocha": "^11.7.0",
+    "solc": "0.8.30",
     "typescript": "^6.0.0"
   }
 }
