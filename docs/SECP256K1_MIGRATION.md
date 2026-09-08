@@ -74,8 +74,64 @@ The current fixed vectors prove:
 - DER-signature equality
 - Noble verification of elliptic signatures
 - elliptic verification of Noble signatures
+- exact full signed-transaction equality for a synthetic one-input Bitcoin-family transaction using the real `chisel.sign.js` serialization path
 
 The generic boundary and DER tests also run without Noble or npm dependencies.
+
+## Guarded live browser test
+
+`chisel.sign.backend.js` is a migration-only selector layered on top of the existing `chisel.sign.js`. Elliptic remains the default.
+
+When Noble is selected, Chisel:
+
+1. derives the public key with Noble and compares it with elliptic;
+2. signs the transaction with Noble;
+3. verifies the Noble signature locally;
+4. signs the same transaction again with the existing elliptic path;
+5. compares the complete serialized signed transaction byte-for-byte;
+6. refuses to return the Noble transaction if any comparison fails.
+
+The dedicated browser harness is:
+
+```text
+tools/secp256k1Migration/litecoin-test.html
+```
+
+It deliberately does not modify the normal Chisel page. It loads the ordinary `index.html` in a same-origin frame and injects the migration backend only for the test session.
+
+Local setup from the repository root:
+
+```bash
+git switch noble-secp256k1-migration
+git pull
+cd tools/secp256k1Migration
+npm install
+npm test
+cd ../..
+python3 -m http.server 8000
+```
+
+Then open:
+
+```text
+http://localhost:8000/tools/secp256k1Migration/litecoin-test.html
+```
+
+The top strip must say:
+
+```text
+READY: Noble active, elliptic parity guard enabled.
+```
+
+In the framed Chisel console, this should report Noble selected:
+
+```js
+CHISEL.getSigningBackendInfo()
+```
+
+A Noble-signed transaction will not be returned to the application unless the legacy elliptic signer produced exactly the same final raw transaction.
+
+The `node_modules` copy of Noble is only temporary migration scaffolding. The final browser distribution is still intended to vendor a pinned standalone copy under `vendor/`.
 
 ## Migration gates
 
@@ -83,17 +139,19 @@ Do not replace production signing in one jump. Move through these gates in order
 
 ### 1. Primitive parity
 
-Current state: active and passing on the initial fixed vectors.
+Current state: passing on the initial fixed vectors.
 
 Expand the vector set before production cutover, including boundary-value private keys and varied 32-byte digests.
 
 ### 2. Common Chisel seam
 
-Route the existing common public-key derivation and signing functions through the new boundary. Coin plugins should continue calling the same Chisel APIs they call today.
+Current state: migration selector implemented beside the legacy signer.
 
-Keep the legacy elliptic backend available behind an explicit development switch while this gate is active.
+Coin plugins continue calling the same Chisel public-key and raw-signing APIs. Elliptic remains the default backend outside the dedicated migration harness.
 
 ### 3. Complete transaction parity
+
+Current state: passing for the first synthetic one-input transaction using the real Chisel serialization/signing path. Live Litecoin testing is the next gate.
 
 For each supported Bitcoin-family chain, freeze at least one complete known transaction fixture:
 
