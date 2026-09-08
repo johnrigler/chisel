@@ -1,59 +1,58 @@
 # Chisel: Next Development Sequence
 
-Status: active development roadmap, 2026-09-07.
+Status: active development roadmap, updated 2026-09-07.
 
-This document is the durable order of operations for the next Chisel work. It is intentionally narrower than the general refactor map. The goal is to keep Chisel useful while turning M64 from an experimental compression/workbench feature into a stable recovery protocol.
+This is the durable order of operations for the next Chisel work. The goal is to keep Chisel useful while turning M64 from an experimental compression feature into a stable recovery substrate.
 
 ## Current baseline
 
-- Portal public reads should not require fileProxy. Static/bundled/public ledger sources are the public runtime path; fileProxy remains a local write/import/SQLite helper.
-- M64 v2 already supports a 64-character transport alphabet, literal ASCII bytes, compact dictionary indexes 0..63, variable-length dictionary indexes above 63, a growing dictionary, external term/index lookup hooks, hydration, a browser workbench, and a Polygon calldata carrier.
-- `tools/m64Artifact/m64.artifact.js` provides the executable M64 v3 external-dictionary schema boundary.
-- `tools/m64Artifact/m64.javascript.js` provides an explicit conservative `js-canonical-v1` adapter. New v3 JavaScript publishing should use this boundary rather than calling the legacy mini-canonicalizer directly.
-- `tools/m64Artifact/m64.dictionary.js` now defines a transport-neutral dictionary resolver interface plus an append-only in-memory reference provider.
-- `tools/m64Artifact/m64.v3.js` now proves the v3 client loop end-to-end: canonicalize -> ensure dictionary terms -> M64 -> artifact -> resolve -> hydrate -> verify byte count/SHA-256.
-- No production Polygon dictionary contract is deployed yet. A ledger contract should become one resolver provider, not the M64 protocol itself.
-- Chisel has a small GitHub Actions regression floor, but it still does not have enough transaction fixtures to safely refactor signing, serialization, fee selection, UTXO selection, or broadcasting.
+- Portal public reads are intended to survive without fileProxy. Static/bundled/public ledger sources are the public runtime path; fileProxy remains a local write/import/SQLite helper.
+- A small GitHub Actions regression floor is active. Do not broadly refactor signing, serialization, fee selection, UTXO selection, or broadcast until representative transaction fixtures exist.
+- M64 v2 remains supported for the existing workbench/hydrator.
+- M64 v3 now has an executable schema, external dictionary references, canonical byte count and SHA-256 integrity metadata.
+- `js-canonical-v1` is an explicit conservative JavaScript adapter. It rejects syntax the old mini-canonicalizer cannot safely handle instead of silently changing it.
+- `m64.dictionary.js` defines a transport-neutral resolver and append-only in-memory reference provider.
+- `m64.v3.js` proves JavaScript -> canonical source -> dictionary IDs -> M64 -> v3 artifact -> hydrate -> byte/hash verification, including Dark Star.
+- The first Polygon/EVM resolver provider and permissionless append-only Solidity dictionary are implemented. The exact CI-compiled deployment bytecode is captured and a browser wallet deployment page is staged. No real Polygon deployment has occurred yet.
 
-## Order of operations
-
-### 1. Build a small regression floor
+## 1. Regression floor
 
 Status: first tranche implemented and running in GitHub Actions.
 
-Completed first tranche:
+Covered now:
 
-- M64 byte transport encode/decode round trip.
-- M64 stage/hydrate equality.
-- dictionary references above index 63.
-- external dictionary lookup/hydration.
-- malformed/reserved M64 byte rejection.
-- v2/v3 artifact validation boundaries.
-- JavaScript adapter fixtures for ordinary division, template-literal rejection, regex-literal rejection, and the current Dark Star source.
-- append-only in-memory dictionary resolver fixtures.
-- end-to-end v3 publish/hydrate/integrity fixtures, including Dark Star.
-- syntax checks for the M64 codec/artifact/JavaScript/dictionary/v3 helpers, Portal static-data helper, Thunderword adapter, and fileProxy entry points.
+- M64 byte encode/decode round trip;
+- stage/hydrate equality;
+- dictionary indexes above 63;
+- external dictionary resolution;
+- malformed/reserved encoding rejection;
+- v2/v3 artifact validation;
+- JavaScript adapter safety, including Dark Star;
+- append-only in-memory dictionary behavior;
+- end-to-end v3 publish/hydrate/integrity;
+- EVM resolver behavior and duplicate-term reuse;
+- Solidity contract surface checks;
+- pinned Solidity compilation;
+- captured deployment-bytecode equality against fresh compiler output;
+- browser inline-script syntax checks;
+- fileProxy Python syntax checks.
 
-Next fixtures to add incrementally:
+Still add incrementally:
 
-- WIF -> known address for every supported UTXO chain.
-- known raw transaction -> deterministic decode.
-- known transaction inputs -> deterministic signed raw transaction.
-- MacDougall/unspendable address generation.
-- one transaction/provider normalization fixture per supported chain.
-- Portal static dataset normalization and merge behavior.
+- WIF -> known address for each supported UTXO chain;
+- known raw transaction -> deterministic decode;
+- known inputs -> deterministic signed raw transaction;
+- MacDougall/unspendable generation;
+- one provider-normalization fixture per supported chain;
+- Portal static dataset normalization/merge fixtures.
 
-Safety rule: do not perform broad rewrites of signing, fee, UTXO selection, serialization, or broadcast code before representative fixtures exist.
+Safety rule: do not perform broad transaction-core rewrites before those fixtures exist.
 
-### 2. Freeze M64 v3 as a protocol
+## 2. M64 v3 protocol
 
-Status: executable draft schema plus client hydration/integrity loop implemented; no live ledger dictionary provider yet.
+Status: client protocol loop implemented; first real shared dictionary deployment pending.
 
-The next M64 problem is protocol stability, not cleverer compression.
-
-M64 itself should remain language-neutral. A JavaScript source adapter may produce canonical bytes, but the transport and dictionary layers should not know JavaScript syntax.
-
-The current executable v3 draft requires this field shape:
+Current artifact shape:
 
 ```json
 {
@@ -83,29 +82,16 @@ The current executable v3 draft requires this field shape:
 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
 ```
 
-The v3 validator checks package/version fields, JavaScript/runtime identifiers, dictionary identity/version/language agreement, structural M64 payload validity, canonical byte count, and SHA-256 field shape.
+Protocol boundaries to preserve:
 
-When an actual resolver is supplied, `hydrateArtifactV3()` additionally:
+- dictionary identity says which shared vocabulary an artifact uses;
+- artifact `languageVersion` and `canonicalizer` belong to the artifact, not the dictionary contract;
+- M64 transport remains independent of JavaScript, Polygon, ethers, IPFS, or any one provider;
+- legacy v2 validation/hydration stays separate until explicitly migrated.
 
-- requires the resolver descriptor to match the artifact dictionary reference;
-- resolves dictionary IDs to terms;
-- reconstructs canonical source;
-- verifies `canonicalBytes`;
-- recomputes and verifies SHA-256.
+## 3. JavaScript adapter
 
-The remaining gap is a durable ledger-backed resolver provider and publication path. The legacy `validateArtifact()` v2 boundary stays intact so the current v2 UI does not accidentally accept a v3 artifact through the wrong hydration path.
-
-Important distinction:
-
-- dictionary identity says what shared vocabulary is being used;
-- artifact `language` identifies the source family;
-- dictionary `language` must agree with the artifact language;
-- `languageVersion` and `canonicalizer` belong to the artifact, not to the dictionary contract;
-- M64 transport remains independent of JavaScript, Polygon, and any one storage provider.
-
-### 3. Separate the JavaScript adapter from M64 core
-
-Status: first adapter boundary implemented; safe subset still intentionally incomplete.
+Status: explicit safe-subset boundary implemented.
 
 `m64.javascript.js` exposes:
 
@@ -115,28 +101,28 @@ canonicalizeJavascriptV1(source, identifierMap)
 JS_CANONICAL_V1.id
 ```
 
-`js-canonical-v1` is deliberately conservative. It accepts the current Dark Star staging source and ordinary division but rejects syntax that the old mini-canonicalizer can silently corrupt, including template literals and regular-expression literals/ambiguous slash positions. It also rejects unterminated strings/comments and unbalanced parentheses found by preflight.
+`js-canonical-v1` accepts the current Dark Star source and ordinary division. It rejects template literals, regex literals/ambiguous slash positions, unterminated strings/comments, and unbalanced parentheses discovered by preflight.
 
-Existing v2 workbench behavior remains unchanged. New v3 JavaScript publishing should use `canonicalizeJavascriptV1()`.
+Do not widen this adapter casually. Every newly accepted lexical form needs regression fixtures showing that canonicalization does not silently alter it.
 
-Continue the physical split incrementally:
+Future physical extraction may continue toward:
 
 ```text
-m64.core.js          byte transport and varuint dictionary references
-m64.dictionary.js    dictionary resolution helpers
-m64.javascript.js    JavaScript canonicalization/source adapter
-m64.artifact.js      v2/v3 artifact validation and integrity fields
-m64.v3.js            v3 publication/hydration orchestration
-m64.js               compatibility facade, if needed
+m64.core.js          byte transport and varuint references
+m64.dictionary.js    resolver semantics
+m64.javascript.js    JavaScript source adapter
+m64.artifact.js      artifact validation/integrity fields
+m64.v3.js            v3 publish/hydrate orchestration
+m64.js               compatibility facade
 ```
 
-Preserve the `ChiselM64` compatibility API while moving internals. Do not widen `js-canonical-v1` casually. Any newly accepted JavaScript lexical form should have regression fixtures showing that canonicalization does not alter its semantics or source tokens unexpectedly.
+Preserve `ChiselM64` compatibility while moving internals.
 
-### 4. Implement the shared ledger dictionary
+## 4. Shared ledger dictionary
 
-Status: client resolver contract and in-memory reference provider implemented; live ledger provider next.
+Status: client resolver, in-memory provider, Polygon/EVM provider, Solidity contract, CI compile, captured bytecode, and deployment UI implemented. First on-chain deployment is the next external action.
 
-`m64.dictionary.js` defines the client-facing resolver methods:
+Resolver API:
 
 ```text
 describe()
@@ -146,7 +132,7 @@ ensureTerm(term)
 ensureTerms(terms[])
 ```
 
-The provider underneath that resolver is expected to supply the conceptual ledger operations:
+Polygon contract API:
 
 ```text
 language()
@@ -158,90 +144,121 @@ addTerm(term)
 addTerms(terms[])
 ```
 
-Requirements remain:
+Contract invariants:
 
+- permissionless writes;
 - append-only stable numeric IDs;
-- no renumbering existing terms;
-- deterministic lookup behavior;
-- batch lookup/add support so publishing does not require one transaction/call per lexical term;
-- M64 logic stays client-side;
-- artifacts reference dictionary identity/version rather than embedding the complete dictionary snapshot.
+- no owner/admin path;
+- no edit, delete, or renumber operation;
+- duplicate terms reuse the existing ID;
+- empty terms rejected;
+- batch insertion supported;
+- M64 logic remains client-side.
 
-The in-memory provider is deliberately not special to the protocol. A Polygon contract, cached static JSON mirror, IPFS snapshot, or another ledger adapter should implement the same resolver-facing behavior.
+Polygon dictionary identity is:
 
-Start with JavaScript as the first ledger dictionary namespace. Other languages can have independent dictionaries later without changing M64.
+```text
+eip155:137:0x<contract-address>
+```
 
-### 5. Measure compression and ledger cost
+Operational files:
 
-Status: next after a first real ledger dictionary provider or faithful local simulation.
+- `tools/m64Artifact/contracts/M64Dictionary.sol`
+- `tools/m64Artifact/contracts/M64Dictionary.compiled.json`
+- `tools/m64Artifact/m64.dictionary.evm.js`
+- `tools/m64Artifact/deploy-dictionary-polygon.html`
+- `tools/m64Artifact/dictionary-polygon.html`
+- `tools/m64Artifact/POLYGON_DICTIONARY.md`
 
-Do not optimize from intuition. Produce repeatable measurements for representative artifacts.
+The normal deployment path must use the captured CI-tested bytecode. Do not switch to an ad-hoc Remix/browser compilation as the canonical path.
 
-At minimum measure:
+## 5. Immediate live experiment
+
+After this Polygon-provider patch is merged, the next user action is one wallet-signed Polygon deployment from `deploy-dictionary-polygon.html`.
+
+After deployment:
+
+1. record the returned `eip155:137:<address>` descriptor;
+2. verify `language() == "javascript"`, dictionary version 1, and initial term count 0;
+3. add a small seed vocabulary through the dictionary console;
+4. build a small v3 JavaScript artifact against the live resolver;
+5. hydrate it from the live contract and verify `canonicalBytes` and SHA-256;
+6. repeat with Dark Star;
+7. retain deployment tx, block, contract address, gas used, and seed-write gas as measurement data.
+
+No production vocabulary needs curation. If strangers add terms later, Chisel may simply reuse those IDs. They cannot change the meaning of existing IDs.
+
+## 6. Measure compression and ledger cost
+
+Status: immediately after the first live dictionary is deployed.
+
+Produce repeatable reports containing:
 
 ```text
 original source bytes
 canonical source bytes
 abstract dictionary-stream bytes
 M64 characters / UTF-8 bytes
-embedded dictionary bytes (v2)
-external dictionary bytes charged to artifact (v3)
+v2 embedded dictionary bytes
+v3 artifact bytes
 new dictionary terms added
 reused dictionary terms
 ledger calldata bytes
-estimated/actual publish cost
+dictionary gas used
+artifact publish gas/cost
 hydration equality/hash
 ```
 
 Corpus:
 
-- a small ordinary JavaScript function;
+- small ordinary JavaScript function;
 - Dark Star raster renderer;
 - MIDI generator;
 - image/pattern generator;
 - selected Chisel modules;
 - eventually the smallest recoverable Chisel subset.
 
-The important metric is not simply whether M64 beats gzip. Measure the marginal cost of describing a new program after its vocabulary already exists on the ledger.
+The important metric is the marginal cost of a new program after most vocabulary already exists on-ledger, not merely whether M64 beats gzip.
 
-### 6. Perform the recursive Chisel rebuild experiment
+## 7. Recursive Chisel rebuild
 
 Do not encode the whole repository first.
 
-Milestone sequence:
+Milestones:
 
-1. identify the smallest useful subset that can locate one ledger artifact and hydrate M64;
-2. encode/reference that subset through the ledger dictionary model;
+1. identify the smallest subset that can locate one ledger artifact and hydrate M64;
+2. represent that subset through the ledger/dictionary model;
 3. reconstruct it without loading the original source files;
 4. use the reconstructed subset to retrieve a second, larger artifact;
 5. repeat toward the intended Chisel tool tree;
 6. reconstruct a canonical directory/tree;
-7. compare a recorded tree hash and, later, deterministic IPFS/CAR root CID.
+7. compare a recorded tree hash and later a deterministic IPFS/CAR root CID.
 
-Success changes M64 from a compact artifact format into part of Chisel's recovery substrate.
+Success changes M64 from compact storage into part of Chisel's recovery substrate.
 
 ## Technical debt policy
 
-There is ordinary technical debt in Chisel: browser-global integration, large UI controllers, legacy pages, provider duplication, compatibility entry points, and satellite tools. Do not make cleanup an end in itself.
+Ordinary Chisel debt still includes browser-global integration, large UI controllers, legacy pages, provider duplication, compatibility entry points, and satellite tools. Do not make cleanup an end in itself.
 
-Refactor when one of these conditions is true:
+Refactor when:
 
-- the debt blocks a roadmap milestone;
+- debt blocks a roadmap milestone;
 - a regression fixture makes the extraction safe;
-- duplicated code has already caused a concrete failure;
-- a public/runtime dependency can be removed;
-- a compatibility boundary can be preserved while internals are simplified.
+- duplication caused a concrete failure;
+- a public runtime dependency can be removed; or
+- a compatibility boundary can be preserved while internals simplify.
 
-Otherwise prefer shipping the protocol milestone over aesthetic restructuring.
+Otherwise prefer the protocol milestone over aesthetic restructuring.
 
-## Immediate next patch
+## Immediate next code after first deployment
 
-Define the first EVM/Polygon dictionary provider against the resolver interface, but keep the contract deliberately small and test it against a local/static mock before spending real gas. The provider should map a stable descriptor such as `eip155:137:<contract>` to `lookupId`, `lookupTerm`, `addTerm`, and batched `addTerms`. In the same pass, add a repeatable compression/cost report so the first real contract experiment has measurable targets.
+Build the repeatable compression/gas report and a live-v3 publish/hydrate page using the deployed dictionary descriptor. Then use Dark Star as the first substantial live artifact. Only after those measurements should we decide whether the dictionary encoding itself needs further compression work.
 
 ## Related documents
 
 - `docs/refactor-phases.md` - conservative general refactor sequence.
 - `REFACTOR-MAP.md` - executable-source dependency/refactor inventory.
 - `tools/m64Artifact/README.md` - implemented M64 mechanics.
+- `tools/m64Artifact/POLYGON_DICTIONARY.md` - current Polygon contract/provider/deployment details.
 - `tools/m64Artifact/LEDGER_IPFS_ARCHITECTURE.md` - ledger/dictionary/IPFS architecture notes.
 - `tools/m64Artifact/SELF_REBUILD.md` - recursive recovery direction.

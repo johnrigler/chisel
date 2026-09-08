@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chisel M64 Polygon Dictionary</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0b0e;--panel:#15151a;--line:#353540;--ink:#ececf1;--muted:#9c9ca9;--good:#acd6ac;--bad:#e5abab}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,sans-serif}main{max-width:1050px;margin:auto;padding:16px}.panel{border:1px solid var(--line);background:var(--panel);padding:12px;margin-top:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}input,textarea,button{font:13px ui-monospace,monospace;color:var(--ink);background:#0f0f14;border:1px solid #3b3b47;border-radius:3px}input,textarea{width:100%;padding:8px}textarea{min-height:150px}button{padding:8px 10px;margin:5px 5px 5px 0}.muted{color:var(--muted)}.status{white-space:pre-wrap;word-break:break-word;font:12px/1.45 ui-monospace,monospace}.good{color:var(--good)}.bad{color:var(--bad)}label{display:block;margin:8px 0 4px}@media(max-width:760px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>M64 POLYGON DICTIONARY</h1>
+<div class="muted">Permissionless append-only vocabulary. Anyone may pay gas to add a term; existing IDs cannot be edited or deleted.</div>
+<section class="panel">
+<label>Dictionary contract address</label>
+<input id="address" placeholder="0x...">
+<button id="connect">Connect + switch to Polygon</button>
+<button id="inspect">Inspect contract</button>
+<div id="wallet" class="status">wallet not connected</div>
+</section>
+<div class="grid">
+<section class="panel">
+<h3>Lookup</h3>
+<label>Term</label><input id="term" value="function"><button id="lookupTerm">Find term ID</button>
+<label>ID</label><input id="id" value="0"><button id="lookupId">Find term text</button>
+<div id="lookupStatus" class="status">idle</div>
+</section>
+<section class="panel">
+<h3>Append vocabulary</h3>
+<textarea id="terms" spellcheck="false">function
+return
+const
+Uint8Array
+width
+height</textarea>
+<button id="add">Add missing terms</button>
+<div class="muted">Duplicates are harmless: the contract returns/reuses the existing ID. Only genuinely new terms grow the dictionary.</div>
+<div id="addStatus" class="status">idle</div>
+</section>
+</div>
+<section class="panel">
+<h3>Resolver</h3>
+<div id="status" class="status">Set a deployed contract address, then inspect it.</div>
+<div class="muted">Contract source: <code>contracts/M64Dictionary.sol</code>. This page deliberately does not make M64 depend on Polygon; it instantiates the normal dictionary resolver over an EVM contract.</div>
+</section>
+</main>
+<script src="../../vendor/ethers-6.6.0.umd.min.js"></script>
+<script src="m64.js"></script>
+<script src="m64.dictionary.js"></script>
+<script src="m64.dictionary.evm.js"></script>
+<script>
+"use strict";
+const S=id=>document.getElementById(id),M=ChiselM64;
+const POLYGON={chainId:"0x89",chainName:"Polygon Mainnet",nativeCurrency:{name:"POL",symbol:"POL",decimals:18},rpcUrls:["https://polygon-rpc.com/"],blockExplorerUrls:["https://polygonscan.com/"]};
+let resolver=null,account="";
+function show(id,text,ok){const el=S(id);el.textContent=text;el.className="status "+(ok===true?"good":ok===false?"bad":"")}
+function provider(){if(!window.ethereum?.request)throw new Error("No injected EVM wallet detected");return window.ethereum}
+async function ensurePolygon(p){try{await p.request({method:"wallet_switchEthereumChain",params:[{chainId:POLYGON.chainId}]})}catch(e){if(e?.code===4902||e?.code===-32603){await p.request({method:"wallet_addEthereumChain",params:[POLYGON]});await p.request({method:"wallet_switchEthereumChain",params:[{chainId:POLYGON.chainId}]})}else throw e}}
+async function connect(){const p=provider(),accounts=await p.request({method:"eth_requestAccounts"});if(!accounts?.[0])throw new Error("Wallet returned no account");account=accounts[0];await ensurePolygon(p);show("wallet","connected: "+account+"\nchain: Polygon (137)",true);return p}
+async function getResolver(writable=true){const p=await connect(),address=S("address").value.trim();resolver=await M.createEip1193Dictionary({eip1193:p,address,chainId:137,writable,verify:true});return resolver}
+async function inspect(){try{const r=await getResolver(false),info=await r.inspectContract();show("status","VALID M64 DICTIONARY\nref: "+info.descriptor.ref+"\nlanguage: "+info.language+"\nversion: "+info.version+"\nterms: "+info.termCount,true)}catch(e){show("status","INSPECT ERROR\n"+(e.stack||e),false)}}
+async function lookupTerm(){try{const r=resolver||await getResolver(false),term=S("term").value,id=await r.idForTerm(term);show("lookupStatus",id===null?"not found":term+" = "+id,id!==null)}catch(e){show("lookupStatus","LOOKUP ERROR\n"+(e.stack||e),false)}}
+async function lookupId(){try{const r=resolver||await getResolver(false),id=Number(S("id").value),term=await r.termForId(id);show("lookupStatus",term===null?"not found":id+" = "+term,term!==null)}catch(e){show("lookupStatus","LOOKUP ERROR\n"+(e.stack||e),false)}}
+async function add(){try{const r=await getResolver(true),terms=S("terms").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(!terms.length)throw new Error("No terms supplied");show("addStatus","Checking "+terms.length+" term(s)...");const ids=await r.ensureTerms(terms);const lines=terms.map(t=>t+" = "+ids.get(t));const count=await r.termCount();show("addStatus","DICTIONARY UPDATED\n"+lines.join("\n")+"\nterm count: "+count,true);await inspect()}catch(e){show("addStatus","ADD ERROR\n"+(e.stack||e),false)}}
+const queryAddress=new URLSearchParams(location.search).get("address");if(/^0x[0-9a-fA-F]{40}$/.test(queryAddress||""))S("address").value=queryAddress;
+S("connect").onclick=()=>connect().catch(e=>show("wallet","CONNECT ERROR\n"+(e.stack||e),false));S("inspect").onclick=inspect;S("lookupTerm").onclick=lookupTerm;S("lookupId").onclick=lookupId;S("add").onclick=add;
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+[
+  {
+    "type": "event",
+    "name": "TermAdded",
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "name": "id", "type": "uint256"},
+      {"indexed": false, "name": "term", "type": "string"},
+      {"indexed": true, "name": "payer", "type": "address"}
+    ]
+  },
+  {
+    "type": "error",
+    "name": "EmptyTerm",
+    "inputs": []
+  },
+  {
+    "type": "function",
+    "name": "language",
+    "stateMutability": "pure",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "string"}]
+  },
+  {
+    "type": "function",
+    "name": "dictionaryVersion",
+    "stateMutability": "pure",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "uint256"}]
+  },
+  {
+    "type": "function",
+    "name": "termCount",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "uint256"}]
+  },
+  {
+    "type": "function",
+    "name": "lookupTerm",
+    "stateMutability": "view",
+    "inputs": [{"name": "id", "type": "uint256"}],
+    "outputs": [{"name": "", "type": "string"}]
+  },
+  {
+    "type": "function",
+    "name": "lookupId",
+    "stateMutability": "view",
+    "inputs": [{"name": "term", "type": "string"}],
+    "outputs": [{"name": "", "type": "uint256"}]
+  },
+  {
+    "type": "function",
+    "name": "addTerm",
+    "stateMutability": "nonpayable",
+    "inputs": [{"name": "term", "type": "string"}],
+    "outputs": [{"name": "id", "type": "uint256"}]
+  },
+  {
+    "type": "function",
+    "name": "addTerms",
+    "stateMutability": "nonpayable",
+    "inputs": [{"name": "batch", "type": "string[]"}],
+    "outputs": [{"name": "ids", "type": "uint256[]"}]
+  }
+]

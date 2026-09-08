@@ -20,7 +20,7 @@ jobs:
           node-version: '20'
 
       - name: Run M64 protocol tests
-        run: node --test tests/m64.test.mjs
+        run: node --test tests/m64.test.mjs tests/m64.evm.test.mjs
 
       - name: Check browser JavaScript syntax
         run: |
@@ -28,9 +28,26 @@ jobs:
           node --check tools/m64Artifact/m64.artifact.js
           node --check tools/m64Artifact/m64.javascript.js
           node --check tools/m64Artifact/m64.dictionary.js
+          node --check tools/m64Artifact/m64.dictionary.evm.js
           node --check tools/m64Artifact/m64.v3.js
           node --check chisel.portal.static-data.js
           node --check chisel.thunderwords.js
+          node tests/check-inline-scripts.mjs tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html
+
+      - name: Compile M64 dictionary contract
+        run: |
+          rm -rf /tmp/m64-solc
+          mkdir -p /tmp/m64-solc
+          npx --yes solc@0.8.30 --bin --abi tools/m64Artifact/contracts/M64Dictionary.sol -o /tmp/m64-solc
+          test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.bin
+          test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.abi
+          node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync('tools/m64Artifact/contracts/M64Dictionary.compiled.json'));const b=fs.readFileSync('/tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.bin','utf8').trim();if(a.bytecode.slice(2)!==b)throw Error('captured M64Dictionary bytecode is stale')"
+
+      - name: Upload compiled dictionary contract
+        uses: actions/upload-artifact@v4
+        with:
+          name: m64-dictionary-solc
+          path: /tmp/m64-solc/
 
       - name: Check fileProxy Python syntax
         run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py

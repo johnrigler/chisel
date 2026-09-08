@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deploy Chisel M64 Dictionary</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0b0e;--panel:#15151a;--line:#353540;--ink:#ececf1;--muted:#9c9ca9;--good:#acd6ac;--bad:#e5abab}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,sans-serif}main{max-width:980px;margin:auto;padding:16px}.panel{border:1px solid var(--line);background:var(--panel);padding:12px;margin-top:12px}select,input,button{font:13px ui-monospace,monospace;color:var(--ink);background:#0f0f14;border:1px solid #3b3b47;border-radius:3px}select,input{width:100%;padding:8px}button{padding:8px 10px;margin:5px 5px 5px 0}.status{white-space:pre-wrap;word-break:break-word;font:12px/1.45 ui-monospace,monospace}.muted{color:var(--muted)}.good{color:var(--good)}.bad{color:var(--bad)}label{display:block;margin:8px 0 4px}</style>
+</head>
+<body>
+<main>
+<h1>DEPLOY M64 DICTIONARY TO POLYGON</h1>
+<div class="muted">Deploy the exact CI-compiled permissionless append-only dictionary. No constructor arguments and no owner/admin role are created.</div>
+<section class="panel">
+<h3>Compiled artifact gate</h3>
+<div id="artifact" class="status">loading contracts/M64Dictionary.compiled.json ...</div>
+</section>
+<section class="panel">
+<label>Injected wallet</label><select id="provider"></select>
+<button id="refresh">Refresh wallets</button><button id="connect">Connect + switch to Polygon</button>
+<div id="wallet" class="status">wallet not connected</div>
+</section>
+<section class="panel">
+<h3>Deployment</h3>
+<button id="deploy" disabled>Deploy M64Dictionary</button>
+<div class="muted">The wallet will show the Polygon deployment transaction and gas cost before signing. Chisel does not hold the key.</div>
+<div id="status" class="status">artifact must verify before deployment is enabled</div>
+</section>
+<section class="panel">
+<h3>Deployed dictionary</h3>
+<input id="descriptor" readonly placeholder="eip155:137:0x...">
+<button id="copy">Copy descriptor</button><button id="open" disabled>Open dictionary console</button>
+<div id="result" class="status">not deployed</div>
+</section>
+</main>
+<script src="../../vendor/ethers-6.6.0.umd.min.js"></script>
+<script>
+"use strict";
+const S=id=>document.getElementById(id),providers=[];
+const POLYGON={chainId:"0x89",chainName:"Polygon Mainnet",nativeCurrency:{name:"POL",symbol:"POL",decimals:18},rpcUrls:["https://polygon-rpc.com/"],blockExplorerUrls:["https://polygonscan.com/"]};
+let compiled=null,active=null,account="",deployedAddress="";
+function show(id,text,ok){const e=S(id);e.textContent=text;e.className="status "+(ok===true?"good":ok===false?"bad":"")}
+function addProvider(provider,name){if(!provider?.request||providers.some(x=>x.provider===provider))return;providers.push({provider,name:name||"Injected EVM wallet"})}
+function rebuild(){const sel=S("provider"),old=sel.value;sel.textContent="";providers.forEach((p,i)=>{const o=document.createElement("option");o.value=String(i);o.textContent=p.name;sel.appendChild(o)});if(!providers.length){const o=document.createElement("option");o.textContent="No injected EVM wallet detected";o.value="";sel.appendChild(o)}else if(old&&providers[Number(old)])sel.value=old}
+function discover(){providers.length=0;if(window.backpack?.ethereum)addProvider(window.backpack.ethereum,"Backpack");if(window.ethereum)addProvider(window.ethereum,"window.ethereum");window.dispatchEvent(new Event("eip6963:requestProvider"));rebuild();setTimeout(rebuild,150)}
+window.addEventListener("eip6963:announceProvider",e=>{if(e.detail?.provider){addProvider(e.detail.provider,e.detail.info?.name);rebuild()}});
+function selected(){const i=Number(S("provider").value);if(!Number.isInteger(i)||!providers[i])throw new Error("No injected wallet selected");return providers[i]}
+async function sha256Hex(bytes){const h=await crypto.subtle.digest("SHA-256",bytes);return[...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+function hexBytes(hex){hex=hex.startsWith("0x")?hex.slice(2):hex;if(hex.length%2)throw new Error("Odd bytecode hex length");const out=new Uint8Array(hex.length/2);for(let i=0;i<out.length;i++){const n=parseInt(hex.slice(i*2,i*2+2),16);if(Number.isNaN(n))throw new Error("Invalid bytecode hex");out[i]=n}return out}
+async function loadArtifact(){try{const r=await fetch("contracts/M64Dictionary.compiled.json",{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const a=await r.json();if(a.kind!=="chisel-solidity-artifact"||a.contractName!=="M64Dictionary"||!Array.isArray(a.abi)||!/^0x[0-9a-f]+$/i.test(a.bytecode||""))throw new Error("Bad compiled artifact shape");const hash=await sha256Hex(hexBytes(a.bytecode));if(hash!==a.bytecodeSha256)throw new Error("Compiled bytecode SHA-256 mismatch");compiled=a;S("deploy").disabled=false;show("artifact","VERIFIED COMPILED ARTIFACT\ncompiler: "+a.compiler+"\nsource blob: "+a.sourceBlobSha+"\ncompiled from: "+a.compiledFromCommit+"\nbytecode bytes: "+hexBytes(a.bytecode).length+"\nbytecode SHA-256: "+hash,true)}catch(e){show("artifact","ARTIFACT ERROR\n"+(e.stack||e),false)}}
+async function ensurePolygon(p){try{await p.request({method:"wallet_switchEthereumChain",params:[{chainId:POLYGON.chainId}]})}catch(e){if(e?.code===4902||e?.code===-32603){await p.request({method:"wallet_addEthereumChain",params:[POLYGON]});await p.request({method:"wallet_switchEthereumChain",params:[{chainId:POLYGON.chainId}]})}else throw e}}
+async function connect(){const chosen=selected();active=chosen.provider;const accounts=await active.request({method:"eth_requestAccounts"});if(!accounts?.[0])throw new Error("Wallet returned no account");account=accounts[0];await ensurePolygon(active);const chain=await active.request({method:"eth_chainId"});show("wallet","connected: "+chosen.name+"\naccount: "+account+"\nchainId: "+chain,true);return active}
+async function deploy(){try{if(!compiled)throw new Error("Compiled artifact is not verified");const p=active||await connect(),browser=new ethers.BrowserProvider(p),network=await browser.getNetwork();if(Number(network.chainId)!==137)throw new Error("Wallet is not on Polygon");const signer=await browser.getSigner(),factory=new ethers.ContractFactory(compiled.abi,compiled.bytecode,signer);show("status","Requesting deployment signature for "+hexBytes(compiled.bytecode).length+" byte creation code...");const contract=await factory.deploy(),tx=contract.deploymentTransaction();show("status","submitted: "+tx.hash+"\nwaiting for deployment...");await contract.waitForDeployment();deployedAddress=(await contract.getAddress()).toLowerCase();const receipt=await tx.wait(),language=await contract.language(),version=Number(await contract.dictionaryVersion()),count=Number(await contract.termCount());if(language!=="javascript"||version!==1||count!==0)throw new Error("Deployed contract metadata validation failed");const descriptor="eip155:137:"+deployedAddress;S("descriptor").value=descriptor;S("open").disabled=false;show("status","DEPLOYED AND VERIFIED\ntransaction: "+tx.hash+"\nblock: "+receipt.blockNumber+"\ngas used: "+receipt.gasUsed.toString(),true);show("result","address: "+deployedAddress+"\nref: "+descriptor+"\nlanguage: "+language+"\nversion: "+version+"\nterm count: "+count,true)}catch(e){show("status","DEPLOY ERROR\n"+(e.stack||e),false)}}
+async function copy(){try{await navigator.clipboard.writeText(S("descriptor").value);show("result",S("result").textContent+"\n\ndescriptor copied",true)}catch(e){show("result","Clipboard unavailable; select the descriptor manually.",false)}}
+S("refresh").onclick=discover;S("connect").onclick=()=>connect().catch(e=>show("wallet","CONNECT ERROR\n"+(e.stack||e),false));S("deploy").onclick=deploy;S("copy").onclick=copy;S("open").onclick=()=>{if(deployedAddress)location.href="dictionary-polygon.html?address="+encodeURIComponent(deployedAddress)};
+discover();loadArtifact();
+</script>
+</body>
+</html>
