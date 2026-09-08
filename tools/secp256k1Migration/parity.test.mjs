@@ -7,12 +7,16 @@ if (!globalThis.crypto) {
   globalThis.crypto = webcrypto;
 }
 
-globalThis.window = globalThis;
-await import('../../vendor/elliptic-6-6-1.min.js');
+const legacyModule = await import('../../vendor/elliptic-6-6-1.min.js');
 await import('../../chisel.secp256k1.js');
 await import('../../chisel.secp256k1.noble.js');
 
-const LegacyEC = globalThis.elliptic.ec;
+const elliptic = legacyModule.default || globalThis.elliptic;
+if (!elliptic || typeof elliptic.ec !== 'function') {
+  throw new Error('Unable to load Chisel vendored elliptic 6.6.1.');
+}
+
+const LegacyEC = elliptic.ec;
 const legacy = new LegacyEC('secp256k1');
 const boundary = globalThis.ChiselSecp256k1;
 const nobleBackend = globalThis.ChiselNobleSecp256k1.createBackend(noble);
