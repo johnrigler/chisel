@@ -8,9 +8,12 @@ This document is the durable order of operations for the next Chisel work. It is
 
 - Portal public reads should not require fileProxy. Static/bundled/public ledger sources are the public runtime path; fileProxy remains a local write/import/SQLite helper.
 - M64 v2 already supports a 64-character transport alphabet, literal ASCII bytes, compact dictionary indexes 0..63, variable-length dictionary indexes above 63, a growing dictionary, external term/index lookup hooks, hydration, a browser workbench, and a Polygon calldata carrier.
-- `tools/m64Artifact/m64.artifact.js` provides the first executable M64 v3 external-dictionary schema boundary. It does not yet make the v2 hydrator consume v3 artifacts or deploy a live dictionary contract.
-- `tools/m64Artifact/m64.javascript.js` now provides an explicit conservative `js-canonical-v1` adapter. New v3 JavaScript publishing should use this boundary rather than calling the legacy mini-canonicalizer directly.
-- Chisel now has a small GitHub Actions regression floor, but it still does not have enough transaction fixtures to safely refactor signing, serialization, fee selection, UTXO selection, or broadcasting.
+- `tools/m64Artifact/m64.artifact.js` provides the executable M64 v3 external-dictionary schema boundary.
+- `tools/m64Artifact/m64.javascript.js` provides an explicit conservative `js-canonical-v1` adapter. New v3 JavaScript publishing should use this boundary rather than calling the legacy mini-canonicalizer directly.
+- `tools/m64Artifact/m64.dictionary.js` now defines a transport-neutral dictionary resolver interface plus an append-only in-memory reference provider.
+- `tools/m64Artifact/m64.v3.js` now proves the v3 client loop end-to-end: canonicalize -> ensure dictionary terms -> M64 -> artifact -> resolve -> hydrate -> verify byte count/SHA-256.
+- No production Polygon dictionary contract is deployed yet. A ledger contract should become one resolver provider, not the M64 protocol itself.
+- Chisel has a small GitHub Actions regression floor, but it still does not have enough transaction fixtures to safely refactor signing, serialization, fee selection, UTXO selection, or broadcasting.
 
 ## Order of operations
 
@@ -27,7 +30,9 @@ Completed first tranche:
 - malformed/reserved M64 byte rejection.
 - v2/v3 artifact validation boundaries.
 - JavaScript adapter fixtures for ordinary division, template-literal rejection, regex-literal rejection, and the current Dark Star source.
-- syntax checks for the M64 codec/artifact/JavaScript helpers, Portal static-data helper, Thunderword adapter, and fileProxy entry points.
+- append-only in-memory dictionary resolver fixtures.
+- end-to-end v3 publish/hydrate/integrity fixtures, including Dark Star.
+- syntax checks for the M64 codec/artifact/JavaScript/dictionary/v3 helpers, Portal static-data helper, Thunderword adapter, and fileProxy entry points.
 
 Next fixtures to add incrementally:
 
@@ -42,7 +47,7 @@ Safety rule: do not perform broad rewrites of signing, fee, UTXO selection, seri
 
 ### 2. Freeze M64 v3 as a protocol
 
-Status: executable draft schema started; not yet frozen as a live publishing/hydration protocol.
+Status: executable draft schema plus client hydration/integrity loop implemented; no live ledger dictionary provider yet.
 
 The next M64 problem is protocol stability, not cleverer compression.
 
@@ -78,7 +83,17 @@ The current executable v3 draft requires this field shape:
 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
 ```
 
-The v3 validator checks package/version fields, JavaScript/runtime identifiers, dictionary identity/version/language agreement, structural M64 payload validity, canonical byte count, and SHA-256 field shape. It does **not** yet prove that the referenced dictionary exists, that the payload hydrates against that dictionary, or that the supplied hash matches reconstructed canonical source. Those belong to the resolver/hydrator path.
+The v3 validator checks package/version fields, JavaScript/runtime identifiers, dictionary identity/version/language agreement, structural M64 payload validity, canonical byte count, and SHA-256 field shape.
+
+When an actual resolver is supplied, `hydrateArtifactV3()` additionally:
+
+- requires the resolver descriptor to match the artifact dictionary reference;
+- resolves dictionary IDs to terms;
+- reconstructs canonical source;
+- verifies `canonicalBytes`;
+- recomputes and verifies SHA-256.
+
+The remaining gap is a durable ledger-backed resolver provider and publication path. The legacy `validateArtifact()` v2 boundary stays intact so the current v2 UI does not accidentally accept a v3 artifact through the wrong hydration path.
 
 Important distinction:
 
@@ -88,13 +103,11 @@ Important distinction:
 - `languageVersion` and `canonicalizer` belong to the artifact, not to the dictionary contract;
 - M64 transport remains independent of JavaScript, Polygon, and any one storage provider.
 
-Keep the legacy `validateArtifact()` v2 boundary intact until the current workbench/hydrator has an explicit v3 resolver. v3 is validated separately through `validateArtifactV3()` so old UI code cannot accidentally accept an artifact it cannot hydrate.
-
 ### 3. Separate the JavaScript adapter from M64 core
 
 Status: first adapter boundary implemented; safe subset still intentionally incomplete.
 
-`m64.javascript.js` now exposes:
+`m64.javascript.js` exposes:
 
 ```text
 inspectJavascriptV1(source)
@@ -113,20 +126,27 @@ m64.core.js          byte transport and varuint dictionary references
 m64.dictionary.js    dictionary resolution helpers
 m64.javascript.js    JavaScript canonicalization/source adapter
 m64.artifact.js      v2/v3 artifact validation and integrity fields
+m64.v3.js            v3 publication/hydration orchestration
 m64.js               compatibility facade, if needed
 ```
 
-`m64.artifact.js` and `m64.javascript.js` now exist as the first extractions. Preserve the `ChiselM64` compatibility API while moving internals.
-
-Do not widen `js-canonical-v1` casually. Any newly accepted JavaScript lexical form should have regression fixtures showing that canonicalization does not alter its semantics or source tokens unexpectedly.
+Preserve the `ChiselM64` compatibility API while moving internals. Do not widen `js-canonical-v1` casually. Any newly accepted JavaScript lexical form should have regression fixtures showing that canonicalization does not alter its semantics or source tokens unexpectedly.
 
 ### 4. Implement the shared ledger dictionary
 
-Status: next primary protocol task.
+Status: client resolver contract and in-memory reference provider implemented; live ledger provider next.
 
-The dictionary contract should be intentionally simple. The ledger is durable vocabulary storage, not the M64 execution engine.
+`m64.dictionary.js` defines the client-facing resolver methods:
 
-Conceptual operations:
+```text
+describe()
+idForTerm(term)
+termForId(id)
+ensureTerm(term)
+ensureTerms(terms[])
+```
+
+The provider underneath that resolver is expected to supply the conceptual ledger operations:
 
 ```text
 language()
@@ -138,7 +158,7 @@ addTerm(term)
 addTerms(terms[])
 ```
 
-Requirements:
+Requirements remain:
 
 - append-only stable numeric IDs;
 - no renumbering existing terms;
@@ -147,11 +167,13 @@ Requirements:
 - M64 logic stays client-side;
 - artifacts reference dictionary identity/version rather than embedding the complete dictionary snapshot.
 
-Start with JavaScript as the first dictionary namespace. Other languages can have independent dictionaries later without changing M64.
+The in-memory provider is deliberately not special to the protocol. A Polygon contract, cached static JSON mirror, IPFS snapshot, or another ledger adapter should implement the same resolver-facing behavior.
 
-Before deploying a production contract, define a client resolver interface for `dictionary.ref` so the same hydrator can resolve terms from a local test dictionary, an EVM contract, cached static JSON, or later IPFS mirrors.
+Start with JavaScript as the first ledger dictionary namespace. Other languages can have independent dictionaries later without changing M64.
 
 ### 5. Measure compression and ledger cost
+
+Status: next after a first real ledger dictionary provider or faithful local simulation.
 
 Do not optimize from intuition. Produce repeatable measurements for representative artifacts.
 
@@ -164,6 +186,8 @@ abstract dictionary-stream bytes
 M64 characters / UTF-8 bytes
 embedded dictionary bytes (v2)
 external dictionary bytes charged to artifact (v3)
+new dictionary terms added
+reused dictionary terms
 ledger calldata bytes
 estimated/actual publish cost
 hydration equality/hash
@@ -212,7 +236,7 @@ Otherwise prefer shipping the protocol milestone over aesthetic restructuring.
 
 ## Immediate next patch
 
-Define the external dictionary resolver interface and a local/in-memory reference implementation. Use it to perform an end-to-end v3 test: canonical JavaScript -> resolved dictionary IDs -> M64 payload -> v3 artifact -> dictionary resolution -> hydrated canonical source -> byte count/hash verification. Keep the resolver transport-neutral so a later Polygon contract is one provider, not the protocol itself.
+Define the first EVM/Polygon dictionary provider against the resolver interface, but keep the contract deliberately small and test it against a local/static mock before spending real gas. The provider should map a stable descriptor such as `eip155:137:<contract>` to `lookupId`, `lookupTerm`, `addTerm`, and batched `addTerms`. In the same pass, add a repeatable compression/cost report so the first real contract experiment has measurable targets.
 
 ## Related documents
 
