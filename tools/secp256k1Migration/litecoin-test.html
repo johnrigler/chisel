@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chisel Noble Litecoin Test</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0d10; color: #e6edf3; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    body { display: grid; grid-template-rows: auto 1fr; }
+    header { padding: 10px 14px; border-bottom: 1px solid #29313a; background: #10151b; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    strong { color: #fff; }
+    #status { color: #ffd166; }
+    #status.ready { color: #a3e635; }
+    #status.error { color: #ff7b7b; }
+    code { color: #c5f467; }
+    iframe { width: 100%; height: 100%; border: 0; background: #0b0d10; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Noble secp256k1 migration test</strong>
+    <span id="status">Loading Chisel and Noble…</span>
+    <span>Guard: Noble result must exactly equal elliptic result before Chisel returns the signed transaction.</span>
+    <span>Console: <code>CHISEL.getSigningBackendInfo()</code></span>
+  </header>
+  <iframe id="chiselFrame" title="Chisel Noble test"></iframe>
+
+  <script type="module">
+    const status = document.querySelector('#status');
+    const frame = document.querySelector('#chiselFrame');
+    const rootUrl = new URL('../../index.html', import.meta.url);
+
+    function loadClassic(document, src) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Failed to load ' + src));
+        document.body.appendChild(script);
+      });
+    }
+
+    frame.addEventListener('load', async () => {
+      try {
+        const win = frame.contentWindow;
+        const doc = frame.contentDocument;
+
+        if (!win || !doc || !win.CHISEL) {
+          throw new Error('The Chisel frame did not expose window.CHISEL.');
+        }
+
+        await loadClassic(doc, new URL('../../chisel.secp256k1.js', import.meta.url).href);
+        await loadClassic(doc, new URL('../../chisel.secp256k1.noble.js', import.meta.url).href);
+        await loadClassic(doc, new URL('../../chisel.sign.backend.js', import.meta.url).href);
+
+        const noble = await import('./node_modules/@noble/secp256k1/index.js');
+        win.ChiselNobleSecp256k1.install(noble, win.CHISEL);
+        win.CHISEL.setSigningBackend('noble');
+
+        const info = win.CHISEL.getSigningBackendInfo();
+        if (info.selected !== 'noble' || !info.nobleAvailable) {
+          throw new Error('Noble backend did not become active.');
+        }
+
+        win.CHISEL_DEBUG = win.CHISEL_DEBUG || {};
+        win.CHISEL_DEBUG.NOBLE_TEST = true;
+        win.CHISEL_DEBUG.SIGNING = info;
+
+        status.textContent = 'READY: Noble active, elliptic parity guard enabled.';
+        status.className = 'ready';
+      } catch (error) {
+        console.error(error);
+        status.textContent = 'ERROR: ' + (error && error.message ? error.message : String(error));
+        status.className = 'error';
+      }
+    }, { once: true });
+
+    frame.src = rootUrl.href;
+  </script>
+</body>
+</html>
