@@ -5,6 +5,11 @@ export default defineConfig({
   plugins: [hardhatToolboxMochaEthers],
   solidity: {
     version: "0.8.30",
+    settings: {
+      metadata: {
+        appendCBOR: false,
+      },
+    },
   },
   networks: {
     hardhatMainnet: {
