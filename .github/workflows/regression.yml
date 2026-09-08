@@ -35,12 +35,13 @@ jobs:
           node tests/check-inline-scripts.mjs tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html tools/m64Artifact/packet-polygon.html
 
       - name: Compile M64 dictionary contract
+        working-directory: tools/m64Artifact
         run: |
           rm -rf /tmp/m64-solc
           mkdir -p /tmp/m64-solc
-          npx --yes solc@0.8.30 --bin --abi tools/m64Artifact/contracts/M64Dictionary.sol -o /tmp/m64-solc
-          test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.bin
-          test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.abi
+          npx --yes solc@0.8.30 --bin --abi contracts/M64Dictionary.sol -o /tmp/m64-solc
+          test -s /tmp/m64-solc/contracts_M64Dictionary_sol_M64Dictionary.bin
+          test -s /tmp/m64-solc/contracts_M64Dictionary_sol_M64Dictionary.abi
 
       - name: Upload compiled dictionary contract
         if: always()
@@ -51,7 +52,7 @@ jobs:
 
       - name: Verify captured dictionary bytecode is current
         run: |
-          node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync('tools/m64Artifact/contracts/M64Dictionary.compiled.json'));const b=fs.readFileSync('/tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.bin','utf8').trim();if(a.bytecode.slice(2)!==b)throw Error('captured M64Dictionary bytecode is stale')"
+          node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync('tools/m64Artifact/contracts/M64Dictionary.compiled.json'));const b=fs.readFileSync('/tmp/m64-solc/contracts_M64Dictionary_sol_M64Dictionary.bin','utf8').trim();if(a.bytecode.slice(2)!==b)throw Error('captured M64Dictionary bytecode is stale')"
 
       - name: Check fileProxy Python syntax
         run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
@@ -78,6 +79,13 @@ jobs:
 
       - name: Run Hardhat contract tests
         run: npm test
+
+      - name: Upload Hardhat contract artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m64-dictionary-hardhat
+          path: tools/m64Artifact/artifacts/contracts/M64Dictionary.sol/M64Dictionary.json
 
       - name: Compare Hardhat and captured creation bytecode
         run: |
