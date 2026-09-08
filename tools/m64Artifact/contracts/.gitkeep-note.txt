@@ -1,1 +1,0 @@
-The compiled deployment artifact is intentionally not committed by hand. GitHub Actions compiles M64Dictionary.sol first; capture that exact ABI/bytecode into Chisel only after the compile/regression gate passes.
