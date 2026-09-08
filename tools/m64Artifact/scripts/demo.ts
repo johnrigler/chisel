@@ -1,6 +1,6 @@
 import { network } from "hardhat";
 
-const { ethers } = await network.connect();
+const { ethers } = await network.create();
 const [publisher] = await ethers.getSigners();
 
 console.log("CHISEL M64 / HARDHAT 3 DEMO");
