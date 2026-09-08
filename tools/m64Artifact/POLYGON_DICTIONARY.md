@@ -1,6 +1,6 @@
 # M64 Polygon Dictionary
 
-Status: implementation staged for first deployment; do not deploy until the branch CI compiles and passes.
+Status: contract, resolver, CI compile, captured deployment bytecode, and browser deployment page implemented; first real Polygon deployment still pending.
 
 This is the first durable ledger provider for the transport-neutral resolver in `m64.dictionary.js`.
 
@@ -71,20 +71,55 @@ The browser adapter uses the vendored ethers v6 build only for ABI/RPC/signing m
 
 `dictionary-polygon.html` is the operator console for a deployed dictionary. It can connect an injected wallet, switch to Polygon, validate the contract metadata, look up terms/IDs, and append batches of missing terms.
 
-## Deployment gate
+## Verified deployment artifact
 
-The Solidity source is compiled in GitHub Actions with pinned `solc@0.8.30`. CI uploads the compiled ABI/bytecode as the `m64-dictionary-solc` workflow artifact.
+The Solidity source is compiled in GitHub Actions with pinned `solc@0.8.30`. The successful CI run uploaded `m64-dictionary-solc`, and that exact output was captured as:
 
-The source should not be deployed until:
+```text
+contracts/M64Dictionary.compiled.json
+```
 
-1. JavaScript/EVM resolver regressions pass;
-2. the Solidity compilation step passes;
-3. the exact compiled bytecode is captured into a Chisel deployment artifact;
-4. a Chisel deployment page can show the bytecode/source identity before requesting a wallet signature.
+The captured artifact records:
+
+```text
+source blob SHA: ea45c92a5ecc03328cdb22a13beba8bfcf9327fa
+compiled-from commit: 27b89c2a66643dc360085b793ee1afefe81b37a1
+CI artifact id: 10042240484
+CI artifact digest: sha256:6bdbce2af0c2b2bf4ad1d175df8b3498e0abb4d5fa60f393c3789b58b2b0c45d
+creation bytecode SHA-256: fc8e0412562b3c90a8989ec578315497d2d1734488da8137acd2094a27cf8764
+```
+
+`tests/m64.evm.test.mjs` recomputes the bytecode SHA-256 and checks the expected ABI surface. This prevents a hand-edited deployment payload from quietly replacing the CI output.
+
+## Browser deployment
+
+`deploy-dictionary-polygon.html` is the normal deployment path.
+
+Before enabling its deployment button it:
+
+1. loads `M64Dictionary.compiled.json`;
+2. recomputes the creation-bytecode SHA-256 in the browser;
+3. compares it to the captured CI hash;
+4. shows compiler/source/commit/bytecode identity;
+5. connects an injected wallet and switches to Polygon.
+
+Deployment then uses the vendored ethers v6 `ContractFactory`. After mining, the page verifies:
+
+```text
+language() == "javascript"
+dictionaryVersion() == 1
+termCount() == 0
+```
+
+and returns the durable descriptor:
+
+```text
+eip155:137:0x<new-contract-address>
+```
 
 The user should not need Remix for the normal path. Remix remains only an independent inspection/debugging option.
 
-## After first deployment
+## First live experiment
 
 Once a real Polygon address exists:
 
