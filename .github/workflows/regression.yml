@@ -33,5 +33,18 @@ jobs:
           node --check chisel.portal.static-data.js
           node --check chisel.thunderwords.js
 
+      - name: Compile M64 dictionary contract
+        run: |
+          mkdir -p /tmp/m64-solc
+          npx --yes solc@0.8.30 --bin --abi tools/m64Artifact/contracts/M64Dictionary.sol -o /tmp/m64-solc --overwrite
+          test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.bin
+          test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.abi
+
+      - name: Upload compiled dictionary contract
+        uses: actions/upload-artifact@v4
+        with:
+          name: m64-dictionary-solc
+          path: /tmp/m64-solc/
+
       - name: Check fileProxy Python syntax
         run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
