@@ -1,10 +1,12 @@
 # M64 Dictionary Contracts
 
-The first contract is `M64Dictionary.sol`, a permissionless append-only JavaScript vocabulary for M64 v3.
+The first contract is `M64Dictionary.sol`, a permissionless append-only JavaScript vocabulary for M64 v3 plus a generic log-only packet carrier.
 
 There is deliberately no owner/admin path and no way to edit, delete, or renumber terms. Anyone can pay gas to append a term. Duplicate additions reuse the existing ID.
 
-See [`../POLYGON_DICTIONARY.md`](../POLYGON_DICTIONARY.md) for the resolver identity, browser provider, deployment verification, and first live experiment.
+The contract also exposes `publishPacket(namespace, objectId, part, data)`, which emits a `Packet` event with three caller-selected indexed routing fields and opaque bytes. Packet payloads are not written to contract storage and the contract assigns no meaning to thunderwords, M64, CIDs, JavaScript, or any other packet convention.
+
+See [`../POLYGON_DICTIONARY.md`](../POLYGON_DICTIONARY.md) for the resolver identity, packet/log surface, browser tools, deployment verification, and first live experiment. See [`../CARRIER_MODEL.md`](../CARRIER_MODEL.md) for the carrier-neutral Chisel model.
 
 Files:
 
