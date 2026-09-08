@@ -20,6 +20,21 @@ dictionary hydration
 runtime
 ```
 
+## Active direction
+
+The durable development order is in [`../../docs/NEXT_DEVELOPMENT.md`](../../docs/NEXT_DEVELOPMENT.md).
+
+The immediate objective is **not** to invent another compression scheme. It is to stabilize M64 as a protocol:
+
+1. keep a small executable regression floor;
+2. freeze an M64 v3 external-dictionary artifact schema;
+3. separate the JavaScript source adapter from the language-neutral M64 transport/dictionary core;
+4. implement a simple append-only shared ledger dictionary;
+5. measure marginal artifact cost after vocabulary already exists on-ledger;
+6. use the result for the staged recursive Chisel rebuild experiment.
+
+The JavaScript language/version and canonicalizer assumptions belong to the artifact metadata. They should not be baked into the dictionary contract itself. M64 transport should remain usable for JavaScript, Python, MIDI/binary generators, or other deterministic payload families.
+
 ## Design notes
 
 The broader ledger/dictionary/IPFS direction is recorded in:
@@ -138,14 +153,29 @@ Conceptually the final package becomes closer to:
   "kind": "chisel-m64-artifact",
   "version": 3,
   "language": "javascript",
-  "dictionary": "<ledger dictionary reference>",
+  "languageVersion": "<declared source level>",
+  "codec": "m64-dict-v1",
+  "canonicalizer": "js-canonical-v1",
+  "dictionary": {
+    "chain": "<chain identity>",
+    "contract": "<dictionary identity>",
+    "version": 1
+  },
   "runtime": "CHISEL-PURE1",
-  "entry": 1234,
-  "payload": "...M64..."
+  "entry": "<entry reference>",
+  "payload": "...M64...",
+  "canonicalBytes": 0,
+  "sha256": "<canonical source hash>"
 }
 ```
 
-The exact external-dictionary package schema is not frozen yet.
+This is the working direction, not yet the frozen v3 schema. v2 import/hydration compatibility should remain while v3 is introduced.
+
+## JavaScript adapter boundary
+
+The current `m64.js` contains a deliberately small JavaScript canonicalizer alongside the generic transport/dictionary logic. That is staging code, not a claim that arbitrary modern JavaScript can already be canonicalized safely.
+
+Before v3 is called stable, JavaScript-specific canonicalization should sit behind an explicit adapter boundary and must either correctly handle lexical forms such as template literals and regular-expression literals or reject unsupported syntax. Silent source corruption is not an acceptable fallback.
 
 ## CHISEL-PURE1
 
@@ -159,6 +189,16 @@ The result should be structured-cloneable data such as a string, number, object,
 
 This is deliberately not image-specific. A PURE1 artifact can implement raster generation, MIDI generation, text transformation, encoding/decoding, transaction serialization, parsers, or other deterministic protocol logic.
 
+## Regression tests
+
+The first protocol-floor tests live in `../../tests/m64.test.mjs` and are intended to run both locally and in GitHub Actions:
+
+```bash
+node --test tests/m64.test.mjs
+```
+
+They currently cover byte transport round trips, stage/hydrate equality, dictionary IDs above 63, external dictionary hydration, malformed/reserved encoding rejection, and the current v2 artifact validation boundary.
+
 ## Files
 
 - `m64.js` - canonicalization, growing dictionary codec, external lookup hooks, M64 transport
@@ -166,6 +206,7 @@ This is deliberately not image-specific. A PURE1 artifact can implement raster g
 - `hydrate.html` - standalone v2 artifact hydrator/tester
 - `polygon.html` - browser EIP-1193 carrier for writing artifact text into Polygon transaction calldata
 - `LEDGER_IPFS_ARCHITECTURE.md` - design notes for ledger references, shared dictionaries, cross-ledger objects, and deterministic IPFS recovery
+- `SELF_REBUILD.md` - staged recursive Chisel recovery direction
 - `examples/` - Dark Star renderer staging material and earlier examples
 
 ## Polygon carrier
