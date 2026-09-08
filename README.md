@@ -13,10 +13,17 @@ Start with the origin bridge before touring the code:
 - `docs/origin.md` explains the vanilla-JS / elliptic signing decision, then maps the 2020 white paper into the current Chisel implementation.
 - `docs/origin-print.html` is the printable HTML version for meetings and page-layout checks.
 - `docs/refactor-phases.md` defines the low-risk sequence for cleaning up the project without touching signing or broadcast paths too early.
+- `docs/NEXT_DEVELOPMENT.md` is the active development sequence: regression floor -> M64 v3 protocol -> JavaScript adapter boundary -> shared ledger dictionary -> measurements -> recursive Chisel rebuild.
 
 The short version: Chisel reads and writes ledger-native artifacts. A UTXO transaction can carry meaning through ordered outputs, readable unspendable addresses, optional OP_RETURN payloads, and amount-level codes. Portal should be the main reader. fileProxy, bunOven, keeperBun, label tools, QR tools, and other helpers are satellites.
 
 Portal is now static-first: `data-bundled/portal-starter.js` preloads the known public records immediately, `data-bundled/manifest.json` and `data-bundled/index/portal.index.json` describe the same dataset for validation/refresh, and live ledger searches merge newer records without clearing the stream. `bun`, `deno`, `fileProxy`, local nodes, and import scripts remain authoring/publishing tools. They should not be required for a public visitor opening the GitHub/IPFS/rigler.org build.
+
+## Current development direction
+
+Do not treat general cleanup as the main project. Put a small fixture-driven regression floor under existing behavior, then make M64 a stable language-neutral protocol. M64 v2 is the implemented staging format; v3 should replace embedded dictionary snapshots with durable dictionary references while preserving v2 hydration compatibility.
+
+The intended order is documented in `docs/NEXT_DEVELOPMENT.md`. In particular, avoid broad changes to signing, serialization, fee selection, UTXO selection, or broadcast behavior until known-value fixtures cover those paths.
 
 ## v2.7.15c Base57 image capture
 
