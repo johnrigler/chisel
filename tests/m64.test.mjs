@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises';
 await import('../tools/m64Artifact/m64.js');
 await import('../tools/m64Artifact/m64.artifact.js');
 await import('../tools/m64Artifact/m64.javascript.js');
+await import('../tools/m64Artifact/m64.dictionary.js');
+await import('../tools/m64Artifact/m64.v3.js');
 
 const M = globalThis.ChiselM64;
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -177,4 +179,83 @@ test('js-canonical-v1 accepts the current Dark Star staging source', async () =>
   const canonical = M.canonicalizeJavascriptV1(source, 'darkStar=a\nmod=m\nputPixel=q\ndrawLine=l');
   assert.ok(canonical.startsWith('function a('));
   assert.ok(canonical.length > 100);
+});
+
+test('memory dictionary resolver keeps stable append-only ids', async () => {
+  const resolver = M.createMemoryDictionary({
+    ref: 'memory:test-dictionary',
+    language: 'javascript',
+    terms: ['function', 'return'],
+  });
+
+  assert.equal(await resolver.idForTerm('function'), 0);
+  assert.equal(await resolver.termForId(1), 'return');
+  assert.equal(await resolver.ensureTerm('const'), 2);
+  assert.equal(await resolver.ensureTerm('const'), 2);
+  assert.deepEqual(resolver.snapshotTerms(), ['function', 'return', 'const']);
+  assert.deepEqual(resolver.describe(), {
+    kind: 'ledger-dictionary',
+    ref: 'memory:test-dictionary',
+    version: 1,
+    language: 'javascript',
+  });
+});
+
+test('M64 v3 publishes and hydrates JavaScript through a resolver without embedding dictionary terms', async () => {
+  const resolver = M.createMemoryDictionary({ ref: 'memory:v3-e2e', language: 'javascript' });
+  const source = 'function main(input){const n=input.value/2;return n+1}';
+  const built = await M.buildJavascriptArtifactV3(source, {
+    resolver,
+    entry: 'main',
+    identifierMap: 'main=a',
+    languageVersion: 'es2026',
+    input: { value: 8 },
+  });
+
+  assert.equal(built.artifact.version, 3);
+  assert.equal(built.artifact.entry, 'a');
+  assert.equal(built.artifact.dictionary.ref, 'memory:v3-e2e');
+  assert.equal(Object.prototype.hasOwnProperty.call(built.artifact, 'profile'), false);
+  assert.ok(resolver.snapshotTerms().length > 0);
+
+  const hydrated = await M.hydrateArtifactV3(built.artifact, resolver);
+  assert.equal(hydrated.canonical, built.canonical);
+  assert.equal(hydrated.canonicalBytes, built.artifact.canonicalBytes);
+  assert.equal(hydrated.sha256, built.artifact.sha256);
+});
+
+test('M64 v3 hydration rejects the wrong dictionary and tampered integrity metadata', async () => {
+  const resolver = M.createMemoryDictionary({ ref: 'memory:v3-right', language: 'javascript' });
+  const built = await M.buildJavascriptArtifactV3('function main(x){return x+1}', {
+    resolver,
+    entry: 'main',
+    identifierMap: 'main=a',
+  });
+
+  const wrong = M.createMemoryDictionary({ ref: 'memory:v3-wrong', language: 'javascript', terms: resolver.snapshotTerms() });
+  await assert.rejects(
+    () => M.hydrateArtifactV3(built.artifact, wrong),
+    /resolver does not match artifact dictionary reference/,
+  );
+
+  const tampered = { ...built.artifact, sha256: '11'.repeat(32) };
+  await assert.rejects(
+    () => M.hydrateArtifactV3(tampered, resolver),
+    /canonical SHA-256 mismatch/,
+  );
+});
+
+test('Dark Star completes the M64 v3 canonicalize-resolve-hydrate integrity loop', async () => {
+  const source = await readFile(new URL('../tools/m64Artifact/examples/darkstar-core.js', import.meta.url), 'utf8');
+  const resolver = M.createMemoryDictionary({ ref: 'memory:darkstar-v3', language: 'javascript' });
+  const built = await M.buildJavascriptArtifactV3(source, {
+    resolver,
+    entry: 'darkStar',
+    identifierMap: 'darkStar=a\nmod=m\nputPixel=q\ndrawLine=l',
+  });
+  const hydrated = await M.hydrateArtifactV3(built.artifact, resolver);
+
+  assert.equal(hydrated.canonical, built.canonical);
+  assert.equal(hydrated.sha256, built.artifact.sha256);
+  assert.ok(built.artifact.payload.length > 100);
 });
