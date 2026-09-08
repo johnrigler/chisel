@@ -91,15 +91,20 @@ test('hand-auditable ABI contains the carrier-neutral Packet surface',async()=>{
   assert.deepEqual(publish.inputs.map(x=>x.type),['bytes32','bytes32','uint256','bytes']);
 });
 
-test('captured deployment artifact matches its CI bytecode hash and includes Packet ABI',async()=>{
+test('captured deployment artifact matches its reproducible Hardhat bytecode hash and includes Packet ABI',async()=>{
   const artifact=JSON.parse(await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.compiled.json',import.meta.url),'utf8'));
   assert.equal(artifact.kind,'chisel-solidity-artifact');
   assert.equal(artifact.contractName,'M64Dictionary');
-  assert.equal(artifact.compiler,'solcjs 0.8.30');
+  assert.equal(artifact.compiler,'Hardhat 3.16.0 / solc 0.8.30');
+  assert.equal(artifact.hardhatVersion,'3.16.0');
+  assert.equal(artifact.solcVersion,'0.8.30');
+  assert.equal(artifact.metadataAppendCBOR,false);
+  assert.equal(artifact.compilerSourceName,'contracts/M64Dictionary.sol');
   assert.match(artifact.bytecode,/^0x[0-9a-f]+$/i);
   const hash=createHash('sha256').update(Buffer.from(artifact.bytecode.slice(2),'hex')).digest('hex');
   assert.equal(hash,artifact.bytecodeSha256);
-  assert.equal(hash,'b42f227850b4390116f0969aadf50ab628f1aac4425de1f06bc3642d3b6259db');
+  assert.equal(hash,'f55001c8e085674028643483943f42363d913d172b328f7d10dc175d3419e051');
+  assert.equal(Buffer.from(artifact.bytecode.slice(2),'hex').length,4002);
   const functions=new Set(artifact.abi.filter(x=>x.type==='function').map(x=>x.name));
   for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms','publishPacket'])assert.ok(functions.has(name));
   const packet=artifact.abi.find(x=>x.type==='event'&&x.name==='Packet');
