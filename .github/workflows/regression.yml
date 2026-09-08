@@ -35,8 +35,9 @@ jobs:
 
       - name: Compile M64 dictionary contract
         run: |
+          rm -rf /tmp/m64-solc
           mkdir -p /tmp/m64-solc
-          npx --yes solc@0.8.30 --bin --abi tools/m64Artifact/contracts/M64Dictionary.sol -o /tmp/m64-solc --overwrite
+          npx --yes solc@0.8.30 --bin --abi tools/m64Artifact/contracts/M64Dictionary.sol -o /tmp/m64-solc
           test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.bin
           test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.abi
 
