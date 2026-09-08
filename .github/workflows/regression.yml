@@ -63,7 +63,10 @@ jobs:
       - name: Run Hardhat contract tests
         run: npm test
 
-      - name: Upload compiler artifacts
+      - name: Run presentation demo
+        run: npm run demo
+
+      - name: Upload compiler and dependency artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -71,6 +74,7 @@ jobs:
           path: |
             tools/m64Artifact/artifacts/contracts/M64Dictionary.sol/M64Dictionary.json
             tools/m64Artifact/.standalone-artifacts/M64Dictionary.json
+            tools/m64Artifact/package-lock.json
 
       - name: Verify exact deployment bytecode across compiler paths
         run: |
