@@ -33,9 +33,9 @@ The immediate objective is **not** to invent another compression scheme. It is t
 5. measure marginal artifact cost after vocabulary already exists on-ledger;
 6. use the result for the staged recursive Chisel rebuild experiment.
 
-The regression floor is active. `m64.artifact.js` provides the executable v3 schema boundary, and `m64.javascript.js` now provides the first explicit JavaScript canonicalizer boundary. The JavaScript language/version and canonicalizer assumptions belong to artifact metadata. The dictionary can declare its language, but JavaScript language-version details should not be baked into the dictionary contract itself.
+The regression floor is active. `m64.artifact.js` provides the executable v3 schema boundary, `m64.javascript.js` provides the explicit JavaScript canonicalizer boundary, `m64.dictionary.js` provides a transport-neutral resolver, and `m64.v3.js` now proves the v3 canonicalize/publish/hydrate/integrity loop against an in-memory dictionary provider.
 
-M64 transport should remain usable for JavaScript, Python, MIDI/binary generators, or other deterministic payload families.
+The JavaScript language/version and canonicalizer assumptions belong to artifact metadata. The dictionary can declare its language, but JavaScript language-version details should not be baked into the dictionary contract itself. M64 transport should remain usable for JavaScript, Python, MIDI/binary generators, or other deterministic payload families.
 
 ## Design notes
 
@@ -182,25 +182,15 @@ For `m64-dict-v1`, the transport alphabet is fixed rather than repeated in every
 ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
 ```
 
-The current validator checks:
+The validator checks package kind/version, language/runtime metadata, codec/canonicalizer IDs, dictionary descriptor shape, M64 payload structure, canonical byte-count shape, and lowercase SHA-256 field shape.
 
-- package kind/version;
-- JavaScript language and declared language version;
-- codec and canonicalizer IDs;
-- dictionary kind/reference/version/language;
-- dictionary language agreement with the artifact language;
-- `CHISEL-PURE1` runtime and JavaScript entry identifier;
-- structural M64 payload validity, including reserved/truncated dictionary-reference bytes;
-- canonical byte-count shape;
-- lowercase SHA-256 field shape.
+With a resolver, `hydrateArtifactV3()` goes further: it requires the resolver descriptor to match the artifact dictionary reference, resolves every dictionary ID, reconstructs canonical source, checks `canonicalBytes`, and recomputes/verifies SHA-256.
 
-It intentionally does **not** yet verify that the dictionary reference exists, hydrate the payload against that dictionary, or recompute the canonical SHA-256. Those checks belong to the resolver/hydrator path, which is the next protocol layer.
-
-This should still be treated as an executable draft until the JavaScript adapter and external dictionary resolver use it end-to-end.
+The missing production piece is now a durable ledger-backed resolver provider and publish path, not the basic client protocol loop.
 
 ## JavaScript adapter boundary
 
-`m64.javascript.js` now defines `js-canonical-v1` as an explicit conservative source adapter around the legacy canonicalizer. It exports:
+`m64.javascript.js` defines `js-canonical-v1` as an explicit conservative source adapter around the legacy canonicalizer. It exports:
 
 ```text
 inspectJavascriptV1(source)
@@ -219,7 +209,68 @@ The important rule is rejection rather than guesswork. `js-canonical-v1` current
 
 This is deliberately a safe subset, not a complete JavaScript parser. Existing v2 workbench behavior remains unchanged. New v3 JavaScript publishing should go through `canonicalizeJavascriptV1()` until a later canonicalizer version expands the accepted syntax with equivalent regression coverage.
 
-`m64.artifact.js` and `m64.javascript.js` are the first physical extractions from the monolithic staging file. Continue moving concerns behind stable compatibility APIs rather than rewriting the workbench all at once.
+## Dictionary resolver boundary
+
+`m64.dictionary.js` separates dictionary semantics from transport. A resolver exposes:
+
+```text
+describe()
+idForTerm(term)
+termForId(id)
+ensureTerm(term)
+ensureTerms(terms[])
+```
+
+The descriptor is the same structure stored in a v3 artifact:
+
+```json
+{
+  "kind": "ledger-dictionary",
+  "ref": "<stable provider-specific identity>",
+  "version": 1,
+  "language": "javascript"
+}
+```
+
+The resolver wrapper accepts provider functions corresponding to `lookupId(term)`, `lookupTerm(id)`, `addTerm(term)`, and optional batched `addTerms(terms[])`. `createMemoryDictionary()` supplies an append-only in-memory reference implementation with stable numeric IDs and a `snapshotTerms()` helper for tests.
+
+This is deliberate inversion of control. Polygon should implement this interface. Polygon should not define it.
+
+## End-to-end v3 client loop
+
+`m64.v3.js` adds:
+
+```text
+buildJavascriptArtifactV3(source, options)
+hydrateArtifactV3(artifact, resolver)
+sha256HexUtf8(text)
+```
+
+`buildJavascriptArtifactV3()` performs:
+
+```text
+JavaScript source
+  -> js-canonical-v1
+  -> collect lexical terms
+  -> resolver.ensureTerms()
+  -> dictionary IDs
+  -> M64 payload
+  -> v3 artifact + canonical byte count + SHA-256
+```
+
+`hydrateArtifactV3()` performs the inverse and verifies integrity:
+
+```text
+v3 artifact
+  -> validate schema
+  -> verify resolver identity
+  -> resolve dictionary IDs
+  -> canonical source
+  -> verify byte count
+  -> verify SHA-256
+```
+
+The artifact does not embed the dictionary term array. Tests now exercise this loop with both a small JavaScript function and the Dark Star renderer.
 
 ## CHISEL-PURE1
 
@@ -241,13 +292,15 @@ The protocol-floor tests live in `../../tests/m64.test.mjs` and run in GitHub Ac
 node --test tests/m64.test.mjs
 ```
 
-They cover byte transport round trips, stage/hydrate equality, dictionary IDs above 63, external dictionary hydration, malformed/reserved encoding rejection, the v2 workbench validation boundary, the v3 external-dictionary schema validator, JavaScript division, template-literal rejection, regex-literal rejection, and the current Dark Star source through `js-canonical-v1`.
+They cover byte transport round trips, stage/hydrate equality, dictionary IDs above 63, external dictionary hydration, malformed/reserved encoding rejection, the v2 workbench validation boundary, the v3 schema validator, JavaScript adapter safety, append-only resolver behavior, resolver mismatch rejection, integrity tamper rejection, and complete v3 round trips for ordinary JavaScript and Dark Star.
 
 ## Files
 
 - `m64.js` - current compatibility facade plus canonicalization, growing dictionary codec, external lookup hooks, and M64 transport
 - `m64.artifact.js` - M64 v3 artifact/dictionary-reference validation boundary
 - `m64.javascript.js` - conservative `js-canonical-v1` source adapter/preflight boundary
+- `m64.dictionary.js` - transport-neutral dictionary resolver plus in-memory reference provider
+- `m64.v3.js` - v3 JavaScript publish/hydrate/integrity orchestration
 - `index.html` - source -> dictionary -> M64 -> hydrate -> sandboxed test workbench
 - `hydrate.html` - standalone v2 artifact hydrator/tester
 - `polygon.html` - browser EIP-1193 carrier for writing artifact text into Polygon transaction calldata
