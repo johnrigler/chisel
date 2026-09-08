@@ -10,6 +10,18 @@
     ]
   },
   {
+    "type": "event",
+    "name": "Packet",
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "name": "namespace", "type": "bytes32"},
+      {"indexed": true, "name": "objectId", "type": "bytes32"},
+      {"indexed": true, "name": "part", "type": "uint256"},
+      {"indexed": false, "name": "publisher", "type": "address"},
+      {"indexed": false, "name": "data", "type": "bytes"}
+    ]
+  },
+  {
     "type": "error",
     "name": "EmptyTerm",
     "inputs": []
@@ -62,5 +74,17 @@
     "stateMutability": "nonpayable",
     "inputs": [{"name": "batch", "type": "string[]"}],
     "outputs": [{"name": "ids", "type": "uint256[]"}]
+  },
+  {
+    "type": "function",
+    "name": "publishPacket",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      {"name": "namespace", "type": "bytes32"},
+      {"name": "objectId", "type": "bytes32"},
+      {"name": "part", "type": "uint256"},
+      {"name": "data", "type": "bytes"}
+    ],
+    "outputs": []
   }
 ]
