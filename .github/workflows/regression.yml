@@ -38,6 +38,26 @@ jobs:
       - name: Check fileProxy Python syntax
         run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
 
+  secp256k1-migration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/secp256k1Migration
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node for Noble 3
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+
+      - name: Install Noble migration dependency
+        run: npm install --no-audit --no-fund
+
+      - name: Compare Noble with Chisel vendored elliptic
+        run: npm test
+
   hardhat:
     runs-on: ubuntu-latest
     defaults:
