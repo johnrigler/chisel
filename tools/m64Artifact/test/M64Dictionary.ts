@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 
-const { ethers } = await network.connect();
+const { ethers } = await network.create();
 
 async function deployDictionary() {
   const dictionary = await ethers.deployContract("M64Dictionary");
