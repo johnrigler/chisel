@@ -25,6 +25,7 @@ jobs:
       - name: Check browser JavaScript syntax
         run: |
           node --check chisel.secp256k1.js
+          node --check chisel.secp256k1.noble.js
           node --check tools/m64Artifact/m64.js
           node --check tools/m64Artifact/m64.artifact.js
           node --check tools/m64Artifact/m64.javascript.js
