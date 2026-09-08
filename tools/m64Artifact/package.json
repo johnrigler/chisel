@@ -1,0 +1,31 @@
+{
+  "name": "chisel-m64-hardhat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hardhat 3 development, test, and deployment workspace for Chisel M64 contracts.",
+  "scripts": {
+    "compile": "hardhat compile",
+    "compile:standalone": "node scripts/compile-standalone.mjs",
+    "test": "hardhat test mocha",
+    "test:all": "hardhat test",
+    "demo": "hardhat run scripts/demo.ts",
+    "deploy:local": "hardhat ignition deploy ignition/modules/M64Dictionary.ts",
+    "deploy:polygon": "hardhat ignition deploy ignition/modules/M64Dictionary.ts --network polygon",
+    "clean": "hardhat clean"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^4.0.15",
+    "@nomicfoundation/hardhat-ignition": "^3.1.8",
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.7",
+    "@types/chai": "^5.2.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.15.0",
+    "chai": "^5.2.0",
+    "ethers": "^6.15.0",
+    "hardhat": "^3.16.0",
+    "mocha": "^11.7.0",
+    "solc": "0.8.30",
+    "typescript": "^6.0.0"
+  }
+}

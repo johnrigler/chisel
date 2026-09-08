@@ -34,24 +34,48 @@ jobs:
           node --check chisel.thunderwords.js
           node tests/check-inline-scripts.mjs tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html tools/m64Artifact/packet-polygon.html
 
-      - name: Compile M64 dictionary contract
-        run: |
-          rm -rf /tmp/m64-solc
-          mkdir -p /tmp/m64-solc
-          npx --yes solc@0.8.30 --bin --abi tools/m64Artifact/contracts/M64Dictionary.sol -o /tmp/m64-solc
-          test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.bin
-          test -s /tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.abi
+      - name: Check fileProxy Python syntax
+        run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
 
-      - name: Upload compiled dictionary contract
+  hardhat:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/m64Artifact
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node for Hardhat 3
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+
+      - name: Install Hardhat workspace
+        run: npm install --no-audit --no-fund
+
+      - name: Compile with Hardhat
+        run: npm run compile
+
+      - name: Compile with standalone solc Standard JSON
+        run: npm run compile:standalone
+
+      - name: Run Hardhat contract tests
+        run: npm test
+
+      - name: Run presentation demo
+        run: npm run demo
+
+      - name: Upload compiler and dependency artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: m64-dictionary-solc
-          path: /tmp/m64-solc/
+          name: m64-dictionary-hardhat
+          path: |
+            tools/m64Artifact/artifacts/contracts/M64Dictionary.sol/M64Dictionary.json
+            tools/m64Artifact/.standalone-artifacts/M64Dictionary.json
+            tools/m64Artifact/package-lock.json
 
-      - name: Verify captured dictionary bytecode is current
+      - name: Verify exact deployment bytecode across compiler paths
         run: |
-          node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync('tools/m64Artifact/contracts/M64Dictionary.compiled.json'));const b=fs.readFileSync('/tmp/m64-solc/tools_m64Artifact_contracts_M64Dictionary_sol_M64Dictionary.bin','utf8').trim();if(a.bytecode.slice(2)!==b)throw Error('captured M64Dictionary bytecode is stale')"
-
-      - name: Check fileProxy Python syntax
-        run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
+          node -e "const fs=require('fs');const h=JSON.parse(fs.readFileSync('artifacts/contracts/M64Dictionary.sol/M64Dictionary.json'));const s=JSON.parse(fs.readFileSync('.standalone-artifacts/M64Dictionary.json'));const c=JSON.parse(fs.readFileSync('contracts/M64Dictionary.compiled.json'));if(h.bytecode!==s.bytecode)throw Error('Hardhat and standalone solc creation bytecode differ');if(h.bytecode!==c.bytecode)throw Error('captured browser deployment bytecode is stale');if(h.deployedBytecode!==s.deployedBytecode)throw Error('Hardhat and standalone solc runtime bytecode differ')"

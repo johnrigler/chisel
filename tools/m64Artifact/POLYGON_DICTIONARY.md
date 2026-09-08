@@ -1,10 +1,10 @@
 # M64 Polygon Dictionary and packet carrier
 
-Status: dictionary resolver plus generic packet/log publication layer implemented on the pre-deployment branch; first real Polygon deployment still pending.
+Status: dictionary resolver plus generic packet/log publication layer implemented; Hardhat 3 development/deployment workspace implemented; first real Polygon deployment still pending.
 
 This contract is one durable ledger provider for the transport-neutral resolver in `m64.dictionary.js`. It also exposes a generic EVM event-log carrier, but neither M64 nor Chisel artifacts depend on Polygon.
 
-See [`CARRIER_MODEL.md`](CARRIER_MODEL.md) for the broader rule: Chisel defines artifacts, locators, readers, and carrier adapters rather than one preferred publication destination.
+See [`CARRIER_MODEL.md`](CARRIER_MODEL.md) for the broader rule: Chisel defines artifacts, locators, readers, and carrier adapters rather than one preferred publication destination. See [`HARDHAT.md`](HARDHAT.md) for the standard Solidity development, test, demo, and Ignition deployment workflow.
 
 ## Dictionary behavior
 
@@ -30,7 +30,7 @@ The missing-term sentinel for `lookupId` is `uint256.max`. Empty strings are not
 
 ## Generic packet log
 
-The same contract now exposes a second, deliberately unrelated publication surface:
+The same contract exposes a second, deliberately unrelated publication surface:
 
 ```solidity
 event Packet(
@@ -101,17 +101,35 @@ The browser adapter uses the vendored ethers v6 build only for ABI/RPC/signing m
 
 ## Verified deployment artifact
 
-The Solidity source is compiled in GitHub Actions with pinned `solc@0.8.30`. CI uploads the ABI/creation bytecode as `m64-dictionary-solc`, and the exact successful compiler output is captured as:
+The canonical development/deployment compiler path is now Hardhat 3.16.0 using Solidity 0.8.30. Solidity's appended CBOR metadata trailer is disabled so path-dependent compiler metadata cannot make the browser and Hardhat routes produce different creation bytes.
+
+CI compiles `contracts/M64Dictionary.sol` twice with the same Solidity settings:
+
+1. through Hardhat;
+2. directly through the pinned `solc` 0.8.30 Standard JSON API.
+
+CI requires exact equality of creation bytecode and runtime bytecode between those paths. It also requires the Hardhat creation bytecode to exactly match the committed browser deployment artifact:
 
 ```text
 contracts/M64Dictionary.compiled.json
 ```
 
-Because adding the Packet surface changes creation bytecode, that captured artifact must be refreshed from CI before the first real deployment. Final CI must then require a fresh Solidity compile to exactly match the committed deployment bytecode.
+The current pre-deployment capture records:
+
+```text
+Hardhat: 3.16.0
+Solidity: 0.8.30
+CBOR metadata appended: false
+creation bytecode bytes: 4002
+creation SHA-256: f55001c8e085674028643483943f42363d913d172b328f7d10dc175d3419e051
+runtime SHA-256: c8153c84675cdb642cf32f0cb472d8aabbacd90f984b519d74f3f477d483ab27
+```
+
+Compiler/source/workflow provenance is recorded explicitly in the captured JSON rather than being delegated to Solidity's CBOR trailer.
 
 `deploy-dictionary-polygon.html` loads only that captured artifact, recomputes its decoded-byte SHA-256 before enabling deployment, and uses the captured ABI/bytecode with the vendored ethers `ContractFactory`.
 
-The user should not need Remix for the normal path. Remix remains only an independent inspection/debugging option.
+The user should not need Remix for the normal path. Remix remains only an independent inspection/debugging option. Hardhat Ignition is the standard CLI/developer deployment path, while the browser page remains the injected-wallet path.
 
 ## First live experiment
 
