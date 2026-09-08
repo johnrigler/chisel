@@ -55,3 +55,30 @@ jobs:
 
       - name: Check fileProxy Python syntax
         run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
+
+  hardhat:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/m64Artifact
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node for Hardhat 3
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+
+      - name: Install Hardhat workspace
+        run: npm install --no-audit --no-fund
+
+      - name: Compile with Hardhat
+        run: npm run compile
+
+      - name: Run Hardhat contract tests
+        run: npm test
+
+      - name: Compare Hardhat and captured creation bytecode
+        run: |
+          node -e "const fs=require('fs');const h=JSON.parse(fs.readFileSync('artifacts/contracts/M64Dictionary.sol/M64Dictionary.json'));const c=JSON.parse(fs.readFileSync('contracts/M64Dictionary.compiled.json'));if(h.bytecode!==c.bytecode)throw Error('Hardhat bytecode differs from captured browser deployment bytecode')"
