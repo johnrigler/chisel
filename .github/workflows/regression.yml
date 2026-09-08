@@ -20,7 +20,7 @@ jobs:
           node-version: '20'
 
       - name: Run M64 protocol tests
-        run: node --test tests/m64.test.mjs
+        run: node --test tests/m64.test.mjs tests/m64.evm.test.mjs
 
       - name: Check browser JavaScript syntax
         run: |
@@ -28,6 +28,7 @@ jobs:
           node --check tools/m64Artifact/m64.artifact.js
           node --check tools/m64Artifact/m64.javascript.js
           node --check tools/m64Artifact/m64.dictionary.js
+          node --check tools/m64Artifact/m64.dictionary.evm.js
           node --check tools/m64Artifact/m64.v3.js
           node --check chisel.portal.static-data.js
           node --check chisel.thunderwords.js
