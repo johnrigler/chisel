@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 /// @title M64Dictionary
-/// @notice Permissionless, append-only vocabulary for Chisel M64 artifacts.
-/// @dev There is deliberately no owner, administrator, edit, or delete path.
+/// @notice Permissionless, append-only vocabulary plus a generic log-only packet carrier.
+/// @dev There is deliberately no owner, administrator, edit, delete, or packet-storage path.
 contract M64Dictionary {
     uint256 private constant NOT_FOUND = type(uint256).max;
 
@@ -11,6 +11,18 @@ contract M64Dictionary {
     mapping(bytes32 => uint256) private idPlusOneByHash;
 
     event TermAdded(uint256 indexed id, string term, address indexed payer);
+
+    /// @notice Generic append-only publication surface.
+    /// @dev namespace/objectId/part are searchable log topics. data is opaque to the contract.
+    ///      The publisher is recorded but is deliberately not an indexed topic so the three
+    ///      available user topics remain carrier-neutral routing fields.
+    event Packet(
+        bytes32 indexed namespace,
+        bytes32 indexed objectId,
+        uint256 indexed part,
+        address publisher,
+        bytes data
+    );
 
     error EmptyTerm();
 
@@ -45,6 +57,18 @@ contract M64Dictionary {
         for (uint256 i = 0; i < batch.length; i++) {
             ids[i] = _addTerm(batch[i]);
         }
+    }
+
+    /// @notice Emit arbitrary bytes under three caller-selected indexed routing fields.
+    /// @dev No packet bytes are written to contract storage and no meaning is assigned to
+    ///      namespace, objectId, part, or data. Publishers may define their own conventions.
+    function publishPacket(
+        bytes32 namespace,
+        bytes32 objectId,
+        uint256 part,
+        bytes calldata data
+    ) external {
+        emit Packet(namespace, objectId, part, msg.sender, data);
     }
 
     function _addTerm(string memory term) internal returns (uint256 id) {

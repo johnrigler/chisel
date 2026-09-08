@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chisel Polygon Packet Carrier</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0b0e;--panel:#15151a;--line:#353540;--ink:#ececf1;--muted:#9c9ca9;--good:#acd6ac;--bad:#e5abab}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:16px}.panel{border:1px solid var(--line);background:var(--panel);padding:12px;margin-top:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}input,textarea,select,button{font:13px ui-monospace,monospace;color:var(--ink);background:#0f0f14;border:1px solid #3b3b47;border-radius:3px}input,textarea,select{width:100%;padding:8px}textarea{min-height:140px}button{padding:8px 10px;margin:5px 5px 5px 0}.muted{color:var(--muted)}.status{white-space:pre-wrap;word-break:break-word;font:12px/1.45 ui-monospace,monospace}.good{color:var(--good)}.bad{color:var(--bad)}label{display:block;margin:8px 0 4px}@media(max-width:760px){.grid{grid-template-columns:1fr}}</style>
+</head>
+<body>
+<main>
+<h1>POLYGON PACKET CARRIER</h1>
+<div class="muted">Generic EVM log publication. Chisel assigns no meaning to namespace, object ID, part number, or bytes.</div>
+<section class="panel">
+<label>Dictionary / packet contract address</label><input id="address" placeholder="0x...">
+<label>Injected wallet</label><select id="provider"></select>
+<button id="refresh">Refresh wallets</button><button id="connect">Connect + switch to Polygon</button>
+<div id="wallet" class="status">wallet not connected</div>
+</section>
+<div class="grid">
+<section class="panel">
+<h3>Publish packet</h3>
+<label>Namespace (bytes32)</label><input id="namespace" placeholder="0x1111... padded to 32 bytes">
+<label>Object ID (bytes32)</label><input id="objectId" placeholder="0x... 32 bytes">
+<label>Part</label><input id="part" value="0" inputmode="numeric">
+<label>Data encoding</label><select id="encoding"><option value="text">UTF-8 text</option><option value="hex">hex bytes</option></select>
+<label>Data</label><textarea id="data" spellcheck="false" placeholder="M64, minified JavaScript, manifest bytes, CID text, or any arbitrary payload"></textarea>
+<button id="publish">Publish Packet event</button>
+<div id="publishStatus" class="status">idle</div>
+</section>
+<section class="panel">
+<h3>Read packets</h3>
+<div class="muted">Leave any indexed field blank to use it as a wildcard. Reads the recent block window through the selected wallet RPC.</div>
+<label>Namespace filter</label><input id="readNamespace" placeholder="blank = any">
+<label>Object ID filter</label><input id="readObjectId" placeholder="blank = any">
+<label>Part filter</label><input id="readPart" placeholder="blank = any">
+<label>Recent blocks</label><input id="blocks" value="50000" inputmode="numeric">
+<button id="read">Read Packet logs</button>
+<textarea id="results" readonly placeholder="Matching event logs"></textarea>
+<div id="readStatus" class="status">idle</div>
+</section>
+</div>
+<section class="panel">
+<h3>Convention, not policy</h3>
+<div class="muted">A thunderword may be used as a namespace convention, an object locator, text inside a manifest, or not at all. EVM logs are one carrier beside calldata, contract state, MacDougall/UTXO encodings, IPFS, Ravencoin-style metadata, HTTP, and future adapters.</div>
+</section>
+</main>
+<script src="../../vendor/ethers-6.6.0.umd.min.js"></script>
+<script>
+"use strict";
+const S=id=>document.getElementById(id),providers=[];
+const POLYGON={chainId:"0x89",chainName:"Polygon Mainnet",nativeCurrency:{name:"POL",symbol:"POL",decimals:18},rpcUrls:["https://polygon-rpc.com/"],blockExplorerUrls:["https://polygonscan.com/"]};
+let compiled=null,active=null,account="";
+function show(id,text,ok){const e=S(id);e.textContent=text;e.className="status "+(ok===true?"good":ok===false?"bad":"")}
+function addProvider(provider,name){if(!provider?.request||providers.some(x=>x.provider===provider))return;providers.push({provider,name:name||"Injected EVM wallet"})}
+function rebuild(){const sel=S("provider"),old=sel.value;sel.textContent="";providers.forEach((p,i)=>{const o=document.createElement("option");o.value=String(i);o.textContent=p.name;sel.appendChild(o)});if(!providers.length){const o=document.createElement("option");o.value="";o.textContent="No injected EVM wallet detected";sel.appendChild(o)}else if(old&&providers[Number(old)])sel.value=old}
+function discover(){providers.length=0;if(window.backpack?.ethereum)addProvider(window.backpack.ethereum,"Backpack");if(window.ethereum)addProvider(window.ethereum,"window.ethereum");window.dispatchEvent(new Event("eip6963:requestProvider"));rebuild();setTimeout(rebuild,150)}
+window.addEventListener("eip6963:announceProvider",e=>{if(e.detail?.provider){addProvider(e.detail.provider,e.detail.info?.name);rebuild()}});
+function selected(){const i=Number(S("provider").value);if(!Number.isInteger(i)||!providers[i])throw new Error("No injected wallet selected");return providers[i]}
+async function ensurePolygon(p){try{await p.request({method:"wallet_switchEthereumChain",params:[{chainId:POLYGON.chainId}]})}catch(e){if(e?.code===4902||e?.code===-32603){await p.request({method:"wallet_addEthereumChain",params:[POLYGON]});await p.request({method:"wallet_switchEthereumChain",params:[{chainId:POLYGON.chainId}]})}else throw e}}
+async function connect(){const chosen=selected();active=chosen.provider;const accounts=await active.request({method:"eth_requestAccounts"});if(!accounts?.[0])throw new Error("Wallet returned no account");account=accounts[0];await ensurePolygon(active);show("wallet","connected: "+chosen.name+"\naccount: "+account+"\nchainId: 137",true);return active}
+function bytes32(v,label){v=v.trim();if(!/^0x[0-9a-fA-F]{64}$/.test(v))throw new Error(label+" must be exactly 32 bytes of hex");return v}
+function packetData(){const value=S("data").value;if(S("encoding").value==="hex"){const h=value.trim();if(!/^0x(?:[0-9a-fA-F]{2})*$/.test(h))throw new Error("Hex data must start 0x and contain whole bytes");return h}return ethers.hexlify(ethers.toUtf8Bytes(value))}
+async function contract(writable){if(!compiled){const r=await fetch("contracts/M64Dictionary.compiled.json",{cache:"no-store"});if(!r.ok)throw new Error("Cannot load compiled contract ABI");compiled=await r.json()}const address=S("address").value.trim();if(!ethers.isAddress(address))throw new Error("Valid contract address required");const p=active||await connect(),browser=new ethers.BrowserProvider(p);return new ethers.Contract(address,compiled.abi,writable?await browser.getSigner():browser)}
+async function publish(){try{const c=await contract(true),ns=bytes32(S("namespace").value,"Namespace"),obj=bytes32(S("objectId").value,"Object ID"),part=BigInt(S("part").value||"0"),data=packetData();show("publishStatus","requesting wallet signature\nbytes: "+ethers.getBytes(data).length);const tx=await c.publishPacket(ns,obj,part,data),receipt=await tx.wait();show("publishStatus","PUBLISHED\ntransaction: "+tx.hash+"\nblock: "+receipt.blockNumber+"\nnamespace: "+ns+"\nobject: "+obj+"\npart: "+part,true)}catch(e){show("publishStatus","PUBLISH ERROR\n"+(e.stack||e),false)}}
+function maybeBytes32(v,label){v=v.trim();return v?bytes32(v,label):null}
+function maybePart(v){v=v.trim();return v?BigInt(v):null}
+function decodeUtf8(hex){try{return ethers.toUtf8String(hex)}catch{return"<non-UTF8>"}}
+async function readPackets(){try{const c=await contract(false),ns=maybeBytes32(S("readNamespace").value,"Namespace filter"),obj=maybeBytes32(S("readObjectId").value,"Object ID filter"),part=maybePart(S("readPart").value),count=Math.max(1,Number(S("blocks").value)||50000),runner=c.runner,latest=await runner.getBlockNumber(),from=Math.max(0,latest-count),filter=c.filters.Packet(ns,obj,part),logs=await c.queryFilter(filter,from,latest);const lines=[];for(const log of logs){const a=log.args;lines.push(["block="+log.blockNumber,"tx="+log.transactionHash,"namespace="+a.namespace,"objectId="+a.objectId,"part="+a.part.toString(),"publisher="+a.publisher,"data="+a.data,"utf8="+JSON.stringify(decodeUtf8(a.data))].join("\n"))}S("results").value=lines.join("\n\n---\n\n");show("readStatus","matches: "+logs.length+"\nblocks: "+from+".."+latest,true)}catch(e){show("readStatus","READ ERROR\n"+(e.stack||e),false)}}
+S("refresh").onclick=discover;S("connect").onclick=()=>connect().catch(e=>show("wallet","CONNECT ERROR\n"+(e.stack||e),false));S("publish").onclick=publish;S("read").onclick=readPackets;
+const q=new URLSearchParams(location.search),a=q.get("address");if(a)S("address").value=a;
+discover();
+</script>
+</body>
+</html>

@@ -59,16 +59,39 @@ test('permissionless-style EVM resolver appends missing terms and reuses duplica
   assert.deepEqual(contract.snapshot(),['function','return','const','width']);
 });
 
-test('Solidity dictionary source exposes append/read methods and no owner mutation surface',async()=>{
+test('Solidity dictionary exposes append-only vocabulary plus generic log-only packets',async()=>{
   const source=await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.sol',import.meta.url),'utf8');
-  for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms'])assert.match(source,new RegExp('function\\s+'+name+'\\s*\\('));
+  for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms','publishPacket'])assert.match(source,new RegExp('function\\s+'+name+'\\s*\\('));
   assert.match(source,/event\s+TermAdded/);
+  assert.match(source,/event\s+Packet\s*\(/);
+  assert.match(source,/bytes32\s+indexed\s+namespace/);
+  assert.match(source,/bytes32\s+indexed\s+objectId/);
+  assert.match(source,/uint256\s+indexed\s+part/);
+  assert.match(source,/emit\s+Packet\s*\(namespace,\s*objectId,\s*part,\s*msg\.sender,\s*data\)/);
+  assert.doesNotMatch(source,/mapping\s*\([^)]*Packet/i);
   assert.doesNotMatch(source,/function\s+owner\s*\(/i);
   assert.doesNotMatch(source,/\bonlyOwner\b/);
   assert.doesNotMatch(source,/function\s+(transferOwnership|renounceOwnership|delete|remove|edit|update|setTerm)\b/i);
 });
 
-test('captured deployment artifact matches its CI bytecode hash and expected ABI',async()=>{
+test('hand-auditable ABI contains the carrier-neutral Packet surface',async()=>{
+  const abi=JSON.parse(await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.abi.json',import.meta.url),'utf8'));
+  const packet=abi.find(x=>x.type==='event'&&x.name==='Packet');
+  assert.ok(packet);
+  assert.deepEqual(packet.inputs.map(x=>[x.name,x.type,x.indexed]),[
+    ['namespace','bytes32',true],
+    ['objectId','bytes32',true],
+    ['part','uint256',true],
+    ['publisher','address',false],
+    ['data','bytes',false]
+  ]);
+  const publish=abi.find(x=>x.type==='function'&&x.name==='publishPacket');
+  assert.ok(publish);
+  assert.equal(publish.stateMutability,'nonpayable');
+  assert.deepEqual(publish.inputs.map(x=>x.type),['bytes32','bytes32','uint256','bytes']);
+});
+
+test('captured deployment artifact matches its CI bytecode hash and includes Packet ABI',async()=>{
   const artifact=JSON.parse(await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.compiled.json',import.meta.url),'utf8'));
   assert.equal(artifact.kind,'chisel-solidity-artifact');
   assert.equal(artifact.contractName,'M64Dictionary');
@@ -76,6 +99,10 @@ test('captured deployment artifact matches its CI bytecode hash and expected ABI
   assert.match(artifact.bytecode,/^0x[0-9a-f]+$/i);
   const hash=createHash('sha256').update(Buffer.from(artifact.bytecode.slice(2),'hex')).digest('hex');
   assert.equal(hash,artifact.bytecodeSha256);
+  assert.equal(hash,'b42f227850b4390116f0969aadf50ab628f1aac4425de1f06bc3642d3b6259db');
   const functions=new Set(artifact.abi.filter(x=>x.type==='function').map(x=>x.name));
-  for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms'])assert.ok(functions.has(name));
+  for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms','publishPacket'])assert.ok(functions.has(name));
+  const packet=artifact.abi.find(x=>x.type==='event'&&x.name==='Packet');
+  assert.ok(packet);
+  assert.deepEqual(packet.inputs.filter(x=>x.indexed).map(x=>x.name),['namespace','objectId','part']);
 });

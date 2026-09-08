@@ -1,18 +1,20 @@
-# M64 Polygon Dictionary
+# M64 Polygon Dictionary and packet carrier
 
-Status: contract, resolver, CI compile, captured deployment bytecode, and browser deployment page implemented; first real Polygon deployment still pending.
+Status: dictionary resolver plus generic packet/log publication layer implemented on the pre-deployment branch; first real Polygon deployment still pending.
 
-This is the first durable ledger provider for the transport-neutral resolver in `m64.dictionary.js`.
+This contract is one durable ledger provider for the transport-neutral resolver in `m64.dictionary.js`. It also exposes a generic EVM event-log carrier, but neither M64 nor Chisel artifacts depend on Polygon.
 
-## Contract behavior
+See [`CARRIER_MODEL.md`](CARRIER_MODEL.md) for the broader rule: Chisel defines artifacts, locators, readers, and carrier adapters rather than one preferred publication destination.
+
+## Dictionary behavior
 
 `contracts/M64Dictionary.sol` is intentionally permissionless and append-only.
 
-There is no owner or administrator. There are no edit, delete, renumber, or moderation methods.
+There is no owner or administrator. There are no edit, delete, renumber, moderation, or packet-removal methods.
 
-Anyone willing to pay Polygon gas may add a non-empty term. Existing terms keep their IDs forever. Adding a duplicate term simply reuses the existing ID, so another publisher cannot change what an old artifact means.
+Anyone willing to pay Polygon gas may add a non-empty dictionary term. Existing terms keep their IDs forever. Adding a duplicate term simply reuses the existing ID, so another publisher cannot change what an old artifact means.
 
-The contract exposes:
+The dictionary surface is:
 
 ```text
 language() -> "javascript"
@@ -25,6 +27,32 @@ addTerms(terms[])
 ```
 
 The missing-term sentinel for `lookupId` is `uint256.max`. Empty strings are not valid terms. `lookupTerm` returns an empty string for an out-of-range ID, which is unambiguous because empty terms cannot be inserted.
+
+## Generic packet log
+
+The same contract now exposes a second, deliberately unrelated publication surface:
+
+```solidity
+event Packet(
+    bytes32 indexed namespace,
+    bytes32 indexed objectId,
+    uint256 indexed part,
+    address publisher,
+    bytes data
+);
+
+publishPacket(namespace, objectId, part, data)
+```
+
+`namespace`, `objectId`, and `part` occupy the three user-indexed event topics. `publisher` and `data` remain in log data. The contract assigns no meaning to any of them and stores no packet bytes in contract state.
+
+That means publishers may use the same event surface for M64, minified JavaScript, manifests, CIDs, binary chunks, thunderword-addressed streams, or formats that do not exist yet. Unknown namespaces are simply logs a reader may ignore.
+
+`packet-polygon.html` is the browser tool for publishing and querying these events against a deployed contract.
+
+## Thunderwords
+
+Thunderwords are conventions rather than storage types. An `0x1111...`-style marker may be used as an indexed namespace, an object identifier, text inside a manifest, a MacDougall/UTXO convention, or another locator. Chisel should expose helpers without requiring a publisher to put the same marker in the same field on every carrier.
 
 ## Resolver identity
 
@@ -49,7 +77,7 @@ The descriptor is stored in the artifact. The contract address is therefore part
 
 ## Browser provider
 
-`m64.dictionary.evm.js` adapts an EVM contract to the normal Chisel resolver interface:
+`m64.dictionary.evm.js` adapts the dictionary portion of an EVM contract to the normal Chisel resolver interface:
 
 ```text
 describe()
@@ -69,53 +97,19 @@ createEip1193Dictionary(...)
 
 The browser adapter uses the vendored ethers v6 build only for ABI/RPC/signing mechanics. M64 v3 itself remains independent of ethers and Polygon.
 
-`dictionary-polygon.html` is the operator console for a deployed dictionary. It can connect an injected wallet, switch to Polygon, validate the contract metadata, look up terms/IDs, and append batches of missing terms.
+`dictionary-polygon.html` operates the dictionary. `packet-polygon.html` operates the generic event/log carrier. `polygon.html` remains the simpler arbitrary-UTF-8 transaction-calldata carrier.
 
 ## Verified deployment artifact
 
-The Solidity source is compiled in GitHub Actions with pinned `solc@0.8.30`. The successful CI run uploaded `m64-dictionary-solc`, and that exact output was captured as:
+The Solidity source is compiled in GitHub Actions with pinned `solc@0.8.30`. CI uploads the ABI/creation bytecode as `m64-dictionary-solc`, and the exact successful compiler output is captured as:
 
 ```text
 contracts/M64Dictionary.compiled.json
 ```
 
-The captured artifact records:
+Because adding the Packet surface changes creation bytecode, that captured artifact must be refreshed from CI before the first real deployment. Final CI must then require a fresh Solidity compile to exactly match the committed deployment bytecode.
 
-```text
-source blob SHA: ea45c92a5ecc03328cdb22a13beba8bfcf9327fa
-compiled-from commit: 27b89c2a66643dc360085b793ee1afefe81b37a1
-CI artifact id: 10042240484
-CI artifact digest: sha256:6bdbce2af0c2b2bf4ad1d175df8b3498e0abb4d5fa60f393c3789b58b2b0c45d
-creation bytecode SHA-256 (decoded bytes): a5c12de54f73cf070319f2d5cf47838c16a8c66a1251cbc43ccfb5a5a9a1b817
-```
-
-The hash above is over the decoded creation bytecode bytes, not the ASCII hexadecimal text in the compiler `.bin` file. `tests/m64.evm.test.mjs` recomputes the decoded-byte SHA-256 and checks the expected ABI surface, while CI also recompiles Solidity and requires the fresh `.bin` to match the captured bytecode exactly. This prevents a hand-edited deployment payload from quietly replacing the CI output.
-
-## Browser deployment
-
-`deploy-dictionary-polygon.html` is the normal deployment path.
-
-Before enabling its deployment button it:
-
-1. loads `M64Dictionary.compiled.json`;
-2. recomputes the creation-bytecode SHA-256 in the browser;
-3. compares it to the captured CI hash;
-4. shows compiler/source/commit/bytecode identity;
-5. connects an injected wallet and switches to Polygon.
-
-Deployment then uses the vendored ethers v6 `ContractFactory`. After mining, the page verifies:
-
-```text
-language() == "javascript"
-dictionaryVersion() == 1
-termCount() == 0
-```
-
-and returns the durable descriptor:
-
-```text
-eip155:137:0x<new-contract-address>
-```
+`deploy-dictionary-polygon.html` loads only that captured artifact, recomputes its decoded-byte SHA-256 before enabling deployment, and uses the captured ABI/bytecode with the vendored ethers `ContractFactory`.
 
 The user should not need Remix for the normal path. Remix remains only an independent inspection/debugging option.
 
@@ -124,11 +118,13 @@ The user should not need Remix for the normal path. Remix remains only an indepe
 Once a real Polygon address exists:
 
 1. record the `eip155:137:<address>` descriptor in Chisel;
-2. inspect `language`, version, and starting term count through the browser provider;
+2. inspect `language`, version, and starting term count through the dictionary provider;
 3. publish a small seed vocabulary;
-4. build a v3 artifact against the live resolver;
-5. hydrate the artifact from the contract and verify `canonicalBytes` and SHA-256;
-6. repeat with Dark Star;
-7. measure new terms, reused terms, M64 bytes, contract gas, and artifact calldata cost.
+4. publish a tiny packet under a chosen namespace/object ID and read it back from logs;
+5. build a v3 artifact against the live resolver;
+6. publish or reference that artifact through one or more carriers and hydrate it with byte-count/SHA-256 verification;
+7. repeat with a more serious JavaScript dependency, with `elliptic` or a selected browser subset as the intended second test;
+8. continue with Dark Star and selected Chisel modules;
+9. measure new terms, reused terms, packet bytes/chunks, calldata/log gas, artifact bytes, and hydration equality.
 
-The important experiment is marginal cost after vocabulary already exists. The dictionary is shared public infrastructure, not a private Chisel database.
+The important experiment is marginal cost after vocabulary already exists. The dictionary is shared public infrastructure; the packet log is a permissionless publication tape; neither is meant to become a private Chisel database or a mandatory publishing path.
