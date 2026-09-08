@@ -26,6 +26,7 @@ jobs:
         run: |
           node --check tools/m64Artifact/m64.js
           node --check tools/m64Artifact/m64.artifact.js
+          node --check tools/m64Artifact/m64.javascript.js
           node --check chisel.portal.static-data.js
           node --check chisel.thunderwords.js
 

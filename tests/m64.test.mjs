@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 await import('../tools/m64Artifact/m64.js');
 await import('../tools/m64Artifact/m64.artifact.js');
+await import('../tools/m64Artifact/m64.javascript.js');
 
 const M = globalThis.ChiselM64;
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -143,4 +145,36 @@ test('M64 v3 validator rejects malformed integrity and payload fields', () => {
     () => M.validateArtifactV3(artifactV3({ payload: reservedPayload })),
     /Reserved M64 byte/,
   );
+});
+
+test('js-canonical-v1 accepts ordinary division and canonicalizes through the compatibility codec', () => {
+  const source = 'function half(x){ return x / 2; }';
+  const expected = M.canonicalize(source, 'half=a');
+  assert.equal(M.JS_CANONICAL_V1.id, 'js-canonical-v1');
+  assert.equal(M.canonicalizeJavascriptV1(source, 'half=a'), expected);
+});
+
+test('js-canonical-v1 rejects template literals instead of silently rewriting them', () => {
+  assert.throws(
+    () => M.canonicalizeJavascriptV1('function f(name){return `hello ${name}`}', 'f=a'),
+    /rejects template literals/,
+  );
+});
+
+test('js-canonical-v1 rejects regular-expression literals in expression positions', () => {
+  assert.throws(
+    () => M.canonicalizeJavascriptV1('function f(s){const r=/a+/g;return r.test(s)}', 'f=a'),
+    /regular-expression literals or ambiguous '\/' syntax/,
+  );
+  assert.throws(
+    () => M.canonicalizeJavascriptV1('function f(x,s){if(x) /a/.test(s);return s}', 'f=a'),
+    /regular-expression literals or ambiguous '\/' syntax/,
+  );
+});
+
+test('js-canonical-v1 accepts the current Dark Star staging source', async () => {
+  const source = await readFile(new URL('../tools/m64Artifact/examples/darkstar-core.js', import.meta.url), 'utf8');
+  const canonical = M.canonicalizeJavascriptV1(source, 'darkStar=a\nmod=m\nputPixel=q\ndrawLine=l');
+  assert.ok(canonical.startsWith('function a('));
+  assert.ok(canonical.length > 100);
 });

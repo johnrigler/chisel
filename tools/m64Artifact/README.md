@@ -33,7 +33,7 @@ The immediate objective is **not** to invent another compression scheme. It is t
 5. measure marginal artifact cost after vocabulary already exists on-ledger;
 6. use the result for the staged recursive Chisel rebuild experiment.
 
-The first regression floor is now active, and an executable v3 schema validator has been started in `m64.artifact.js`. The JavaScript language/version and canonicalizer assumptions belong to artifact metadata. The dictionary can declare its language, but JavaScript language-version details should not be baked into the dictionary contract itself.
+The regression floor is active. `m64.artifact.js` provides the executable v3 schema boundary, and `m64.javascript.js` now provides the first explicit JavaScript canonicalizer boundary. The JavaScript language/version and canonicalizer assumptions belong to artifact metadata. The dictionary can declare its language, but JavaScript language-version details should not be baked into the dictionary contract itself.
 
 M64 transport should remain usable for JavaScript, Python, MIDI/binary generators, or other deterministic payload families.
 
@@ -200,11 +200,26 @@ This should still be treated as an executable draft until the JavaScript adapter
 
 ## JavaScript adapter boundary
 
-The current `m64.js` contains a deliberately small JavaScript canonicalizer alongside the generic transport/dictionary logic. That is staging code, not a claim that arbitrary modern JavaScript can already be canonicalized safely.
+`m64.javascript.js` now defines `js-canonical-v1` as an explicit conservative source adapter around the legacy canonicalizer. It exports:
 
-`m64.artifact.js` is the first physical extraction from the monolithic staging file. Continue moving concerns behind stable compatibility APIs rather than rewriting the workbench all at once.
+```text
+inspectJavascriptV1(source)
+canonicalizeJavascriptV1(source, identifierMap)
+JS_CANONICAL_V1.id
+```
 
-Before v3 is called stable, JavaScript-specific canonicalization should sit behind an explicit adapter boundary and must either correctly handle lexical forms such as template literals and regular-expression literals or reject unsupported syntax. Silent source corruption is not an acceptable fallback.
+The important rule is rejection rather than guesswork. `js-canonical-v1` currently:
+
+- accepts the ordinary syntax used by the existing Dark Star M64 example;
+- accepts normal division such as `x / 2`;
+- skips ordinary line and block comments during preflight;
+- rejects template literals because the legacy canonicalizer does not understand interpolation safely;
+- rejects regular-expression literals and ambiguous slash positions rather than allowing identifier renaming inside regex source;
+- rejects unterminated quoted strings, block comments, and unbalanced parentheses found by the preflight scanner.
+
+This is deliberately a safe subset, not a complete JavaScript parser. Existing v2 workbench behavior remains unchanged. New v3 JavaScript publishing should go through `canonicalizeJavascriptV1()` until a later canonicalizer version expands the accepted syntax with equivalent regression coverage.
+
+`m64.artifact.js` and `m64.javascript.js` are the first physical extractions from the monolithic staging file. Continue moving concerns behind stable compatibility APIs rather than rewriting the workbench all at once.
 
 ## CHISEL-PURE1
 
@@ -226,12 +241,13 @@ The protocol-floor tests live in `../../tests/m64.test.mjs` and run in GitHub Ac
 node --test tests/m64.test.mjs
 ```
 
-They cover byte transport round trips, stage/hydrate equality, dictionary IDs above 63, external dictionary hydration, malformed/reserved encoding rejection, the v2 workbench validation boundary, and the v3 external-dictionary schema validator.
+They cover byte transport round trips, stage/hydrate equality, dictionary IDs above 63, external dictionary hydration, malformed/reserved encoding rejection, the v2 workbench validation boundary, the v3 external-dictionary schema validator, JavaScript division, template-literal rejection, regex-literal rejection, and the current Dark Star source through `js-canonical-v1`.
 
 ## Files
 
 - `m64.js` - current compatibility facade plus canonicalization, growing dictionary codec, external lookup hooks, and M64 transport
 - `m64.artifact.js` - M64 v3 artifact/dictionary-reference validation boundary
+- `m64.javascript.js` - conservative `js-canonical-v1` source adapter/preflight boundary
 - `index.html` - source -> dictionary -> M64 -> hydrate -> sandboxed test workbench
 - `hydrate.html` - standalone v2 artifact hydrator/tester
 - `polygon.html` - browser EIP-1193 carrier for writing artifact text into Polygon transaction calldata
