@@ -1,0 +1,32 @@
+name: Chisel regression floor
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run M64 protocol tests
+        run: node --test tests/m64.test.mjs
+
+      - name: Check browser JavaScript syntax
+        run: |
+          node --check tools/m64Artifact/m64.js
+          node --check chisel.portal.static-data.js
+          node --check chisel.thunderwords.js
+
+      - name: Check fileProxy Python syntax
+        run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
