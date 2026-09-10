@@ -6,11 +6,52 @@ A transaction output can be more than a payment. An address can carry readable s
 
 Chisel keeps public ledger material separate from local interpretation. The transaction remains public. Local notes, categories, fixes, feed imports, and indexes live in the local Chisel datastore.
 
+## Design style: small primitives, loose coupling
+
+Chisel is built with the same bias that makes Unix useful: use the smallest primitive that already does the job, keep interfaces inspectable, and compose tools instead of hiding everything behind one framework.
+
+The recurring pattern is:
+
+```text
+ledger primitive -> small representation -> replaceable tool -> another transport or store
+```
+
+Examples already present in Chisel include readable unspendable addresses, amount-level ASC codes, OP_RETURN, ordered transaction outputs, static JSON fixtures, QR labels, local browser signing, IPFS hydration, M64, and small shell-oriented helper tools.
+
+The project deliberately asks questions such as:
+
+- What can the ledger already represent without adding another database?
+- What can the browser already do without a hosted application backend?
+- What can Bash already parse and expose instead of writing another parser?
+- What can a signed transaction already prove regardless of how it was transported?
+- What is the minimum additional machinery required to recover, relay, inspect, or rebuild an artifact?
+
+This also means transport should not define trust. A signed transaction or signed Chisel object can in principle move over HTTP, WebRTC, QR codes, Bluetooth, LoRa, removable media, or another relay. The blockchain only cares that the serialized object is valid when it finally reaches a node. LoRa and similar low-bandwidth systems are therefore interesting as relay/control planes: a gateway can do the heavy blockchain work while the radio side carries only a transaction, txid, selected result, compact proof, or other narrow message.
+
+The same idea applies to infrastructure economics. Gateways, full nodes, chain watchers, proof generators, IPFS pinning, hydration, indexing, and store-and-forward services perform real work. Those services can be paid using an existing cryptocurrency without making payment itself the definition of truth or identity.
+
+## M64 and symbolic representations
+
+M64 is moving toward a language-neutral compact representation rather than merely a text compressor. Repeated language and protocol symbols can be interned in a shared dictionary, including an EVM/Solidity-backed dictionary, while artifacts carry compact references to those symbols.
+
+Bash is a useful experiment because Chisel already uses shell-like chord forms and small functions. Bash can parse Bash itself; `declare -f` can emit a normalized function representation, after which tiny checksum/ASC functions, symbolic extraction, and M64 can operate on the result. Colon records can remain inert data while executable behavior stays in ordinary Bash functions. Nested function definitions can express a practical tree even though Bash itself does not provide lexical function scope.
+
+This is a research direction, not a claim that arbitrary Bash is already serialized on-chain. The useful target is a deliberately small, inspectable symbolic form that can hydrate into Bash, JavaScript, or another language-specific representation.
+
+## secp256k1 signing: Noble migration
+
+Chisel is migrating its browser-local secp256k1 primitive to `@noble/secp256k1` behind an implementation-neutral boundary. The tested migration branch has now been merged into `main`.
+
+The migration keeps Chisel's transaction formats, WIF handling, address derivation, sighash construction, script construction, and browser-first distribution model unchanged. `chisel.secp256k1.js` defines the common boundary, and `chisel.secp256k1.noble.js` adapts Noble to it.
+
+The normal browser path still retains the vendored `elliptic` signer as the legacy/default compatibility path and parity guard. It should not be deleted until a pinned standalone browser build of Noble is wired into the ordinary static/file:// distribution and the main path no longer loads or calls elliptic. See `docs/SECP256K1_MIGRATION.md`.
+
 ## Orientation for colleagues
 
 Start with the origin bridge before touring the code:
 
-- `docs/origin.md` explains the vanilla-JS / elliptic signing decision, then maps the 2020 white paper into the current Chisel implementation.
+- `docs/origin.md` explains the vanilla-JS signing decision, the historical elliptic bridge, and the current move to Noble, then maps the 2020 white paper into the current Chisel implementation.
+- `docs/SECP256K1_MIGRATION.md` documents the Noble boundary, parity tests, browser test harness, and remaining production cutover gate.
 - `docs/origin-print.html` is the printable HTML version for meetings and page-layout checks.
 - `docs/refactor-phases.md` defines the low-risk sequence for cleaning up the project without touching signing or broadcast paths too early.
 - `docs/NEXT_DEVELOPMENT.md` is the active development sequence: regression floor -> M64 v3 protocol -> JavaScript adapter boundary -> shared ledger dictionary -> measurements -> recursive Chisel rebuild.
@@ -38,7 +79,6 @@ The V1 image workflow is available from Etch’s `BASE57 IMAGE` button and from 
 - `WRITE TO CHISEL ETCH` replaces the current recipient list with the ordered 0.0000546 DGB image outputs for review and signing.
 
 The browser self-test includes the V1 Mogwai fixture address `SNMMMBQXiiiiiisrrrriiXQBBMMM12AD3f` and verifies the encoder → Etch → Portal row contract.
-
 
 ## v2.7.1 Dogecoin local import
 
