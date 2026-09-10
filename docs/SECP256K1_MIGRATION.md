@@ -1,8 +1,8 @@
 # Chisel secp256k1 migration
 
-Status: experimental branch work. Do not remove the existing elliptic signer until the complete transaction gates below pass.
+Status: the Noble migration boundary and guarded test harness are merged into `main`. The Noble path has been exercised successfully through the guarded Litecoin/browser flow. The remaining production cutover is packaging and wiring a pinned standalone browser copy of Noble into the ordinary Chisel page so the legacy elliptic runtime can be removed without breaking static or `file://` use.
 
-Branch:
+Merged from:
 
 ```text
 noble-secp256k1-migration
@@ -10,15 +10,17 @@ noble-secp256k1-migration
 
 ## Why this exists
 
-Chisel currently vendors elliptic 6.6.1 directly into `chisel.js`. That keeps the browser runtime self-contained, but the current elliptic release has an unresolved signing advisory. The migration goal is to replace only the secp256k1 primitive while preserving Chisel's transaction formats, WIF handling, address derivation, sighash construction, script construction, and browser-first distribution model.
+Chisel historically vendors elliptic 6.6.1 directly into the browser signing path. That kept the browser runtime self-contained, but it also made the curve implementation a large and sticky dependency. The migration replaces only the secp256k1 primitive while preserving Chisel's transaction formats, WIF handling, address derivation, sighash construction, script construction, and browser-first distribution model.
 
 The target remains vanilla JavaScript. No framework, Node runtime, Hardhat runtime, or wallet extension should be required for Chisel's UTXO signing path.
+
+The target secp256k1 implementation is `@noble/secp256k1`.
 
 ## Boundary
 
 `chisel.secp256k1.js` defines the implementation-neutral boundary and the Bitcoin-family DER codec.
 
-The intended signer interface is:
+The signer interface is:
 
 ```text
 getPublicKey(privateKey, compressed)
@@ -58,15 +60,15 @@ The DER codec has independent tests for positive sign-byte insertion, redundant-
 
 ## Current parity floor
 
-`tools/secp256k1Migration/` is a temporary development harness. Its only crypto package is an exact pin of:
+`tools/secp256k1Migration/` is development and regression scaffolding. Its crypto package is an exact pin of:
 
 ```text
 @noble/secp256k1 3.2.0
 ```
 
-The harness compares Noble through the Chisel adapter against Chisel's exact vendored `vendor/elliptic-6-6-1.min.js`.
+The harness compares Noble through the Chisel adapter against Chisel's existing vendored elliptic signer.
 
-The current fixed vectors prove:
+The fixed vectors cover:
 
 - compressed public-key equality
 - uncompressed public-key equality
@@ -80,14 +82,14 @@ The generic boundary and DER tests also run without Noble or npm dependencies.
 
 ## Guarded live browser test
 
-`chisel.sign.backend.js` is a migration-only selector layered on top of the existing `chisel.sign.js`. Elliptic remains the default.
+`chisel.sign.backend.js` is the migration selector layered on top of the existing `chisel.sign.js`.
 
 When Noble is selected, Chisel:
 
-1. derives the public key with Noble and compares it with elliptic;
+1. derives the public key with Noble and compares it with the legacy signer;
 2. signs the transaction with Noble;
 3. verifies the Noble signature locally;
-4. signs the same transaction again with the existing elliptic path;
+4. signs the same transaction again with the legacy elliptic path;
 5. compares the complete serialized signed transaction byte-for-byte;
 6. refuses to return the Noble transaction if any comparison fails.
 
@@ -97,13 +99,11 @@ The dedicated browser harness is:
 tools/secp256k1Migration/litecoin-test.html
 ```
 
-It deliberately does not modify the normal Chisel page. It loads the ordinary `index.html` in a same-origin frame and injects the migration backend only for the test session.
+It loads the ordinary `index.html` in a same-origin frame and injects the migration backend only for the test session.
 
 Local setup from the repository root:
 
 ```bash
-git switch noble-secp256k1-migration
-git pull
 cd tools/secp256k1Migration
 npm install
 npm test
@@ -117,69 +117,37 @@ Then open:
 http://localhost:8000/tools/secp256k1Migration/litecoin-test.html
 ```
 
-The top strip must say:
+The top strip should say:
 
 ```text
 READY: Noble active, elliptic parity guard enabled.
 ```
 
-In the framed Chisel console, this should report Noble selected:
+In the framed Chisel console:
 
 ```js
 CHISEL.getSigningBackendInfo()
 ```
 
-A Noble-signed transaction will not be returned to the application unless the legacy elliptic signer produced exactly the same final raw transaction.
+should report Noble selected.
 
-The `node_modules` copy of Noble is only temporary migration scaffolding. The final browser distribution is still intended to vendor a pinned standalone copy under `vendor/`.
+The `node_modules` copy of Noble is migration/test scaffolding. The ordinary Chisel browser distribution should not depend on npm, a CDN, or Node at runtime.
 
-## Migration gates
+## Production cutover
 
-Do not replace production signing in one jump. Move through these gates in order.
+The migration code is now in `main`, but the normal static browser page still needs a standalone pinned Noble artifact before elliptic can be removed safely.
 
-### 1. Primitive parity
+The remaining sequence is intentionally small:
 
-Current state: passing on the initial fixed vectors.
+1. vendor or generate a pinned classic-script/IIFE browser build of `@noble/secp256k1` under `vendor/`;
+2. load the Noble boundary and adapter from the ordinary Chisel page;
+3. make Noble the default production backend;
+4. rerun the existing transaction, browser, and chain regression floors without the parity guard;
+5. remove the embedded/vendored elliptic runtime and its license record only after no ordinary path loads or calls it.
 
-Expand the vector set before production cutover, including boundary-value private keys and varied 32-byte digests.
+Do not delete elliptic before step 3. The merged branch still uses it as the legacy default and as a byte-for-byte parity oracle in the guarded migration harness.
 
-### 2. Common Chisel seam
-
-Current state: migration selector implemented beside the legacy signer.
-
-Coin plugins continue calling the same Chisel public-key and raw-signing APIs. Elliptic remains the default backend outside the dedicated migration harness.
-
-### 3. Complete transaction parity
-
-Current state: passing for the first synthetic one-input transaction using the real Chisel serialization/signing path. Live Litecoin testing is the next gate.
-
-For each supported Bitcoin-family chain, freeze at least one complete known transaction fixture:
-
-```text
-private key / WIF
- -> public key
- -> address
- -> previous output script
- -> transaction sighash
- -> compact signature
- -> DER signature + sighash byte
- -> scriptSig
- -> serialized signed transaction
- -> txid
-```
-
-Initial chain floor:
-
-```text
-DigiByte
-Litecoin
-Dogecoin
-Ravencoin
-```
-
-Where the transaction is deterministic, old and new signed transaction bytes should match exactly. At minimum, both implementations must produce independently valid signatures and identical transaction semantics.
-
-### 4. Browser distribution
+## Browser distribution
 
 The final Chisel runtime must remain self-contained and browser-first.
 
@@ -187,21 +155,11 @@ The preferred packaging is a pinned, generated classic-script/IIFE vendor build 
 
 The npm package in `tools/secp256k1Migration/` is test/build scaffolding only. It is not the proposed Chisel runtime dependency mechanism.
 
-### 5. Remove elliptic
-
-Only after the primitive, full-transaction, browser, and existing regression floors all pass:
-
-- switch the default Chisel backend to Noble;
-- remove the embedded elliptic bundle from `chisel.js`;
-- stop loading or shipping the old vendor file except where retained as a historical test fixture;
-- update third-party license records;
-- rerun all chain fixtures and browser checks.
-
 ## Determinism and hedged signatures
 
-Noble 3 supports optional hedged signatures via extra entropy. Do not enable that during parity migration. The first objective is deterministic reproducibility against existing Chisel behavior.
+Noble 3 supports optional hedged signatures via extra entropy. Do not enable that during compatibility migration. The first objective is deterministic reproducibility against existing Chisel behavior.
 
-After the migration is complete, hedged signing can be evaluated separately as a security policy decision. It should not be mixed into the compatibility change.
+After production cutover, hedged signing can be evaluated separately as a security policy decision. It should not be mixed into the compatibility change.
 
 ## Non-goals
 
