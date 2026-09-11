@@ -65,7 +65,12 @@
     addSpendableButton: document.querySelector("#addSpendableButton"),
     commonAddressSelect: document.querySelector("#commonAddressSelect"),
     addCommonAddressButton: document.querySelector("#addCommonAddressButton"),
+    showSenderAddressQrButton: document.querySelector("#showSenderAddressQrButton"),
     searchSenderAddressButton: document.querySelector("#searchSenderAddressButton"),
+    senderAddressQrDialog: document.querySelector("#senderAddressQrDialog"),
+    senderAddressQrCode: document.querySelector("#senderAddressQrCode"),
+    senderAddressQrValue: document.querySelector("#senderAddressQrValue"),
+    senderAddressQrTitle: document.querySelector("#senderAddressQrTitle"),
     recipientTotalRvn: document.querySelector("#recipientTotalRvn"),
     recipientTotalLabel: document.querySelector("#recipientTotalLabel"),
     estimatedCostRvn: document.querySelector("#estimatedCostRvn"),
@@ -1381,8 +1386,12 @@ function clearOutputs() {
 
   function render() {
     elems.sendButton.disabled = state.isLoading;
+    const hasSenderAddress = Boolean(elems.senderAddress && elems.senderAddress.value.trim());
+    if (elems.showSenderAddressQrButton) {
+      elems.showSenderAddressQrButton.disabled = state.isLoading || !hasSenderAddress;
+    }
     if (elems.searchSenderAddressButton) {
-      elems.searchSenderAddressButton.disabled = state.isLoading || !elems.senderAddress.value.trim();
+      elems.searchSenderAddressButton.disabled = state.isLoading || !hasSenderAddress;
     }
     [
       elems.prepareDraftButton,
@@ -2184,6 +2193,58 @@ function onClickAddCommonAddressButton() {
     }
   }
 
+  function showSenderAddressQr() {
+    const address = elems.senderAddress ? elems.senderAddress.value.trim() : "";
+
+    if (!address) {
+      setStatusMessage("Derive or scan a public address before showing its QR code.", true);
+      return;
+    }
+
+    if (!elems.senderAddressQrDialog || !elems.senderAddressQrCode || !window.QRCode) {
+      setStatusMessage("The public-address QR display is unavailable in this browser.", true);
+      return;
+    }
+
+    const definition = CURRENCY_DEFINITIONS[elems.currency ? elems.currency.value : ""];
+
+    if (elems.senderAddressQrTitle) {
+      elems.senderAddressQrTitle.textContent =
+        (definition ? definition.label + " " : "") + "public address";
+    }
+    if (elems.senderAddressQrValue) {
+      elems.senderAddressQrValue.textContent = address;
+    }
+
+    elems.senderAddressQrCode.textContent = "";
+
+    try {
+      if (typeof elems.senderAddressQrDialog.showModal === "function") {
+        if (!elems.senderAddressQrDialog.open) {
+          elems.senderAddressQrDialog.showModal();
+        }
+      } else {
+        elems.senderAddressQrDialog.setAttribute("open", "");
+      }
+
+      new window.QRCode(elems.senderAddressQrCode, {
+        text: address,
+        width: 320,
+        height: 320,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: window.QRCode.CorrectLevel.M
+      });
+    } catch (error) {
+      if (typeof elems.senderAddressQrDialog.close === "function" && elems.senderAddressQrDialog.open) {
+        elems.senderAddressQrDialog.close();
+      } else {
+        elems.senderAddressQrDialog.removeAttribute("open");
+      }
+      setStatusMessage("Could not render the public-address QR code: " + (error.message || String(error)), true);
+    }
+  }
+
   function searchSenderAddressAsThunderword() {
     const address = elems.senderAddress ? elems.senderAddress.value.trim() : "";
 
@@ -2470,6 +2531,10 @@ function init() {
 
     if (elems.wifScanButton) {
       elems.wifScanButton.onclick = openQrScanner;
+    }
+
+    if (elems.showSenderAddressQrButton) {
+      elems.showSenderAddressQrButton.onclick = showSenderAddressQr;
     }
 
     if (elems.searchSenderAddressButton) {

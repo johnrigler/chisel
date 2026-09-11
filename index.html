@@ -236,6 +236,64 @@
       line-height: 1.5;
     }
 
+    dialog.addressQrDialog {
+      width: min(92vw, 430px);
+      max-width: 430px;
+      padding: 0;
+      border: 1px solid #394858;
+      border-radius: 16px;
+      background: #11161c;
+      color: #e6edf3;
+      box-shadow: 0 24px 72px rgba(0, 0, 0, 0.7);
+    }
+
+    dialog.addressQrDialog::backdrop {
+      background: rgba(0, 0, 0, 0.78);
+    }
+
+    .addressQrDialogBody {
+      display: grid;
+      gap: 16px;
+      justify-items: center;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .addressQrCode {
+      width: min(78vw, 320px);
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      padding: 14px;
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .addressQrCode canvas,
+    .addressQrCode img,
+    .addressQrCode svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .addressQrValue {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #2c3642;
+      border-radius: 10px;
+      background: #080c10;
+      color: #c5f467;
+      overflow-wrap: anywhere;
+      user-select: all;
+    }
+
+    .addressQrDialogActions {
+      justify-content: center;
+    }
+
     .steps {
       display: grid;
       gap: 16px;
@@ -1424,8 +1482,9 @@
         <div class="fieldStack">
           <input id="senderAddress" type="text" readonly placeholder="scan or enter a WIF to derive the public address" />
           <div class="actions">
+            <button id="showSenderAddressQrButton" class="secondaryButton" type="button" disabled>SHOW ADDRESS QR</button>
             <button id="searchSenderAddressButton" class="secondaryButton" type="button" disabled>SEARCH ADDRESS AS THUNDERWORD</button>
-            <span class="help">Switches to Portal and searches this public address as its own ledger stream.</span>
+            <span class="help">Show the public address for another phone to scan, or search it as its own Portal ledger stream.</span>
           </div>
         </div>
 
@@ -1938,6 +1997,22 @@
     </section>
   </main>
 
+  <dialog id="senderAddressQrDialog" class="addressQrDialog" aria-labelledby="senderAddressQrTitle">
+    <div class="addressQrDialogBody">
+      <div>
+        <div class="stepTitle">Share public address</div>
+        <h2 id="senderAddressQrTitle">Public address QR</h2>
+      </div>
+      <div id="senderAddressQrCode" class="addressQrCode" aria-label="Public address QR code"></div>
+      <code id="senderAddressQrValue" class="addressQrValue"></code>
+      <p class="help">This QR contains only the public address. It does not contain the sender WIF.</p>
+      <form method="dialog" class="actions addressQrDialogActions">
+        <button class="secondaryButton" type="submit">CLOSE</button>
+      </form>
+    </div>
+  </dialog>
+
+  <script src="vendor/qrcode.min.js?rev=20260911b"></script>
   <script src="chisel.js?rev=20260906b"></script>
   <script src="chisel.unspendable.js?rev=20260906b"></script>
   <script src="chisel.image.js?rev=20260906b"></script>
@@ -1958,7 +2033,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20260911a"></script>
+  <script src="app.js?rev=20260911b"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
