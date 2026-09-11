@@ -10,6 +10,14 @@
 
 # Patch notes
 
+## v2.7.18 - mobile scanner and public-address handoff
+
+- The QR scanner now requests the rear/environment camera on every normal start and falls back to the best rear-labeled device only when the browser cannot honor the facing-mode constraint.
+- Fixed the initial camera-selection bug that calculated a preferred rear camera and then replaced it with camera index `0`.
+- Scanner handoff now carries the derived public address with the WIF and returns to Etch mode explicitly.
+- The derived public address is visible beside the WIF controls instead of being hidden in the collapsed advanced section.
+- Added `SEARCH ADDRESS AS THUNDERWORD`, which switches to Portal and reloads the derived public address as the active chain-specific thunderword stream.
+
 ## v2.7.3
 
 Low-risk documentation and Origin mode expansion.
