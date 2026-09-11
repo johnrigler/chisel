@@ -44,3 +44,20 @@ test("Etch exposes the derived address and an explicit thunderword search", () =
   assert.match(app, /explicitSearch:\s*true/);
   assert.match(portal, /noReloadIfCurrent:\s*!explicitSearch/);
 });
+
+test("Etch renders the public address as a phone-scannable QR without exposing the WIF", () => {
+  assert.match(index, /id="showSenderAddressQrButton"[^>]*>SHOW ADDRESS QR</);
+  assert.match(index, /<dialog id="senderAddressQrDialog"/);
+  assert.match(index, /vendor\/qrcode\.min\.js\?rev=20260911b/);
+
+  const qrBlock = app.slice(
+    app.indexOf("function showSenderAddressQr()"),
+    app.indexOf("function searchSenderAddressAsThunderword()")
+  );
+
+  assert.match(qrBlock, /new window\.QRCode/);
+  assert.match(qrBlock, /text:\s*address/);
+  assert.match(qrBlock, /CorrectLevel\.M/);
+  assert.doesNotMatch(qrBlock, /senderWif|privateKey|\bwif\b/i);
+  assert.match(index, /This QR contains only the public address\. It does not contain the sender WIF\./);
+});

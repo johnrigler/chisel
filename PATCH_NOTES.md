@@ -17,6 +17,7 @@
 - Scanner handoff now carries the derived public address with the WIF and returns to Etch mode explicitly.
 - The derived public address is visible beside the WIF controls instead of being hidden in the collapsed advanced section.
 - Added `SEARCH ADDRESS AS THUNDERWORD`, which switches to Portal and reloads the derived public address as the active chain-specific thunderword stream.
+- Added `SHOW ADDRESS QR`, which opens a large phone-scannable QR containing only the public address, with the address printed underneath for verification.
 
 ## v2.7.3
 
