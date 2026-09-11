@@ -1420,6 +1420,15 @@
         <label for="senderWif">Sender WIF</label>
         <input id="senderWif" type="password" autocomplete="off" spellcheck="false" />
 
+        <label for="senderAddress">Derived public address</label>
+        <div class="fieldStack">
+          <input id="senderAddress" type="text" readonly placeholder="scan or enter a WIF to derive the public address" />
+          <div class="actions">
+            <button id="searchSenderAddressButton" class="secondaryButton" type="button" disabled>SEARCH ADDRESS AS THUNDERWORD</button>
+            <span class="help">Switches to Portal and searches this public address as its own ledger stream.</span>
+          </div>
+        </div>
+
         <label for="wifScanButton">QR key scanner</label>
         <div class="actions">
           <button id="wifScanButton" class="secondaryButton" type="button">SCAN HEX STICKERS / WIF</button>
@@ -1567,9 +1576,6 @@
       <details>
         <summary>Advanced / derived values</summary>
         <div class="grid" style="margin-top: 12px;">
-          <label for="senderAddress">Derived sender address</label>
-          <input id="senderAddress" type="text" readonly />
-
           <label for="utxoCount">UTXO count</label>
           <input id="utxoCount" type="text" readonly />
 
@@ -1886,7 +1892,7 @@
         <h2>Tools</h2>
         <p class="muted">The support tools stay separate. The main page should control transactions, not become a drawer full of knives.</p>
         <div class="toolGrid">
-          <a class="toolCard" href="qrScan.html">
+          <a class="toolCard" href="qrScan.html?rev=20260911a">
             <strong>QR / WIF scanner</strong>
             <span>Scan four 16-hex stickers or a full WIF against the installed Chisel currency list, then load it back into Chisel.</span>
           </a>
@@ -1942,7 +1948,7 @@
   <script src="chisel.thunderwords.js?rev=20260906b"></script>
   <script src="data-bundled/portal-starter.js?rev=20260906b"></script>
   <script src="chisel.portal.static-data.js?rev=20260906b"></script>
-  <script src="chisel.portal.js?rev=20260906b"></script>
+  <script src="chisel.portal.js?rev=20260911a"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20260906b"></script>
 
  <script>
@@ -1952,7 +1958,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20260906b"></script>
+  <script src="app.js?rev=20260911a"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>

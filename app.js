@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.17";
+  const APP_VERSION = "2.7.18";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -65,6 +65,7 @@
     addSpendableButton: document.querySelector("#addSpendableButton"),
     commonAddressSelect: document.querySelector("#commonAddressSelect"),
     addCommonAddressButton: document.querySelector("#addCommonAddressButton"),
+    searchSenderAddressButton: document.querySelector("#searchSenderAddressButton"),
     recipientTotalRvn: document.querySelector("#recipientTotalRvn"),
     recipientTotalLabel: document.querySelector("#recipientTotalLabel"),
     estimatedCostRvn: document.querySelector("#estimatedCostRvn"),
@@ -1380,6 +1381,9 @@ function clearOutputs() {
 
   function render() {
     elems.sendButton.disabled = state.isLoading;
+    if (elems.searchSenderAddressButton) {
+      elems.searchSenderAddressButton.disabled = state.isLoading || !elems.senderAddress.value.trim();
+    }
     [
       elems.prepareDraftButton,
       elems.utxoToVinButton,
@@ -2025,17 +2029,20 @@ function onClickAddCommonAddressButton() {
     elems.senderWif.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  function announcePortalPublicAccount(coin, account) {
-    if (!account || !account.address || !window.CustomEvent) return;
+  function announcePortalPublicAccount(coin, account, options) {
+    if (!account || !account.address || !window.CustomEvent) return false;
+    const opts = options || {};
     window.dispatchEvent(new CustomEvent("chisel:main-account", {
       detail: {
         address: account.address,
         coin: (coin && (coin.NAME || coin.TICKER)) || "",
         ticker: (coin && coin.TICKER) || "",
         network: account.network || "",
-        label: ((coin && (coin.TICKER || coin.NAME)) || "WIF account") + " account"
+        label: ((coin && (coin.TICKER || coin.NAME)) || "WIF account") + " account",
+        explicitSearch: opts.explicitSearch === true
       }
     }));
+    return true;
   }
 
   async function promoteEnteredWifToPortal() {
@@ -2046,6 +2053,8 @@ function onClickAddCommonAddressButton() {
     try {
       const account = await coin.wifToAccount(wif);
       if (!elems.senderWif || elems.senderWif.value.trim() !== wif) return;
+      setInputValue(elems.senderAddress, account.address);
+      render();
       announcePortalPublicAccount(coin, account);
     } catch (error) {
       // A partially typed or wrong-network WIF is normal while editing. Do not
@@ -2120,9 +2129,17 @@ function onClickAddCommonAddressButton() {
       setCurrencyValue(payload.currency);
     }
 
-    setSenderWifValue(payload.wif);
     clearOutputs();
-    setStatusMessage("Loaded scanned WIF from " + (sourceLabel || "QR scanner") + ". Review, then send.", false);
+    setSenderWifValue(payload.wif);
+    if (payload.address) {
+      setInputValue(elems.senderAddress, String(payload.address).trim());
+    }
+    setStatusMessage(
+      "Loaded scanned WIF from " + (sourceLabel || "QR scanner") +
+      (payload.address ? ". Public address is ready to search." : ". Deriving public address...") +
+      " Review, then send.",
+      false
+    );
 
     if (payload.autosend) {
       elems.sendButton.click();
@@ -2153,16 +2170,36 @@ function onClickAddCommonAddressButton() {
     loadPendingQrPayload({
       currency: data.currency,
       wif: data.wif,
+      address: data.address,
       autosend: false
     }, "scanner window");
   }
 
   function openQrScanner() {
-    const url = "qrScan.html?currency=" + encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
+    const url = "qrScan.html?rev=20260911a&currency=" + encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
     const popup = window.open(url, "chiselQrScan", "width=980,height=860");
 
     if (!popup) {
       window.location.href = url;
+    }
+  }
+
+  function searchSenderAddressAsThunderword() {
+    const address = elems.senderAddress ? elems.senderAddress.value.trim() : "";
+
+    if (!address) {
+      setStatusMessage("Derive or scan a public address before searching it.", true);
+      return;
+    }
+
+    const coin = getCoin();
+    setGuiMode("portal");
+
+    if (!announcePortalPublicAccount(coin, {
+      address: address,
+      network: state.account && state.account.network ? state.account.network : ""
+    }, { explicitSearch: true })) {
+      setStatusMessage("Portal address search is unavailable in this browser.", true);
     }
   }
 
@@ -2433,6 +2470,10 @@ function init() {
 
     if (elems.wifScanButton) {
       elems.wifScanButton.onclick = openQrScanner;
+    }
+
+    if (elems.searchSenderAddressButton) {
+      elems.searchSenderAddressButton.onclick = searchSenderAddressAsThunderword;
     }
 
     if (elems.payloadAnalyzerButton) {

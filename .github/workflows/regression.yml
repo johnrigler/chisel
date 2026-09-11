@@ -20,7 +20,7 @@ jobs:
           node-version: '20'
 
       - name: Run protocol and crypto-boundary tests
-        run: node --test tests/m64.test.mjs tests/m64.evm.test.mjs tests/secp256k1-boundary.test.mjs
+        run: node --test tests/m64.test.mjs tests/m64.evm.test.mjs tests/secp256k1-boundary.test.mjs tests/qr-etch-handoff.test.mjs
 
       - name: Check browser JavaScript syntax
         run: |
@@ -34,7 +34,9 @@ jobs:
           node --check tools/m64Artifact/m64.v3.js
           node --check chisel.portal.static-data.js
           node --check chisel.thunderwords.js
-          node tests/check-inline-scripts.mjs tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html tools/m64Artifact/packet-polygon.html
+          node --check chisel.portal.js
+          node --check app.js
+          node tests/check-inline-scripts.mjs index.html qrScan.html tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html tools/m64Artifact/packet-polygon.html
 
       - name: Check fileProxy Python syntax
         run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py

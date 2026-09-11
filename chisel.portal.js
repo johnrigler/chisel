@@ -1735,6 +1735,9 @@
     const previous = state.mainThunderword;
     const sameAsCurrent = previous && previous.key === mainThunderwordKey(cloned, clean);
     state.currentIndex = cloned;
+    if ($("#portalThunderwordSelect") && cloned.name) {
+      $("#portalThunderwordSelect").value = cloned.name;
+    }
     if ($("#portalThunderwordAddress")) $("#portalThunderwordAddress").value = clean;
     setExplorerLink("#portalThunderwordExplorerLink", getThunderwords() ? getThunderwords().getAddressUrl(cloned, clean) : "", "verify address");
     setText("#portalIndexCaption", (cloned.ticker || cloned.coin || cloned.name || "coin") + " main thunderword: " + clean);
@@ -4707,10 +4710,11 @@ function getPortalFirstCharacter() {
     const fallback = inferIndexForAddress(address, state.currentIndex || getSelectedIndex());
     const entry = detail.coin ? indexEntryForCoin(detail.coin, fallback) : fallback;
     const label = String(detail.label || detail.ticker || "WIF account").trim() + " " + address;
+    const explicitSearch = detail.explicitSearch === true;
     loadAddressStream(address, entry, label, {
-      source: "wif",
-      updateUrl: false,
-      noReloadIfCurrent: true
+      source: explicitSearch ? "manual" : "wif",
+      updateUrl: explicitSearch,
+      noReloadIfCurrent: !explicitSearch
     }).catch(function (error) {
       setStatus(error.message || String(error), true);
     });

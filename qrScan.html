@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.6.3 QR WIF Loader</title>
+  <title>Chisel 2.7.18 QR WIF Loader</title>
 
   <script src="vendor/html5-qrcode.min.js"></script>
 
@@ -146,7 +146,7 @@
       <div class="actions">
         <button id="loadChiselButton" type="button">LOAD INTO CHISEL</button>
         <button id="copyWifButton" class="secondary" type="button">COPY WIF</button>
-        <a id="openChiselLink" class="hide" href="index.html?loadScannedWif=1" rel="noopener">Open Chisel</a>
+        <a id="openChiselLink" class="hide" href="index.html?mode=etch&loadScannedWif=1" rel="noopener">Open Chisel</a>
       </div>
       <p class="help">The normal load path uses sessionStorage/localStorage plus a short URL flag. It does not put the private key into the address bar. If Chisel opened this page as a popup, this page also tries postMessage.</p>
     </section>
@@ -649,6 +649,7 @@
       lastPayload = {
         currency: result.currency,
         wif: result.wif,
+        address: result.address,
         autosend: false,
         createdAt: new Date().toISOString()
       };
@@ -666,7 +667,7 @@
         uncompressedAddress: result.uncompressedAddress,
         privateKeyHex: result.privateKeyHex
       });
-      elems.openChiselLink.href = "index.html?loadScannedWif=1&currency=" + encodeURIComponent(result.currency);
+      elems.openChiselLink.href = "index.html?mode=etch&loadScannedWif=1&currency=" + encodeURIComponent(result.currency);
       elems.openChiselLink.classList.remove("hide");
       setStatus("Valid " + result.label + " WIF ready for Chisel.", false);
 
@@ -722,14 +723,7 @@
   }
 
 function getPreferredCameraIndex() {
-  var preferredLabel = "Back Camera (5959:60bf)";
   var i;
-
-  for (i = 0; i < cameraDevices.length; i += 1) {
-    if ((cameraDevices[i].label || "") === preferredLabel) {
-      return i;
-    }
-  }
 
   for (i = 0; i < cameraDevices.length; i += 1) {
     if (/back|rear|environment|facing back/i.test(cameraDevices[i].label || "")) {
@@ -747,6 +741,16 @@ function getPreferredCameraIndex() {
 
   async function startCameraByIndex(cameraIndex) {
     var camera;
+    var preferRearCamera = typeof cameraIndex !== "number";
+    var scanConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+    var onScanSuccess = function onScanSuccess(decodedText) {
+      if (shouldIgnoreDuplicateScan(decodedText)) {
+        return;
+      }
+
+      elems.rawInput.value = decodedText;
+      addFragment(decodedText, "Scanned fragment");
+    };
 
     if (!window.Html5Qrcode) {
       setStatus("html5-qrcode was not found. Paste the QR value manually.", true);
@@ -756,11 +760,12 @@ function getPreferredCameraIndex() {
     try {
       if (!cameraDevices.length) {
         await loadCameraDevices();
-        activeCameraIndex = getPreferredCameraIndex();
       }
 
       if (typeof cameraIndex === "number") {
         activeCameraIndex = cameraIndex;
+      } else {
+        activeCameraIndex = getPreferredCameraIndex();
       }
 
       if (activeCameraIndex < 0 || activeCameraIndex >= cameraDevices.length) {
@@ -774,18 +779,19 @@ function getPreferredCameraIndex() {
         html5QrCode = new Html5Qrcode("reader");
       }
 
-      await html5QrCode.start(
-        activeCameraId,
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        function onScanSuccess(decodedText) {
-          if (shouldIgnoreDuplicateScan(decodedText)) {
-            return;
-          }
-
-          elems.rawInput.value = decodedText;
-          addFragment(decodedText, "Scanned fragment");
+      try {
+        await html5QrCode.start(
+          preferRearCamera ? { facingMode: { exact: "environment" } } : activeCameraId,
+          scanConfig,
+          onScanSuccess
+        );
+      } catch (rearCameraError) {
+        if (!preferRearCamera) {
+          throw rearCameraError;
         }
-      );
+
+        await html5QrCode.start(activeCameraId, scanConfig, onScanSuccess);
+      }
 
       setStatus("Camera running: " + getCameraLabel(camera, activeCameraIndex) + ".", false);
     } catch (error) {
@@ -800,7 +806,7 @@ function getPreferredCameraIndex() {
       return;
     }
 
-    await startCameraByIndex(activeCameraIndex);
+    await startCameraByIndex();
   }
 
   async function stopCamera(options) {
@@ -874,11 +880,12 @@ function getPreferredCameraIndex() {
         window.opener.postMessage({
           type: "chisel.loadWif",
           currency: lastPayload.currency,
-          wif: lastPayload.wif
+          wif: lastPayload.wif,
+          address: lastPayload.address
         }, window.location.origin);
       }
 
-      window.location.href = "index.html?loadScannedWif=1&currency=" + encodeURIComponent(lastPayload.currency);
+      window.location.href = "index.html?mode=etch&loadScannedWif=1&currency=" + encodeURIComponent(lastPayload.currency);
     } catch (error) {
       setStatus(error.message || String(error), true);
     }
