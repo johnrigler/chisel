@@ -13,7 +13,7 @@
   const TOOLS = root.ChiselSecp256k1;
   const LEGACY_PUBLIC_KEY = CHISEL.privateKeyHexToPublicKeyHex;
   const LEGACY_SIGN_RAW = CHISEL.signRawTransaction;
-  let selectedBackend = 'elliptic';
+  let selectedBackend = 'noble';
 
   if (typeof LEGACY_PUBLIC_KEY !== 'function' || typeof LEGACY_SIGN_RAW !== 'function') {
     throw new Error('Load chisel.sign.js before chisel.sign.backend.js.');
@@ -28,6 +28,9 @@
 
     return backend;
   }
+
+  // Production default: fail at startup rather than silently falling back to elliptic.
+  requireNobleBackend();
 
   function normalizeBackendName(name) {
     const normalized = String(name || '').trim().toLowerCase();
@@ -63,7 +66,7 @@
 
     return {
       selected: selectedBackend,
-      ellipticAvailable: true,
+      ellipticAvailable: Boolean(LEGACY_PUBLIC_KEY && LEGACY_SIGN_RAW),
       nobleAvailable: Boolean(
         noble &&
         typeof noble.getPublicKey === 'function' &&
