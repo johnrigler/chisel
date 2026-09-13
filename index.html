@@ -1380,7 +1380,7 @@
     <section class="modePanel" data-mode-panel="start">
       <section class="panel hero">
         <h2>Start: what Chisel proves</h2>
-        <p class="muted">This is the colleague-facing bridge between the older signing conversation, the 2020 crypto-linguistic white paper, and the current Chisel implementation. It now starts with the practical reason Chisel is vanilla JavaScript: elliptic gives the browser enough secp256k1 machinery to sign locally without turning the main app into a Node stack dependency tour.</p>
+        <p class="muted">This is the colleague-facing bridge between the older signing conversation, the 2020 crypto-linguistic white paper, and the current Chisel implementation. Chisel remains vanilla JavaScript and now uses a pinned browser build of @noble/secp256k1 as its default local signer. The legacy elliptic path is temporarily retained only as a byte-for-byte parity oracle during the cutover.</p>
         <div class="toolGrid">
           <a class="toolCard" href="docs/origin.md">
             <strong>Read origin bridge</strong>
@@ -1411,7 +1411,7 @@
 
       <section class="panel">
         <div class="stepTitle">Current boundary</div>
-        <p class="help">Core builds, signs, serializes, decodes, and explains meaningful UTXO transactions. The main app remains plain browser JavaScript. elliptic is part of the core signing path. Portal displays and filters transaction artifacts. Data is a static or local snapshot. fileProxy, bunOven, keeperBun, scanners, label tools, and importers are satellites.</p>
+        <p class="help">Core builds, signs, serializes, decodes, and explains meaningful UTXO transactions. The main app remains plain browser JavaScript. @noble/secp256k1 is the default signing primitive; elliptic remains temporarily available only for migration parity checks. Portal displays and filters transaction artifacts. Data is a static or local snapshot. fileProxy, bunOven, keeperBun, scanners, label tools, and importers are satellites.</p>
       </section>
 
       <section class="panel">
@@ -2013,11 +2013,16 @@
   </dialog>
 
   <script src="vendor/qrcode.min.js?rev=20260911b"></script>
-  <script src="chisel.js?rev=20260906b"></script>
-  <script src="chisel.unspendable.js?rev=20260906b"></script>
-  <script src="chisel.image.js?rev=20260906b"></script>
-  <script src="chisel.sign.js?rev=20260906b"></script>
-  <script src="chisel.ravencoin.js?rev=20260906b"></script>
+<script src="chisel.js?rev=20260906b"></script>
+<script src="chisel.unspendable.js?rev=20260906b"></script>
+<script src="chisel.image.js?rev=20260906b"></script>
+<script src="vendor/noble-secp256k1-3.2.0.iife.js?rev=20260912a"></script>
+<script src="chisel.secp256k1.js?rev=20260912a"></script>
+<script src="chisel.secp256k1.noble.js?rev=20260912a"></script>
+<script src="chisel.sign.js?rev=20260912a"></script>
+<script src="chisel.secp256k1.bootstrap.js?rev=20260912a"></script>
+<script src="chisel.sign.backend.js?rev=20260912a"></script>
+<script src="chisel.ravencoin.js?rev=20260906b"></script>
   <script src="chisel.digibyte.js?rev=20260906b"></script>
   <script src="chisel.litecoin.js?rev=20260906b"></script>
   <script src="chisel.thunderwords.js?rev=20260906b"></script>
