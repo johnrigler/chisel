@@ -27,5 +27,8 @@
     "mocha": "^11.7.0",
     "solc": "0.8.30",
     "typescript": "^6.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }
