@@ -12,7 +12,7 @@
 
 /* Reclaim the unused action column on desktop as well. */
 .portalStreamItem:not(.isExpanded) .portalStreamRow {
-  grid-template-columns: 40px 112px 128px 70px minmax(0, 1.75fr) minmax(180px, 0.75fr) 150px;
+  grid-template-columns: 40px 112px 128px 70px minmax(0, 1fr);
 }
 
 @media (max-width: 760px) {
