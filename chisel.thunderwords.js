@@ -428,6 +428,20 @@
     txUrlTemplate: "https://litecoinspace.org/testnet/tx/{txid}",
     note: "Litecoin testnet generic index generated from 28 T characters with Chisel unspendable."
   });
+  installIndex("dogecoinLocal", {
+    label: "Dogecoin local Chisel feed",
+    group: "local",
+    coin: "dogecoin",
+    ticker: "DOGE",
+    address: "local-fileproxy-dogecoin",
+    sourceType: "local-fileproxy",
+    canFetchAddress: false,
+    canFetchTx: false,
+    txUrlTemplate: "https://blockchair.com/dogecoin/transaction/{txid}",
+    addressUrlTemplate: "https://blockchair.com/dogecoin/address/{address}",
+    note: "Local Dogecoin Chisel rows imported from bunOven / Bun jist JSONL through fileProxy."
+  });
+
 
   installIndex("polygonGeneral", {
     label: "Polygon / EVM general thunderword contract",

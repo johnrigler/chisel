@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.6.4</title>
+  <title>Chisel 2.7.1d</title>
 
 
   <style>
@@ -110,6 +110,25 @@
       resize: vertical;
     }
 
+    .smartDataInput {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 180px;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .smartDataInput textarea {
+      grid-row: 1 / span 2;
+    }
+
+    .smartDataInput .help {
+      padding: 0 2px;
+    }
+
+    .smartDataInput .error {
+      color: #ff7b7b;
+    }
+
     .actions {
       display: flex;
       gap: 12px;
@@ -170,6 +189,14 @@
     @media (max-width: 760px) {
       .inlineTool {
         grid-template-columns: 1fr;
+      }
+
+      .smartDataInput {
+        grid-template-columns: 1fr;
+      }
+
+      .smartDataInput textarea {
+        grid-row: auto;
       }
     }
 
@@ -1070,11 +1097,17 @@
         <label id="feeLabel" for="feeRvn">Fee (RVN)</label>
         <input id="feeRvn" type="number" min="0" step="0.00000001" />
 
-        <label for="opReturnAscii">OP_RETURN ASCII</label>
-        <input id="opReturnAscii" type="text" />
-
-        <label for="opReturnHex">OP_RETURN HEX</label>
-        <input id="opReturnHex" type="text" />
+        <label for="opReturnData">OP_RETURN data</label>
+        <div class="smartDataInput">
+          <textarea id="opReturnData" spellcheck="false" placeholder="Paste UTF-8 text, hex, base64, or base64url"></textarea>
+          <select id="opReturnEncoding" aria-label="OP_RETURN data encoding">
+            <option value="auto">Detect automatically</option>
+            <option value="text">Force UTF-8 text</option>
+            <option value="hex">Force hex</option>
+            <option value="base64">Force base64</option>
+          </select>
+          <div id="opReturnDetected" class="help" aria-live="polite">Empty</div>
+        </div>
 
         <label for="ipfsField">IPFS field</label>
         <input id="ipfsField" type="text" spellcheck="false" placeholder="CID / IPFS hash, optional" />
@@ -1313,6 +1346,7 @@
             <label class="inlineOption compactOption"><input id="portalFilterRavencoin" type="checkbox"> RVN</label>
             <label class="inlineOption compactOption"><input id="portalFilterLitecoin" type="checkbox"> LTC</label>
             <label class="inlineOption compactOption"><input id="portalFilterBitcoin" type="checkbox"> BTC</label>
+            <label class="inlineOption compactOption"><input id="portalFilterDogecoin" type="checkbox"> DOGE</label>
             <label class="inlineOption compactOption"><input id="portalFilterEvmGomez" type="checkbox"> Gomez</label>
             <label class="inlineOption compactOption"><input id="portalFilterEvmJethro" type="checkbox"> Jethro</label>
             <label class="inlineOption compactOption"><input id="portalFilterOther" type="checkbox"> Other</label>
@@ -1486,14 +1520,14 @@
     </section>
   </main>
 
-  <script src="chisel.js?2.6.4"></script>
+  <script src="chisel.js?2.7.1d"></script>
   <script src="chisel.unspendable.js?2.5.2f"></script>
   <script src="chisel.sign.js?2.5.2d"></script>
   <script src="chisel.ravencoin.js?2.5.2d"></script>
   <script src="chisel.digibyte.js?2.5.2d"></script>
   <script src="chisel.litecoin.js?2.5.2j"></script>
   <script src="chisel.thunderwords.js?2.6.9i"></script>
-  <script src="chisel.portal.js?2.7.0"></script>
+  <script src="chisel.portal.js?2.7.1"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -1502,7 +1536,6 @@
   };
 </script>
 
-  <script src="app.js?2.6.7"></script>
+  <script src="app.js?2.7.1d"></script>
 </body>
 </html>
-

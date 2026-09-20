@@ -424,6 +424,97 @@
     }).join("");
   };
 
+  CHISEL.base64ToHex = function base64ToHex(value) {
+    const compact = String(value || "").trim().replace(/\s+/g, "");
+
+    if (!compact) {
+      return "";
+    }
+
+    if (!/^[A-Za-z0-9+/_-]*={0,2}$/.test(compact) || compact.length % 4 === 1) {
+      throw new Error("Base64 data is not valid.");
+    }
+
+    const standard = compact.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = standard + "=".repeat((4 - (standard.length % 4)) % 4);
+    let decoded;
+
+    try {
+      decoded = atob(padded);
+    } catch (error) {
+      throw new Error("Base64 data is not valid.");
+    }
+
+    return Array.from(decoded, function mapCharacter(character) {
+      return character.charCodeAt(0).toString(16).padStart(2, "0");
+    }).join("");
+  };
+
+  CHISEL.resolveDataInput = function resolveDataInput(value, requestedEncoding) {
+    let input = String(value || "").trim();
+    let encoding = String(requestedEncoding || "auto").toLowerCase();
+    let forcedByPrefix = false;
+    const prefixMatch = input.match(/^(text|ascii|utf8|hex|base64|b64|base64url|b64url)\s*:/i);
+
+    if (!["auto", "text", "hex", "base64"].includes(encoding)) {
+      throw new Error("Unknown OP_RETURN input encoding.");
+    }
+
+    if (prefixMatch && encoding === "auto") {
+      const prefix = prefixMatch[1].toLowerCase();
+      encoding = prefix === "hex" ? "hex" : (prefix.indexOf("64") !== -1 ? "base64" : "text");
+      input = input.slice(prefixMatch[0].length);
+      forcedByPrefix = true;
+    }
+
+    if (!input) {
+      return { hex: "", encoding: "empty", label: "Empty", bytes: 0, forced: false, ambiguous: false };
+    }
+
+    if (encoding === "auto" && /^0x[0-9a-fA-F]+$/.test(input)) {
+      encoding = "hex";
+      input = input.slice(2);
+      forcedByPrefix = true;
+    }
+
+    const compactHex = input.replace(/\s+/g, "");
+    const isEvenHex = compactHex.length > 0 && CHISEL.isHex(compactHex) && compactHex.length % 2 === 0;
+    const compactBase64 = input.replace(/\s+/g, "");
+    const hasBase64Marker = /[=+/_-]/.test(compactBase64);
+    const looksLikeBase64 = hasBase64Marker && /^[A-Za-z0-9+/_-]*={0,2}$/.test(compactBase64) && compactBase64.length % 4 !== 1;
+    let hex;
+    let ambiguous = false;
+
+    if (encoding === "auto") {
+      if (isEvenHex) {
+        encoding = "hex";
+        ambiguous = true;
+      } else if (looksLikeBase64) {
+        encoding = "base64";
+        ambiguous = true;
+      } else {
+        encoding = "text";
+      }
+    }
+
+    if (encoding === "hex") {
+      hex = CHISEL.normalizePushDataHex(input);
+    } else if (encoding === "base64") {
+      hex = CHISEL.base64ToHex(input);
+    } else {
+      hex = CHISEL.stringToHex(input);
+    }
+
+    return {
+      hex: hex,
+      encoding: encoding,
+      label: encoding === "text" ? "UTF-8 text" : (encoding === "base64" ? "Base64" : "Hex"),
+      bytes: hex.length / 2,
+      forced: Boolean(forcedByPrefix || requestedEncoding && requestedEncoding !== "auto"),
+      ambiguous: ambiguous
+    };
+  };
+
   CHISEL.normalizePushDataHex = function normalizePushDataHex(hex) {
     const normalized = String(hex || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
 
@@ -444,9 +535,18 @@
 
   CHISEL.resolveOpReturnHex = function resolveOpReturnHex(options) {
     const opts = options || {};
+    const data = opts.opReturnData !== undefined ? String(opts.opReturnData) : "";
     const ascii = opts.opReturnAscii !== undefined ? String(opts.opReturnAscii) : "";
     const text = opts.opReturnText !== undefined ? String(opts.opReturnText) : "";
     const rawHex = opts.opReturnHex !== undefined ? String(opts.opReturnHex) : "";
+
+    if (data && (ascii || text || rawHex)) {
+      throw new Error("Use the unified OP_RETURN data input or a legacy input, not both.");
+    }
+
+    if (data) {
+      return CHISEL.resolveDataInput(data, opts.opReturnEncoding).hex;
+    }
 
     if ((ascii || text) && rawHex) {
       throw new Error("Use OP_RETURN ASCII/text or OP_RETURN hex, not both.");

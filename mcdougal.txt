@@ -1,0 +1,1 @@
+b58_dcmap = `123456789abcdefghjklmnpqrstuvwxyz!)0(=/',i;?"_o}{@+|*.: -~`

@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.0";
+  const APP_VERSION = "2.7.1d";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -49,8 +49,9 @@
     senderWif: document.querySelector("#senderWif"),
     feeRvn: document.querySelector("#feeRvn"),
     feeLabel: document.querySelector("#feeLabel"),
-    opReturnAscii: document.querySelector("#opReturnAscii"),
-    opReturnHex: document.querySelector("#opReturnHex"),
+    opReturnData: document.querySelector("#opReturnData"),
+    opReturnEncoding: document.querySelector("#opReturnEncoding"),
+    opReturnDetected: document.querySelector("#opReturnDetected"),
     ipfsField: document.querySelector("#ipfsField"),
     recipientRows: document.querySelector("#recipientRows"),
     addRecipientButton: document.querySelector("#addRecipientButton"),
@@ -680,30 +681,26 @@ function setFeeUnitsValue(feeUnits) {
 
 
   function resolveOpReturnHex() {
-    const ascii = elems.opReturnAscii.value.trim();
-    const hex = normalizeHex(elems.opReturnHex.value);
+    return CHISEL.resolveDataInput(elems.opReturnData.value, elems.opReturnEncoding.value).hex;
+  }
 
-    if (ascii && hex) {
-      throw new Error("Use either OP_RETURN ASCII or OP_RETURN HEX, not both.");
-    }
+  function updateOpReturnDetection() {
+    try {
+      const resolved = CHISEL.resolveDataInput(elems.opReturnData.value, elems.opReturnEncoding.value);
+      const qualifiers = [];
 
-    if (ascii) {
-      return stringToHex(ascii);
-    }
-
-    if (hex) {
-      if (!isHex(hex)) {
-        throw new Error("OP_RETURN HEX contains non-hex characters.");
+      if (resolved.forced) {
+        qualifiers.push("forced");
+      } else if (resolved.ambiguous) {
+        qualifiers.push("ambiguous; override if needed");
       }
 
-      if (hex.length % 2 !== 0) {
-        throw new Error("OP_RETURN HEX must have an even number of characters.");
-      }
-
-      return hex.toLowerCase();
+      elems.opReturnDetected.textContent = resolved.label + " · " + resolved.bytes + " bytes" + (qualifiers.length ? " · " + qualifiers.join(" · ") : "");
+      elems.opReturnDetected.classList.remove("error");
+    } catch (error) {
+      elems.opReturnDetected.textContent = error.message || String(error);
+      elems.opReturnDetected.classList.add("error");
     }
-
-    return "";
   }
 
   function resolveIpfsField() {
@@ -739,22 +736,11 @@ function setFeeUnitsValue(feeUnits) {
   }
 
 function getResolvedOpReturnHexForFee() {
-  const ascii = elems.opReturnAscii.value.trim();
-  const hex = normalizeHex(elems.opReturnHex.value);
-
-  if (ascii && hex) {
+  try {
+    return resolveOpReturnHex();
+  } catch (error) {
     return "";
   }
-
-  if (ascii) {
-    return stringToHex(ascii);
-  }
-
-  if (hex && isHex(hex) && hex.length % 2 === 0) {
-    return hex.toLowerCase();
-  }
-
-  return "";
 }
 
   function buildSendBackVout(address, changeUnits, opReturnHex, ipfsField, recipients) {
@@ -1323,11 +1309,8 @@ return;
     setCurrencyForm();
   }
 
-function onInputOpReturnAscii() {
-  setSuggestedFeeValue();
-}
-
-function onInputOpReturnHex() {
+function onInputOpReturnData() {
+  updateOpReturnDetection();
   setSuggestedFeeValue();
 }
 
@@ -1598,8 +1581,8 @@ function init() {
     elems.senderWif.onkeydown = onKeydownSenderWif;
     elems.currency.onchange = onChangeCurrency;
     elems.currency.addEventListener("change", setUnspendableKindOptions);
-    elems.opReturnAscii.oninput = onInputOpReturnAscii;
-    elems.opReturnHex.oninput = onInputOpReturnHex;
+    elems.opReturnData.oninput = onInputOpReturnData;
+    elems.opReturnEncoding.onchange = onInputOpReturnData;
     if (elems.ipfsField) {
       elems.ipfsField.oninput = onInputIpfsField;
     }
@@ -1622,6 +1605,7 @@ function init() {
     window.addEventListener("message", handleQrScannerMessage);
     loadPendingQrPayloadFromStorage();
 
+    updateOpReturnDetection();
     updateRecipientCostPreview();
     render();
   } catch (error) {

@@ -2,14 +2,14 @@
   "fileProxyUrl": "http://127.0.0.1:7799",
   "autoSaveFetchedTransactions": true,
   "localFirstTransactions": true,
-  "autoLoadLocalTransactions": false,
+  "autoLoadLocalTransactions": true,
   "pollLocalTransactionsMs": 0,
   "autoSelectNewest": false,
   "saveDiscoveredLinks": true,
   "rabbitTrailSenders": false,
   "maxRabbitTrails": 24,
   "maxTransactionsPerStream": 80,
-  "autoLoadConversationStreams": true,
+  "autoLoadConversationStreams": false,
   "backgroundHydrateTransactions": true,
   "portalPageSize": 20,
   "autoFetchRabbitTrails": false,
@@ -25,5 +25,6 @@
   "portalFilterBitcoin": true,
   "portalFilterEvmGomez": true,
   "portalFilterEvmJethro": true,
-  "portalFilterOther": true
+  "portalFilterOther": true,
+  "portalFilterDogecoin": true
 }
