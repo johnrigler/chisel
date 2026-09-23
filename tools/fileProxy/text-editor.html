@@ -41,7 +41,8 @@
       <button id="load">Load paper</button>
       <button id="save" disabled>Save to server</button>
       <button id="download" class="secondary" disabled>Download HTML</button>
-      <button id="view" class="secondary" disabled>View paper</button>
+      <button id="preview" class="secondary" disabled>Preview edits</button>
+      <button id="view" class="secondary" disabled>Published</button>
     </div>
   </header>
   <main>
@@ -56,6 +57,7 @@
     const loadButton = document.querySelector("#load");
     const saveButton = document.querySelector("#save");
     const downloadButton = document.querySelector("#download");
+    const previewButton = document.querySelector("#preview");
     const viewButton = document.querySelector("#view");
     const fields = document.querySelector("#fields");
     const status = document.querySelector("#status");
@@ -105,6 +107,7 @@
       });
       saveButton.disabled = false;
       downloadButton.disabled = false;
+      previewButton.disabled = false;
       viewButton.disabled = !publicUrl;
     };
     const readJson = async response => {
@@ -157,6 +160,11 @@
       link.download = "technical-paper.html";
       link.click();
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    });
+    previewButton.addEventListener("click", () => {
+      const url = URL.createObjectURL(new Blob([editedHtml()], { type: "text/html" }));
+      window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     });
     viewButton.addEventListener("click", () => {
       if (publicUrl) window.open(publicUrl, "_blank", "noopener");
