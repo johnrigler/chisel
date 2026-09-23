@@ -48,6 +48,38 @@ TLS protects the connection; it does not authenticate callers. `fileProxy`
 has write/delete endpoints, so do not treat a public TLS port as a safe public
 write API without adding access control.
 
+## Temporary single-file text editor
+
+The editor is disabled by default.  It is separate from the legacy `/load` and
+`/save` endpoints and exposes only one server-selected file.  For the Dark
+Star technical paper, keep the ordinary Chisel root unchanged and provide the
+Dark Star checkout as a separate editor root:
+
+```bash
+export CHISEL_TEXT_EDITOR=1
+export CHISEL_EDITOR_TOKEN='replace-with-a-long-random-token'
+export CHISEL_EDITOR_ROOT=/var/www/html/darkStar
+export CHISEL_EDITOR_FILE=technical-paper.html
+export CHISEL_EDITOR_PUBLIC_URL=https://johnrigler.github.io/darkStar/technical-paper.html
+
+python3 tools/fileProxy/proxy.py
+```
+
+Open `https://rigler.org:7799/text-editor`, enter the temporary token, and
+load the paper.  The page presents headings, paragraphs, list items, captions,
+and table cells as screen-width wrapping textareas.  Saving requires the token,
+refuses to overwrite a file that changed after it was loaded, writes
+atomically, and preserves the previous version as
+`.technical-paper.html.bak`.
+
+When editing is finished, stop the service and restart it without
+`CHISEL_TEXT_EDITOR`, or set that variable to `0`.  The editor page and its
+load/save endpoints then return 404.
+
+The token protects only `/editor/load` and `/editor/save`.  It does not add
+authentication to the older general-purpose write/delete endpoints; the
+existing warning about exposing those endpoints publicly still applies.
+
 Ledger-store conventions:
 
 - `txids/<txid>`
