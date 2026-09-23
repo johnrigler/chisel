@@ -16,6 +16,8 @@ import urllib.parse
 import urllib.request
 import time
 
+from text_editor import TextEditor
+
 HOST = os.environ.get("CHISEL_FILE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("CHISEL_FILE_PORT", "7799"))
 
@@ -29,6 +31,7 @@ TLS_KEY = os.environ.get("CHISEL_FILE_KEY", "/etc/letsencrypt/live/rigler.org/pr
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ROOT = Path(os.environ.get("CHISEL_FILE_ROOT", str(PROJECT_ROOT))).expanduser().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
+TEXT_EDITOR = TextEditor(ROOT)
 
 def _split_roots(value):
     return [Path(part).expanduser().resolve() for part in str(value or "").split(os.pathsep) if part.strip()]
@@ -2494,7 +2497,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Chisel-Editor-Token")
         self.end_headers()
 
     def do_GET(self):
@@ -2502,6 +2505,20 @@ class Handler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
 
         try:
+            if parsed.path == "/text-editor":
+                TEXT_EDITOR.send_page(self)
+                return
+
+            if parsed.path == "/editor/status":
+                payload = TEXT_EDITOR.status_payload()
+                send_json(self, payload, 200 if payload.get("ok") else 404)
+                return
+
+            if parsed.path == "/editor/load":
+                payload, status = TEXT_EDITOR.load(self.headers)
+                send_json(self, payload, status)
+                return
+
             if parsed.path == "/ping":
                 send_json(self, {
                     "ok": True,
@@ -2670,6 +2687,11 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8")
             body = json.loads(raw) if raw else {}
+
+            if parsed.path == "/editor/save":
+                payload, status = TEXT_EDITOR.save(self.headers, body)
+                send_json(self, payload, status)
+                return
 
             if parsed.path == "/import-jist-feed":
                 coin = safe_segment(body.get("coin", "dogecoin"), "dogecoin")
@@ -2932,7 +2954,7 @@ def main():
 
     print(f"chisel-fileproxy running at {scheme}://{HOST}:{PORT}")
     print(f"root: {ROOT}")
-    print("endpoints: /ping /config /main-streams /txids /tx-index /evm-stream-status /evm-local-catalog /evm-image-catalog /reindex /tx /ipfs /find-assets /raw /tiktok-thumbnail /list /load /save /main-stream /import-jist-feed /save-tx /save-evm-tx /save-evm-batch /import-legacy-evm-images")
+    print("endpoints: /ping /config /main-streams /txids /tx-index /evm-stream-status /evm-local-catalog /evm-image-catalog /reindex /tx /ipfs /find-assets /raw /tiktok-thumbnail /list /load /save /text-editor /editor/status /editor/load /editor/save /main-stream /import-jist-feed /save-tx /save-evm-tx /save-evm-batch /import-legacy-evm-images")
     try:
         server.serve_forever()
     finally:
