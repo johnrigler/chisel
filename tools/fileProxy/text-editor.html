@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Dark Star text editor</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #171411; background: #f4f1eb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { position: sticky; top: 0; z-index: 2; padding: .7rem; background: #171411; color: #fff; box-shadow: 0 2px 8px #0004; }
+    .bar { width: min(70rem, 100%); margin: auto; display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+    input, button, textarea { font: inherit; }
+    input { min-width: 12rem; flex: 1 1 15rem; padding: .65rem; border: 1px solid #aaa; border-radius: .3rem; }
+    button { padding: .65rem .9rem; border: 0; border-radius: .3rem; background: #c4932d; color: #111; font-weight: 700; }
+    button.secondary { background: #e8e1d5; }
+    button:disabled { opacity: .45; }
+    main { width: min(70rem, calc(100% - 1rem)); margin: 1rem auto 5rem; }
+    #status { min-height: 1.5rem; color: #554b3c; }
+    #status.error { color: #9a1d16; font-weight: 700; }
+    .help { font-size: .9rem; color: #5a534b; }
+    .block { margin: .85rem 0; padding: .65rem; border: 1px solid #cbc1b3; border-radius: .45rem; background: #fff; }
+    .label { display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .35rem; color: #665947; font: 700 .72rem/1.3 ui-monospace, monospace; text-transform: uppercase; }
+    textarea { display: block; width: 100%; min-height: 4.8rem; resize: vertical; overflow-wrap: anywhere; white-space: pre-wrap; padding: .7rem; border: 1px solid #aaa; border-radius: .3rem; line-height: 1.45; color: #15120f; background: #fff; }
+    textarea:focus { outline: 3px solid #c4932d66; border-color: #7a5411; }
+    @media (max-width: 40rem) {
+      header { position: static; }
+      .bar > * { width: 100%; }
+      button { flex: 1 1 30%; }
+      main { width: calc(100% - .6rem); }
+      .block { padding: .45rem; }
+      textarea { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <input id="token" type="password" autocomplete="current-password" placeholder="Temporary editor token" aria-label="Temporary editor token">
+      <button id="load">Load paper</button>
+      <button id="save" disabled>Save to server</button>
+      <button id="download" class="secondary" disabled>Download HTML</button>
+      <button id="view" class="secondary" disabled>View paper</button>
+    </div>
+  </header>
+  <main>
+    <p id="status">Enter the temporary token, then load the paper.</p>
+    <p class="help">Each box is one heading, paragraph, list item, caption, or table cell. Text wraps to the screen. A small amount of inline HTML may appear where the paper uses links, emphasis, or code formatting; leave those tags in place.</p>
+    <section id="fields"></section>
+  </main>
+  <script>
+  (() => {
+    "use strict";
+    const token = document.querySelector("#token");
+    const loadButton = document.querySelector("#load");
+    const saveButton = document.querySelector("#save");
+    const downloadButton = document.querySelector("#download");
+    const viewButton = document.querySelector("#view");
+    const fields = document.querySelector("#fields");
+    const status = document.querySelector("#status");
+    const selector = "h1,h2,h3,p,li,figcaption,th,td";
+    let source = "";
+    let sha256 = "";
+    let publicUrl = "";
+    let nodes = [];
+
+    const headers = () => ({ "X-Chisel-Editor-Token": token.value });
+    const setStatus = (message, error = false) => {
+      status.textContent = message;
+      status.className = error ? "error" : "";
+    };
+    const grow = area => {
+      area.style.height = "auto";
+      area.style.height = Math.min(Math.max(area.scrollHeight + 2, 78), 520) + "px";
+    };
+    const editedHtml = () => {
+      if (!source) return "";
+      const doc = new DOMParser().parseFromString(source, "text/html");
+      const targets = [...doc.querySelectorAll(selector)];
+      const values = [...fields.querySelectorAll("textarea")];
+      targets.forEach((node, index) => {
+        if (values[index]) node.innerHTML = values[index].value;
+      });
+      return "<!doctype html>\n" + doc.documentElement.outerHTML + "\n";
+    };
+    const render = html => {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      nodes = [...doc.querySelectorAll(selector)];
+      fields.replaceChildren();
+      nodes.forEach((node, index) => {
+        const wrap = document.createElement("article");
+        wrap.className = "block";
+        const label = document.createElement("div");
+        label.className = "label";
+        label.innerHTML = `<span>${index + 1}. ${node.tagName.toLowerCase()}</span><span>${node.textContent.trim().split(/\s+/).filter(Boolean).length} words</span>`;
+        const area = document.createElement("textarea");
+        area.value = node.innerHTML.trim();
+        area.spellcheck = true;
+        area.wrap = "soft";
+        area.addEventListener("input", () => grow(area));
+        wrap.append(label, area);
+        fields.append(wrap);
+        requestAnimationFrame(() => grow(area));
+      });
+      saveButton.disabled = false;
+      downloadButton.disabled = false;
+      viewButton.disabled = !publicUrl;
+    };
+    const readJson = async response => {
+      const data = await response.json().catch(() => ({ ok: false, error: `HTTP ${response.status}` }));
+      if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    };
+
+    loadButton.addEventListener("click", async () => {
+      if (!token.value) return setStatus("Enter the temporary editor token.", true);
+      loadButton.disabled = true;
+      setStatus("Loading…");
+      try {
+        const data = await readJson(await fetch("/editor/load", { headers: headers(), cache: "no-store" }));
+        source = data.text;
+        sha256 = data.sha256;
+        publicUrl = data.publicUrl || "";
+        render(source);
+        setStatus(`Loaded ${data.file} — ${nodes.length} editable text blocks.`);
+      } catch (error) {
+        setStatus(error.message, true);
+      } finally {
+        loadButton.disabled = false;
+      }
+    });
+
+    saveButton.addEventListener("click", async () => {
+      saveButton.disabled = true;
+      setStatus("Saving…");
+      try {
+        const text = editedHtml();
+        const data = await readJson(await fetch("/editor/save", {
+          method: "POST",
+          headers: { ...headers(), "Content-Type": "application/json" },
+          body: JSON.stringify({ text, expectedSha256: sha256 })
+        }));
+        source = text;
+        sha256 = data.sha256;
+        setStatus(`Saved ${data.file} — ${data.size} bytes. A backup was ${data.backup ? "written" : "not requested"}.`);
+      } catch (error) {
+        setStatus(error.message, true);
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+
+    downloadButton.addEventListener("click", () => {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([editedHtml()], { type: "text/html" }));
+      link.download = "technical-paper.html";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    });
+    viewButton.addEventListener("click", () => {
+      if (publicUrl) window.open(publicUrl, "_blank", "noopener");
+    });
+  })();
+  </script>
+</body>
+</html>
