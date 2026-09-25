@@ -20,12 +20,15 @@ jobs:
           node-version: '20'
 
       - name: Run protocol and crypto-boundary tests
-        run: node --test tests/m64.test.mjs tests/m64.evm.test.mjs tests/secp256k1-boundary.test.mjs tests/qr-etch-handoff.test.mjs
+        run: node --test tests/m64.test.mjs tests/m64.evm.test.mjs tests/secp256k1-boundary.test.mjs tests/noble-default-wiring.test.mjs tests/qr-etch-handoff.test.mjs
 
       - name: Check browser JavaScript syntax
         run: |
+          node --check vendor/noble-secp256k1-3.2.0.iife.js
           node --check chisel.secp256k1.js
           node --check chisel.secp256k1.noble.js
+          node --check chisel.secp256k1.bootstrap.js
+          node --check chisel.sign.backend.js
           node --check tools/m64Artifact/m64.js
           node --check tools/m64Artifact/m64.artifact.js
           node --check tools/m64Artifact/m64.javascript.js

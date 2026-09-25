@@ -16,10 +16,10 @@ await import('../../chisel.js');
 await import('../../chisel.sign.js');
 await import('../../chisel.secp256k1.js');
 await import('../../chisel.secp256k1.noble.js');
-await import('../../chisel.sign.backend.js');
 
 const C = globalThis.CHISEL;
 globalThis.ChiselNobleSecp256k1.install(noble, C);
+await import('../../chisel.sign.backend.js');
 
 function keyFromSmallInteger(value) {
   const key = new Uint8Array(32);
@@ -32,9 +32,7 @@ function bytesToHex(bytes) {
 }
 
 async function syntheticUnsignedTransaction(privateKeyHex) {
-  const publicKeyHex = C.signRawTransactionWithElliptic
-    ? C.privateKeyHexToPublicKeyHex(privateKeyHex, true)
-    : C.privateKeyHexToPublicKeyHex(privateKeyHex, true);
+  const publicKeyHex = C.privateKeyHexToPublicKeyHex(privateKeyHex, true);
   const publicKeyHashHex = await C.hash160Hex(publicKeyHex);
   const outputScript = '76a914' + publicKeyHashHex + '88ac';
 
@@ -56,6 +54,7 @@ async function syntheticUnsignedTransaction(privateKeyHex) {
 test('Noble reproduces the exact legacy signed raw transaction', async () => {
   const privateKeyHex = bytesToHex(keyFromSmallInteger(7));
 
+  assert.equal(C.getSigningBackend(), 'noble');
   C.setSigningBackend('elliptic');
   const unsignedHex = await syntheticUnsignedTransaction(privateKeyHex);
   const signingInputs = [{ privateKeyHex, compressed: true }];

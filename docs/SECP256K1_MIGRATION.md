@@ -1,6 +1,6 @@
 # Chisel secp256k1 migration
 
-Status: the Noble migration boundary and guarded test harness are merged into `main`. The Noble path has been exercised successfully through the guarded Litecoin/browser flow. The remaining production cutover is packaging and wiring a pinned standalone browser copy of Noble into the ordinary Chisel page so the legacy elliptic runtime can be removed without breaking static or `file://` use.
+Status: Chisel now vendors a pinned classic-script browser build of `@noble/secp256k1` 3.2.0 and the ordinary Chisel page installs Noble as the default secp256k1 backend. The guarded Litecoin/browser flow and byte-for-byte transaction parity floor remain in place. The legacy elliptic runtime is temporarily retained only as a parity oracle; removing it is the next migration gate.
 
 Merged from:
 
@@ -135,17 +135,18 @@ The `node_modules` copy of Noble is migration/test scaffolding. The ordinary Chi
 
 ## Production cutover
 
-The migration code is now in `main`, but the normal static browser page still needs a standalone pinned Noble artifact before elliptic can be removed safely.
+The ordinary static browser page now loads a pinned `@noble/secp256k1` 3.2.0 IIFE from `vendor/`, installs it through the implementation-neutral boundary, and selects Noble as the default signer. No npm, CDN, import map, Node runtime, or build step is required when Chisel runs.
 
-The remaining sequence is intentionally small:
+Elliptic is deliberately still embedded for this gate. When Noble signs, the migration wrapper signs the same transaction with the legacy path and requires the complete serialized transactions to match byte-for-byte before returning the Noble result.
 
-1. vendor or generate a pinned classic-script/IIFE browser build of `@noble/secp256k1` under `vendor/`;
-2. load the Noble boundary and adapter from the ordinary Chisel page;
-3. make Noble the default production backend;
-4. rerun the existing transaction, browser, and chain regression floors without the parity guard;
-5. remove the embedded/vendored elliptic runtime and its license record only after no ordinary path loads or calls it.
+The remaining sequence is:
 
-Do not delete elliptic before step 3. The merged branch still uses it as the legacy default and as a byte-for-byte parity oracle in the guarded migration harness.
+1. exercise the ordinary Chisel page and supported chain fixtures with Noble selected by default;
+2. add a parity-free production regression floor using the Noble path alone;
+3. remove the legacy comparison from ordinary signing;
+4. remove the embedded/vendored elliptic runtime and its license record only after no ordinary path loads or calls it.
+
+Do not delete elliptic during this gate. It is no longer the default signer, but it is still the migration oracle.
 
 ## Browser distribution
 
