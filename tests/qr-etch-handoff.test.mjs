@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [qrScanner, app, portal, index] = await Promise.all([
+const [qrScanner, recipientScanner, app, portal, index, etchFixtures] = await Promise.all([
   readFile(new URL("../qrScan.html", import.meta.url), "utf8"),
+  readFile(new URL("../addressScan.html", import.meta.url), "utf8"),
   readFile(new URL("../app.js", import.meta.url), "utf8"),
   readFile(new URL("../chisel.portal.js", import.meta.url), "utf8"),
-  readFile(new URL("../index.html", import.meta.url), "utf8")
+  readFile(new URL("../index.html", import.meta.url), "utf8"),
+  readFile(new URL("../fixtures/etch/etch-fixtures.js", import.meta.url), "utf8")
 ]);
 
 test("normal scanner start requests the rear camera instead of camera zero", () => {
@@ -60,4 +62,31 @@ test("Etch renders the public address as a phone-scannable QR without exposing t
   assert.match(qrBlock, /CorrectLevel\.M/);
   assert.doesNotMatch(qrBlock, /senderWif|privateKey|\bwif\b/i);
   assert.match(index, /This QR contains only the public address\. It does not contain the sender WIF\./);
+});
+
+test("recipient scanner is public-address only and validates the selected P2PKH chain", () => {
+  assert.match(recipientScanner, /Chisel Spendable Address Scanner/);
+  assert.match(recipientScanner, /ravencoin:\s*\{[^}]*p2pkhPrefix:\s*60/);
+  assert.match(recipientScanner, /digibyte:\s*\{[^}]*p2pkhPrefix:\s*30/);
+  assert.match(recipientScanner, /litecoin:\s*\{[^}]*p2pkhPrefix:\s*48/);
+  assert.match(recipientScanner, /litecoinTestnet:\s*\{[^}]*p2pkhPrefix:\s*111/);
+  assert.match(recipientScanner, /Private-key material is not accepted/);
+  assert.match(recipientScanner, /raw 32-byte private key is not a spendable public address/);
+  assert.match(recipientScanner, /WIF\/private-key payload, not a public address/);
+  assert.match(recipientScanner, /payload\.length !== 21/);
+  assert.match(recipientScanner, /facingMode:\s*\{\s*exact:\s*"environment"\s*\}/);
+});
+
+test("Etch injects a separate recipient QR button and only fills the spendable-address field", () => {
+  const bridgeBlock = etchFixtures.slice(etchFixtures.indexOf("function installRecipientAddressScannerBridge"));
+
+  assert.match(bridgeBlock, /scanSpendableAddressButton/);
+  assert.match(bridgeBlock, /SCAN RECIPIENT QR/);
+  assert.match(bridgeBlock, /addressScan\.html\?rev=20260912a&currency=/);
+  assert.match(bridgeBlock, /document\.getElementById\("spendableAddress"\)/);
+  assert.match(bridgeBlock, /field\.value = payload\.address\.trim\(\)/);
+  assert.match(bridgeBlock, /Recipient address scanned\. Enter an amount, then add the spendable output\./);
+  assert.doesNotMatch(bridgeBlock, /addSpendableButton\.click\(|onClickAddSpendableButton\(/);
+  assert.match(recipientScanner, /type:\s*"chisel\.loadRecipientAddress"/);
+  assert.match(recipientScanner, /index\.html\?mode=etch&loadScannedRecipient=1/);
 });
