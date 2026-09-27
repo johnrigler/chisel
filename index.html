@@ -1005,8 +1005,29 @@
     }
 
     .portalInlineDrawer {
+      position: relative;
       border-top: 1px solid #d2d8df;
       padding-top: 10px;
+    }
+
+    .portalCopyJsonButton {
+      position: absolute;
+      top: 6px;
+      right: 0;
+      min-width: auto;
+      padding: 5px 9px;
+      font-size: 11px;
+      line-height: 1;
+      z-index: 2;
+    }
+
+    .portalDrawerRawJson {
+      position: relative;
+    }
+
+    .portalDrawerRawJson .portalCopyJsonButton {
+      top: 9px;
+      right: 12px;
     }
 
     .portalInlineLinks {
@@ -1942,8 +1963,9 @@
         <pre id="portalThunderwordRaw" class="json"></pre>
       </details>
 
-      <details class="panel portalDrawer">
+      <details class="panel portalDrawer portalDrawerRawJson">
         <summary>Selected raw transaction JSON</summary>
+        <button id="portalCopyRawJsonButton" class="secondaryButton portalCopyJsonButton" type="button" title="Copy complete raw transaction JSON">COPY</button>
         <pre id="portalRawJson" class="json"></pre>
       </details>
     </section>
@@ -2065,7 +2087,7 @@
   <script src="chisel.thunderwords.js?rev=20260906b"></script>
   <script src="data-bundled/portal-starter.js?rev=20260906b"></script>
   <script src="chisel.portal.static-data.js?rev=20260906b"></script>
-  <script src="chisel.portal.js?rev=20260911a"></script>
+  <script src="chisel.portal.js?rev=20260927a"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20260906b"></script>
 
  <script>
