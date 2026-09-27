@@ -173,6 +173,42 @@
   }
 
   function pretty(value) { return JSON.stringify(value, null, 2); }
+
+  async function copyPortalText(text, button) {
+    const value = String(text == null ? "" : text);
+    let copied = false;
+
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      } catch (error) {}
+    }
+
+    if (!copied) {
+      const area = document.createElement("textarea");
+      area.value = value;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.left = "-9999px";
+      area.style.top = "0";
+      document.body.appendChild(area);
+      area.focus();
+      area.select();
+      try { copied = document.execCommand("copy"); }
+      finally { document.body.removeChild(area); }
+    }
+
+    if (!copied) throw new Error("Clipboard copy is not available in this browser context.");
+
+    if (button) {
+      const label = button.textContent;
+      button.textContent = "COPIED";
+      window.setTimeout(function () { button.textContent = label; }, 1200);
+    }
+    return true;
+  }
+
   function safeArray(value) { return Array.isArray(value) ? value : []; }
   function yieldPortalThread() {
     return new Promise(function (resolve) { window.setTimeout(resolve, 0); });
@@ -2842,6 +2878,23 @@
     const pre = document.createElement("pre");
     pre.className = "json";
     pre.textContent = text || "";
+
+    if (title === "Raw transaction JSON") {
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "secondaryButton portalCopyJsonButton";
+      copy.textContent = "COPY";
+      copy.title = "Copy complete raw transaction JSON";
+      copy.onclick = function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        copyPortalText(pre.textContent, copy).catch(function (error) {
+          setStatus(error.message || String(error), true);
+        });
+      };
+      details.appendChild(copy);
+    }
+
     details.appendChild(pre);
     return details;
   }
@@ -4736,6 +4789,7 @@ function getPortalFirstCharacter() {
     const loadLocalTxids = $("#portalLoadLocalTxidsButton");
     const loadEvmCatalog = $("#portalLoadEvmCatalogButton");
     const saveCurrentTx = $("#portalSaveCurrentTxButton");
+    const copyRawJson = $("#portalCopyRawJsonButton");
 
     if (!loadThunderword) return;
 
@@ -4832,6 +4886,13 @@ function getPortalFirstCharacter() {
     };
 
     if (clearStream) clearStream.onclick = function () { clearPortalStream(); };
+
+    if (copyRawJson) copyRawJson.onclick = function () {
+      const raw = $("#portalRawJson");
+      copyPortalText(raw ? raw.textContent : "", copyRawJson).catch(function (error) {
+        setStatus(error.message || String(error), true);
+      });
+    };
 
     if (loadLocalTxids) loadLocalTxids.onclick = async function () {
       try { await listLocalTransactions(); }
