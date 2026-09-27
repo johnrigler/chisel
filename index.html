@@ -168,7 +168,14 @@
     }
 
     #spendableTool {
-      grid-template-columns: minmax(240px, 1fr) 160px auto;
+      grid-template-columns: minmax(300px, 1fr) 160px auto;
+    }
+
+    .recipientAddressScanGroup {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
     }
 
     #unspendableTool {
@@ -190,6 +197,10 @@
       #spendableTool,
       #unspendableTool {
         grid-template-columns: 1fr;
+      }
+
+      .recipientAddressScanGroup {
+        grid-template-columns: minmax(0, 1fr) auto;
       }
     }
 
@@ -292,6 +303,19 @@
 
     .addressQrDialogActions {
       justify-content: center;
+    }
+
+    .recipientQrReader {
+      width: min(82vw, 360px);
+      min-height: 260px;
+      overflow: hidden;
+      border: 1px solid #2c3642;
+      border-radius: 12px;
+      background: #080c10;
+    }
+
+    .recipientQrReader video {
+      max-width: 100%;
     }
 
     .steps {
@@ -1517,9 +1541,12 @@
         <div id="recipientEditor" class="recipientEditor">
           <div id="recipientRows" class="recipientRows"></div>
           <div class="inlineTool" id="spendableTool">
-            <input id="spendableAddress" type="text" spellcheck="false" placeholder="spendable recipient address" />
+            <div class="recipientAddressScanGroup">
+              <input id="spendableAddress" type="text" spellcheck="false" placeholder="recipient address, spendable or unspendable" />
+              <button id="recipientQrScanButton" class="secondaryButton" type="button">SCAN QR</button>
+            </div>
             <input id="spendableAmount" type="number" min="0" step="0.00000001" placeholder="amount" />
-            <button id="addSpendableButton" class="secondaryButton" type="button">ADD SPENDABLE OUTPUT</button>
+            <button id="addSpendableButton" class="secondaryButton" type="button">ADD ADDRESS OUTPUT</button>
           </div>
 
           <div class="inlineTool" id="unspendableTool">
@@ -1997,6 +2024,20 @@
     </section>
   </main>
 
+  <dialog id="recipientQrDialog" class="addressQrDialog" aria-labelledby="recipientQrTitle">
+    <div class="addressQrDialogBody">
+      <div>
+        <h2 id="recipientQrTitle">Scan recipient address</h2>
+        <p class="help">Scan any address QR. Chisel does not require the address to be spendable, so MacDougall / burn addresses work here too.</p>
+      </div>
+      <div id="recipientQrReader" class="recipientQrReader"></div>
+      <code id="recipientQrValue" class="addressQrValue">Waiting for QR...</code>
+      <form method="dialog" class="actions addressQrDialogActions">
+        <button id="closeRecipientQrButton" class="secondaryButton" type="submit">CLOSE CAMERA</button>
+      </form>
+    </div>
+  </dialog>
+
   <dialog id="senderAddressQrDialog" class="addressQrDialog" aria-labelledby="senderAddressQrTitle">
     <div class="addressQrDialogBody">
       <div>
@@ -2013,6 +2054,7 @@
   </dialog>
 
   <script src="vendor/qrcode.min.js?rev=20260911b"></script>
+  <script src="vendor/html5-qrcode.min.js?rev=20260927a"></script>
   <script src="chisel.js?rev=20260906b"></script>
   <script src="chisel.unspendable.js?rev=20260906b"></script>
   <script src="chisel.image.js?rev=20260906b"></script>
