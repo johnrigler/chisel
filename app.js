@@ -3,13 +3,15 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.18";
+  const APP_VERSION = "2.7.19";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
   const ENTER_KEY = "Enter";
   const MANUAL_DRAFT_STORAGE_KEY = "chisel.manualEtchDraft.v1";
   const ARTIFACT_PAYLOAD_STORAGE_KEY = "chisel.pendingPayloadAnalyzer.v1";
+  let recipientQrScanner = null;
+  let recipientQrStopping = false;
 
   const LITECOIN_UNSPENDABLE_MODIFIERS = [
     "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
@@ -63,6 +65,11 @@
     spendableAddress: document.querySelector("#spendableAddress"),
     spendableAmount: document.querySelector("#spendableAmount"),
     addSpendableButton: document.querySelector("#addSpendableButton"),
+    recipientQrScanButton: document.querySelector("#recipientQrScanButton"),
+    recipientQrDialog: document.querySelector("#recipientQrDialog"),
+    recipientQrReader: document.querySelector("#recipientQrReader"),
+    recipientQrValue: document.querySelector("#recipientQrValue"),
+    closeRecipientQrButton: document.querySelector("#closeRecipientQrButton"),
     commonAddressSelect: document.querySelector("#commonAddressSelect"),
     addCommonAddressButton: document.querySelector("#addCommonAddressButton"),
     showSenderAddressQrButton: document.querySelector("#showSenderAddressQrButton"),
@@ -2193,6 +2200,143 @@ function onClickAddCommonAddressButton() {
     }
   }
 
+  function normalizeScannedRecipientAddress(rawValue) {
+    let value = String(rawValue || "").trim();
+    let url;
+
+    if (!value) return "";
+
+    // Common wallet QR forms: litecoin:L..., digibyte:D..., ravencoin:R...
+    // Keep this deliberately generic so an obviously-unspendable address is
+    // treated exactly like a spendable destination.
+    if (/^[a-z][a-z0-9+.-]*:[^/]/i.test(value)) {
+      value = value.slice(value.indexOf(":") + 1);
+      value = value.split("?")[0].split("#")[0];
+      try {
+        value = decodeURIComponent(value);
+      } catch (error) {}
+      return value.trim();
+    }
+
+    try {
+      url = new URL(value);
+      value =
+        url.searchParams.get("address") ||
+        url.searchParams.get("recipient") ||
+        url.searchParams.get("to") ||
+        "";
+      if (value) return value.trim();
+    } catch (error) {}
+
+    return value;
+  }
+
+  async function stopRecipientQrScanner() {
+    const scanner = recipientQrScanner;
+
+    if (!scanner || recipientQrStopping) return;
+
+    recipientQrStopping = true;
+    recipientQrScanner = null;
+
+    try {
+      await scanner.stop();
+    } catch (error) {
+      // It may already be stopped after a successful scan.
+    }
+
+    try {
+      await scanner.clear();
+    } catch (error) {}
+
+    recipientQrStopping = false;
+  }
+
+  async function closeRecipientQrScanner() {
+    await stopRecipientQrScanner();
+
+    if (elems.recipientQrDialog && elems.recipientQrDialog.open) {
+      try {
+        elems.recipientQrDialog.close();
+      } catch (error) {
+        elems.recipientQrDialog.removeAttribute("open");
+      }
+    }
+  }
+
+  async function acceptRecipientQr(decodedText) {
+    const address = normalizeScannedRecipientAddress(decodedText);
+
+    if (!address) {
+      setStatusMessage("QR code did not contain a recipient address.", true);
+      return;
+    }
+
+    if (elems.spendableAddress) {
+      elems.spendableAddress.value = address;
+      elems.spendableAddress.dispatchEvent(new Event("input", { bubbles: true }));
+      elems.spendableAddress.focus();
+    }
+
+    if (elems.recipientQrValue) {
+      elems.recipientQrValue.textContent = address;
+    }
+
+    setStatusMessage("Recipient address loaded from QR. Enter the amount, then add the address output.", false);
+    await closeRecipientQrScanner();
+  }
+
+  async function openRecipientQrScanner() {
+    let cameras;
+    let cameraConfig;
+
+    if (!window.Html5Qrcode || !elems.recipientQrDialog || !elems.recipientQrReader) {
+      setStatusMessage("The recipient QR camera scanner is unavailable in this browser.", true);
+      return;
+    }
+
+    await stopRecipientQrScanner();
+
+    if (elems.recipientQrValue) {
+      elems.recipientQrValue.textContent = "Waiting for QR...";
+    }
+
+    try {
+      if (typeof elems.recipientQrDialog.showModal === "function") {
+        if (!elems.recipientQrDialog.open) elems.recipientQrDialog.showModal();
+      } else {
+        elems.recipientQrDialog.setAttribute("open", "");
+      }
+
+      recipientQrScanner = new window.Html5Qrcode("recipientQrReader");
+      cameras = await window.Html5Qrcode.getCameras();
+
+      if (cameras && cameras.length) {
+        const backCamera = cameras.find(function findBackCamera(camera) {
+          return /back|rear|environment/i.test(camera.label || "");
+        });
+        cameraConfig = backCamera ? backCamera.id : { facingMode: "environment" };
+      } else {
+        cameraConfig = { facingMode: "environment" };
+      }
+
+      await recipientQrScanner.start(
+        cameraConfig,
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        function onRecipientQrSuccess(decodedText) {
+          acceptRecipientQr(decodedText);
+        },
+        function onRecipientQrFailure() {}
+      );
+    } catch (error) {
+      await stopRecipientQrScanner();
+      if (elems.recipientQrDialog && elems.recipientQrDialog.open) {
+        try { elems.recipientQrDialog.close(); } catch (closeError) {}
+      }
+      setStatusMessage("Could not open camera for recipient QR: " + (error.message || String(error)), true);
+    }
+  }
+
   function showSenderAddressQr() {
     const address = elems.senderAddress ? elems.senderAddress.value.trim() : "";
 
@@ -2531,6 +2675,23 @@ function init() {
 
     if (elems.wifScanButton) {
       elems.wifScanButton.onclick = openQrScanner;
+    }
+
+    if (elems.recipientQrScanButton) {
+      elems.recipientQrScanButton.onclick = function onClickRecipientQrScanButton() {
+        openRecipientQrScanner();
+      };
+    }
+
+    if (elems.closeRecipientQrButton) {
+      elems.closeRecipientQrButton.onclick = function onClickCloseRecipientQrButton() {
+        stopRecipientQrScanner();
+      };
+    }
+
+    if (elems.recipientQrDialog) {
+      elems.recipientQrDialog.addEventListener("close", stopRecipientQrScanner);
+      elems.recipientQrDialog.addEventListener("cancel", stopRecipientQrScanner);
     }
 
     if (elems.showSenderAddressQrButton) {
