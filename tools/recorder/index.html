@@ -25,6 +25,50 @@
       position:relative; min-height:0; display:grid; place-items:center;
       padding:8px; background:#000; overflow:hidden;
     }
+    .keysScreen {
+      display:none; min-height:0; overflow:auto; padding:14px;
+      background:linear-gradient(#090c10,#0b1016);
+    }
+    .keysScreen.active { display:block; }
+    .keysShell { width:min(980px,100%); margin:0 auto; display:grid; gap:14px; }
+    .keysToolbar {
+      position:sticky; top:0; z-index:8; display:flex; align-items:center;
+      justify-content:space-between; gap:10px; flex-wrap:wrap;
+      padding:10px 0 12px; background:rgba(9,12,16,.94); backdrop-filter:blur(10px);
+    }
+    .keysToolbar h2 { margin:0; font-size:18px; letter-spacing:.04em; }
+    .keysToolbar p { margin:3px 0 0; color:var(--muted); font-size:12px; }
+    .scanMoreButton { min-width:132px; background:#20552c; border-color:#4ea35f; }
+    .keyLibrary { display:grid; gap:12px; padding-bottom:20px; }
+    .keyLibraryEmpty {
+      border:1px dashed #45515f; border-radius:12px; padding:24px;
+      color:var(--muted); text-align:center;
+    }
+    .keyCard {
+      width:100%; display:grid; gap:10px; padding:12px; text-align:left;
+      background:#11161c; border:1px solid #33404d; border-radius:14px;
+    }
+    .keyCard:hover { background:#151c24; }
+    .keyCardHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .keyCardHeader strong { font-size:14px; }
+    .keyCardHeader span { color:var(--muted); font-size:11px; }
+    .keyCardStickers { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+    .keyCardSticker { aspect-ratio:1; padding:11%; position:relative; display:grid; place-items:center; overflow:hidden; }
+    .keyCardStickerInner { width:100%; height:100%; background:#fff; padding:7%; display:grid; place-items:center; }
+    .keyCardStickerInner canvas, .keyCardStickerInner img { width:100% !important; height:100% !important; image-rendering:pixelated; }
+    .keyCardStickerNumber {
+      position:absolute; left:4px; top:4px; min-width:20px; height:20px;
+      padding:0 4px; background:#fff; color:#111; border:1px solid #111;
+      display:grid; place-items:center; font-weight:900; font-size:10px;
+    }
+    .keyCardSecret {
+      background:#3d090b; border:2px solid #6d1d25; color:#fff;
+      padding:9px 10px; border-radius:8px; word-break:break-all;
+      font-size:12px; line-height:1.35;
+    }
+    .keyCardSecret b { color:#ffb3b8; letter-spacing:.05em; }
+    body.keysView .stageWrap { display:none; }
+    body.keysView .keysScreen { display:block; }
     canvas {
       width:100%; height:100%; max-height:calc(100dvh - 58px);
       object-fit:contain; background:#000; border-radius:10px; touch-action:none;
@@ -182,6 +226,19 @@
       <button id="recordButton">● REC</button>
     </div>
   </div>
+
+  <section id="keysScreen" class="keysScreen" aria-hidden="true">
+    <div class="keysShell">
+      <div class="keysToolbar">
+        <div>
+          <h2>SCANNED KEYS</h2>
+          <p id="keysSummary">0 keys</p>
+        </div>
+        <button id="scanMoreButton" class="scanMoreButton" type="button">SCAN MORE</button>
+      </div>
+      <div id="keyLibrary" class="keyLibrary"></div>
+    </div>
+  </section>
 </main>
 
 <div id="setupDrawer" class="drawer">
@@ -302,6 +359,10 @@
     videoDownload: document.getElementById("videoDownload"),
     jsonDownload: document.getElementById("jsonDownload"),
     publicList: document.getElementById("publicList"),
+    keysScreen: document.getElementById("keysScreen"),
+    keysSummary: document.getElementById("keysSummary"),
+    keyLibrary: document.getElementById("keyLibrary"),
+    scanMoreButton: document.getElementById("scanMoreButton"),
     resourceDialog: document.getElementById("resourceDialog"),
     resourceCard: document.getElementById("resourceCard"),
     resourceTitle: document.getElementById("resourceTitle"),
@@ -320,6 +381,7 @@
   const ctx = els.stage.getContext("2d");
   const state = {
     scene:"screen",
+    appView:"scan",
     displayStream:null,
     worldStream:null,
     faceStream:null,
@@ -607,6 +669,88 @@
     makeDomQr(inner,value,QRCode.CorrectLevel.H);
   }
 
+  function renderKeyCardSticker(container,value,number) {
+    const sticker = document.createElement("div");
+    sticker.className = "keyCardSticker";
+    sticker.style.background = getStickerColor(value);
+
+    const badge = document.createElement("div");
+    badge.className = "keyCardStickerNumber";
+    badge.textContent = String(number);
+
+    const inner = document.createElement("div");
+    inner.className = "keyCardStickerInner";
+    sticker.append(inner,badge);
+    container.append(sticker);
+    makeDomQr(inner,value,QRCode.CorrectLevel.H);
+  }
+
+  function renderKeyLibrary(highlightResource) {
+    els.keyLibrary.innerHTML = "";
+    els.keysSummary.textContent = state.publicResults.length + (state.publicResults.length === 1 ? " key" : " keys");
+
+    if (!state.publicResults.length) {
+      const empty = document.createElement("div");
+      empty.className = "keyLibraryEmpty";
+      empty.textContent = "No successfully scanned keys yet.";
+      els.keyLibrary.append(empty);
+      return;
+    }
+
+    state.publicResults.slice().reverse().forEach(resource => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "keyCard";
+      if (highlightResource && highlightResource.publicKey === resource.publicKey) {
+        card.style.borderColor = "#7ee787";
+      }
+
+      const header = document.createElement("div");
+      header.className = "keyCardHeader";
+      const title = document.createElement("strong");
+      title.textContent = "KEY #" + resource.number;
+      const meta = document.createElement("span");
+      meta.textContent = (resource.addresses ? resource.addresses.length : 0) + " address formats";
+      header.append(title,meta);
+
+      const stickers = document.createElement("div");
+      stickers.className = "keyCardStickers";
+      resource.fragments.forEach((fragment,index) => renderKeyCardSticker(stickers,fragment,index+1));
+
+      const secret = document.createElement("div");
+      secret.className = "keyCardSecret";
+      const label = document.createElement("b");
+      label.textContent = "PRIVATE KEY";
+      const value = document.createElement("div");
+      value.textContent = resource.privateKeyHex;
+      secret.append(label,value);
+
+      card.append(header,stickers,secret);
+      card.onclick = () => openResource(resource);
+      els.keyLibrary.append(card);
+    });
+  }
+
+  function showKeyLibrary(highlightResource) {
+    state.appView = "keys";
+    document.body.classList.add("keysView");
+    els.keysScreen.classList.add("active");
+    els.keysScreen.setAttribute("aria-hidden","false");
+    renderKeyLibrary(highlightResource || null);
+    setStatus(state.publicResults.length + (state.publicResults.length === 1 ? " scanned key." : " scanned keys."));
+  }
+
+  async function showScanner() {
+    state.appView = "scan";
+    document.body.classList.remove("keysView");
+    els.keysScreen.classList.remove("active");
+    els.keysScreen.setAttribute("aria-hidden","true");
+    state.lastQrValue = "";
+    state.lastQrValueAt = 0;
+    await setScene("scan");
+    setStatus("SCAN ready.");
+  }
+
   async function deriveAllAddresses(privateKeyHex) {
     const rows = [];
     const seen = new Set();
@@ -802,7 +946,7 @@
   }
 
   async function scanQrFrame() {
-    if (state.scene !== "scan" || !state.qrDetector || state.qrBusy || !els.worldVideo.videoWidth) return;
+    if (state.appView !== "scan" || state.scene !== "scan" || !state.qrDetector || state.qrBusy || !els.worldVideo.videoWidth) return;
     const now = performance.now();
     if (now - state.lastQrAt < 250) return;
     state.lastQrAt = now;
@@ -913,8 +1057,8 @@
       const duplicate = state.publicResults.find(item => item.publicKey === publicKey);
       if (duplicate) {
         clearFragments();
-        setStatus("Resource already exists. Opening the existing resource.");
-        await openResource(duplicate);
+        showKeyLibrary(duplicate);
+        setStatus("That key was already scanned. Showing the existing entry.");
         return;
       }
 
@@ -935,7 +1079,8 @@
       renderPublicResults();
       clearFragments();
       createConfetti();
-      setStatus("Resource #" + resource.number + " created. Tap it to inspect or print.");
+      showKeyLibrary(resource);
+      setStatus("Key #" + resource.number + " scanned successfully.");
     } catch (error) {
       setStatus("Key check failed: " + (error.message || String(error)));
     }
@@ -1228,7 +1373,7 @@
   }
 
   els.stage.addEventListener("pointerup",event => {
-    if (state.scene !== "scan") return;
+    if (state.appView !== "scan" || state.scene !== "scan") return;
     const rect = els.stage.getBoundingClientRect();
     const x = (event.clientX-rect.left) * (els.stage.width/rect.width);
     const y = (event.clientY-rect.top) * (els.stage.height/rect.height);
@@ -1241,6 +1386,10 @@
   els.resourceDialog.addEventListener("pointerup",event => {
     if (event.target === els.resourceDialog) closeResource();
   });
+
+  els.scanMoreButton.onclick = () => {
+    showScanner().catch(error => setStatus("Could not reopen scanner: " + error.message));
+  };
 
   els.loadDevices.onclick = async () => {
     try { await loadDevices(); }
@@ -1288,6 +1437,7 @@
   });
 
   fillCurrencyOptions();
+  renderKeyLibrary();
   setCanvasOrientation();
   initQr();
   drawFrame();
