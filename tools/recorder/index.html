@@ -1,758 +1,566 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1" name="viewport" />
-    <title>ChatGPT Voice Conversation Recorder</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        font-family: system-ui, sans-serif;
-      }
-
-      body {
-        margin: 0;
-        background: #101010;
-        color: #f5f5f5;
-      }
-
-      main {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 24px;
-      }
-
-      h1 {
-        margin-top: 0;
-      }
-
-      button,
-      label,
-      select {
-        font: inherit;
-      }
-
-      button {
-        border: 0;
-        border-radius: 8px;
-        padding: 10px 14px;
-        color: #fff;
-        background: #2563eb;
-        cursor: pointer;
-      }
-
-      button:disabled {
-        cursor: not-allowed;
-        opacity: 0.45;
-      }
-
-      fieldset {
-        margin: 16px 0;
-        border: 1px solid #333;
-        border-radius: 10px;
-        padding: 16px;
-      }
-
-      legend {
-        padding: 0 8px;
-      }
-
-      .controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin: 18px 0;
-      }
-
-      .instructions {
-        background: #181818;
-        border: 1px solid #333;
-        border-radius: 12px;
-        padding: 16px;
-      }
-
-      .device-list {
-        display: grid;
-        gap: 8px;
-      }
-
-      .device-option {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-
-      canvas {
-        width: 100%;
-        max-height: 70vh;
-        background: #000;
-        border: 1px solid #333;
-        border-radius: 12px;
-      }
-
-      output {
-        display: block;
-        margin: 12px 0;
-        color: #93c5fd;
-      }
-
-      a {
-        color: #93c5fd;
-      }
-
-      video {
-        display: none;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>ChatGPT Voice Conversation Recorder</h1>
-
-      <section class="instructions">
-        <p>
-          Use this to create a video artifact of a ChatGPT Voice conversation on Chromebook.
-        </p>
-        <p>
-          When Chrome asks what to share, choose the ChatGPT tab and enable tab audio.
-          Your microphone is recorded separately so your side of the voice conversation is included.
-        </p>
-      </section>
-
-      <div class="controls">
-        <button id="loadDevices" type="button">LOAD DEVICES</button>
-        <button id="startRecording" type="button" disabled>START RECORDING</button>
-        <button id="stopRecording" type="button" disabled>STOP RECORDING</button>
-      </div>
-
-      <fieldset>
-        <legend>Optional webcam overlay</legend>
-        <div class="device-list" id="cameraList"></div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Your microphone</legend>
-        <div class="device-list" id="microphoneList"></div>
-      </fieldset>
-
-      <output id="status">Load devices first.</output>
-
-      <p>
-        <a id="download" hidden download="chatgpt-voice-conversation.webm">
-          Download ChatGPT voice conversation recording
-        </a>
-      </p>
-
-      <canvas id="stage" width="1920" height="1080"></canvas>
-    </main>
-
-    <script>
-      (function () {
-        //
-        // Constants
-        //
-        const CANVAS_WIDTH = 1920;
-        const CANVAS_HEIGHT = 1080;
-        const CAMERA_WIDTH = 320;
-        const CAMERA_HEIGHT = 180;
-        const CAMERA_MARGIN = 24;
-        const FRAME_RATE = 30;
-        const VIDEO_BITS_PER_SECOND = 6000000;
-        const AUDIO_GAIN = 1;
-
-        //
-        // Elements
-        //
-        const elems = {
-          cameraList: document.querySelector("#cameraList"),
-          download: document.querySelector("#download"),
-          loadDevices: document.querySelector("#loadDevices"),
-          microphoneList: document.querySelector("#microphoneList"),
-          stage: document.querySelector("#stage"),
-          startRecording: document.querySelector("#startRecording"),
-          status: document.querySelector("#status"),
-          stopRecording: document.querySelector("#stopRecording"),
-        };
-
-        //
-        // State
-        //
-        const state = {
-          animationFrameId: 0,
-          audioContext: null,
-          cameraDevices: [],
-          cameraStream: null,
-          cameraVideo: null,
-          chunks: [],
-          displayStream: null,
-          downloadUrl: "",
-          isRecording: false,
-          mediaRecorder: null,
-          microphoneDevices: [],
-          microphoneStream: null,
-          mixedAudioDestination: null,
-          recorderStream: null,
-          screenVideo: null,
-          selectedCameraDeviceId: "",
-          selectedMicrophoneDeviceId: "",
-          statusMessage: "Load devices first.",
-        };
-
-        const canvasContext = elems.stage.getContext("2d");
-
-        //
-        // Validators
-        //
-        function isSupportedBrowser() {
-          return Boolean(
-            navigator.mediaDevices &&
-              navigator.mediaDevices.getDisplayMedia &&
-              navigator.mediaDevices.getUserMedia &&
-              window.MediaRecorder &&
-              elems.stage.captureStream
-          );
-        }
-
-        function isCameraDevice(device) {
-          return device.kind === "videoinput";
-        }
-
-        function isMicrophoneDevice(device) {
-          return device.kind === "audioinput";
-        }
-
-        //
-        // Formatters
-        //
-        function formatDeviceLabel(device, index, fallback) {
-          if (device.label) {
-            return device.label;
-          }
-
-          return `${fallback} ${index + 1}`;
-        }
-
-        function getSupportedMimeType() {
-          const mimeTypes = [
-            "video/webm;codecs=vp9,opus",
-            "video/webm;codecs=vp8,opus",
-            "video/webm",
-          ];
-
-          for (let i = 0; i < mimeTypes.length; i++) {
-            if (MediaRecorder.isTypeSupported(mimeTypes[i])) {
-              return mimeTypes[i];
-            }
-          }
-
-          return "";
-        }
-
-        //
-        // DOM setters
-        //
-        function setStatusMessage(message) {
-          state.statusMessage = message;
-          render();
-        }
-
-        function setDevices(devices) {
-          state.cameraDevices = devices.filter(isCameraDevice);
-          state.microphoneDevices = devices.filter(isMicrophoneDevice);
-
-          if (!state.selectedCameraDeviceId && state.cameraDevices[0]) {
-            state.selectedCameraDeviceId = state.cameraDevices[0].deviceId;
-          }
-
-          if (!state.selectedMicrophoneDeviceId && state.microphoneDevices[0]) {
-            state.selectedMicrophoneDeviceId = state.microphoneDevices[0].deviceId;
-          }
-
-          render();
-        }
-
-        function setDownloadUrl(url) {
-          if (state.downloadUrl) {
-            URL.revokeObjectURL(state.downloadUrl);
-          }
-
-          state.downloadUrl = url;
-          render();
-        }
-
-        function setRecordingState(isRecording) {
-          state.isRecording = isRecording;
-          render();
-        }
-
-        //
-        // Rendering
-        //
-        function clearChildren(element) {
-          while (element.firstChild) {
-            element.firstChild.remove();
-          }
-        }
-
-        function createNoCameraOption() {
-          const label = document.createElement("label");
-          const input = document.createElement("input");
-          const span = document.createElement("span");
-
-          label.className = "device-option";
-          input.type = "radio";
-          input.name = "camera";
-          input.value = "";
-          input.checked = state.selectedCameraDeviceId === "";
-          input.onchange = onCameraSelectionChange;
-          span.textContent = "No webcam overlay";
-
-          label.append(input, span);
-
-          return label;
-        }
-
-        function createCameraOption(device, index) {
-          const label = document.createElement("label");
-          const input = document.createElement("input");
-          const span = document.createElement("span");
-
-          label.className = "device-option";
-          input.type = "radio";
-          input.name = "camera";
-          input.value = device.deviceId;
-          input.checked = state.selectedCameraDeviceId === device.deviceId;
-          input.onchange = onCameraSelectionChange;
-          span.textContent = formatDeviceLabel(device, index, "Camera");
-
-          label.append(input, span);
-
-          return label;
-        }
-
-        function createMicrophoneOption(device, index) {
-          const label = document.createElement("label");
-          const input = document.createElement("input");
-          const span = document.createElement("span");
-
-          label.className = "device-option";
-          input.type = "radio";
-          input.name = "microphone";
-          input.value = device.deviceId;
-          input.checked = state.selectedMicrophoneDeviceId === device.deviceId;
-          input.onchange = onMicrophoneSelectionChange;
-          span.textContent = formatDeviceLabel(device, index, "Microphone");
-
-          label.append(input, span);
-
-          return label;
-        }
-
-        function renderCameraList() {
-          clearChildren(elems.cameraList);
-          elems.cameraList.append(createNoCameraOption());
-
-          state.cameraDevices.forEach(function (device, index) {
-            elems.cameraList.append(createCameraOption(device, index));
-          });
-        }
-
-        function renderMicrophoneList() {
-          clearChildren(elems.microphoneList);
-
-          if (state.microphoneDevices.length === 0) {
-            elems.microphoneList.textContent = "No microphones found.";
-            return;
-          }
-
-          state.microphoneDevices.forEach(function (device, index) {
-            elems.microphoneList.append(createMicrophoneOption(device, index));
-          });
-        }
-
-        function renderButtons() {
-          const hasMicrophone = state.microphoneDevices.length > 0;
-
-          elems.loadDevices.disabled = state.isRecording;
-          elems.startRecording.disabled = state.isRecording || !hasMicrophone;
-          elems.stopRecording.disabled = !state.isRecording;
-        }
-
-        function renderDownload() {
-          elems.download.hidden = !state.downloadUrl;
-          elems.download.href = state.downloadUrl;
-        }
-
-        function renderStatus() {
-          elems.status.textContent = state.statusMessage;
-        }
-
-        function render() {
-          renderCameraList();
-          renderMicrophoneList();
-          renderButtons();
-          renderDownload();
-          renderStatus();
-        }
-
-        //
-        // Media setup
-        //
-        async function loadDevices() {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          setDevices(devices);
-        }
-
-        async function requestDevicePermissions() {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: true,
-          });
-
-          stream.getTracks().forEach(function (track) {
-            track.stop();
-          });
-
-          await loadDevices();
-        }
-
-        async function createDisplayStream() {
-          return navigator.mediaDevices.getDisplayMedia({
-            audio: true,
-            video: {
-              frameRate: FRAME_RATE,
-              width: {
-                ideal: CANVAS_WIDTH,
-              },
-              height: {
-                ideal: CANVAS_HEIGHT,
-              },
-            },
-            preferCurrentTab: false,
-            selfBrowserSurface: "exclude",
-            systemAudio: "include",
-            surfaceSwitching: "include",
-          });
-        }
-
-        async function createMicrophoneStream() {
-          return navigator.mediaDevices.getUserMedia({
-            audio: {
-              deviceId: {
-                exact: state.selectedMicrophoneDeviceId,
-              },
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-            video: false,
-          });
-        }
-
-        async function createCameraStream() {
-          if (!state.selectedCameraDeviceId) {
-            return null;
-          }
-
-          return navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: {
-              deviceId: {
-                exact: state.selectedCameraDeviceId,
-              },
-              width: {
-                ideal: 1280,
-              },
-              height: {
-                ideal: 720,
-              },
-              frameRate: {
-                ideal: FRAME_RATE,
-              },
-            },
-          });
-        }
-
-        function createVideoElement(stream, muted) {
-          const video = document.createElement("video");
-
-          video.autoplay = true;
-          video.muted = muted;
-          video.playsInline = true;
-          video.srcObject = stream;
-
-          return video;
-        }
-
-        async function playVideo(video) {
-          document.body.append(video);
-          await video.play();
-
-          return video;
-        }
-
-        function connectAudioStream(stream) {
-          if (!stream || stream.getAudioTracks().length === 0) {
-            return;
-          }
-
-          const source = state.audioContext.createMediaStreamSource(stream);
-          const gain = state.audioContext.createGain();
-
-          gain.gain.value = AUDIO_GAIN;
-          source.connect(gain);
-          gain.connect(state.mixedAudioDestination);
-        }
-
-        function createMixedAudioStream() {
-          state.audioContext = new AudioContext();
-          state.mixedAudioDestination = state.audioContext.createMediaStreamDestination();
-
-          connectAudioStream(state.displayStream);
-          connectAudioStream(state.microphoneStream);
-
-          return state.mixedAudioDestination.stream;
-        }
-
-        function createRecorderStream() {
-          const canvasStream = elems.stage.captureStream(FRAME_RATE);
-          const audioStream = createMixedAudioStream();
-
-          state.recorderStream = new MediaStream([
-            ...canvasStream.getVideoTracks(),
-            ...audioStream.getAudioTracks(),
-          ]);
-        }
-
-        function createMediaRecorder() {
-          const mimeType = getSupportedMimeType();
-          const options = {
-            videoBitsPerSecond: VIDEO_BITS_PER_SECOND,
-          };
-
-          if (mimeType) {
-            options.mimeType = mimeType;
-          }
-
-          state.mediaRecorder = new MediaRecorder(state.recorderStream, options);
-          state.mediaRecorder.ondataavailable = onRecorderDataAvailable;
-          state.mediaRecorder.onstop = onRecorderStop;
-        }
-
-        //
-        // Canvas drawing
-        //
-        function drawCover(video, x, y, width, height) {
-          const videoRatio = video.videoWidth / video.videoHeight;
-          const targetRatio = width / height;
-          let sourceWidth = video.videoWidth;
-          let sourceHeight = video.videoHeight;
-          let sourceX = 0;
-          let sourceY = 0;
-
-          if (videoRatio > targetRatio) {
-            sourceWidth = video.videoHeight * targetRatio;
-            sourceX = (video.videoWidth - sourceWidth) / 2;
-          } else {
-            sourceHeight = video.videoWidth / targetRatio;
-            sourceY = (video.videoHeight - sourceHeight) / 2;
-          }
-
-          canvasContext.drawImage(
-            video,
-            sourceX,
-            sourceY,
-            sourceWidth,
-            sourceHeight,
-            x,
-            y,
-            width,
-            height
-          );
-        }
-
-        function drawCameraOverlay() {
-          const x = CANVAS_WIDTH - CAMERA_WIDTH - CAMERA_MARGIN;
-          const y = CAMERA_MARGIN;
-
-          if (!state.cameraVideo || state.cameraVideo.videoWidth === 0) {
-            return;
-          }
-
-          canvasContext.fillStyle = "#000";
-          canvasContext.fillRect(x - 4, y - 4, CAMERA_WIDTH + 8, CAMERA_HEIGHT + 8);
-          drawCover(state.cameraVideo, x, y, CAMERA_WIDTH, CAMERA_HEIGHT);
-        }
-
-        function drawFrame() {
-          canvasContext.fillStyle = "#000";
-          canvasContext.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-          if (state.screenVideo && state.screenVideo.videoWidth > 0) {
-            drawCover(state.screenVideo, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-          }
-
-          drawCameraOverlay();
-
-          state.animationFrameId = requestAnimationFrame(drawFrame);
-        }
-
-        //
-        // Recorder actions
-        //
-        async function startRecording() {
-          state.chunks = [];
-          setDownloadUrl("");
-          setStatusMessage("Choose the ChatGPT tab in Chrome’s share picker and enable tab audio.");
-
-          state.displayStream = await createDisplayStream();
-          state.microphoneStream = await createMicrophoneStream();
-          state.cameraStream = await createCameraStream();
-
-          state.screenVideo = await playVideo(createVideoElement(state.displayStream, true));
-
-          if (state.cameraStream) {
-            state.cameraVideo = await playVideo(createVideoElement(state.cameraStream, true));
-          }
-
-          createRecorderStream();
-          createMediaRecorder();
-          drawFrame();
-
-          state.mediaRecorder.start(1000);
-          setRecordingState(true);
-          setStatusMessage("Recording ChatGPT Voice. Keep using the ChatGPT tab normally.");
-        }
-
-        function stopStream(stream) {
-          if (!stream) {
-            return;
-          }
-
-          stream.getTracks().forEach(function (track) {
-            track.stop();
-          });
-        }
-
-        function removeVideo(video) {
-          if (!video) {
-            return;
-          }
-
-          video.pause();
-          video.srcObject = null;
-          video.remove();
-        }
-
-        function stopRecording() {
-          if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
-            state.mediaRecorder.stop();
-          }
-
-          if (state.animationFrameId) {
-            cancelAnimationFrame(state.animationFrameId);
-          }
-
-          stopStream(state.displayStream);
-          stopStream(state.microphoneStream);
-          stopStream(state.cameraStream);
-          stopStream(state.recorderStream);
-
-          removeVideo(state.screenVideo);
-          removeVideo(state.cameraVideo);
-
-          if (state.audioContext) {
-            state.audioContext.close();
-          }
-
-          state.animationFrameId = 0;
-          state.audioContext = null;
-          state.cameraStream = null;
-          state.cameraVideo = null;
-          state.displayStream = null;
-          state.microphoneStream = null;
-          state.mixedAudioDestination = null;
-          state.recorderStream = null;
-          state.screenVideo = null;
-
-          setRecordingState(false);
-          setStatusMessage("Recording stopped. Download your WebM file.");
-        }
-
-        //
-        // DOM listeners
-        //
-        async function onLoadDevicesClick() {
-          try {
-            if (!isSupportedBrowser()) {
-              setStatusMessage("This browser does not support the required recording APIs.");
-              return;
-            }
-
-            await requestDevicePermissions();
-            setStatusMessage("Devices loaded. Start recording, then choose the ChatGPT tab.");
-          } catch (error) {
-            setStatusMessage(`Could not load devices: ${error.message}`);
-          }
-        }
-
-        async function onStartRecordingClick() {
-          try {
-            await startRecording();
-          } catch (error) {
-            stopRecording();
-            setStatusMessage(`Recording could not start: ${error.message}`);
-          }
-        }
-
-        function onStopRecordingClick() {
-          stopRecording();
-        }
-
-        function onCameraSelectionChange(event) {
-          state.selectedCameraDeviceId = event.target.value;
-          render();
-        }
-
-        function onMicrophoneSelectionChange(event) {
-          state.selectedMicrophoneDeviceId = event.target.value;
-          render();
-        }
-
-        function onRecorderDataAvailable(event) {
-          if (event.data && event.data.size > 0) {
-            state.chunks.push(event.data);
-          }
-        }
-
-        function onRecorderStop() {
-          const blob = new Blob(state.chunks, {
-            type: "video/webm",
-          });
-          const url = URL.createObjectURL(blob);
-
-          setDownloadUrl(url);
-        }
-
-        function onBeforeUnload() {
-          if (state.isRecording) {
-            stopRecording();
-          }
-        }
-
-        function addEventListeners() {
-          elems.loadDevices.onclick = onLoadDevicesClick;
-          elems.startRecording.onclick = onStartRecordingClick;
-          elems.stopRecording.onclick = onStopRecordingClick;
-          window.onbeforeunload = onBeforeUnload;
-        }
-
-        //
-        // Init
-        //
-        addEventListeners();
-        render();
-      })();
-    </script>
-  </body>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Chisel Broadcast</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --bg:#090c10; --panel:#11161c; --line:#29333e; --text:#e6edf3;
+      --muted:#91a4b7; --accent:#7867ff; --danger:#ff5d68; --ok:#7ee787;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; min-height:100%; background:var(--bg); color:var(--text); }
+    body { overscroll-behavior:none; }
+    main { min-height:100dvh; display:grid; grid-template-rows:auto 1fr auto; }
+    header {
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:10px 12px; border-bottom:1px solid var(--line); background:#0d1117;
+    }
+    h1 { margin:0; font-size:16px; letter-spacing:.04em; }
+    #status { color:var(--muted); font-size:12px; text-align:right; }
+    .stageWrap {
+      min-height:0; display:grid; place-items:center; padding:8px;
+      background:#000;
+    }
+    canvas {
+      width:100%; height:100%; max-height:calc(100dvh - 146px);
+      object-fit:contain; background:#000; border-radius:10px;
+      touch-action:none;
+    }
+    video { display:none; }
+    .dock {
+      position:sticky; bottom:0; z-index:10; padding:8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+      border-top:1px solid var(--line); background:rgba(13,17,23,.97); backdrop-filter:blur(10px);
+    }
+    .row { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
+    .row + .row { margin-top:7px; grid-template-columns:1fr 1fr 1fr; }
+    button,a.button {
+      min-height:48px; border:1px solid #364352; border-radius:10px; padding:8px;
+      background:#18212b; color:var(--text); font:inherit; font-weight:700; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; text-decoration:none; text-align:center;
+    }
+    button.active { background:var(--accent); border-color:#9b8fff; }
+    button.recording { background:#6d1d25; border-color:var(--danger); }
+    button:disabled { opacity:.4; cursor:default; }
+    #recordButton { font-size:18px; }
+    .drawer {
+      display:none; position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.74);
+      padding:16px; align-items:end;
+    }
+    .drawer.open { display:flex; }
+    .sheet {
+      width:min(680px,100%); margin:0 auto; background:var(--panel); border:1px solid var(--line);
+      border-radius:16px; padding:16px; max-height:82dvh; overflow:auto;
+    }
+    .sheet h2 { margin:0 0 10px; font-size:16px; }
+    .sheet p { color:var(--muted); line-height:1.45; font-size:13px; }
+    label { display:grid; gap:6px; margin:12px 0; color:#b8c7d6; font-size:13px; }
+    select,input[type="range"] {
+      width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:#0a0f14; color:var(--text);
+    }
+    .scanList { display:grid; gap:8px; margin-top:12px; }
+    .scanItem { padding:10px; border:1px solid var(--line); border-radius:8px; background:#090d12; word-break:break-all; font-size:12px; }
+    .scanTime { color:var(--ok); margin-right:8px; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .actions > * { flex:1 1 140px; }
+    @media (orientation:portrait) {
+      canvas { max-height:calc(100dvh - 150px); }
+      .row button { min-height:54px; font-size:12px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>CHISEL BROADCAST</h1>
+    <div id="status">Tap SETUP.</div>
+  </header>
+
+  <div class="stageWrap">
+    <canvas id="stage" width="1080" height="1920"></canvas>
+  </div>
+
+  <div class="dock">
+    <div class="row">
+      <button data-scene="screen" class="active">SCREEN</button>
+      <button data-scene="face">FACE</button>
+      <button data-scene="desk">DESK</button>
+      <button data-scene="scan">SCAN</button>
+      <button id="recordButton">● REC</button>
+    </div>
+    <div class="row">
+      <button id="zoomOut">− ZOOM</button>
+      <button id="zoomIn">+ ZOOM</button>
+      <button id="setupButton">SETUP</button>
+    </div>
+  </div>
+</main>
+
+<div id="setupDrawer" class="drawer">
+  <section class="sheet">
+    <h2>Broadcast setup</h2>
+    <p>Portrait-first recorder. SCREEN composites the shared display with a front-camera inset. FACE uses the front camera. DESK and SCAN use the rear camera. SCAN accumulates QR payloads while the recording continues.</p>
+
+    <label>Front camera
+      <select id="frontCamera"></select>
+    </label>
+    <label>Rear camera
+      <select id="rearCamera"></select>
+    </label>
+    <label>Microphone
+      <select id="microphone"></select>
+    </label>
+
+    <div class="actions">
+      <button id="loadDevices">LOAD DEVICES</button>
+      <button id="closeSetup">CLOSE</button>
+    </div>
+
+    <h2 style="margin-top:18px">Last recording</h2>
+    <div class="actions">
+      <a id="videoDownload" class="button" hidden download="chisel-broadcast.webm">DOWNLOAD VIDEO</a>
+      <a id="jsonDownload" class="button" hidden download="chisel-broadcast.json">DOWNLOAD QR INDEX</a>
+    </div>
+
+    <h2 style="margin-top:18px">QR index</h2>
+    <div id="scanList" class="scanList"></div>
+  </section>
+</div>
+
+<video id="screenVideo" autoplay muted playsinline></video>
+<video id="cameraVideo" autoplay muted playsinline></video>
+
+<script>
+(function () {
+  "use strict";
+
+  const FRAME_RATE = 30;
+  const VIDEO_BPS = 6000000;
+  const PORTRAIT = { width:1080, height:1920 };
+  const LANDSCAPE = { width:1920, height:1080 };
+
+  const els = {
+    stage: document.getElementById("stage"),
+    status: document.getElementById("status"),
+    screenVideo: document.getElementById("screenVideo"),
+    cameraVideo: document.getElementById("cameraVideo"),
+    recordButton: document.getElementById("recordButton"),
+    setupButton: document.getElementById("setupButton"),
+    setupDrawer: document.getElementById("setupDrawer"),
+    closeSetup: document.getElementById("closeSetup"),
+    loadDevices: document.getElementById("loadDevices"),
+    frontCamera: document.getElementById("frontCamera"),
+    rearCamera: document.getElementById("rearCamera"),
+    microphone: document.getElementById("microphone"),
+    zoomIn: document.getElementById("zoomIn"),
+    zoomOut: document.getElementById("zoomOut"),
+    videoDownload: document.getElementById("videoDownload"),
+    jsonDownload: document.getElementById("jsonDownload"),
+    scanList: document.getElementById("scanList")
+  };
+
+  const ctx = els.stage.getContext("2d");
+  const state = {
+    scene:"screen",
+    displayStream:null,
+    cameraStream:null,
+    microphoneStream:null,
+    recorderStream:null,
+    recorder:null,
+    chunks:[],
+    audioContext:null,
+    audioDestination:null,
+    animationFrame:0,
+    recording:false,
+    startedAt:0,
+    frontId:"",
+    rearId:"",
+    microphoneId:"",
+    cameraFacing:"",
+    qrDetector:null,
+    qrBusy:false,
+    lastQrAt:0,
+    scans:new Map(),
+    videoUrl:"",
+    jsonUrl:""
+  };
+
+  function setStatus(message) { els.status.textContent = message; }
+
+  function timecode(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(s / 60);
+    return String(m).padStart(2,"0") + ":" + String(s % 60).padStart(2,"0");
+  }
+
+  function stopStream(stream) {
+    if (stream) stream.getTracks().forEach(track => track.stop());
+  }
+
+  function setCanvasOrientation() {
+    const portrait = innerHeight >= innerWidth;
+    const size = portrait ? PORTRAIT : LANDSCAPE;
+    if (els.stage.width !== size.width || els.stage.height !== size.height) {
+      els.stage.width = size.width;
+      els.stage.height = size.height;
+    }
+  }
+
+  function drawCover(video, x, y, w, h, mirror) {
+    if (!video || !video.videoWidth || !video.videoHeight) return;
+    const vr = video.videoWidth / video.videoHeight;
+    const tr = w / h;
+    let sw = video.videoWidth, sh = video.videoHeight, sx = 0, sy = 0;
+    if (vr > tr) { sw = video.videoHeight * tr; sx = (video.videoWidth - sw) / 2; }
+    else { sh = video.videoWidth / tr; sy = (video.videoHeight - sh) / 2; }
+    ctx.save();
+    if (mirror) {
+      ctx.translate(x + w, y);
+      ctx.scale(-1,1);
+      ctx.drawImage(video,sx,sy,sw,sh,0,0,w,h);
+    } else {
+      ctx.drawImage(video,sx,sy,sw,sh,x,y,w,h);
+    }
+    ctx.restore();
+  }
+
+  function drawScreenScene() {
+    drawCover(els.screenVideo,0,0,els.stage.width,els.stage.height,false);
+    if (state.cameraFacing === "front" && els.cameraVideo.videoWidth) {
+      const w = Math.round(els.stage.width * .28);
+      const h = Math.round(w * 4 / 3);
+      const m = Math.round(els.stage.width * .025);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(els.stage.width-w-m-5,m-5,w+10,h+10);
+      drawCover(els.cameraVideo,els.stage.width-w-m,m,w,h,true);
+    }
+  }
+
+  function drawCameraScene() {
+    drawCover(els.cameraVideo,0,0,els.stage.width,els.stage.height,state.cameraFacing === "front");
+  }
+
+  function drawQrOverlay() {
+    const values = Array.from(state.scans.values()).slice(-4);
+    if (!values.length) return;
+    ctx.save();
+    ctx.font = Math.max(22, Math.round(els.stage.width * .025)) + "px monospace";
+    ctx.textBaseline = "top";
+    values.forEach((item,i) => {
+      const text = timecode(item.firstSeen) + "  " + item.value.slice(0,42);
+      const y = 24 + i * 44;
+      ctx.fillStyle = "rgba(0,0,0,.72)";
+      ctx.fillRect(18,y-6,Math.min(els.stage.width-36,ctx.measureText(text).width+24),38);
+      ctx.fillStyle = "#7ee787";
+      ctx.fillText(text,30,y);
+    });
+    ctx.restore();
+  }
+
+  async function scanQrFrame() {
+    if (state.scene !== "scan" || !state.qrDetector || state.qrBusy || !els.cameraVideo.videoWidth) return;
+    const now = performance.now();
+    if (now - state.lastQrAt < 250) return;
+    state.lastQrAt = now;
+    state.qrBusy = true;
+    try {
+      const found = await state.qrDetector.detect(els.cameraVideo);
+      found.forEach(code => addScan(code.rawValue || ""));
+    } catch (e) {
+      // Detection is best-effort and should never stop recording.
+    } finally {
+      state.qrBusy = false;
+    }
+  }
+
+  function drawFrame() {
+    setCanvasOrientation();
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0,0,els.stage.width,els.stage.height);
+
+    if (state.scene === "screen") drawScreenScene();
+    else drawCameraScene();
+
+    if (state.scene === "scan") {
+      scanQrFrame();
+      drawQrOverlay();
+    }
+
+    state.animationFrame = requestAnimationFrame(drawFrame);
+  }
+
+  function addScan(value) {
+    value = String(value || "").trim();
+    if (!value) return;
+    const elapsed = state.recording ? Date.now() - state.startedAt : 0;
+    const existing = state.scans.get(value);
+    if (existing) {
+      existing.lastSeen = elapsed;
+      existing.count += 1;
+    } else {
+      state.scans.set(value,{value:value,firstSeen:elapsed,lastSeen:elapsed,count:1});
+      renderScans();
+    }
+  }
+
+  function renderScans() {
+    els.scanList.innerHTML = "";
+    Array.from(state.scans.values()).forEach(item => {
+      const div = document.createElement("div");
+      div.className = "scanItem";
+      const t = document.createElement("span");
+      t.className = "scanTime";
+      t.textContent = timecode(item.firstSeen);
+      const v = document.createElement("span");
+      v.textContent = item.value;
+      div.append(t,v);
+      els.scanList.append(div);
+    });
+  }
+
+  async function loadDevices() {
+    if (!navigator.mediaDevices) throw new Error("Media devices are unavailable.");
+    const probe = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    probe.getTracks().forEach(t => t.stop());
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === "videoinput");
+    const mics = devices.filter(d => d.kind === "audioinput");
+
+    fillSelect(els.frontCamera,cams,"Camera");
+    fillSelect(els.rearCamera,cams,"Camera");
+    fillSelect(els.microphone,mics,"Microphone");
+
+    const frontGuess = cams.find(d => /front|user|facetime|self/i.test(d.label));
+    const rearGuess = cams.find(d => /back|rear|environment|world/i.test(d.label));
+
+    state.frontId = frontGuess ? frontGuess.deviceId : (cams[0] ? cams[0].deviceId : "");
+    state.rearId = rearGuess ? rearGuess.deviceId : (cams[1] ? cams[1].deviceId : state.frontId);
+    state.microphoneId = mics[0] ? mics[0].deviceId : "";
+
+    els.frontCamera.value = state.frontId;
+    els.rearCamera.value = state.rearId;
+    els.microphone.value = state.microphoneId;
+
+    setStatus("Devices ready.");
+  }
+
+  function fillSelect(select,devices,fallback) {
+    select.innerHTML = "";
+    devices.forEach((d,i) => {
+      const o = document.createElement("option");
+      o.value = d.deviceId;
+      o.textContent = d.label || (fallback + " " + (i+1));
+      select.append(o);
+    });
+  }
+
+  async function ensureDisplay() {
+    if (state.displayStream && state.displayStream.active) return;
+    state.displayStream = await navigator.mediaDevices.getDisplayMedia({
+      video:{frameRate:{ideal:FRAME_RATE}},
+      audio:true
+    });
+    els.screenVideo.srcObject = state.displayStream;
+    await els.screenVideo.play();
+    const track = state.displayStream.getVideoTracks()[0];
+    if (track) track.onended = () => { if (state.recording) stopRecording(); };
+  }
+
+  async function ensureMicrophone() {
+    if (state.microphoneStream && state.microphoneStream.active) return;
+    const audio = state.microphoneId ? {deviceId:{exact:state.microphoneId},echoCancellation:true,noiseSuppression:true,autoGainControl:true} : true;
+    state.microphoneStream = await navigator.mediaDevices.getUserMedia({audio:audio,video:false});
+  }
+
+  async function switchCamera(facing) {
+    const wantedId = facing === "front" ? state.frontId : state.rearId;
+    if (state.cameraStream && state.cameraFacing === facing) return;
+    stopStream(state.cameraStream);
+    state.cameraStream = null;
+    els.cameraVideo.srcObject = null;
+
+    const video = wantedId
+      ? {deviceId:{exact:wantedId},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:FRAME_RATE}}
+      : {facingMode:{ideal:facing === "front" ? "user" : "environment"}};
+
+    state.cameraStream = await navigator.mediaDevices.getUserMedia({audio:false,video:video});
+    state.cameraFacing = facing;
+    els.cameraVideo.srcObject = state.cameraStream;
+    await els.cameraVideo.play();
+    updateZoomButtons();
+  }
+
+  function getCameraTrack() {
+    return state.cameraStream ? state.cameraStream.getVideoTracks()[0] : null;
+  }
+
+  function getZoomInfo() {
+    const track = getCameraTrack();
+    if (!track || !track.getCapabilities) return null;
+    const caps = track.getCapabilities();
+    const settings = track.getSettings ? track.getSettings() : {};
+    if (!caps.zoom) return null;
+    return {track:track,min:caps.zoom.min,max:caps.zoom.max,step:caps.zoom.step || .1,current:settings.zoom || caps.zoom.min};
+  }
+
+  function updateZoomButtons() {
+    const z = getZoomInfo();
+    els.zoomIn.disabled = !z;
+    els.zoomOut.disabled = !z;
+  }
+
+  async function changeZoom(direction) {
+    const z = getZoomInfo();
+    if (!z) return;
+    const next = Math.max(z.min,Math.min(z.max,z.current + direction * z.step * 3));
+    await z.track.applyConstraints({advanced:[{zoom:next}]});
+    updateZoomButtons();
+  }
+
+  async function setScene(scene) {
+    state.scene = scene;
+    document.querySelectorAll("[data-scene]").forEach(b => b.classList.toggle("active",b.dataset.scene === scene));
+
+    if (scene === "screen") {
+      if (!state.displayStream) setStatus("SCREEN will ask what display to share when recording starts.");
+      await switchCamera("front");
+    } else if (scene === "face") {
+      await switchCamera("front");
+    } else {
+      await switchCamera("rear");
+    }
+
+    if (scene === "scan" && !state.qrDetector) {
+      setStatus("SCAN view active. QR detection is not available in this browser.");
+    } else {
+      setStatus(scene.toUpperCase() + " view.");
+    }
+  }
+
+  function connectAudio(stream) {
+    if (!stream || !stream.getAudioTracks().length) return;
+    const source = state.audioContext.createMediaStreamSource(stream);
+    source.connect(state.audioDestination);
+  }
+
+  function makeRecorder() {
+    state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    state.audioDestination = state.audioContext.createMediaStreamDestination();
+    connectAudio(state.displayStream);
+    connectAudio(state.microphoneStream);
+
+    const canvasStream = els.stage.captureStream(FRAME_RATE);
+    state.recorderStream = new MediaStream([
+      ...canvasStream.getVideoTracks(),
+      ...state.audioDestination.stream.getAudioTracks()
+    ]);
+
+    const types = ["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"];
+    const mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+    const options = {videoBitsPerSecond:VIDEO_BPS};
+    if (mimeType) options.mimeType = mimeType;
+
+    state.recorder = new MediaRecorder(state.recorderStream,options);
+    state.recorder.ondataavailable = e => { if (e.data && e.data.size) state.chunks.push(e.data); };
+    state.recorder.onstop = finishRecording;
+  }
+
+  async function startRecording() {
+    if (state.recording) return;
+    state.chunks = [];
+    state.scans.clear();
+    renderScans();
+    revokeDownloads();
+
+    await ensureDisplay();
+    await ensureMicrophone();
+    await setScene(state.scene);
+
+    makeRecorder();
+    state.startedAt = Date.now();
+    state.recording = true;
+    state.recorder.start(1000);
+    els.recordButton.textContent = "■ STOP";
+    els.recordButton.classList.add("recording");
+    setStatus("Recording " + state.scene.toUpperCase() + ".");
+  }
+
+  function stopRecording() {
+    if (!state.recording) return;
+    state.recording = false;
+    if (state.recorder && state.recorder.state !== "inactive") state.recorder.stop();
+    els.recordButton.textContent = "● REC";
+    els.recordButton.classList.remove("recording");
+    setStatus("Recording stopped.");
+  }
+
+  function finishRecording() {
+    const blob = new Blob(state.chunks,{type:"video/webm"});
+    state.videoUrl = URL.createObjectURL(blob);
+    els.videoDownload.href = state.videoUrl;
+    els.videoDownload.hidden = false;
+
+    const index = {
+      tool:"Chisel Broadcast",
+      created:new Date().toISOString(),
+      durationMs:Math.max(0,Date.now()-state.startedAt),
+      scans:Array.from(state.scans.values())
+    };
+    const jsonBlob = new Blob([JSON.stringify(index,null,2)],{type:"application/json"});
+    state.jsonUrl = URL.createObjectURL(jsonBlob);
+    els.jsonDownload.href = state.jsonUrl;
+    els.jsonDownload.hidden = false;
+    els.setupDrawer.classList.add("open");
+  }
+
+  function revokeDownloads() {
+    if (state.videoUrl) URL.revokeObjectURL(state.videoUrl);
+    if (state.jsonUrl) URL.revokeObjectURL(state.jsonUrl);
+    state.videoUrl = "";
+    state.jsonUrl = "";
+    els.videoDownload.hidden = true;
+    els.jsonDownload.hidden = true;
+  }
+
+  async function initQr() {
+    if (!("BarcodeDetector" in window)) return;
+    try {
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if (formats.includes("qr_code")) state.qrDetector = new BarcodeDetector({formats:["qr_code"]});
+    } catch (e) {}
+  }
+
+  els.loadDevices.onclick = async () => {
+    try { await loadDevices(); }
+    catch (e) { setStatus("Device setup failed: " + e.message); }
+  };
+  els.setupButton.onclick = () => els.setupDrawer.classList.add("open");
+  els.closeSetup.onclick = () => els.setupDrawer.classList.remove("open");
+  els.setupDrawer.onclick = e => { if (e.target === els.setupDrawer) els.setupDrawer.classList.remove("open"); };
+  els.frontCamera.onchange = e => { state.frontId = e.target.value; if (state.cameraFacing === "front") switchCamera("front"); };
+  els.rearCamera.onchange = e => { state.rearId = e.target.value; if (state.cameraFacing === "rear") switchCamera("rear"); };
+  els.microphone.onchange = e => { state.microphoneId = e.target.value; stopStream(state.microphoneStream); state.microphoneStream = null; };
+  els.recordButton.onclick = () => state.recording ? stopRecording() : startRecording().catch(e => { setStatus("Could not record: " + e.message); });
+  els.zoomIn.onclick = () => changeZoom(1);
+  els.zoomOut.onclick = () => changeZoom(-1);
+  document.querySelectorAll("[data-scene]").forEach(b => b.onclick = () => setScene(b.dataset.scene).catch(e => setStatus("Camera error: " + e.message)));
+  window.addEventListener("resize",setCanvasOrientation);
+  window.addEventListener("beforeunload",() => {
+    if (state.recording) stopRecording();
+    stopStream(state.displayStream);
+    stopStream(state.cameraStream);
+    stopStream(state.microphoneStream);
+    stopStream(state.recorderStream);
+  });
+
+  setCanvasOrientation();
+  initQr();
+  drawFrame();
+  updateZoomButtons();
+})();
+</script>
+</body>
 </html>
