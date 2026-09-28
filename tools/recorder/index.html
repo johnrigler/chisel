@@ -144,6 +144,8 @@
     .resourceTop h2 { margin:0; font-size:20px; }
     .resourceActions { display:flex; gap:8px; flex-wrap:wrap; }
     .resourceActions button { background:#111; color:#fff; border-color:#111; }
+    .resourceActions .instaButton { background:#0f4c5c; border-color:#2f7d8f; }
+    .resourceActions .chiselButton { background:#4b3fb8; border-color:#7867ff; }
     .resourceStickers { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
     .resourceSticker { aspect-ratio:1; padding:11%; position:relative; display:grid; place-items:center; }
     .resourceStickerInner { width:100%; height:100%; background:#fff; padding:7%; display:grid; place-items:center; }
@@ -153,11 +155,22 @@
       background:#fff; color:#111; display:grid; place-items:center; font-weight:900; border:1px solid #111;
     }
     .secretPanel {
-      background:#4a0608; color:#fff; border:5px solid #250000; padding:16px;
-      display:grid; gap:8px; word-break:break-all;
+      background:#fff; color:#111; border:5px solid #e31b23; padding:16px;
+      display:grid; grid-template-columns:minmax(180px,260px) 1fr; gap:16px;
+      align-items:start; word-break:break-all;
     }
-    .secretPanel strong { font-size:22px; letter-spacing:.08em; }
+    .secretQr {
+      width:100%; aspect-ratio:1; background:#fff; padding:10px;
+      border:4px solid #e31b23; display:grid; place-items:center;
+    }
+    .secretQr canvas, .secretQr img { width:100% !important; height:100% !important; image-rendering:pixelated; }
+    .secretCopy { display:grid; gap:8px; align-content:start; }
+    .secretPanel strong { color:#e31b23; font-size:22px; letter-spacing:.08em; }
     .secretValue { font-size:17px; line-height:1.45; }
+    @media (max-width:640px) {
+      .secretPanel { grid-template-columns:1fr; }
+      .secretQr { width:min(280px,75vw); margin:auto; }
+    }
     .instaPrint {
       border:4px solid #111; background:#fff; color:#111; padding:14px;
       display:grid; grid-template-columns:minmax(150px,220px) 1fr; gap:16px; align-items:start;
@@ -281,6 +294,8 @@
     <div class="resourceTop">
       <h2 id="resourceTitle">Chisel Resource</h2>
       <div class="resourceActions">
+        <button id="openInstaprint" class="instaButton" type="button">INSTAPRINT PNG</button>
+        <button id="loadIntoChisel" class="chiselButton" type="button">LOAD INTO CHISEL</button>
         <button id="printResource" type="button">PRINT PAGE</button>
         <button id="closeResource" type="button">CLOSE</button>
       </div>
@@ -289,18 +304,11 @@
     <div id="resourceStickers" class="resourceStickers"></div>
 
     <section class="secretPanel">
-      <strong>SECRET • PRIVATE KEY</strong>
-      <div class="secretValue" id="resourcePrivateKey"></div>
-    </section>
-
-    <section class="instaPrint">
-      <div id="instaQr" class="instaQr"></div>
-      <div class="instaText">
-        <div class="instaTitle">CHISEL INSTAPRINT</div>
-        <div><strong id="instaCoin"></strong></div>
-        <div><strong>ADDRESS</strong><br><span id="instaAddress"></span></div>
-        <div><strong>PUBLIC KEY</strong><br><span id="instaPublicKey"></span></div>
-        <div><strong>WIF • SECRET</strong><br><span id="instaWif"></span></div>
+      <div id="secretQr" class="secretQr" aria-label="Private key QR code"></div>
+      <div class="secretCopy">
+        <strong>SECRET • PRIVATE KEY</strong>
+        <div class="secretValue" id="resourcePrivateKey"></div>
+        <p class="resourceHint">The QR itself is secret. It encodes the complete 64-hex private key.</p>
       </div>
     </section>
 
@@ -309,7 +317,7 @@
       <div id="resourceAddresses" class="addressGrid"></div>
     </section>
 
-    <p class="resourceHint">The red panel and the InstaPrint WIF are secret material. Printing or recording this view creates another copy of the private key.</p>
+    <p class="resourceHint">The red QR and private-key text are secret material. Printing or recording this view creates another copy of the private key. InstaPrint opens as a separate PNG-oriented tool.</p>
   </section>
 </div>
 
@@ -369,11 +377,9 @@
     resourceStickers: document.getElementById("resourceStickers"),
     resourcePrivateKey: document.getElementById("resourcePrivateKey"),
     resourceAddresses: document.getElementById("resourceAddresses"),
-    instaQr: document.getElementById("instaQr"),
-    instaCoin: document.getElementById("instaCoin"),
-    instaAddress: document.getElementById("instaAddress"),
-    instaPublicKey: document.getElementById("instaPublicKey"),
-    instaWif: document.getElementById("instaWif"),
+    secretQr: document.getElementById("secretQr"),
+    openInstaprint: document.getElementById("openInstaprint"),
+    loadIntoChisel: document.getElementById("loadIntoChisel"),
     printResource: document.getElementById("printResource"),
     closeResource: document.getElementById("closeResource")
   };
@@ -641,14 +647,14 @@
     ctx.restore();
   }
 
-  function makeDomQr(container,value,level) {
+  function makeDomQr(container,value,level,colorDark,colorLight) {
     container.innerHTML = "";
     new QRCode(container,{
       text:String(value || ""),
       width:256,
       height:256,
-      colorDark:"#000000",
-      colorLight:"#ffffff",
+      colorDark:colorDark || "#000000",
+      colorLight:colorLight || "#ffffff",
       correctLevel:level || QRCode.CorrectLevel.H
     });
   }
@@ -810,26 +816,52 @@
       els.resourceAddresses.append(row);
     });
 
-    const preferred = resource.addresses.find(item => item.currency === "litecoin")
-      || resource.addresses.find(item => item.network === "mainnet")
-      || resource.addresses[0];
-
-    els.instaQr.innerHTML = "";
-    if (preferred) {
-      els.instaCoin.textContent = preferred.label + " (" + preferred.ticker + ")";
-      els.instaAddress.textContent = preferred.address;
-      els.instaPublicKey.textContent = preferred.publicKey;
-      els.instaWif.textContent = preferred.wif;
-      makeDomQr(els.instaQr,preferred.wif,QRCode.CorrectLevel.M);
-    } else {
-      els.instaCoin.textContent = "No installed Chisel coin adapter";
-      els.instaAddress.textContent = "";
-      els.instaPublicKey.textContent = resource.publicKey;
-      els.instaWif.textContent = "";
-    }
+    makeDomQr(els.secretQr,resource.privateKeyHex,QRCode.CorrectLevel.M,"#e31b23","#ffffff");
 
     els.resourceDialog.classList.add("open");
     els.resourceDialog.setAttribute("aria-hidden","false");
+  }
+
+  function getPreferredResourceAddress(resource) {
+    if (!resource || !Array.isArray(resource.addresses)) return null;
+    return resource.addresses.find(item => item.currency === resource.currency)
+      || resource.addresses.find(item => item.currency === "litecoin")
+      || resource.addresses.find(item => item.network === "mainnet")
+      || resource.addresses[0]
+      || null;
+  }
+
+  function openResourceInstaprint(resource) {
+    const preferred = getPreferredResourceAddress(resource);
+    const handoff = {
+      privateKeyHex:resource.privateKeyHex,
+      currency:preferred ? preferred.currency : resource.currency,
+      label:"Chisel scanned key #" + resource.number,
+      createdAt:new Date().toISOString()
+    };
+    localStorage.setItem("chisel.keyPrint.handoff.v1",JSON.stringify(handoff));
+    window.location.href = "../keyPrint/index.html?handoff=1";
+  }
+
+  function loadResourceIntoChisel(resource) {
+    const preferred = getPreferredResourceAddress(resource);
+    if (!preferred || !preferred.wif) {
+      setStatus("No Chisel-compatible WIF is available for this key.");
+      return;
+    }
+
+    const payload = {
+      currency:preferred.currency,
+      wif:preferred.wif,
+      address:preferred.address,
+      privateKeyHex:resource.privateKeyHex,
+      autosend:false,
+      createdAt:new Date().toISOString()
+    };
+
+    sessionStorage.setItem("chisel.pendingQrScan",JSON.stringify(payload));
+    localStorage.setItem("chisel.pendingQrScan",JSON.stringify(payload));
+    window.location.href = "../../index.html?mode=etch&loadScannedWif=1&currency=" + encodeURIComponent(preferred.currency);
   }
 
   function closeResource() {
@@ -1383,6 +1415,12 @@
 
   els.closeResource.onclick = () => closeResource();
   els.printResource.onclick = () => window.print();
+  els.openInstaprint.onclick = () => {
+    if (state.selectedResource) openResourceInstaprint(state.selectedResource);
+  };
+  els.loadIntoChisel.onclick = () => {
+    if (state.selectedResource) loadResourceIntoChisel(state.selectedResource);
+  };
   els.resourceDialog.addEventListener("pointerup",event => {
     if (event.target === els.resourceDialog) closeResource();
   });
