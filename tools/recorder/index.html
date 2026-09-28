@@ -33,12 +33,12 @@
     .sideControls {
       position:absolute; top:12px; bottom:12px; z-index:20;
       width:84px; display:flex; flex-direction:column; gap:7px;
-      justify-content:flex-start; pointer-events:none;
+      justify-content:flex-end; pointer-events:none;
     }
     .sideControls.left { left:12px; }
     .sideControls.right { right:12px; }
     .sideControls button { pointer-events:auto; width:100%; min-height:46px; padding:7px 4px; background:rgba(24,33,43,.92); }
-    .sideControls .spacer { flex:1; }
+    .sideControls .spacer { display:none; }
     button,a.button {
       min-height:48px; border:1px solid #364352; border-radius:10px; padding:8px 5px;
       background:#18212b; color:var(--text); font:inherit; font-weight:700; cursor:pointer;
@@ -72,6 +72,62 @@
     }
     .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
     .actions > * { flex:1 1 140px; }
+    .resourceDialog {
+      display:none; position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.82);
+      padding:14px; overflow:auto;
+    }
+    .resourceDialog.open { display:block; }
+    .resourceCard {
+      width:min(920px,100%); margin:0 auto; background:#f7f7f4; color:#111;
+      border-radius:16px; padding:18px; display:grid; gap:16px;
+    }
+    .resourceTop { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
+    .resourceTop h2 { margin:0; font-size:20px; }
+    .resourceActions { display:flex; gap:8px; flex-wrap:wrap; }
+    .resourceActions button { background:#111; color:#fff; border-color:#111; }
+    .resourceStickers { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+    .resourceSticker { aspect-ratio:1; padding:11%; position:relative; display:grid; place-items:center; }
+    .resourceStickerInner { width:100%; height:100%; background:#fff; padding:7%; display:grid; place-items:center; }
+    .resourceStickerInner canvas, .resourceStickerInner img { width:100% !important; height:100% !important; image-rendering:pixelated; }
+    .resourceStickerNumber {
+      position:absolute; left:5px; top:5px; min-width:24px; height:24px; padding:0 5px;
+      background:#fff; color:#111; display:grid; place-items:center; font-weight:900; border:1px solid #111;
+    }
+    .secretPanel {
+      background:#4a0608; color:#fff; border:5px solid #250000; padding:16px;
+      display:grid; gap:8px; word-break:break-all;
+    }
+    .secretPanel strong { font-size:22px; letter-spacing:.08em; }
+    .secretValue { font-size:17px; line-height:1.45; }
+    .instaPrint {
+      border:4px solid #111; background:#fff; color:#111; padding:14px;
+      display:grid; grid-template-columns:minmax(150px,220px) 1fr; gap:16px; align-items:start;
+    }
+    .instaQr { width:100%; aspect-ratio:1; display:grid; place-items:center; }
+    .instaQr canvas, .instaQr img { width:100% !important; height:100% !important; image-rendering:pixelated; }
+    .instaText { min-width:0; display:grid; gap:8px; font-size:12px; line-height:1.35; word-break:break-all; }
+    .instaTitle { font-size:20px; font-weight:900; letter-spacing:.08em; }
+    .addressGrid { display:grid; gap:8px; }
+    .addressRow {
+      display:grid; grid-template-columns:110px 1fr; gap:10px; padding:9px 0;
+      border-top:1px solid #bbb; font-size:12px; word-break:break-all;
+    }
+    .addressRow strong { font-size:13px; }
+    .resourceHint { color:#555; font-size:12px; line-height:1.4; }
+    @media (max-width:640px) {
+      .resourceStickers { gap:5px; }
+      .instaPrint { grid-template-columns:1fr; }
+      .instaQr { width:min(220px,70vw); margin:auto; }
+      .addressRow { grid-template-columns:80px 1fr; }
+    }
+    @media print {
+      body { background:#fff !important; }
+      body > main, #setupDrawer, video { display:none !important; }
+      #resourceDialog { display:block !important; position:static !important; inset:auto !important; padding:0 !important; background:#fff !important; overflow:visible !important; }
+      #resourceDialog .resourceCard { width:100% !important; margin:0 !important; border-radius:0 !important; padding:0 !important; }
+      #resourceDialog .resourceActions, #resourceDialog .resourceHint { display:none !important; }
+      @page { size:letter portrait; margin:.35in; }
+    }
     @media (orientation:portrait) {
       canvas { max-height:calc(100dvh - 58px); }
       .sideControls { width:78px; gap:6px; }
@@ -118,7 +174,7 @@
 <div id="setupDrawer" class="drawer">
   <section class="sheet">
     <h2>Broadcast setup</h2>
-    <p>SCAN keeps the rear camera as the world view. Each accepted 16-hex Chisel fragment is re-rendered as the same QR sticker, using the print tool's border-color rule, and fills slots 1→4 strictly left-to-right. DELETE removes the most recent slot. CHECK 4 derives only the public result, celebrates, then clears the four slots.</p>
+    <p>SCAN keeps the rear camera as the world view. Each accepted 16-hex Chisel fragment is re-rendered as the same QR sticker, using the print tool's border-color rule, and fills slots 1→4 strictly left-to-right. DELETE removes the most recent slot. CHECK 4 creates one deduplicated resource, celebrates, then clears the four slots. Tap a resource to inspect its multi-chain addresses or print its key page.</p>
 
     <label>Currency / address format
       <select id="currency"></select>
@@ -146,6 +202,44 @@
 
     <h2 style="margin-top:18px">Public results</h2>
     <div id="publicList" class="publicList"></div>
+  </section>
+</div>
+
+
+<div id="resourceDialog" class="resourceDialog" aria-hidden="true">
+  <section class="resourceCard" id="resourceCard">
+    <div class="resourceTop">
+      <h2 id="resourceTitle">Chisel Resource</h2>
+      <div class="resourceActions">
+        <button id="printResource" type="button">PRINT PAGE</button>
+        <button id="closeResource" type="button">CLOSE</button>
+      </div>
+    </div>
+
+    <div id="resourceStickers" class="resourceStickers"></div>
+
+    <section class="secretPanel">
+      <strong>SECRET • PRIVATE KEY</strong>
+      <div class="secretValue" id="resourcePrivateKey"></div>
+    </section>
+
+    <section class="instaPrint">
+      <div id="instaQr" class="instaQr"></div>
+      <div class="instaText">
+        <div class="instaTitle">CHISEL INSTAPRINT</div>
+        <div><strong id="instaCoin"></strong></div>
+        <div><strong>ADDRESS</strong><br><span id="instaAddress"></span></div>
+        <div><strong>PUBLIC KEY</strong><br><span id="instaPublicKey"></span></div>
+        <div><strong>WIF • SECRET</strong><br><span id="instaWif"></span></div>
+      </div>
+    </section>
+
+    <section>
+      <h3>Addresses from this key</h3>
+      <div id="resourceAddresses" class="addressGrid"></div>
+    </section>
+
+    <p class="resourceHint">The red panel and the InstaPrint WIF are secret material. Printing or recording this view creates another copy of the private key.</p>
   </section>
 </div>
 
@@ -194,7 +288,20 @@
     zoomOut: document.getElementById("zoomOut"),
     videoDownload: document.getElementById("videoDownload"),
     jsonDownload: document.getElementById("jsonDownload"),
-    publicList: document.getElementById("publicList")
+    publicList: document.getElementById("publicList"),
+    resourceDialog: document.getElementById("resourceDialog"),
+    resourceCard: document.getElementById("resourceCard"),
+    resourceTitle: document.getElementById("resourceTitle"),
+    resourceStickers: document.getElementById("resourceStickers"),
+    resourcePrivateKey: document.getElementById("resourcePrivateKey"),
+    resourceAddresses: document.getElementById("resourceAddresses"),
+    instaQr: document.getElementById("instaQr"),
+    instaCoin: document.getElementById("instaCoin"),
+    instaAddress: document.getElementById("instaAddress"),
+    instaPublicKey: document.getElementById("instaPublicKey"),
+    instaWif: document.getElementById("instaWif"),
+    printResource: document.getElementById("printResource"),
+    closeResource: document.getElementById("closeResource")
   };
 
   const ctx = els.stage.getContext("2d");
@@ -224,6 +331,8 @@
     fragments:[],
     qrCanvasCache:new Map(),
     publicResults:[],
+    resourceHitboxes:[],
+    selectedResource:null,
     confetti:[],
     videoUrl:"",
     jsonUrl:""
@@ -366,6 +475,121 @@
     ctx.restore();
   }
 
+  function makeDomQr(container,value,level) {
+    container.innerHTML = "";
+    new QRCode(container,{
+      text:String(value || ""),
+      width:256,
+      height:256,
+      colorDark:"#000000",
+      colorLight:"#ffffff",
+      correctLevel:level || QRCode.CorrectLevel.H
+    });
+  }
+
+  function renderDomSticker(container,value,number) {
+    const sticker = document.createElement("div");
+    sticker.className = "resourceSticker";
+    sticker.style.background = getStickerColor(value);
+
+    const badge = document.createElement("div");
+    badge.className = "resourceStickerNumber";
+    badge.textContent = String(number);
+
+    const inner = document.createElement("div");
+    inner.className = "resourceStickerInner";
+    sticker.append(inner,badge);
+    container.append(sticker);
+    makeDomQr(inner,value,QRCode.CorrectLevel.H);
+  }
+
+  async function deriveAllAddresses(privateKeyHex) {
+    const rows = [];
+    const seen = new Set();
+    const coins = (window.CHISEL && typeof CHISEL.getCoins === "function")
+      ? CHISEL.getCoins().filter(coin => coin && coin.NAME && typeof coin.wifToAccount === "function")
+      : [];
+
+    for (const coin of coins) {
+      try {
+        const wif = await privateKeyHexToWif(privateKeyHex,coin);
+        const account = await coin.wifToAccount(wif);
+        const address = account.compressedAddress || account.address || "";
+        const publicKey = CHISEL.privateKeyHexToPublicKeyHex(account.privateKeyHex,true);
+        const key = String(coin.NAME) + "|" + address;
+
+        if (!address || seen.has(key)) continue;
+        seen.add(key);
+        rows.push({
+          currency:coin.NAME,
+          label:coin.DISPLAY_NAME || coin.NAME,
+          ticker:coin.TICKER || coin.NAME,
+          address:address,
+          publicKey:publicKey,
+          wif:wif,
+          network:account.network || "mainnet"
+        });
+      } catch (error) {
+        // One unsupported coin should not prevent other Chisel addresses from rendering.
+      }
+    }
+
+    return rows;
+  }
+
+  async function openResource(resource) {
+    if (!resource) return;
+    state.selectedResource = resource;
+    els.resourceTitle.textContent = "Chisel Resource #" + resource.number;
+    els.resourcePrivateKey.textContent = resource.privateKeyHex;
+
+    els.resourceStickers.innerHTML = "";
+    resource.fragments.forEach((fragment,index) => renderDomSticker(els.resourceStickers,fragment,index+1));
+
+    if (!resource.addresses || !resource.addresses.length) {
+      resource.addresses = await deriveAllAddresses(resource.privateKeyHex);
+    }
+
+    els.resourceAddresses.innerHTML = "";
+    resource.addresses.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "addressRow";
+      const name = document.createElement("strong");
+      name.textContent = item.ticker;
+      const value = document.createElement("div");
+      value.textContent = item.address;
+      row.append(name,value);
+      els.resourceAddresses.append(row);
+    });
+
+    const preferred = resource.addresses.find(item => item.currency === "litecoin")
+      || resource.addresses.find(item => item.network === "mainnet")
+      || resource.addresses[0];
+
+    els.instaQr.innerHTML = "";
+    if (preferred) {
+      els.instaCoin.textContent = preferred.label + " (" + preferred.ticker + ")";
+      els.instaAddress.textContent = preferred.address;
+      els.instaPublicKey.textContent = preferred.publicKey;
+      els.instaWif.textContent = preferred.wif;
+      makeDomQr(els.instaQr,preferred.wif,QRCode.CorrectLevel.M);
+    } else {
+      els.instaCoin.textContent = "No installed Chisel coin adapter";
+      els.instaAddress.textContent = "";
+      els.instaPublicKey.textContent = resource.publicKey;
+      els.instaWif.textContent = "";
+    }
+
+    els.resourceDialog.classList.add("open");
+    els.resourceDialog.setAttribute("aria-hidden","false");
+  }
+
+  function closeResource() {
+    els.resourceDialog.classList.remove("open");
+    els.resourceDialog.setAttribute("aria-hidden","true");
+    state.selectedResource = null;
+  }
+
   function drawScanPanels() {
     const sideReserve = Math.max(92,Math.round(els.stage.width*.09));
     const available = els.stage.width - sideReserve*2;
@@ -396,14 +620,15 @@
     }
 
     const pad = Math.round(els.stage.width*.025);
-    const panelW = Math.round(els.stage.width*.31);
+    const panelW = Math.round(els.stage.width*.34);
     const faceW = Math.round(els.stage.width*.26);
     const faceH = Math.round(faceW*4/3);
-    const rightX = els.stage.width-panelW-pad;
+    const rightX = Math.round(els.stage.width*.50);
     const rightTop = state.faceOverlay ? pad+faceH+pad*2 : pad;
-    const results = state.publicResults.slice(-4).reverse();
+    const results = state.publicResults.slice(-5).reverse();
     const lineH = Math.max(34,Math.round(els.stage.width*.034));
     const resultH = Math.max(150,lineH*(results.length*3+2));
+    state.resourceHitboxes = [];
 
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,.68)";
@@ -416,10 +641,16 @@
 
     results.forEach((item,index) => {
       const baseY = rightTop+12+lineH*(index*3+1);
+      const boxY = baseY-6;
+      const boxH = lineH*2+12;
+      ctx.fillStyle = "rgba(255,255,255,.06)";
+      ctx.fillRect(rightX+6,boxY,panelW-12,boxH);
       ctx.fillStyle = "#7ee787";
-      ctx.fillText("#"+item.number+" "+item.ticker+" "+item.address.slice(0,18)+"…",rightX+12,baseY);
+      ctx.fillText("#"+item.number+" KEY "+item.publicKey.slice(0,14)+"…",rightX+12,baseY);
       ctx.fillStyle = "#91a4b7";
-      ctx.fillText(item.publicKey.slice(0,20)+"…",rightX+12,baseY+lineH);
+      const primary = (item.addresses && item.addresses[0]) ? item.addresses[0].address : item.address;
+      ctx.fillText(String(primary || "").slice(0,22)+"…",rightX+12,baseY+lineH);
+      state.resourceHitboxes.push({x:rightX+6,y:boxY,w:panelW-12,h:boxH,resource:item});
     });
 
     if (state.fragments.length === FRAGMENT_COUNT) {
@@ -564,7 +795,8 @@
 
   async function checkFragments() {
     if (state.fragments.length !== FRAGMENT_COUNT) return;
-    const privateKeyHex = state.fragments.join("");
+    const fragments = state.fragments.slice();
+    const privateKeyHex = fragments.join("");
     const coin = CHISEL.getCoin(els.currency.value);
 
     try {
@@ -574,19 +806,32 @@
       const address = account.compressedAddress || account.address;
       const elapsed = state.recording ? Date.now() - state.startedAt : 0;
 
-      state.publicResults.push({
+      const duplicate = state.publicResults.find(item => item.publicKey === publicKey);
+      if (duplicate) {
+        clearFragments();
+        setStatus("Resource already exists. Opening the existing resource.");
+        await openResource(duplicate);
+        return;
+      }
+
+      const addresses = await deriveAllAddresses(privateKeyHex);
+      const resource = {
         number:state.publicResults.length+1,
         timeMs:elapsed,
         currency:coin.NAME,
         ticker:coin.TICKER || coin.NAME,
         address:address,
-        publicKey:publicKey
-      });
+        publicKey:publicKey,
+        privateKeyHex:privateKeyHex,
+        fragments:fragments,
+        addresses:addresses
+      };
 
+      state.publicResults.push(resource);
       renderPublicResults();
       clearFragments();
       createConfetti();
-      setStatus("Public key #" + state.publicResults.length + " created. Fragment set cleared.");
+      setStatus("Resource #" + resource.number + " created. Tap it to inspect or print.");
     } catch (error) {
       setStatus("Key check failed: " + (error.message || String(error)));
     }
@@ -595,14 +840,19 @@
   function renderPublicResults() {
     els.publicList.innerHTML = "";
     state.publicResults.slice().reverse().forEach(item => {
-      const div = document.createElement("div");
-      div.className = "publicItem";
-      div.textContent =
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "publicItem";
+      button.style.textAlign = "left";
+      button.style.width = "100%";
+      const first = item.addresses && item.addresses[0];
+      button.textContent =
         "#" + item.number + "  " + timecode(item.timeMs) + "\n" +
-        item.ticker + " address: " + item.address + "\n" +
-        "public key: " + item.publicKey;
-      div.style.whiteSpace = "pre-wrap";
-      els.publicList.append(div);
+        "public key: " + item.publicKey + "\n" +
+        (first ? (first.ticker + " address: " + first.address) : "");
+      button.style.whiteSpace = "pre-wrap";
+      button.onclick = () => openResource(item);
+      els.publicList.append(button);
     });
   }
 
@@ -802,8 +1052,6 @@
   async function startRecording() {
     if (state.recording) return;
     state.chunks = [];
-    state.publicResults = [];
-    renderPublicResults();
     clearFragments();
     revokeDownloads();
 
@@ -839,7 +1087,17 @@
       tool:"Chisel Broadcast",
       created:new Date().toISOString(),
       durationMs:Math.max(0,Date.now()-state.startedAt),
-      publicResults:state.publicResults
+      publicResults:state.publicResults.map(item => ({
+        number:item.number,
+        timeMs:item.timeMs,
+        publicKey:item.publicKey,
+        addresses:(item.addresses || []).map(address => ({
+          currency:address.currency,
+          ticker:address.ticker,
+          network:address.network,
+          address:address.address
+        }))
+      }))
     };
     const jsonBlob = new Blob([JSON.stringify(index,null,2)],{type:"application/json"});
     state.jsonUrl = URL.createObjectURL(jsonBlob);
@@ -864,6 +1122,21 @@
       if (formats.includes("qr_code")) state.qrDetector = new BarcodeDetector({formats:["qr_code"]});
     } catch (e) {}
   }
+
+  els.stage.addEventListener("pointerup",event => {
+    if (state.scene !== "scan") return;
+    const rect = els.stage.getBoundingClientRect();
+    const x = (event.clientX-rect.left) * (els.stage.width/rect.width);
+    const y = (event.clientY-rect.top) * (els.stage.height/rect.height);
+    const hit = state.resourceHitboxes.find(box => x>=box.x && x<=box.x+box.w && y>=box.y && y<=box.y+box.h);
+    if (hit) openResource(hit.resource);
+  });
+
+  els.closeResource.onclick = () => closeResource();
+  els.printResource.onclick = () => window.print();
+  els.resourceDialog.addEventListener("pointerup",event => {
+    if (event.target === els.resourceDialog) closeResource();
+  });
 
   els.loadDevices.onclick = async () => {
     try { await loadDevices(); }
