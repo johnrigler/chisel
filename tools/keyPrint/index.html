@@ -168,6 +168,7 @@
   <script>
     (function () {
       const STORAGE_KEY = "chisel.keyPrint.records.v1";
+      const HANDOFF_KEY = "chisel.keyPrint.handoff.v1";
       const currencySelect = document.getElementById("currencySelect");
       const keyInput = document.getElementById("keyInput");
       const recordLabel = document.getElementById("recordLabel");
@@ -577,6 +578,38 @@
         setStatus("Saved packet to this browser origin.", "ok");
       }
 
+      async function loadHandoffIfPresent() {
+        let handoff = null;
+        try {
+          handoff = JSON.parse(localStorage.getItem(HANDOFF_KEY) || "null");
+        } catch (error) {
+          handoff = null;
+        }
+
+        if (!handoff || !handoff.privateKeyHex) {
+          return false;
+        }
+
+        // One-shot transfer from the scanner. The generated image can still be
+        // downloaded or explicitly saved, but the transport record is removed.
+        localStorage.removeItem(HANDOFF_KEY);
+
+        if (handoff.currency && Array.from(currencySelect.options).some(function hasCurrency(option) {
+          return option.value === handoff.currency;
+        })) {
+          currencySelect.value = handoff.currency;
+        }
+
+        recordLabel.value = handoff.label || "Chisel scanned key";
+        keyInput.value = handoff.privateKeyHex;
+        currentPacket = null;
+
+        await derivePacket();
+        await createImage();
+        setStatus("Scanner handoff loaded. PNG is ready to download.", "ok");
+        return true;
+      }
+
       function populateCurrencies() {
         const coins = CHISEL.getCoins().filter(function supportsWif(coin) {
           return typeof coin.wifToAccount === "function";
@@ -638,7 +671,13 @@
 
       populateCurrencies();
       renderStoredList();
-      setStatus("Ready. Paste a WIF or 64-hex private key. Private material prints first so it can be folded over and clipped closed.");
+      loadHandoffIfPresent().then(function onHandoff(loaded) {
+        if (!loaded) {
+          setStatus("Ready. Paste a WIF or 64-hex private key. Private material prints first so it can be folded over and clipped closed.");
+        }
+      }).catch(function onHandoffError(error) {
+        setStatus("Scanner handoff failed: " + (error.message || String(error)), "bad");
+      });
     })();
   </script>
 </body>
