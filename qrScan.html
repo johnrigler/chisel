@@ -134,8 +134,11 @@
         <label for="wifOutput">WIF for Chisel</label>
         <input id="wifOutput" type="password" readonly autocomplete="off" spellcheck="false" />
 
-        <label for="addressOutput">Derived address</label>
+        <label for="addressOutput">Compressed public address</label>
         <input id="addressOutput" type="text" readonly />
+
+        <label for="publicKeyOutput">Compressed public key</label>
+        <textarea id="publicKeyOutput" readonly spellcheck="false"></textarea>
       </div>
       <pre id="resultJson"></pre>
       <div id="status">Idle</div>
@@ -232,6 +235,7 @@
   var lastScanAt = 0;
   var scanComplete = false;
   var confettiThrown = false;
+  var lastPrivateKeyHex = "";
 
   var elems = {
     currency: document.getElementById("currency"),
@@ -248,6 +252,7 @@
     undoFragmentButton: document.getElementById("undoFragmentButton"),
     wifOutput: document.getElementById("wifOutput"),
     addressOutput: document.getElementById("addressOutput"),
+    publicKeyOutput: document.getElementById("publicKeyOutput"),
     resultJson: document.getElementById("resultJson"),
     status: document.getElementById("status"),
     loadChiselButton: document.getElementById("loadChiselButton"),
@@ -306,6 +311,7 @@
     lastPayload = null;
     elems.wifOutput.value = "";
     elems.addressOutput.value = "";
+    elems.publicKeyOutput.value = "";
     elems.resultJson.textContent = "";
     elems.openChiselLink.classList.add("hide");
   }
@@ -476,7 +482,7 @@
       }
     }
 
-    return /^[5KL]/.test(text);
+    return true;
   }
 
   function celebrateOnce() {
@@ -638,7 +644,9 @@
       address: account.address,
       compressedAddress: account.compressedAddress,
       uncompressedAddress: account.uncompressedAddress,
-      privateKeyHex: account.privateKeyHex
+      privateKeyHex: account.privateKeyHex,
+      compressedPublicKeyHex: CHISEL.privateKeyHexToPublicKeyHex(account.privateKeyHex, true),
+      uncompressedPublicKeyHex: CHISEL.privateKeyHexToPublicKeyHex(account.privateKeyHex, false)
     };
   }
 
@@ -646,6 +654,7 @@
     try {
       var result = await buildResult(raw);
 
+      lastPrivateKeyHex = result.privateKeyHex;
       lastPayload = {
         currency: result.currency,
         wif: result.wif,
@@ -656,7 +665,8 @@
 
       elems.currency.value = result.currency;
       elems.wifOutput.value = result.wif;
-      elems.addressOutput.value = result.address;
+      elems.addressOutput.value = result.compressedAddress || result.address;
+      elems.publicKeyOutput.value = result.compressedPublicKeyHex;
       elems.resultJson.textContent = pretty({
         currency: result.currency,
         ticker: result.ticker,
@@ -665,6 +675,8 @@
         address: result.address,
         compressedAddress: result.compressedAddress,
         uncompressedAddress: result.uncompressedAddress,
+        compressedPublicKeyHex: result.compressedPublicKeyHex,
+        uncompressedPublicKeyHex: result.uncompressedPublicKeyHex,
         privateKeyHex: result.privateKeyHex
       });
       elems.openChiselLink.href = "index.html?mode=etch&loadScannedWif=1&currency=" + encodeURIComponent(result.currency);
@@ -855,12 +867,14 @@ function getPreferredCameraIndex() {
     lastPayload = null;
     scanComplete = false;
     confettiThrown = false;
+    lastPrivateKeyHex = "";
     lastScanText = "";
     lastScanAt = 0;
     elems.rawInput.value = "";
     elems.assembledHex.value = "";
     elems.wifOutput.value = "";
     elems.addressOutput.value = "";
+    elems.publicKeyOutput.value = "";
     elems.resultJson.textContent = "";
     elems.openChiselLink.classList.add("hide");
     renderFragments();
@@ -923,16 +937,27 @@ function getPreferredCameraIndex() {
       processRawInput(text);
     }
   };
-  elems.currency.onchange = function onCurrencyChange() {
-    if (elems.rawInput.value.trim()) {
-      processRawInput(elems.rawInput.value);
+  function rerenderCurrentKey() {
+    var assembled = getAssembledHex();
+
+    // Once a private key has been recovered, currency changes must derive from
+    // the underlying 32-byte secret rather than trying to reinterpret a
+    // chain-specific WIF or the most recently scanned 16-character fragment.
+    if (isPrivateKeyHex(assembled)) {
+      return processRawInput(assembled);
     }
-  };
-  elems.compressed.onchange = function onCompressedChange() {
-    if (elems.rawInput.value.trim()) {
-      processRawInput(elems.rawInput.value);
+
+    if (isPrivateKeyHex(lastPrivateKeyHex)) {
+      return processRawInput(lastPrivateKeyHex);
     }
-  };
+
+    if (elems.rawInput.value.trim()) {
+      return processRawInput(elems.rawInput.value);
+    }
+  }
+
+  elems.currency.onchange = rerenderCurrentKey;
+  elems.compressed.onchange = rerenderCurrentKey;
 
   setCurrencyOptions();
   renderFragments();
