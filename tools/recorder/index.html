@@ -208,6 +208,7 @@
     lastQrValue:"",
     lastQrValueAt:0,
     fragments:[],
+    fragmentColors:new Map(),
     publicResults:[],
     confetti:[],
     videoUrl:"",
@@ -291,13 +292,27 @@
     return "#" + String(value || "555555").slice(0,6).padEnd(6,"5");
   }
 
+  function getStickerColors(value) {
+    const sampled = state.fragmentColors.get(value);
+    if (sampled) return sampled;
+    const fallback = getStickerColor(value);
+    return {top:fallback,right:fallback,bottom:fallback,left:fallback};
+  }
+
   function drawStickerEcho(value, number, x, y, size, accepted) {
     const border = Math.max(7, Math.round(size * .13));
-    const color = getStickerColor(value);
+    const colors = getStickerColors(value);
 
     ctx.save();
-    ctx.fillStyle = color;
-    ctx.fillRect(x,y,size,size);
+
+    ctx.fillStyle = colors.top;
+    ctx.fillRect(x,y,size,border);
+    ctx.fillStyle = colors.bottom;
+    ctx.fillRect(x,y+size-border,size,border);
+    ctx.fillStyle = colors.left;
+    ctx.fillRect(x,y,border,size);
+    ctx.fillStyle = colors.right;
+    ctx.fillRect(x+size-border,y,border,size);
 
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(x+border,y+border,size-border*2,size-border*2);
@@ -431,7 +446,10 @@
     state.qrBusy = true;
     try {
       const found = await state.qrDetector.detect(els.worldVideo);
-      found.forEach(code => consumeQr(code.rawValue || ""));
+      for (const code of found) {
+        const colors = sampleQrBorderColors(code);
+        consumeQr(code.rawValue || "",colors);
+      }
     } catch (e) {
       // QR scanning is best effort. It must never interrupt recording.
     } finally {
@@ -443,7 +461,64 @@
     return String(value || "").trim().replace(/^0x/i,"").replace(/\s+/g,"").toLowerCase();
   }
 
-  function consumeQr(raw) {
+  function rgbToHex(r,g,b) {
+    return "#" + [r,g,b].map(v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("");
+  }
+
+  function median(values) {
+    if (!values.length) return 96;
+    values.sort((a,b) => a-b);
+    return values[Math.floor(values.length/2)];
+  }
+
+  function sampleStrip(data,w,h,x1,y1,x2,y2) {
+    const rs=[], gs=[], bs=[];
+    const sx = Math.max(0,Math.floor(Math.min(x1,x2)));
+    const ex = Math.min(w-1,Math.ceil(Math.max(x1,x2)));
+    const sy = Math.max(0,Math.floor(Math.min(y1,y2)));
+    const ey = Math.min(h-1,Math.ceil(Math.max(y1,y2)));
+
+    for (let y=sy; y<=ey; y+=2) {
+      for (let x=sx; x<=ex; x+=2) {
+        const i=(y*w+x)*4;
+        const r=data[i], g=data[i+1], b=data[i+2];
+        const max=Math.max(r,g,b), min=Math.min(r,g,b);
+        if (max-min < 18 && max > 165) continue;
+        if (max < 28) continue;
+        rs.push(r); gs.push(g); bs.push(b);
+      }
+    }
+
+    return rgbToHex(median(rs),median(gs),median(bs));
+  }
+
+  function sampleQrBorderColors(code) {
+    try {
+      const box = code.boundingBox;
+      if (!box || !els.worldVideo.videoWidth || !els.worldVideo.videoHeight) return null;
+
+      const w=els.worldVideo.videoWidth, h=els.worldVideo.videoHeight;
+      const canvas=document.createElement("canvas");
+      canvas.width=w; canvas.height=h;
+      const c2=canvas.getContext("2d",{willReadFrequently:true});
+      c2.drawImage(els.worldVideo,0,0,w,h);
+      const image=c2.getImageData(0,0,w,h);
+
+      const pad=Math.max(6,Math.round(Math.min(box.width,box.height)*0.18));
+      const inset=Math.max(2,Math.round(pad*0.18));
+
+      return {
+        top:sampleStrip(image.data,w,h,box.x+inset,box.y-pad,box.x+box.width-inset,box.y-inset),
+        right:sampleStrip(image.data,w,h,box.x+box.width+inset,box.y+inset,box.x+box.width+pad,box.y+box.height-inset),
+        bottom:sampleStrip(image.data,w,h,box.x+inset,box.y+box.height+inset,box.x+box.width-inset,box.y+box.height+pad),
+        left:sampleStrip(image.data,w,h,box.x-pad,box.y+inset,box.x-inset,box.y+box.height-inset)
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function consumeQr(raw,colors) {
     const text = String(raw || "").trim();
     const now = Date.now();
     if (!text) return;
@@ -468,6 +543,7 @@
     }
 
     state.fragments.push(fragment);
+    if (colors) state.fragmentColors.set(fragment,colors);
     updateFragmentControls();
 
     if (state.fragments.length === FRAGMENT_COUNT) {
@@ -485,6 +561,7 @@
 
   function clearFragments(message) {
     state.fragments = [];
+    state.fragmentColors.clear();
     updateFragmentControls();
     if (message) setStatus(message);
   }
