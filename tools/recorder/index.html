@@ -914,7 +914,7 @@
 
     sessionStorage.setItem("chisel.pendingQrScan",JSON.stringify(payload));
     localStorage.setItem("chisel.pendingQrScan",JSON.stringify(payload));
-    window.location.href = "../../index.html?mode=etch&loadScannedWif=1&currency=" + encodeURIComponent(preferred.currency);
+    window.location.href = "../../index.html?mode=send&loadScannedWif=1&currency=" + encodeURIComponent(preferred.currency);
   }
 
   function deleteResource(resource) {
