@@ -117,7 +117,7 @@
       </div>
       <div class="checks">
         <label><input id="includePrivate" type="checkbox" checked /> include private WIF QR/text</label>
-        <label><input id="includePrivateHex" type="checkbox" /> include raw private hex</label>
+        <label><input id="includePrivateHex" type="checkbox" checked /> include raw private hex</label>
         <label><input id="includePublic" type="checkbox" checked /> include address/public key</label>
         <label><input id="includeManifest" type="checkbox" checked /> include JSON manifest</label>
       </div>
@@ -365,8 +365,15 @@
         return lines * lineHeight;
       }
 
-      function addSection(sections, title, text, qrText) {
-        sections.push({ title: title, text: String(text || ""), qrText: qrText || text });
+      function addSection(sections, title, text, qrText, options) {
+        options = options || {};
+        sections.push({
+          title: title,
+          text: String(text || ""),
+          qrText: qrText || text,
+          secret: !!options.secret,
+          foldAfter: !!options.foldAfter
+        });
       }
 
       async function createImage() {
@@ -388,12 +395,24 @@
 
         addSection(sections, "CHISEL KEY PACKET", packet.label + "\n" + packet.displayName + " / " + packet.network + "\n" + packet.createdAt, manifest);
 
-        if (includePrivate.checked) {
-          addSection(sections, "PRIVATE WIF", chunkText(packet.wif, 32), packet.wif);
+        if (includePrivateHex.checked) {
+          addSection(
+            sections,
+            "SECRET • PRIVATE HEX • SECRET",
+            "KEEP COVERED\n" + chunkText(packet.privateKeyHex, 32),
+            packet.privateKeyHex,
+            { secret: true, foldAfter: !includePrivate.checked }
+          );
         }
 
-        if (includePrivateHex.checked) {
-          addSection(sections, "PRIVATE HEX", chunkText(packet.privateKeyHex, 32), packet.privateKeyHex);
+        if (includePrivate.checked) {
+          addSection(
+            sections,
+            "SECRET • PRIVATE WIF • SECRET",
+            "KEEP COVERED\n" + chunkText(packet.wif, 32),
+            packet.wif,
+            { secret: true, foldAfter: true }
+          );
         }
 
         if (includePublic.checked) {
@@ -415,6 +434,9 @@
           height += qrSize + 12;
           height += measureWrappedText(measureCtx, section.text, width - margin * 2, lineHeight);
           height += 24;
+          if (section.foldAfter) {
+            height += 56;
+          }
         });
         height += margin;
 
@@ -431,6 +453,17 @@
 
         let y = margin;
         sections.forEach(function drawSection(section) {
+          const sectionTop = y;
+
+          if (section.secret) {
+            ctx.save();
+            ctx.strokeStyle = "#000000";
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 7]);
+            ctx.strokeRect(8, y - 8, width - 16, 30);
+            ctx.restore();
+          }
+
           ctx.font = "bold 20px ui-monospace, Menlo, Consolas, monospace";
           ctx.fillText(section.title, margin, y);
           y += 34;
@@ -442,6 +475,31 @@
           ctx.font = "16px ui-monospace, Menlo, Consolas, monospace";
           y = wrapCanvasText(ctx, section.text, margin, y, width - margin * 2, lineHeight);
           y += 24;
+
+          if (section.secret) {
+            ctx.save();
+            ctx.strokeStyle = "#000000";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(8, sectionTop - 10, width - 16, y - sectionTop + 4);
+            ctx.restore();
+          }
+
+          if (section.foldAfter) {
+            ctx.save();
+            ctx.setLineDash([12, 8]);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(8, y + 10);
+            ctx.lineTo(width - 8, y + 10);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.font = "bold 15px ui-monospace, Menlo, Consolas, monospace";
+            ctx.textAlign = "center";
+            ctx.fillText("FOLD HERE TO HIDE SECRET • CLIP CLOSED", width / 2, y + 20);
+            ctx.textAlign = "left";
+            y += 56;
+          }
         });
 
         const dataUrl = canvas.toDataURL("image/png");
@@ -565,9 +623,22 @@
         setStatus("Stored packets cleared.");
       });
 
+      currencySelect.addEventListener("change", function onCurrencyChange() {
+        if (currentPacket && currentPacket.privateKeyHex) {
+          keyInput.value = currentPacket.privateKeyHex;
+        }
+
+        if (keyInput.value.trim()) {
+          currentPacket = null;
+          derivePacket().catch(function onError(error) {
+            setStatus(error.message, "bad");
+          });
+        }
+      });
+
       populateCurrencies();
       renderStoredList();
-      setStatus("Ready. Paste a WIF or 64-hex private key.");
+      setStatus("Ready. Paste a WIF or 64-hex private key. Private material prints first so it can be folded over and clipped closed.");
     })();
   </script>
 </body>
