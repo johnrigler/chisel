@@ -1999,11 +1999,25 @@
       <section class="panel hero">
         <h2>Tools</h2>
         <p class="muted">The support tools stay separate. The main page should control transactions, not become a drawer full of knives.</p>
+
+        <h3>Key capture / custody</h3>
         <div class="toolGrid">
-          <a class="toolCard" href="qrScan.html?rev=20260911a">
-            <strong>QR / WIF scanner</strong>
-            <span>Scan four 16-hex stickers or a full WIF against the installed Chisel currency list, then load it back into Chisel.</span>
+          <a class="toolCard" href="tools/recorder/index.html">
+            <strong>Broadcast key capture</strong>
+            <span>Tablet/phone scanner for four left-to-right colored key stickers, scanned-key library, multi-chain addresses, red private-key QR, InstaPrint PNG handoff, and return to Chisel.</span>
           </a>
+          <a class="toolCard" href="qrScan.html?rev=20260911a">
+            <strong>Legacy QR / WIF scanner</strong>
+            <span>Older linear scanner: assemble four 16-hex stickers or a full WIF, verify one selected chain, then load it back into Chisel.</span>
+          </a>
+          <a class="toolCard" href="tools/keyPrint/index.html">
+            <strong>Key InstaPrint tool</strong>
+            <span>Create and download the black-and-white long PNG receipt for a WIF/private key and public address.</span>
+          </a>
+        </div>
+
+        <h3>General tools</h3>
+        <div class="toolGrid">
           <a class="toolCard" href="tools/m64Artifact/index.html">
             <strong>M64 artifact workbench</strong>
             <span>Canonicalize, crush, encode, hydrate, and test compact controlled-JavaScript artifacts, including the Dark Star example.</span>
@@ -2013,10 +2027,6 @@
             <span>Resolve and inspect MacDougall-style encoded references with the standalone browser tool.</span>
           </a>
 
-          <a class="toolCard" href="tools/keyPrint/index.html">
-            <strong>Key instaprint tool</strong>
-            <span>Create a long PNG receipt for a WIF/private key and public address, with optional local device storage.</span>
-          </a>
           <a class="toolCard" href="tools/boxLabels.html">
             <strong>2×2 label builder</strong>
             <span>Build printable CertLedger / RVN labels with SHA-256 Base64 and txid QR fields.</span>
