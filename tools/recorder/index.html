@@ -105,6 +105,16 @@
     body.landscape.touchDevice .sideControls.left { left:7%; }
     body.landscape.touchDevice .sideControls.right { right:7%; }
     .sideControls .spacer { display:none; }
+    .scanModeSwitch {
+      position:absolute; z-index:22; top:14px; left:50%; transform:translateX(-50%);
+      display:flex; gap:6px; padding:5px; border:1px solid #364352; border-radius:12px;
+      background:rgba(8,12,16,.88); pointer-events:auto;
+    }
+    .scanModeSwitch button {
+      min-height:38px; padding:7px 11px; border-radius:8px; background:#18212b;
+      border:1px solid #364352; color:#d7e2ee; font:inherit; font-size:11px; font-weight:800;
+    }
+    .scanModeSwitch button.active { background:#7867ff; border-color:#9b8fff; color:#fff; }
     button,a.button {
       min-height:48px; border:1px solid #364352; border-radius:10px; padding:8px 5px;
       background:#18212b; color:var(--text); font:inherit; font-weight:700; cursor:pointer;
@@ -227,6 +237,11 @@
   <div class="stageWrap">
     <canvas id="stage" width="1080" height="1920"></canvas>
 
+    <div class="scanModeSwitch" aria-label="QR scan mode">
+      <button id="key4Mode" class="active" type="button">KEY 4</button>
+      <button id="artifact1Mode" type="button">ARTIFACT 1</button>
+    </div>
+
     <div class="sideControls left">
       <button data-scene="screen" class="active">SCREEN</button>
       <button data-scene="face">FACE</button>
@@ -265,7 +280,7 @@
 <div id="setupDrawer" class="drawer">
   <section class="sheet">
     <h2>Broadcast setup</h2>
-    <p>SCAN keeps the rear camera as the world view. Each accepted 16-hex Chisel fragment is re-rendered as the same QR sticker, using the print tool's border-color rule, and fills slots 1→4 strictly left-to-right. DELETE removes the most recent slot. CHECK 4 creates one deduplicated resource, celebrates, then clears the four slots. Tap a resource to inspect its multi-chain addresses or print its key page.</p>
+    <p>SCAN has two meanings. KEY 4 assembles four 16-hex private-key fragments left-to-right. ARTIFACT 1 accepts one public 16-hex artifact ID and builds OP_RETURN hex 0101 + artifact ID, where 01 is protocol version 1 and 01 is artifact registration type 1.</p>
 
     <label>Currency / address format
       <select id="currency"></select>
@@ -351,6 +366,9 @@
   const LANDSCAPE = { width:1920, height:1080 };
   const FRAGMENT_LENGTH = 16;
   const FRAGMENT_COUNT = 4;
+  const ARTIFACT_PROTOCOL_VERSION = "01";
+  const ARTIFACT_REGISTER_TYPE = "01";
+  const ARTIFACT_PAYLOAD_STORAGE_KEY = "chisel.pendingPayloadAnalyzer.v1";
   const RESOURCE_SESSION_KEY = "chisel.broadcast.resources.v1";
   const INSTAPRINT_VISIT_KEY = "chisel.broadcast.instaprintVisited.v1";
 
@@ -371,6 +389,8 @@
     microphone: document.getElementById("microphone"),
     faceToggle: document.getElementById("faceToggle"),
     checkFragments: document.getElementById("checkFragments"),
+    key4Mode: document.getElementById("key4Mode"),
+    artifact1Mode: document.getElementById("artifact1Mode"),
     clearFragments: document.getElementById("clearFragments"),
     deleteLast: document.getElementById("deleteLast"),
     zoomIn: document.getElementById("zoomIn"),
@@ -400,6 +420,8 @@
   const state = {
     scene:"screen",
     appView:"scan",
+    scanMode:"key4",
+    artifactId:"",
     displayStream:null,
     worldStream:null,
     faceStream:null,
@@ -796,6 +818,58 @@
     setStatus(state.publicResults.length + (state.publicResults.length === 1 ? " scanned key." : " scanned keys."));
   }
 
+  function setScanMode(mode) {
+    state.scanMode = mode === "artifact1" ? "artifact1" : "key4";
+    state.fragments = [];
+    state.artifactId = "";
+    state.lastQrValue = "";
+    state.lastQrValueAt = 0;
+    els.key4Mode.classList.toggle("active",state.scanMode === "key4");
+    els.artifact1Mode.classList.toggle("active",state.scanMode === "artifact1");
+    updateFragmentControls();
+    setStatus(state.scanMode === "artifact1"
+      ? "ARTIFACT 1: scan one 16-hex public artifact QR."
+      : "KEY 4: scan four 16-hex private-key stickers left-to-right.");
+  }
+
+  function getArtifactRegistrationHex(artifactId) {
+    return ARTIFACT_PROTOCOL_VERSION + ARTIFACT_REGISTER_TYPE + artifactId;
+  }
+
+  function handoffArtifactRegistration() {
+    if (!state.artifactId) {
+      setStatus("Scan one 16-hex artifact QR first.");
+      return;
+    }
+
+    const payload = {
+      schema:"chisel-artifact-registration-v1",
+      protocolVersion:ARTIFACT_PROTOCOL_VERSION,
+      artifactType:ARTIFACT_REGISTER_TYPE,
+      artifactId:state.artifactId,
+      opReturnHex:getArtifactRegistrationHex(state.artifactId),
+      currency:els.currency.value || "litecoin",
+      recipients:[],
+      replaceRecipients:false,
+      createdAt:new Date().toISOString()
+    };
+
+    try {
+      sessionStorage.setItem(ARTIFACT_PAYLOAD_STORAGE_KEY,JSON.stringify(payload));
+      localStorage.setItem(ARTIFACT_PAYLOAD_STORAGE_KEY,JSON.stringify(payload));
+    } catch (error) {}
+
+    if (window.opener && !window.opener.closed) {
+      try {
+        window.opener.postMessage({type:"chisel.loadArtifactPayload",payload:payload},window.location.origin);
+        window.close();
+        return;
+      } catch (error) {}
+    }
+
+    window.location.href = "../../index.html?mode=send&loadArtifactRegistration=1&currency=" + encodeURIComponent(payload.currency);
+  }
+
   async function showScanner() {
     state.appView = "scan";
     document.body.classList.remove("keysView");
@@ -953,6 +1027,48 @@
     const startX = Math.round((els.stage.width-totalWidth)/2);
     const y = Math.round(layout.camera.y + layout.camera.h - stickerSize - Math.max(18,stickerSize*.10));
 
+    if (state.scanMode === "artifact1") {
+      const artifactSize = Math.round(Math.min(layout.camera.w*.38,layout.camera.h*.38));
+      const ax = Math.round(layout.camera.x + (layout.camera.w-artifactSize)/2);
+      const ay = Math.round(layout.camera.y + layout.camera.h - artifactSize - Math.max(20,artifactSize*.10));
+
+      if (state.artifactId) {
+        drawStickerEcho(state.artifactId,1,ax,ay,artifactSize);
+      } else {
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,.55)";
+        ctx.fillRect(ax,ay,artifactSize,artifactSize);
+        ctx.strokeStyle = "#ffd166";
+        ctx.lineWidth = Math.max(3,Math.round(artifactSize*.014));
+        ctx.strokeRect(ax,ay,artifactSize,artifactSize);
+        ctx.fillStyle = "#ffd166";
+        ctx.font = "bold " + Math.round(artifactSize*.10) + "px monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("ARTIFACT 1",ax+artifactSize/2,ay+artifactSize/2);
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.74)";
+      const line1 = state.artifactId ? state.artifactId : "SCAN 16-HEX ARTIFACT ID";
+      const line2 = state.artifactId ? getArtifactRegistrationHex(state.artifactId) : "OP_RETURN: 01 01 + ARTIFACT";
+      ctx.font = Math.max(18,Math.round(els.stage.width*.020)) + "px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      const boxW = Math.round(layout.camera.w*.72);
+      const boxX = Math.round(layout.camera.x+(layout.camera.w-boxW)/2);
+      const boxY = Math.max(layout.camera.y+12,ay-78);
+      ctx.fillRect(boxX,boxY,boxW,62);
+      ctx.fillStyle = "#ffd166";
+      ctx.fillText(line1,els.stage.width/2,boxY+8);
+      ctx.fillStyle = "#c8d3df";
+      ctx.fillText(line2,els.stage.width/2,boxY+34);
+      ctx.restore();
+      state.resourceHitboxes = [];
+      return;
+    }
+
     // Four slots always read left-to-right: 1, 2, 3, 4.
     for (let i=0;i<FRAGMENT_COUNT;i++) {
       const x = startX + i*(stickerSize+gap);
@@ -1082,7 +1198,15 @@
 
     const fragment = normalizeHex(text);
     if (!/^[0-9a-f]{16}$/.test(fragment)) {
-      setStatus("QR seen, but key fragments must be 16 hex characters.");
+      setStatus("QR seen, but this mode expects exactly 16 hex characters.");
+      return;
+    }
+
+    if (state.scanMode === "artifact1") {
+      state.artifactId = fragment;
+      state.fragments = [fragment];
+      updateFragmentControls();
+      setStatus("Artifact " + fragment + " ready. Tap LOAD OP_RETURN.");
       return;
     }
 
@@ -1107,13 +1231,17 @@
   }
 
   function updateFragmentControls() {
-    const ready = state.fragments.length === FRAGMENT_COUNT;
+    const ready = state.scanMode === "artifact1"
+      ? Boolean(state.artifactId)
+      : state.fragments.length === FRAGMENT_COUNT;
     els.checkFragments.disabled = !ready;
     els.checkFragments.classList.toggle("ready",ready);
+    els.checkFragments.textContent = state.scanMode === "artifact1" ? "LOAD OP_RETURN" : "CHECK 4";
   }
 
   function clearFragments(message) {
     state.fragments = [];
+    state.artifactId = "";
     updateFragmentControls();
     if (message) setStatus(message);
   }
@@ -1125,8 +1253,11 @@
     }
     const slot = state.fragments.length;
     state.fragments.pop();
+    if (state.scanMode === "artifact1") state.artifactId = "";
     updateFragmentControls();
-    setStatus("Deleted sticker " + slot + ". Next scan will refill that slot.");
+    setStatus(state.scanMode === "artifact1"
+      ? "Artifact QR cleared."
+      : "Deleted sticker " + slot + ". Next scan will refill that slot.");
   }
 
   function getCoinWifPrefix(coin) {
@@ -1532,7 +1663,12 @@
   };
   els.recordButton.onclick = () => state.recording ? stopRecording() : startRecording().catch(e => setStatus("Could not record: " + e.message));
   els.faceToggle.onclick = () => toggleFaceOverlay();
-  els.checkFragments.onclick = () => checkFragments();
+  els.checkFragments.onclick = () => {
+    if (state.scanMode === "artifact1") handoffArtifactRegistration();
+    else checkFragments();
+  };
+  els.key4Mode.onclick = () => setScanMode("key4");
+  els.artifact1Mode.onclick = () => setScanMode("artifact1");
   els.clearFragments.onclick = () => clearFragments("Pending fragments cleared.");
   els.deleteLast.onclick = () => deleteLastFragment();
   els.zoomIn.onclick = () => changeZoom(1);
@@ -1568,6 +1704,10 @@
 
   try {
     const initialUrl = new URL(window.location.href);
+    if (initialUrl.searchParams.get("scanMode") === "artifact1") {
+      setScanMode("artifact1");
+      setScene("scan").catch(error => setStatus("Camera error: " + error.message));
+    }
     if (initialUrl.searchParams.get("view") === "keys" && state.publicResults.length) {
       showKeyLibrary();
     }
