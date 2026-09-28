@@ -21,19 +21,24 @@
     }
     h1 { margin:0; font-size:16px; letter-spacing:.04em; }
     #status { color:var(--muted); font-size:12px; text-align:right; }
-    .stageWrap { min-height:0; display:grid; place-items:center; padding:8px; background:#000; }
+    .stageWrap {
+      position:relative; min-height:0; display:grid; place-items:center;
+      padding:8px; background:#000; overflow:hidden;
+    }
     canvas {
-      width:100%; height:100%; max-height:calc(100dvh - 154px);
+      width:100%; height:100%; max-height:calc(100dvh - 58px);
       object-fit:contain; background:#000; border-radius:10px; touch-action:none;
     }
     video { display:none; }
-    .dock {
-      position:sticky; bottom:0; z-index:10;
-      padding:8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
-      border-top:1px solid var(--line); background:rgba(13,17,23,.97); backdrop-filter:blur(10px);
+    .sideControls {
+      position:absolute; top:12px; bottom:12px; z-index:20;
+      width:84px; display:flex; flex-direction:column; gap:7px;
+      justify-content:flex-start; pointer-events:none;
     }
-    .row { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
-    .row + .row { margin-top:7px; grid-template-columns:repeat(6,1fr); }
+    .sideControls.left { left:12px; }
+    .sideControls.right { right:12px; }
+    .sideControls button { pointer-events:auto; width:100%; min-height:46px; padding:7px 4px; background:rgba(24,33,43,.92); }
+    .sideControls .spacer { flex:1; }
     button,a.button {
       min-height:48px; border:1px solid #364352; border-radius:10px; padding:8px 5px;
       background:#18212b; color:var(--text); font:inherit; font-weight:700; cursor:pointer;
@@ -68,8 +73,13 @@
     .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
     .actions > * { flex:1 1 140px; }
     @media (orientation:portrait) {
-      canvas { max-height:calc(100dvh - 158px); }
-      .row button { min-height:54px; font-size:11px; }
+      canvas { max-height:calc(100dvh - 58px); }
+      .sideControls { width:78px; gap:6px; }
+      .sideControls button { min-height:44px; font-size:10px; }
+    }
+    @media (max-width:520px) {
+      .sideControls { width:70px; }
+      .sideControls button { min-height:42px; font-size:9px; }
     }
   </style>
 </head>
@@ -82,23 +92,25 @@
 
   <div class="stageWrap">
     <canvas id="stage" width="1080" height="1920"></canvas>
-  </div>
 
-  <div class="dock">
-    <div class="row">
+    <div class="sideControls left">
       <button data-scene="screen" class="active">SCREEN</button>
       <button data-scene="face">FACE</button>
       <button data-scene="desk">DESK</button>
       <button data-scene="scan">SCAN</button>
-      <button id="recordButton">● REC</button>
-    </div>
-    <div class="row">
       <button id="faceToggle" class="active">FACE ON</button>
-      <button id="checkFragments" disabled>CHECK 4</button>
-      <button id="clearFragments">CLEAR</button>
-      <button id="zoomOut">− ZOOM</button>
-      <button id="zoomIn">+ ZOOM</button>
+      <div class="spacer"></div>
       <button id="setupButton">SETUP</button>
+    </div>
+
+    <div class="sideControls right">
+      <button id="checkFragments" disabled>CHECK 4</button>
+      <button id="deleteLast">DELETE</button>
+      <button id="clearFragments">CLEAR</button>
+      <button id="zoomIn">+ ZOOM</button>
+      <button id="zoomOut">− ZOOM</button>
+      <div class="spacer"></div>
+      <button id="recordButton">● REC</button>
     </div>
   </div>
 </main>
@@ -106,7 +118,7 @@
 <div id="setupDrawer" class="drawer">
   <section class="sheet">
     <h2>Broadcast setup</h2>
-    <p>SCAN keeps the rear camera as the world view. FACE ON adds the front camera in the upper-right. Four 16-hex QR fragments become a pending key set. CHECK 4 derives only the public result, celebrates, then clears the fragments.</p>
+    <p>SCAN keeps the rear camera as the world view. Each accepted 16-hex Chisel fragment is re-rendered as the same QR sticker, using the print tool's border-color rule, and fills slots 1→4 strictly left-to-right. DELETE removes the most recent slot. CHECK 4 derives only the public result, celebrates, then clears the four slots.</p>
 
     <label>Currency / address format
       <select id="currency"></select>
@@ -141,6 +153,7 @@
 <video id="worldVideo" autoplay muted playsinline></video>
 <video id="faceVideo" autoplay muted playsinline></video>
 
+<script src="../../vendor/qrcode.min.js"></script>
 <script src="../../chisel.js"></script>
 <script src="../../chisel.sign.js"></script>
 <script src="../../chisel.ravencoin.js"></script>
@@ -176,6 +189,7 @@
     faceToggle: document.getElementById("faceToggle"),
     checkFragments: document.getElementById("checkFragments"),
     clearFragments: document.getElementById("clearFragments"),
+    deleteLast: document.getElementById("deleteLast"),
     zoomIn: document.getElementById("zoomIn"),
     zoomOut: document.getElementById("zoomOut"),
     videoDownload: document.getElementById("videoDownload"),
@@ -208,7 +222,7 @@
     lastQrValue:"",
     lastQrValueAt:0,
     fragments:[],
-    fragmentColors:new Map(),
+    qrCanvasCache:new Map(),
     publicResults:[],
     confetti:[],
     videoUrl:"",
@@ -289,121 +303,135 @@
   }
 
   function getStickerColor(value) {
+    // Same rule as tools/qrField/index.html: the first six hex characters are the frame RGB.
     return "#" + String(value || "555555").slice(0,6).padEnd(6,"5");
   }
 
-  function getStickerColors(value) {
-    const sampled = state.fragmentColors.get(value);
-    if (sampled) return sampled;
-    const fallback = getStickerColor(value);
-    return {top:fallback,right:fallback,bottom:fallback,left:fallback};
+  function getQrCanvas(value) {
+    const key = String(value || "");
+    if (state.qrCanvasCache.has(key)) return state.qrCanvasCache.get(key);
+
+    const holder = document.createElement("div");
+    new QRCode(holder,{
+      text:key,
+      width:256,
+      height:256,
+      colorDark:"#000000",
+      colorLight:"#ffffff",
+      correctLevel:QRCode.CorrectLevel.H
+    });
+
+    const source = holder.querySelector("canvas");
+    if (!source) return null;
+
+    const copy = document.createElement("canvas");
+    copy.width = 256;
+    copy.height = 256;
+    copy.getContext("2d").drawImage(source,0,0,256,256);
+    state.qrCanvasCache.set(key,copy);
+    return copy;
   }
 
-  function drawStickerEcho(value, number, x, y, size, accepted) {
-    const border = Math.max(7, Math.round(size * .13));
-    const colors = getStickerColors(value);
+  function drawStickerEcho(value, number, x, y, size) {
+    // Match the original 2-inch Chisel sticker proportions:
+    // .22in color frame, .12in white body padding, ~1.3in QR.
+    const frame = Math.max(8,Math.round(size * .11));
+    const bodyPad = Math.max(5,Math.round(size * .06));
+    const qrCanvas = getQrCanvas(value);
 
     ctx.save();
-
-    ctx.fillStyle = colors.top;
-    ctx.fillRect(x,y,size,border);
-    ctx.fillStyle = colors.bottom;
-    ctx.fillRect(x,y+size-border,size,border);
-    ctx.fillStyle = colors.left;
-    ctx.fillRect(x,y,border,size);
-    ctx.fillStyle = colors.right;
-    ctx.fillRect(x+size-border,y,border,size);
+    ctx.fillStyle = getStickerColor(value);
+    ctx.fillRect(x,y,size,size);
 
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(x+border,y+border,size-border*2,size-border*2);
+    ctx.fillRect(x+frame,y+frame,size-frame*2,size-frame*2);
 
+    if (qrCanvas) {
+      const qrX = x + frame + bodyPad;
+      const qrY = y + frame + bodyPad;
+      const qrSize = size - (frame+bodyPad)*2;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(qrCanvas,qrX,qrY,qrSize,qrSize);
+    }
+
+    // Slot number is outside the QR payload and only confirms enforced order.
+    const badge = Math.max(20,Math.round(size*.17));
+    ctx.fillStyle = "rgba(255,255,255,.94)";
+    ctx.fillRect(x+5,y+5,badge,badge);
     ctx.fillStyle = "#111111";
-    ctx.font = "bold " + Math.round(size * .34) + "px monospace";
+    ctx.font = "bold " + Math.round(badge*.62) + "px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(number),x+size/2,y+size/2);
-
-    if (accepted) {
-      const r = Math.round(size * .16);
-      ctx.beginPath();
-      ctx.fillStyle = "#0b7a36";
-      ctx.arc(x+size-r*.9,y+r*.9,r,0,Math.PI*2);
-      ctx.fill();
-
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = Math.max(2,Math.round(size*.035));
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(x+size-r*1.35,y+r*.9);
-      ctx.lineTo(x+size-r*.95,y+r*1.25);
-      ctx.lineTo(x+size-r*.35,y+r*.55);
-      ctx.stroke();
-    }
+    ctx.fillText(String(number),x+5+badge/2,y+5+badge/2);
     ctx.restore();
   }
 
   function drawScanPanels() {
-    const pad = Math.round(els.stage.width * .025);
-    const panelW = Math.round(els.stage.width * .31);
-    const lineH = Math.max(36, Math.round(els.stage.width * .038));
-    const top = pad;
-    const leftX = pad;
-    const rightX = els.stage.width - panelW - pad;
-    const faceW = Math.round(els.stage.width * .26);
-    const faceH = Math.round(faceW * 4 / 3);
-    const rightTop = state.faceOverlay ? top + faceH + pad * 2 : top;
+    const sideReserve = Math.max(92,Math.round(els.stage.width*.09));
+    const available = els.stage.width - sideReserve*2;
+    const gap = Math.max(8,Math.round(available*.014));
+    const stickerSize = Math.floor((available-gap*3)/4);
+    const startX = sideReserve;
+    const y = els.stage.height - stickerSize - 28;
 
-    ctx.save();
-    ctx.font = Math.max(22, Math.round(els.stage.width * .025)) + "px monospace";
-    ctx.textBaseline = "top";
-
-    ctx.fillStyle = "rgba(0,0,0,.70)";
-    ctx.fillRect(leftX,top,panelW,Math.max(lineH*6,220));
-    ctx.fillStyle = "#e6edf3";
-    ctx.fillText("FRAGMENTS " + state.fragments.length + "/4",leftX+14,top+12);
-
-    const stickerSize = Math.min(72, Math.round(panelW * .22));
-    for (let i=0; i<FRAGMENT_COUNT; i++) {
-      const y = top + 16 + lineH * (i+1);
+    // Four slots always read left-to-right: 1, 2, 3, 4.
+    for (let i=0;i<FRAGMENT_COUNT;i++) {
+      const x = startX + i*(stickerSize+gap);
       if (state.fragments[i]) {
-        drawStickerEcho(state.fragments[i],i+1,leftX+14,y-8,stickerSize,true);
-        ctx.fillStyle = "#7ee787";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
-        ctx.fillText(fragmentLabel(state.fragments[i]),leftX+28+stickerSize,y+8);
+        drawStickerEcho(state.fragments[i],i+1,x,y,stickerSize);
       } else {
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,.55)";
+        ctx.fillRect(x,y,stickerSize,stickerSize);
         ctx.strokeStyle = "#637083";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(leftX+14,y-8,stickerSize,stickerSize);
+        ctx.lineWidth = Math.max(2,Math.round(stickerSize*.012));
+        ctx.strokeRect(x,y,stickerSize,stickerSize);
         ctx.fillStyle = "#91a4b7";
+        ctx.font = "bold " + Math.round(stickerSize*.22) + "px monospace";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(String(i+1),leftX+14+stickerSize/2,y-8+stickerSize/2);
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
+        ctx.fillText(String(i+1),x+stickerSize/2,y+stickerSize/2);
+        ctx.restore();
       }
     }
 
-    if (state.fragments.length === FRAGMENT_COUNT) {
-      ctx.fillStyle = "#ffd166";
-      ctx.fillText("READY: CHECK 4",leftX+14,top+12+lineH*5);
-    }
-
+    const pad = Math.round(els.stage.width*.025);
+    const panelW = Math.round(els.stage.width*.31);
+    const faceW = Math.round(els.stage.width*.26);
+    const faceH = Math.round(faceW*4/3);
+    const rightX = els.stage.width-panelW-pad;
+    const rightTop = state.faceOverlay ? pad+faceH+pad*2 : pad;
     const results = state.publicResults.slice(-4).reverse();
-    const resultH = Math.max(220, lineH * (results.length * 3 + 2));
-    ctx.fillStyle = "rgba(0,0,0,.70)";
+    const lineH = Math.max(34,Math.round(els.stage.width*.034));
+    const resultH = Math.max(150,lineH*(results.length*3+2));
+
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,.68)";
     ctx.fillRect(rightX,rightTop,panelW,resultH);
     ctx.fillStyle = "#e6edf3";
-    ctx.fillText("PUBLIC KEYS",rightX+14,rightTop+12);
+    ctx.font = Math.max(20,Math.round(els.stage.width*.022)) + "px monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("PUBLIC KEYS",rightX+12,rightTop+12);
 
     results.forEach((item,index) => {
-      const baseY = rightTop + 12 + lineH * (index*3+1);
+      const baseY = rightTop+12+lineH*(index*3+1);
       ctx.fillStyle = "#7ee787";
-      ctx.fillText("#" + item.number + " " + item.ticker + " " + item.address.slice(0,20) + "…",rightX+14,baseY);
+      ctx.fillText("#"+item.number+" "+item.ticker+" "+item.address.slice(0,18)+"…",rightX+12,baseY);
       ctx.fillStyle = "#91a4b7";
-      ctx.fillText(item.publicKey.slice(0,22) + "…",rightX+14,baseY+lineH);
+      ctx.fillText(item.publicKey.slice(0,20)+"…",rightX+12,baseY+lineH);
     });
 
+    if (state.fragments.length === FRAGMENT_COUNT) {
+      ctx.fillStyle = "rgba(0,0,0,.72)";
+      const msg = "4/4 READY • CHECK 4";
+      const tw = ctx.measureText(msg).width+28;
+      const mx = (els.stage.width-tw)/2;
+      const my = y-48;
+      ctx.fillRect(mx,my,tw,38);
+      ctx.fillStyle = "#ffd166";
+      ctx.fillText(msg,mx+14,my+8);
+    }
     ctx.restore();
   }
 
@@ -447,8 +475,7 @@
     try {
       const found = await state.qrDetector.detect(els.worldVideo);
       for (const code of found) {
-        const colors = sampleQrBorderColors(code);
-        consumeQr(code.rawValue || "",colors);
+        consumeQr(code.rawValue || "");
       }
     } catch (e) {
       // QR scanning is best effort. It must never interrupt recording.
@@ -461,64 +488,7 @@
     return String(value || "").trim().replace(/^0x/i,"").replace(/\s+/g,"").toLowerCase();
   }
 
-  function rgbToHex(r,g,b) {
-    return "#" + [r,g,b].map(v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("");
-  }
-
-  function median(values) {
-    if (!values.length) return 96;
-    values.sort((a,b) => a-b);
-    return values[Math.floor(values.length/2)];
-  }
-
-  function sampleStrip(data,w,h,x1,y1,x2,y2) {
-    const rs=[], gs=[], bs=[];
-    const sx = Math.max(0,Math.floor(Math.min(x1,x2)));
-    const ex = Math.min(w-1,Math.ceil(Math.max(x1,x2)));
-    const sy = Math.max(0,Math.floor(Math.min(y1,y2)));
-    const ey = Math.min(h-1,Math.ceil(Math.max(y1,y2)));
-
-    for (let y=sy; y<=ey; y+=2) {
-      for (let x=sx; x<=ex; x+=2) {
-        const i=(y*w+x)*4;
-        const r=data[i], g=data[i+1], b=data[i+2];
-        const max=Math.max(r,g,b), min=Math.min(r,g,b);
-        if (max-min < 18 && max > 165) continue;
-        if (max < 28) continue;
-        rs.push(r); gs.push(g); bs.push(b);
-      }
-    }
-
-    return rgbToHex(median(rs),median(gs),median(bs));
-  }
-
-  function sampleQrBorderColors(code) {
-    try {
-      const box = code.boundingBox;
-      if (!box || !els.worldVideo.videoWidth || !els.worldVideo.videoHeight) return null;
-
-      const w=els.worldVideo.videoWidth, h=els.worldVideo.videoHeight;
-      const canvas=document.createElement("canvas");
-      canvas.width=w; canvas.height=h;
-      const c2=canvas.getContext("2d",{willReadFrequently:true});
-      c2.drawImage(els.worldVideo,0,0,w,h);
-      const image=c2.getImageData(0,0,w,h);
-
-      const pad=Math.max(6,Math.round(Math.min(box.width,box.height)*0.18));
-      const inset=Math.max(2,Math.round(pad*0.18));
-
-      return {
-        top:sampleStrip(image.data,w,h,box.x+inset,box.y-pad,box.x+box.width-inset,box.y-inset),
-        right:sampleStrip(image.data,w,h,box.x+box.width+inset,box.y+inset,box.x+box.width+pad,box.y+box.height-inset),
-        bottom:sampleStrip(image.data,w,h,box.x+inset,box.y+box.height+inset,box.x+box.width-inset,box.y+box.height+pad),
-        left:sampleStrip(image.data,w,h,box.x-pad,box.y+inset,box.x-inset,box.y+box.height-inset)
-      };
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function consumeQr(raw,colors) {
+  function consumeQr(raw) {
     const text = String(raw || "").trim();
     const now = Date.now();
     if (!text) return;
@@ -533,23 +503,22 @@
     }
 
     if (state.fragments.includes(fragment)) {
-      setStatus("That fragment is already in the pending set.");
+      setStatus("Duplicate sticker ignored. Slots stay left-to-right.");
       return;
     }
 
     if (state.fragments.length >= FRAGMENT_COUNT) {
-      setStatus("Four fragments are ready. Tap CHECK 4 or CLEAR.");
+      setStatus("Slots 1–4 are full. Tap CHECK 4, DELETE, or CLEAR.");
       return;
     }
 
     state.fragments.push(fragment);
-    if (colors) state.fragmentColors.set(fragment,colors);
     updateFragmentControls();
 
     if (state.fragments.length === FRAGMENT_COUNT) {
-      setStatus("Four fragments ready. Tap CHECK 4.");
+      setStatus("Slots 1→4 complete. Tap CHECK 4.");
     } else {
-      setStatus("Fragment " + state.fragments.length + " of 4 accepted.");
+      setStatus("Sticker " + state.fragments.length + " of 4 accepted left-to-right.");
     }
   }
 
@@ -561,9 +530,19 @@
 
   function clearFragments(message) {
     state.fragments = [];
-    state.fragmentColors.clear();
     updateFragmentControls();
     if (message) setStatus(message);
+  }
+
+  function deleteLastFragment() {
+    if (!state.fragments.length) {
+      setStatus("No scanned sticker to delete.");
+      return;
+    }
+    const slot = state.fragments.length;
+    state.fragments.pop();
+    updateFragmentControls();
+    setStatus("Deleted sticker " + slot + ". Next scan will refill that slot.");
   }
 
   function getCoinWifPrefix(coin) {
@@ -914,6 +893,7 @@
   els.faceToggle.onclick = () => toggleFaceOverlay();
   els.checkFragments.onclick = () => checkFragments();
   els.clearFragments.onclick = () => clearFragments("Pending fragments cleared.");
+  els.deleteLast.onclick = () => deleteLastFragment();
   els.zoomIn.onclick = () => changeZoom(1);
   els.zoomOut.onclick = () => changeZoom(-1);
   document.querySelectorAll("[data-scene]").forEach(b => b.onclick = () => setScene(b.dataset.scene).catch(e => setStatus("Camera error: " + e.message)));
