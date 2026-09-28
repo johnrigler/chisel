@@ -1490,7 +1490,6 @@ function clearOutputs() {
     }
 
     const values = getTransportValues();
-    validateTransportValues(coin,values);
     const watchKey = coin.NAME + "|" + address;
 
     if (state.receiveWatchCurrency + "|" + state.receiveWatchAddress !== watchKey) {
@@ -1505,6 +1504,7 @@ function clearOutputs() {
     setReceiveMonitorStatus("Checking " + coin.TICKER + " address…","");
 
     try {
+      validateTransportValues(coin,values);
       const client = await makeClientForValues(coin,values);
       const rawUtxos = await coin.getAddressUtxos(client,values,address);
       const utxos = (rawUtxos || []).map(CHISEL.normalizeUTXO);
