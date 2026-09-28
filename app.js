@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.21";
+  const APP_VERSION = "2.7.22";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -116,6 +116,7 @@
     manualRpcCommands: document.querySelector("#manualRpcCommands"),
     manualScratchJson: document.querySelector("#manualScratchJson"),
     wifScanButton: document.querySelector("#wifScanButton"),
+    artifactScanButton: document.querySelector("#artifactScanButton"),
     imageEncoderButton: document.querySelector("#imageEncoderButton"),
     payloadAnalyzerButton: document.querySelector("#payloadAnalyzerButton"),
     status: document.querySelector("#status"),
@@ -2453,9 +2454,19 @@ function onClickAddCommonAddressButton() {
   }
 
   function openQrScanner() {
-    const url = "tools/recorder/index.html?scanMode=artifact1&currency=" +
+    const url = "tools/recorder/index.html?scanMode=key4&currency=" +
       encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
     const popup = window.open(url,"chiselKeyCapture","width=980,height=900");
+
+    if (!popup) {
+      window.location.href = url;
+    }
+  }
+
+  function openArtifactScanner() {
+    const url = "tools/recorder/index.html?scanMode=artifact1&currency=" +
+      encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
+    const popup = window.open(url,"chiselArtifactCapture","width=980,height=900");
 
     if (!popup) {
       window.location.href = url;
@@ -2710,6 +2721,13 @@ function onClickAddCommonAddressButton() {
       setCurrencyValue(payload.currency);
     }
 
+    if (payload.schema === "chisel-artifact-index-v1") {
+      elems.opReturnAscii.value = "";
+      elems.opReturnHex.value = "";
+      elems.opReturnAscii.dispatchEvent(new Event("input", { bubbles: true }));
+      elems.opReturnHex.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
     if (typeof payload.opReturnAscii === "string") {
       elems.opReturnAscii.value = payload.opReturnAscii;
       elems.opReturnHex.value = "";
@@ -2747,11 +2765,14 @@ function onClickAddCommonAddressButton() {
 
     setSuggestedFeeValue();
     setGuiMode("send");
-    const artifactNote = payload.schema === "chisel-artifact-registration-v1"
-      ? "Artifact " + payload.artifactId + " registration loaded: version " + payload.protocolVersion +
-        ", type " + payload.artifactType + ", OP_RETURN " + payload.opReturnHex + "."
-      : "Loaded artifact plan from " + (sourceLabel || "payload analyzer") + ": OP_RETURN" +
-        (addedCount ? " and " + addedCount + " ordered output(s)" : "") + ".";
+    const artifactNote = payload.schema === "chisel-artifact-index-v1"
+      ? "Artifact " + payload.artifactId + " index loaded: " + payload.artifactAddress +
+        ". No OP_RETURN is required."
+      : payload.schema === "chisel-artifact-registration-v1"
+        ? "Artifact " + payload.artifactId + " registration loaded: version " + payload.protocolVersion +
+          ", type " + payload.artifactType + ", OP_RETURN " + payload.opReturnHex + "."
+        : "Loaded artifact plan from " + (sourceLabel || "payload analyzer") + ": OP_RETURN" +
+          (addedCount ? " and " + addedCount + " ordered output(s)" : "") + ".";
 
     setStatusMessage(
       artifactNote +
@@ -2956,6 +2977,9 @@ function init() {
     if (elems.wifScanButton) {
       elems.wifScanButton.onclick = openQrScanner;
     }
+    if (elems.artifactScanButton) {
+      elems.artifactScanButton.onclick = openArtifactScanner;
+    }
 
     if (elems.recipientQrScanButton) {
       elems.recipientQrScanButton.onclick = function onClickRecipientQrScanButton() {
@@ -3035,4 +3059,5 @@ function init() {
   window.sendTransactionContext = sendTransactionContext;
   window.checkSenderFunds = checkSenderFunds;
   window.startReceiveMonitor = startReceiveMonitor;
+  window.openArtifactScanner = openArtifactScanner;
 })();
