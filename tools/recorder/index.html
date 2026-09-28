@@ -287,6 +287,46 @@
     return value.slice(0,4) + "…" + value.slice(-4);
   }
 
+  function getStickerColor(value) {
+    return "#" + String(value || "555555").slice(0,6).padEnd(6,"5");
+  }
+
+  function drawStickerEcho(value, number, x, y, size, accepted) {
+    const border = Math.max(7, Math.round(size * .13));
+    const color = getStickerColor(value);
+
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.fillRect(x,y,size,size);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x+border,y+border,size-border*2,size-border*2);
+
+    ctx.fillStyle = "#111111";
+    ctx.font = "bold " + Math.round(size * .34) + "px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(number),x+size/2,y+size/2);
+
+    if (accepted) {
+      const r = Math.round(size * .16);
+      ctx.beginPath();
+      ctx.fillStyle = "#0b7a36";
+      ctx.arc(x+size-r*.9,y+r*.9,r,0,Math.PI*2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = Math.max(2,Math.round(size*.035));
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x+size-r*1.35,y+r*.9);
+      ctx.lineTo(x+size-r*.95,y+r*1.25);
+      ctx.lineTo(x+size-r*.35,y+r*.55);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawScanPanels() {
     const pad = Math.round(els.stage.width * .025);
     const panelW = Math.round(els.stage.width * .31);
@@ -307,11 +347,26 @@
     ctx.fillStyle = "#e6edf3";
     ctx.fillText("FRAGMENTS " + state.fragments.length + "/4",leftX+14,top+12);
 
+    const stickerSize = Math.min(72, Math.round(panelW * .22));
     for (let i=0; i<FRAGMENT_COUNT; i++) {
-      const y = top + 12 + lineH * (i+1);
-      const text = state.fragments[i] ? ((i+1) + "  ✓  " + fragmentLabel(state.fragments[i])) : ((i+1) + "  ·");
-      ctx.fillStyle = state.fragments[i] ? "#7ee787" : "#91a4b7";
-      ctx.fillText(text,leftX+14,y);
+      const y = top + 16 + lineH * (i+1);
+      if (state.fragments[i]) {
+        drawStickerEcho(state.fragments[i],i+1,leftX+14,y-8,stickerSize,true);
+        ctx.fillStyle = "#7ee787";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillText(fragmentLabel(state.fragments[i]),leftX+28+stickerSize,y+8);
+      } else {
+        ctx.strokeStyle = "#637083";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(leftX+14,y-8,stickerSize,stickerSize);
+        ctx.fillStyle = "#91a4b7";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(i+1),leftX+14+stickerSize/2,y-8+stickerSize/2);
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+      }
     }
 
     if (state.fragments.length === FRAGMENT_COUNT) {
