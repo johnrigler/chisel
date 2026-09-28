@@ -1522,7 +1522,7 @@
     </section>
 
     <section class="panel">
-      <div class="grid">
+      <form id="sendCredentialForm" class="grid" autocomplete="on">
         <label for="currency">Currency</label>
         <select id="currency">
           <option value="ravencoin">Ravencoin</option>
@@ -1532,11 +1532,17 @@
         </select>
 
         <label for="senderWif">Sender WIF</label>
-        <input id="senderWif" type="password" autocomplete="off" spellcheck="false" />
+        <div class="fieldStack">
+          <input id="senderWif" name="password" type="password" autocomplete="current-password" spellcheck="false" />
+          <div class="actions">
+            <button id="saveCredentialButton" class="secondaryButton" type="button" disabled>SAVE TO PASSWORD MANAGER</button>
+            <span class="help">Saves the derived public address as the username and this WIF as the password when your browser supports direct credential storage.</span>
+          </div>
+        </div>
 
         <label for="senderAddress">Derived public address</label>
         <div class="fieldStack">
-          <input id="senderAddress" type="text" readonly placeholder="scan or enter a WIF to derive the public address" />
+          <input id="senderAddress" name="username" type="text" readonly autocomplete="username" placeholder="scan or enter a WIF to derive the public address" />
           <div class="actions">
             <button id="showSenderAddressQrButton" class="secondaryButton" type="button" disabled>SHOW ADDRESS QR</button>
             <button id="searchSenderAddressButton" class="secondaryButton" type="button" disabled>SEARCH ADDRESS AS THUNDERWORD</button>
@@ -1622,7 +1628,7 @@
 
         <label id="explorerUrlLabel" for="explorerUrl" class="hide">Explorer URL</label>
         <input id="explorerUrl" class="hide" type="text" />
-      </div>
+      </form>
 
       <div class="actions">
         <button id="sendButton" type="button">RUN ALL: BUILD, SIGN, SEND</button>
