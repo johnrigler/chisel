@@ -476,41 +476,34 @@
     let camera;
     let stickerY;
     let stickerScale;
-    let resourceX;
 
     if (p.phone && p.portrait) {
       camera = {x:.10*W,y:.055*H,w:.80*W,h:.47*H};
       stickerY = .58*H;
       stickerScale = .155;
-      resourceX = .43*W;
     } else if (p.tablet && p.portrait) {
       camera = {x:.095*W,y:.05*H,w:.81*W,h:.50*H};
       stickerY = .61*H;
       stickerScale = .15;
-      resourceX = .44*W;
     } else if (p.portrait) {
       camera = {x:.08*W,y:.05*H,w:.84*W,h:.54*H};
       stickerY = .64*H;
       stickerScale = .145;
-      resourceX = .47*W;
     } else if (p.coarse) {
       camera = {x:.17*W,y:.045*H,w:.66*W,h:.66*H};
       stickerY = .73*H;
       stickerScale = .115;
-      resourceX = .48*W;
     } else {
       camera = {x:.10*W,y:.04*H,w:.80*W,h:.72*H};
       stickerY = .78*H;
       stickerScale = .11;
-      resourceX = .52*W;
     }
 
     return {
       profile:p,
       camera:camera,
       stickerY:stickerY,
-      stickerScale:stickerScale,
-      resourceX:resourceX
+      stickerScale:stickerScale
     };
   }
 
@@ -935,7 +928,7 @@
     const stickerSize = Math.min(maxSticker,Math.floor((available-gap*3)/4));
     const totalWidth = stickerSize*4+gap*3;
     const startX = Math.round((els.stage.width-totalWidth)/2);
-    const y = Math.round(layout.stickerY);
+    const y = Math.round(layout.camera.y + layout.camera.h - stickerSize - Math.max(18,stickerSize*.10));
 
     // Four slots always read left-to-right: 1, 2, 3, 4.
     for (let i=0;i<FRAGMENT_COUNT;i++) {
@@ -959,10 +952,10 @@
     }
 
     const pad = Math.round(els.stage.width*.025);
-    const panelW = Math.round(els.stage.width*(layout.profile.portrait ? .40 : .31));
-    const rightX = Math.round(layout.resourceX);
+    const panelW = Math.round(els.stage.width*(layout.profile.portrait ? .44 : .34));
+    const rightX = Math.round((els.stage.width-panelW)/2);
     const rightTop = Math.round(layout.camera.y + layout.camera.h + pad);
-    const results = state.publicResults.slice(-5).reverse();
+    const results = state.publicResults.slice(-3).reverse();
     const lineH = Math.max(30,Math.round(els.stage.width*(layout.profile.portrait ? .030 : .024)));
     const resultH = Math.max(120,lineH*(results.length*3+2));
     state.resourceHitboxes = [];
@@ -995,7 +988,7 @@
       const msg = "4/4 READY • CHECK 4";
       const tw = ctx.measureText(msg).width+28;
       const mx = (els.stage.width-tw)/2;
-      const my = Math.max(layout.camera.y+layout.camera.h+8,y-48);
+      const my = Math.max(layout.camera.y+8,y-48);
       ctx.fillRect(mx,my,tw,38);
       ctx.fillStyle = "#ffd166";
       ctx.fillText(msg,mx+14,my+8);
