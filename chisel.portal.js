@@ -4756,6 +4756,40 @@ function getPortalFirstCharacter() {
     });
   }
 
+  async function receiveIdentityAccounts(event) {
+    const detail = event && event.detail ? event.detail : {};
+    const accounts = Array.isArray(detail.accounts) ? detail.accounts : [];
+    if (!accounts.length) return;
+
+    const reports = [];
+    for (let i = 0; i < accounts.length; i += 1) {
+      const account = accounts[i] || {};
+      const address = String(account.address || "").trim();
+      if (!address) continue;
+
+      const fallback = inferIndexForAddress(address, state.currentIndex || getSelectedIndex());
+      const entry = account.currency ? indexEntryForCoin(account.currency, fallback) : fallback;
+      if (!entry || !indexCanFetch(entry)) {
+        reports.push({ coin: account.ticker || account.currency, address: address, fetched: false, error: "no fetchable explorer profile" });
+        continue;
+      }
+
+      try {
+        const cloned = cloneIndexForAddress(entry, address, (account.label || account.ticker || account.currency || "identity") + " identity");
+        const result = await getThunderwords().fetchAddressTransactions(cloned, address);
+        renderThunderwordTxs(result);
+        reports.push({ coin: account.ticker || account.currency, address: address, fetched: true, transactions: (result.transactions || []).length });
+      } catch (error) {
+        reports.push({ coin: account.ticker || account.currency, address: address, fetched: false, error: error.message || String(error) });
+      }
+    }
+
+    if (reports.length) {
+      setText("#portalThunderwordRaw", pretty({ identityAccounts: reports }));
+      setStatus("Cross-chain identity loaded " + reports.filter(function (r) { return r.fetched; }).length + " address stream(s); results were merged into the Portal feed.", false);
+    }
+  }
+
   function receiveMainThunderwordAccount(event) {
     const detail = event && event.detail ? event.detail : {};
     const address = String(detail.address || "").trim();
@@ -4804,6 +4838,11 @@ function getPortalFirstCharacter() {
     renderThunderwordOptions();
     state.urlMainThunderwordRequest = mainThunderwordRequestFromUrl();
     window.addEventListener("chisel:main-account", receiveMainThunderwordAccount);
+    window.addEventListener("chisel:identity-accounts", function (event) {
+      receiveIdentityAccounts(event).catch(function (error) {
+        setStatus(error.message || String(error), true);
+      });
+    });
     renderEmptyTransactionList("Loading bundled static dataset; live ledger searches can add newer records after first paint.");
     loadEmbeddedStaticDataset();
 
