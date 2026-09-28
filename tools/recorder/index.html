@@ -52,6 +52,13 @@
     .keyCardHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .keyCardHeader strong { font-size:14px; }
     .keyCardHeader span { color:var(--muted); font-size:11px; }
+    .keyCardMeta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
+    .instaVisitedBadge {
+      display:inline-flex; align-items:center; gap:4px; padding:3px 7px;
+      border:1px solid #2f7d8f; border-radius:999px; color:#9fe8f6;
+      background:rgba(15,76,92,.35); font-size:10px; font-weight:800;
+      letter-spacing:.04em;
+    }
     .keyCardStickers { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
     .keyCardSticker { aspect-ratio:1; padding:11%; position:relative; display:grid; place-items:center; overflow:hidden; }
     .keyCardStickerInner { width:100%; height:100%; background:#fff; padding:7%; display:grid; place-items:center; }
@@ -342,6 +349,8 @@
   const LANDSCAPE = { width:1920, height:1080 };
   const FRAGMENT_LENGTH = 16;
   const FRAGMENT_COUNT = 4;
+  const RESOURCE_SESSION_KEY = "chisel.broadcast.resources.v1";
+  const INSTAPRINT_VISIT_KEY = "chisel.broadcast.instaprintVisited.v1";
 
   const els = {
     stage: document.getElementById("stage"),
@@ -691,6 +700,41 @@
     makeDomQr(inner,value,QRCode.CorrectLevel.H);
   }
 
+  function persistResources() {
+    try {
+      sessionStorage.setItem(RESOURCE_SESSION_KEY,JSON.stringify(state.publicResults));
+    } catch (error) {
+      // Session persistence is a convenience for tool-to-tool navigation.
+    }
+  }
+
+  function restoreResources() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(RESOURCE_SESSION_KEY) || "[]");
+      if (Array.isArray(saved)) {
+        state.publicResults = saved.filter(item => item && item.privateKeyHex && Array.isArray(item.fragments));
+      }
+    } catch (error) {
+      state.publicResults = [];
+    }
+  }
+
+  function getInstaprintVisits() {
+    try {
+      const visits = JSON.parse(sessionStorage.getItem(INSTAPRINT_VISIT_KEY) || "{}");
+      return visits && typeof visits === "object" ? visits : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function applyInstaprintVisits() {
+    const visits = getInstaprintVisits();
+    state.publicResults.forEach(resource => {
+      resource.instaprintVisited = Boolean(visits[resource.publicKey]);
+    });
+  }
+
   function renderKeyLibrary(highlightResource) {
     els.keyLibrary.innerHTML = "";
     els.keysSummary.textContent = state.publicResults.length + (state.publicResults.length === 1 ? " key" : " keys");
@@ -715,9 +759,18 @@
       header.className = "keyCardHeader";
       const title = document.createElement("strong");
       title.textContent = "KEY #" + resource.number;
+      const metaWrap = document.createElement("div");
+      metaWrap.className = "keyCardMeta";
       const meta = document.createElement("span");
       meta.textContent = (resource.addresses ? resource.addresses.length : 0) + " address formats";
-      header.append(title,meta);
+      metaWrap.append(meta);
+      if (resource.instaprintVisited) {
+        const badge = document.createElement("span");
+        badge.className = "instaVisitedBadge";
+        badge.textContent = "✓ INSTAPRINT";
+        metaWrap.append(badge);
+      }
+      header.append(title,metaWrap);
 
       const stickers = document.createElement("div");
       stickers.className = "keyCardStickers";
@@ -742,6 +795,7 @@
     document.body.classList.add("keysView");
     els.keysScreen.classList.add("active");
     els.keysScreen.setAttribute("aria-hidden","false");
+    applyInstaprintVisits();
     renderKeyLibrary(highlightResource || null);
     setStatus(state.publicResults.length + (state.publicResults.length === 1 ? " scanned key." : " scanned keys."));
   }
@@ -833,10 +887,13 @@
 
   function openResourceInstaprint(resource) {
     const preferred = getPreferredResourceAddress(resource);
+    persistResources();
     const handoff = {
       privateKeyHex:resource.privateKeyHex,
       currency:preferred ? preferred.currency : resource.currency,
       label:"Chisel scanned key #" + resource.number,
+      resourcePublicKey:resource.publicKey,
+      returnUrl:new URL("./index.html?view=keys",window.location.href).toString(),
       createdAt:new Date().toISOString()
     };
     localStorage.setItem("chisel.keyPrint.handoff.v1",JSON.stringify(handoff));
@@ -1108,6 +1165,7 @@
       };
 
       state.publicResults.push(resource);
+      persistResources();
       renderPublicResults();
       clearFragments();
       createConfetti();
@@ -1465,6 +1523,10 @@
   if (screen.orientation && screen.orientation.addEventListener) {
     screen.orientation.addEventListener("change",setCanvasOrientation);
   }
+  window.addEventListener("pageshow",() => {
+    applyInstaprintVisits();
+    if (state.appView === "keys") renderKeyLibrary();
+  });
   window.addEventListener("beforeunload",() => {
     if (state.recording) stopRecording();
     stopStream(state.displayStream);
@@ -1475,12 +1537,22 @@
   });
 
   fillCurrencyOptions();
+  restoreResources();
+  applyInstaprintVisits();
+  renderPublicResults();
   renderKeyLibrary();
   setCanvasOrientation();
   initQr();
   drawFrame();
   updateFragmentControls();
   updateZoomButtons();
+
+  try {
+    const initialUrl = new URL(window.location.href);
+    if (initialUrl.searchParams.get("view") === "keys" && state.publicResults.length) {
+      showKeyLibrary();
+    }
+  } catch (error) {}
 })();
 </script>
 </body>
