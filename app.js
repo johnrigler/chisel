@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.20";
+  const APP_VERSION = "2.7.21";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -2453,8 +2453,13 @@ function onClickAddCommonAddressButton() {
   }
 
   function openQrScanner() {
-    const url = "tools/recorder/index.html";
-    window.location.href = url;
+    const url = "tools/recorder/index.html?scanMode=artifact1&currency=" +
+      encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
+    const popup = window.open(url,"chiselKeyCapture","width=980,height=900");
+
+    if (!popup) {
+      window.location.href = url;
+    }
   }
 
   function normalizeScannedRecipientAddress(rawValue) {
@@ -2697,7 +2702,7 @@ function onClickAddCommonAddressButton() {
     const replaceRecipients = Boolean(payload && payload.replaceRecipients);
     let addedCount = 0;
 
-    if (!payload || (!payload.opReturnAscii && recipients.length === 0)) {
+    if (!payload || (!payload.opReturnAscii && !payload.opReturnHex && recipients.length === 0)) {
       return false;
     }
 
@@ -2709,6 +2714,16 @@ function onClickAddCommonAddressButton() {
       elems.opReturnAscii.value = payload.opReturnAscii;
       elems.opReturnHex.value = "";
       elems.opReturnAscii.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    if (typeof payload.opReturnHex === "string" && payload.opReturnHex.trim()) {
+      const normalizedArtifactHex = normalizeHex(payload.opReturnHex);
+      if (!isHex(normalizedArtifactHex) || normalizedArtifactHex.length % 2 !== 0) {
+        throw new Error("Artifact OP_RETURN HEX is not valid even-length hex.");
+      }
+      elems.opReturnAscii.value = "";
+      elems.opReturnHex.value = normalizedArtifactHex.toLowerCase();
+      elems.opReturnHex.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
     if (replaceRecipients && elems.recipientRows) {
@@ -2731,13 +2746,18 @@ function onClickAddCommonAddressButton() {
     });
 
     setSuggestedFeeValue();
-    setGuiMode("etch");
+    setGuiMode("send");
+    const artifactNote = payload.schema === "chisel-artifact-registration-v1"
+      ? "Artifact " + payload.artifactId + " registration loaded: version " + payload.protocolVersion +
+        ", type " + payload.artifactType + ", OP_RETURN " + payload.opReturnHex + "."
+      : "Loaded artifact plan from " + (sourceLabel || "payload analyzer") + ": OP_RETURN" +
+        (addedCount ? " and " + addedCount + " ordered output(s)" : "") + ".";
+
     setStatusMessage(
-      "Loaded artifact plan from " + (sourceLabel || "payload analyzer") + ": OP_RETURN" +
-      (addedCount ? " and " + addedCount + " ordered output(s)" : "") +
+      artifactNote +
       (replaceRecipients
-        ? ". Existing recipient rows were replaced; review output order before signing."
-        : ". Existing recipient rows were preserved; review output order before signing."),
+        ? " Existing recipient rows were replaced; review output order before signing."
+        : " Existing recipient rows were preserved; review output order before signing."),
       false
     );
 
