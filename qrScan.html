@@ -658,7 +658,8 @@
       lastPayload = {
         currency: result.currency,
         wif: result.wif,
-        address: result.address,
+        address: result.compressedAddress || result.address,
+        privateKeyHex: result.privateKeyHex,
         autosend: false,
         createdAt: new Date().toISOString()
       };
@@ -895,7 +896,8 @@ function getPreferredCameraIndex() {
           type: "chisel.loadWif",
           currency: lastPayload.currency,
           wif: lastPayload.wif,
-          address: lastPayload.address
+          address: lastPayload.address,
+          privateKeyHex: lastPayload.privateKeyHex
         }, window.location.origin);
       }
 
