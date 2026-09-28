@@ -140,6 +140,7 @@
       <div class="actions">
         <a id="downloadLink" class="button hidden" download="chisel-key-instaprint.png">Download PNG</a>
         <a id="openLink" class="button hidden" target="_blank" rel="noopener">Open image</a>
+        <a id="returnToScanner" class="button hidden">RETURN TO SCANNED KEYS</a>
       </div>
       <div id="previewWrap"><img id="previewImage" alt="Generated long PNG preview" /></div>
     </section>
@@ -182,10 +183,12 @@
       const previewImage = document.getElementById("previewImage");
       const downloadLink = document.getElementById("downloadLink");
       const openLink = document.getElementById("openLink");
+      const returnToScanner = document.getElementById("returnToScanner");
       const storedList = document.getElementById("storedList");
       const qrScratch = document.getElementById("qrScratch");
 
       let currentPacket = null;
+      let scannerReturn = null;
 
       function setStatus(message, className) {
         status.className = className || "";
@@ -594,6 +597,26 @@
         // downloaded or explicitly saved, but the transport record is removed.
         localStorage.removeItem(HANDOFF_KEY);
 
+        if (handoff.returnUrl) {
+          scannerReturn = {
+            returnUrl:handoff.returnUrl,
+            resourcePublicKey:handoff.resourcePublicKey || ""
+          };
+          returnToScanner.href = handoff.returnUrl;
+          returnToScanner.classList.remove("hidden");
+        }
+
+        if (handoff.resourcePublicKey) {
+          try {
+            const visits = JSON.parse(sessionStorage.getItem("chisel.broadcast.instaprintVisited.v1") || "{}");
+            visits[handoff.resourcePublicKey] = {
+              visitedAt:new Date().toISOString(),
+              pngReady:true
+            };
+            sessionStorage.setItem("chisel.broadcast.instaprintVisited.v1",JSON.stringify(visits));
+          } catch (error) {}
+        }
+
         if (handoff.currency && Array.from(currencySelect.options).some(function hasCurrency(option) {
           return option.value === handoff.currency;
         })) {
@@ -606,7 +629,7 @@
 
         await derivePacket();
         await createImage();
-        setStatus("Scanner handoff loaded. PNG is ready to download.", "ok");
+        setStatus("Scanner handoff loaded. PNG is ready. Return to the scanned-key list when finished.", "ok");
         return true;
       }
 
@@ -647,6 +670,12 @@
         packetOutput.textContent = "";
         currentPacket = null;
         setStatus("Input cleared.");
+      });
+
+      returnToScanner.addEventListener("click", function onReturnToScanner(event) {
+        if (!scannerReturn || !scannerReturn.returnUrl) return;
+        event.preventDefault();
+        window.location.href = scannerReturn.returnUrl;
       });
 
       document.getElementById("refreshStoredButton").addEventListener("click", renderStoredList);
