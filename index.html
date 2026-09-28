@@ -1548,10 +1548,11 @@
           </div>
         </div>
 
-        <label for="wifScanButton">QR key scanner</label>
+        <label for="wifScanButton">QR scanners</label>
         <div class="actions">
-          <button id="wifScanButton" class="secondaryButton" type="button">OPEN KEY CAPTURE</button>
-          <span class="help">Opens the current Chisel key-capture tool. Scan four colored fragments, choose a scanned key, then load its selected-chain WIF back into Send.</span>
+          <button id="wifScanButton" class="secondaryButton" type="button">SCAN KEY</button>
+          <button id="artifactScanButton" class="secondaryButton" type="button">SCAN ARTIFACT</button>
+          <span class="help">Both use the same camera tool. SCAN KEY assembles four private-key fragments. SCAN ARTIFACT accepts one public 16-hex sticker and returns a chain-specific unspendable index output ready for Send.</span>
         </div>
 
         <label id="feeLabel" for="feeRvn">Fee (RVN)</label>
