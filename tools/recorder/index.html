@@ -280,7 +280,7 @@
 <div id="setupDrawer" class="drawer">
   <section class="sheet">
     <h2>Broadcast setup</h2>
-    <p>SCAN has two meanings. KEY 4 assembles four 16-hex private-key fragments left-to-right. ARTIFACT 1 accepts one public 16-hex artifact ID and builds OP_RETURN hex 0101 + artifact ID, where 01 is protocol version 1 and 01 is artifact registration type 1.</p>
+    <p>SCAN has two meanings. KEY 4 assembles four 16-hex private-key fragments left-to-right. ARTIFACT 1 accepts one public 16-hex artifact ID, maps hex 0 to lowercase c, preserves 1–9 and A–F, then derives the selected chain's obviously-unspendable artifact index address using the second available modifier and lowercase x.</p>
 
     <label>Currency / address format
       <select id="currency"></select>
@@ -351,6 +351,7 @@
 
 <script src="../../vendor/qrcode.min.js"></script>
 <script src="../../chisel.js"></script>
+<script src="../../chisel.unspendable.js"></script>
 <script src="../../chisel.sign.js"></script>
 <script src="../../chisel.ravencoin.js"></script>
 <script src="../../chisel.digibyte.js"></script>
@@ -366,8 +367,6 @@
   const LANDSCAPE = { width:1920, height:1080 };
   const FRAGMENT_LENGTH = 16;
   const FRAGMENT_COUNT = 4;
-  const ARTIFACT_PROTOCOL_VERSION = "01";
-  const ARTIFACT_REGISTER_TYPE = "01";
   const ARTIFACT_PAYLOAD_STORAGE_KEY = "chisel.pendingPayloadAnalyzer.v1";
   const RESOURCE_SESSION_KEY = "chisel.broadcast.resources.v1";
   const INSTAPRINT_VISIT_KEY = "chisel.broadcast.instaprintVisited.v1";
@@ -422,6 +421,8 @@
     appView:"scan",
     scanMode:"key4",
     artifactId:"",
+    artifactAddress:"",
+    artifactPrefix:"",
     displayStream:null,
     worldStream:null,
     faceStream:null,
@@ -822,6 +823,8 @@
     state.scanMode = mode === "artifact1" ? "artifact1" : "key4";
     state.fragments = [];
     state.artifactId = "";
+    state.artifactAddress = "";
+    state.artifactPrefix = "";
     state.lastQrValue = "";
     state.lastQrValueAt = 0;
     els.key4Mode.classList.toggle("active",state.scanMode === "key4");
@@ -832,24 +835,101 @@
       : "KEY 4: scan four 16-hex private-key stickers left-to-right.");
   }
 
-  function getArtifactRegistrationHex(artifactId) {
-    return ARTIFACT_PROTOCOL_VERSION + ARTIFACT_REGISTER_TYPE + artifactId;
+  function artifactHexToMcDougall(hex) {
+    const clean = normalizeHex(hex).toUpperCase();
+    if (!/^[0-9A-F]{16}$/.test(clean)) {
+      throw new Error("Artifact ID must be exactly 16 hex characters.");
+    }
+    return clean.replace(/0/g,"c");
   }
 
-  function handoffArtifactRegistration() {
-    if (!state.artifactId) {
-      setStatus("Scan one 16-hex artifact QR first.");
+  function getArtifactPrefixForCoin(coin) {
+    const first = String((coin && coin.UNSPENDABLE_PREFIX) || "").charAt(0);
+    const modifiers = coin && Array.isArray(coin.UNSPENDABLE_MODIFIERS)
+      ? coin.UNSPENDABLE_MODIFIERS
+      : [];
+
+    if (!first) {
+      throw new Error("Selected chain has no Chisel unspendable prefix.");
+    }
+    if (modifiers.length < 2) {
+      throw new Error("Selected chain does not define a second unspendable modifier.");
+    }
+
+    return first + modifiers[1] + "x";
+  }
+
+  function getArtifactBurnAmount(coin) {
+    if (coin && coin.DEFAULT_BURN_AMOUNT) return String(coin.DEFAULT_BURN_AMOUNT);
+    if (coin && coin.NAME === "ravencoin") return "0.002";
+    if (coin && coin.NAME === "digibyte") return "0.00001";
+    return "0.00001";
+  }
+
+  async function deriveArtifactIndex(artifactId) {
+    const coin = CHISEL.getCoin(els.currency.value);
+    const prefix = getArtifactPrefixForCoin(coin);
+    const body = artifactHexToMcDougall(artifactId);
+
+    if (!window.CHISEL_UNSPENDABLE || typeof CHISEL_UNSPENDABLE.generateRawBase58 !== "function") {
+      throw new Error("Chisel unspendable address generator is unavailable.");
+    }
+
+    const address = await CHISEL_UNSPENDABLE.generateRawBase58(prefix,body);
+    return {
+      artifactId:normalizeHex(artifactId),
+      mcDougall:body,
+      prefix:prefix,
+      address:address,
+      amount:getArtifactBurnAmount(coin),
+      currency:coin.NAME,
+      ticker:coin.TICKER || coin.NAME
+    };
+  }
+
+  async function acceptArtifactId(fragment) {
+    state.artifactId = fragment;
+    state.fragments = [fragment];
+    state.artifactAddress = "";
+    state.artifactPrefix = "";
+    updateFragmentControls();
+    setStatus("Deriving artifact index address…");
+
+    try {
+      const index = await deriveArtifactIndex(fragment);
+      if (state.scanMode !== "artifact1" || state.artifactId !== fragment) return;
+      state.artifactAddress = index.address;
+      state.artifactPrefix = index.prefix;
+      updateFragmentControls();
+      setStatus(index.prefix + index.mcDougall + " → " + index.address);
+    } catch (error) {
+      state.artifactAddress = "";
+      state.artifactPrefix = "";
+      updateFragmentControls();
+      setStatus("Artifact address failed: " + (error.message || String(error)));
+    }
+  }
+
+  async function handoffArtifactRegistration() {
+    if (!state.artifactId || !state.artifactAddress) {
+      setStatus("Scan one artifact QR and wait for its index address.");
       return;
     }
 
+    const index = await deriveArtifactIndex(state.artifactId);
     const payload = {
-      schema:"chisel-artifact-registration-v1",
-      protocolVersion:ARTIFACT_PROTOCOL_VERSION,
-      artifactType:ARTIFACT_REGISTER_TYPE,
-      artifactId:state.artifactId,
-      opReturnHex:getArtifactRegistrationHex(state.artifactId),
-      currency:els.currency.value || "litecoin",
-      recipients:[],
+      schema:"chisel-artifact-index-v1",
+      artifactId:index.artifactId,
+      mcDougall:index.mcDougall,
+      artifactPrefix:index.prefix,
+      artifactAddress:index.address,
+      currency:index.currency,
+      recipients:[{
+        address:index.address,
+        amount:index.amount,
+        outputType:"unspendable",
+        note:"artifact " + index.artifactId + " " + index.prefix + index.mcDougall
+      }],
       replaceRecipients:false,
       createdAt:new Date().toISOString()
     };
@@ -867,7 +947,7 @@
       } catch (error) {}
     }
 
-    window.location.href = "../../index.html?mode=send&loadArtifactRegistration=1&currency=" + encodeURIComponent(payload.currency);
+    window.location.href = "../../index.html?mode=send&loadArtifactIndex=1&currency=" + encodeURIComponent(payload.currency);
   }
 
   async function showScanner() {
@@ -1052,7 +1132,9 @@
       ctx.save();
       ctx.fillStyle = "rgba(0,0,0,.74)";
       const line1 = state.artifactId ? state.artifactId : "SCAN 16-HEX ARTIFACT ID";
-      const line2 = state.artifactId ? getArtifactRegistrationHex(state.artifactId) : "OP_RETURN: 01 01 + ARTIFACT";
+      const line2 = state.artifactAddress
+        ? state.artifactAddress
+        : (state.artifactId ? "DERIVING INDEX ADDRESS…" : "SECOND MODIFIER + x + McDOUGALL HEX");
       ctx.font = Math.max(18,Math.round(els.stage.width*.020)) + "px monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
@@ -1203,10 +1285,7 @@
     }
 
     if (state.scanMode === "artifact1") {
-      state.artifactId = fragment;
-      state.fragments = [fragment];
-      updateFragmentControls();
-      setStatus("Artifact " + fragment + " ready. Tap LOAD OP_RETURN.");
+      acceptArtifactId(fragment);
       return;
     }
 
@@ -1232,16 +1311,18 @@
 
   function updateFragmentControls() {
     const ready = state.scanMode === "artifact1"
-      ? Boolean(state.artifactId)
+      ? Boolean(state.artifactId && state.artifactAddress)
       : state.fragments.length === FRAGMENT_COUNT;
     els.checkFragments.disabled = !ready;
     els.checkFragments.classList.toggle("ready",ready);
-    els.checkFragments.textContent = state.scanMode === "artifact1" ? "LOAD OP_RETURN" : "CHECK 4";
+    els.checkFragments.textContent = state.scanMode === "artifact1" ? "LOAD INDEX" : "CHECK 4";
   }
 
   function clearFragments(message) {
     state.fragments = [];
     state.artifactId = "";
+    state.artifactAddress = "";
+    state.artifactPrefix = "";
     updateFragmentControls();
     if (message) setStatus(message);
   }
@@ -1253,7 +1334,11 @@
     }
     const slot = state.fragments.length;
     state.fragments.pop();
-    if (state.scanMode === "artifact1") state.artifactId = "";
+    if (state.scanMode === "artifact1") {
+      state.artifactId = "";
+      state.artifactAddress = "";
+      state.artifactPrefix = "";
+    }
     updateFragmentControls();
     setStatus(state.scanMode === "artifact1"
       ? "Artifact QR cleared."
@@ -1673,8 +1758,11 @@
   els.recordButton.onclick = () => state.recording ? stopRecording() : startRecording().catch(e => setStatus("Could not record: " + e.message));
   els.faceToggle.onclick = () => toggleFaceOverlay();
   els.checkFragments.onclick = () => {
-    if (state.scanMode === "artifact1") handoffArtifactRegistration();
-    else checkFragments();
+    if (state.scanMode === "artifact1") {
+      handoffArtifactRegistration().catch(error => setStatus("Could not load artifact index: " + error.message));
+    } else {
+      checkFragments();
+    }
   };
   els.key4Mode.onclick = () => setScanMode("key4");
   els.artifact1Mode.onclick = () => setScanMode("artifact1");
