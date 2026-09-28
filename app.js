@@ -154,7 +154,9 @@
     decodedSigned: null,
     sendPayload: null,
     sendResult: null,
-    manualContext: null
+    manualContext: null,
+    identityPrivateKeyHex: "",
+    identityAccounts: []
   };
 
   //
@@ -1907,6 +1909,15 @@ return;
     clearOutputs();
     setStatusMessage(STATUS_IDLE, false);
     setCurrencyForm();
+
+    if (state.identityPrivateKeyHex) {
+      applyIdentityToSelectedCurrency().then(function () {
+        return deriveIdentityAccounts(state.identityPrivateKeyHex);
+      }).catch(function (error) {
+        console.error(error);
+        setStatusMessage(error.message || String(error), true);
+      });
+    }
   }
 
 function onInputOpReturnAscii() {
@@ -2069,13 +2080,118 @@ function onClickAddCommonAddressButton() {
     try {
       const account = await coin.wifToAccount(wif);
       if (!elems.senderWif || elems.senderWif.value.trim() !== wif) return;
-      setInputValue(elems.senderAddress, account.address);
+      state.identityPrivateKeyHex = account.privateKeyHex || state.identityPrivateKeyHex;
+      setInputValue(elems.senderAddress, account.compressedAddress || account.address);
       render();
-      announcePortalPublicAccount(coin, account);
+      announcePortalPublicAccount(coin, {
+        address: account.compressedAddress || account.address,
+        network: account.network
+      });
+      if (state.identityPrivateKeyHex) {
+        deriveIdentityAccounts(state.identityPrivateKeyHex).catch(function (deriveError) {
+          console.warn("Cross-chain identity derivation skipped:", deriveError);
+        });
+      }
     } catch (error) {
       // A partially typed or wrong-network WIF is normal while editing. Do not
       // expose it in a status message, URL, localStorage, or fileProxy.
     }
+  }
+
+  function getCoinWifPrefix(coin) {
+    if (coin && typeof coin.WIF_PREFIX === "number") return coin.WIF_PREFIX;
+    if (coin && Array.isArray(coin.WIF_PREFIXES) && coin.WIF_PREFIXES.length) return coin.WIF_PREFIXES[0];
+    if (coin && coin.NAME === "litecoin") return 176;
+    if (coin && coin.NAME === "litecoinTestnet") return 239;
+    return 128;
+  }
+
+  async function privateKeyHexToWifForCoin(privateKeyHex, coin, compressed) {
+    const clean = String(privateKeyHex || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(clean)) throw new Error("Private key hex must be exactly 64 hex characters.");
+    const payload = new Uint8Array(compressed === false ? 33 : 34);
+    payload[0] = getCoinWifPrefix(coin);
+    payload.set(CHISEL.hexToUint8Array(clean), 1);
+    if (compressed !== false) payload[33] = 1;
+    return CHISEL.base58CheckEncode(payload);
+  }
+
+  async function deriveIdentityAccounts(privateKeyHex) {
+    const clean = String(privateKeyHex || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(clean)) return [];
+
+    const accounts = [];
+    const coins = CHISEL.getCoins().filter(function (coin) {
+      return coin && coin.NAME && typeof coin.wifToAccount === "function";
+    });
+
+    for (let i = 0; i < coins.length; i += 1) {
+      const coin = coins[i];
+      try {
+        const wif = await privateKeyHexToWifForCoin(clean, coin, true);
+        const account = await coin.wifToAccount(wif);
+        accounts.push({
+          currency: coin.NAME,
+          ticker: coin.TICKER || coin.NAME,
+          label: coin.DISPLAY_NAME || coin.NAME,
+          network: account.network || "",
+          wif: wif,
+          address: account.compressedAddress || account.address,
+          compressedAddress: account.compressedAddress || account.address
+        });
+      } catch (error) {
+        console.warn("Could not derive identity account for", coin.NAME, error);
+      }
+    }
+
+    state.identityPrivateKeyHex = clean;
+    state.identityAccounts = accounts;
+
+    if (window.CustomEvent && accounts.length) {
+      window.dispatchEvent(new CustomEvent("chisel:identity-accounts", {
+        detail: {
+          accounts: accounts.map(function (account) {
+            return {
+              currency: account.currency,
+              ticker: account.ticker,
+              label: account.label,
+              network: account.network,
+              address: account.address
+            };
+          })
+        }
+      }));
+    }
+
+    return accounts;
+  }
+
+  async function applyIdentityToSelectedCurrency() {
+    const privateKeyHex = state.identityPrivateKeyHex;
+    if (!privateKeyHex) return false;
+
+    const coin = getCoin();
+    const wif = await privateKeyHexToWifForCoin(privateKeyHex, coin, true);
+    const account = await coin.wifToAccount(wif);
+
+    elems.senderWif.value = wif;
+    setInputValue(elems.senderAddress, account.compressedAddress || account.address);
+    setAccountData({
+      currency: coin.NAME,
+      ticker: coin.TICKER,
+      network: account.network,
+      compressed: account.compressed,
+      address: account.compressedAddress || account.address,
+      compressedAddress: account.compressedAddress || account.address,
+      uncompressedAddress: account.uncompressedAddress,
+      privateKeyHex: account.privateKeyHex
+    });
+    announcePortalPublicAccount(coin, {
+      address: account.compressedAddress || account.address,
+      network: account.network
+    });
+    render();
+    return true;
   }
 
   function setCurrencyValue(currencyKey) {
@@ -2137,8 +2253,12 @@ function onClickAddCommonAddressButton() {
   }
 
   function loadPendingQrPayload(payload, sourceLabel) {
-    if (!payload || !payload.wif) {
+    if (!payload || (!payload.wif && !payload.privateKeyHex)) {
       return false;
+    }
+
+    if (payload.privateKeyHex) {
+      state.identityPrivateKeyHex = String(payload.privateKeyHex).trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
     }
 
     if (payload.currency) {
@@ -2146,9 +2266,16 @@ function onClickAddCommonAddressButton() {
     }
 
     clearOutputs();
-    setSenderWifValue(payload.wif);
+    if (payload.wif) setSenderWifValue(payload.wif);
     if (payload.address) {
       setInputValue(elems.senderAddress, String(payload.address).trim());
+    }
+    if (state.identityPrivateKeyHex) {
+      applyIdentityToSelectedCurrency().then(function () {
+        return deriveIdentityAccounts(state.identityPrivateKeyHex);
+      }).catch(function (error) {
+        console.warn("Could not initialize scanned cross-chain identity:", error);
+      });
     }
     setStatusMessage(
       "Loaded scanned WIF from " + (sourceLabel || "QR scanner") +
@@ -2187,6 +2314,7 @@ function onClickAddCommonAddressButton() {
       currency: data.currency,
       wif: data.wif,
       address: data.address,
+      privateKeyHex: data.privateKeyHex,
       autosend: false
     }, "scanner window");
   }
