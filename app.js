@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.22";
+  const APP_VERSION = "2.7.23";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -1769,6 +1769,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
     await signTransactionContext(context);
     await sendTransactionContext(context);
     setStatusMessage(STATUS_DONE, false);
+    setGuiMode("review");
 
     return context;
   }
