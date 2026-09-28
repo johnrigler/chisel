@@ -21,7 +21,7 @@ CHISEL_FILE_ROOT="$PWD" CHISEL_FILE_PORT=7799 python3 tools/fileProxy/proxy.py
 
 ## HTTPS on `rigler.org`
 
-`fileProxy` stays HTTP by default for local development.  To reuse the existing
+`fileProxy` stays HTTP by default for local development. To reuse the existing
 Let's Encrypt certificate for the public Portal endpoint, run it from the
 Chisel checkout as the account that can read the certificate key:
 
@@ -34,6 +34,28 @@ CHISEL_FILE_KEY=/etc/letsencrypt/live/rigler.org/privkey.pem \
 python3 tools/fileProxy/proxy.py
 ```
 
+Important: use `fullchain.pem`, not `cert.pem`. The server certificate alone
+may let Python start TLS, but remote clients can fail certificate validation
+because the intermediate certificate chain is missing. `CHISEL_FILE_KEY`
+must point to the matching Let's Encrypt private key, normally
+`/etc/letsencrypt/live/rigler.org/privkey.pem`.
+
+The two certificate variables already default to the normal Certbot paths for
+`rigler.org`, so the minimal server configuration is usually:
+
+```bash
+export CHISEL_FILE_HOST=0.0.0.0
+export CHISEL_FILE_TLS=1
+python3 tools/fileProxy/proxy.py
+```
+
+A quick TLS test from the server is:
+
+```bash
+curl -vk https://127.0.0.1:7799/ping
+curl -vk https://rigler.org:7799/ping
+```
+
 Then set the deployed Portal's `fileProxyUrl` to:
 
 ```json
@@ -41,7 +63,7 @@ Then set the deployed Portal's `fileProxyUrl` to:
 ```
 
 Use the hostname, not the server IP, because the certificate is issued for
-`rigler.org`.  Port `7799` is intentionally separate from RavenProxy's HTTPS
+`rigler.org`. Port `7799` is intentionally separate from RavenProxy's HTTPS
 RPC port `8769`.
 
 TLS protects the connection; it does not authenticate callers. `fileProxy`
