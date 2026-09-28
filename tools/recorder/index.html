@@ -153,6 +153,7 @@
     .resourceActions button { background:#111; color:#fff; border-color:#111; }
     .resourceActions .instaButton { background:#0f4c5c; border-color:#2f7d8f; }
     .resourceActions .chiselButton { background:#4b3fb8; border-color:#7867ff; }
+    .resourceActions .deleteKeyButton { background:#7a161d; border-color:#b63a43; }
     .resourceStickers { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
     .resourceSticker { aspect-ratio:1; padding:11%; position:relative; display:grid; place-items:center; }
     .resourceStickerInner { width:100%; height:100%; background:#fff; padding:7%; display:grid; place-items:center; }
@@ -304,6 +305,7 @@
         <button id="openInstaprint" class="instaButton" type="button">INSTAPRINT PNG</button>
         <button id="loadIntoChisel" class="chiselButton" type="button">LOAD INTO CHISEL</button>
         <button id="printResource" type="button">PRINT PAGE</button>
+        <button id="deleteResource" class="deleteKeyButton" type="button">DELETE KEY</button>
         <button id="closeResource" type="button">CLOSE</button>
       </div>
     </div>
@@ -390,6 +392,7 @@
     openInstaprint: document.getElementById("openInstaprint"),
     loadIntoChisel: document.getElementById("loadIntoChisel"),
     printResource: document.getElementById("printResource"),
+    deleteResource: document.getElementById("deleteResource"),
     closeResource: document.getElementById("closeResource")
   };
 
@@ -912,6 +915,26 @@
     sessionStorage.setItem("chisel.pendingQrScan",JSON.stringify(payload));
     localStorage.setItem("chisel.pendingQrScan",JSON.stringify(payload));
     window.location.href = "../../index.html?mode=etch&loadScannedWif=1&currency=" + encodeURIComponent(preferred.currency);
+  }
+
+  function deleteResource(resource) {
+    if (!resource) return;
+
+    state.publicResults = state.publicResults.filter(item => item.publicKey !== resource.publicKey);
+    persistResources();
+
+    try {
+      const visits = getInstaprintVisits();
+      if (visits[resource.publicKey]) {
+        delete visits[resource.publicKey];
+        sessionStorage.setItem(INSTAPRINT_VISIT_KEY,JSON.stringify(visits));
+      }
+    } catch (error) {}
+
+    closeResource();
+    renderPublicResults();
+    showKeyLibrary();
+    setStatus("Deleted key #" + resource.number + ".");
   }
 
   function closeResource() {
@@ -1466,6 +1489,9 @@
 
   els.closeResource.onclick = () => closeResource();
   els.printResource.onclick = () => window.print();
+  els.deleteResource.onclick = () => {
+    if (state.selectedResource) deleteResource(state.selectedResource);
+  };
   els.openInstaprint.onclick = () => {
     if (state.selectedResource) openResourceInstaprint(state.selectedResource);
   };
