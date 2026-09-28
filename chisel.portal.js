@@ -16,6 +16,7 @@
   const DEFAULT_BUNDLED_MANIFEST_PATH = "data-bundled/manifest.json";
   const DEFAULT_REMOTE_MANIFEST_URL = "https://rigler.org/chisel-data/manifest.json";
   const PORTAL_ANNOTATIONS_STORAGE_KEY = "chisel.portal.annotations.v1";
+  const PORTAL_PERSONAL_ACCOUNT_STORAGE_KEY = "chisel.portal.personalAccount.v1";
   const DEFAULT_PORTAL_CONFIG = {
     fileProxyUrl: DEFAULT_FILE_PROXY_URL,
     autoSaveFetchedTransactions: true,
@@ -142,7 +143,8 @@
     staticManifest: null,
     staticRawByTxid: Object.create(null),
     portalSourceFilters: Object.create(null),
-    portalAnnotations: Object.create(null)
+    portalAnnotations: Object.create(null),
+    personalAccount: null
   };
 
   const portalRowDerivedCache = new WeakMap();
@@ -2437,6 +2439,9 @@
     const d = rawDecodedForRow(row);
     const parts = [
       row && row.txid,
+      row && row.streamLabel,
+      row && row.index && row.index.address,
+      row && row.index && row.index.label,
       s.hash, s.title, s.cleanText, s.primaryUrl, s.functionName, s.methodId, s.contractName, s.contractAddress, s.coin,
       d.kind, d.message, d.text, d.artifact, d.body
     ];
@@ -4756,6 +4761,109 @@ function getPortalFirstCharacter() {
     });
   }
 
+  function normalizePersonalAccount(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const address = String(source.address || "").trim();
+    if (!address || !isPublicMainThunderwordAddress(address)) return null;
+    return {
+      address: canonicalMainThunderwordAddress(address),
+      coin: normalizeCoinName(source.coin || source.currency || source.ticker || "") || "",
+      ticker: String(source.ticker || "").trim(),
+      label: String(source.label || source.ticker || "Personal account").trim() || "Personal account",
+      savedAt: Number(source.savedAt || Date.now()) || Date.now()
+    };
+  }
+
+  function savePersonalAccount(account) {
+    const clean = normalizePersonalAccount(account);
+    if (!clean) return null;
+    state.personalAccount = clean;
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem(PORTAL_PERSONAL_ACCOUNT_STORAGE_KEY,JSON.stringify(clean));
+      }
+    } catch (error) {
+      console.warn("Could not persist public personal-account context:",error);
+    }
+    return clean;
+  }
+
+  function loadPersonalAccount() {
+    try {
+      const raw = window.localStorage ? window.localStorage.getItem(PORTAL_PERSONAL_ACCOUNT_STORAGE_KEY) : "";
+      return raw ? normalizePersonalAccount(JSON.parse(raw)) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function populatePersonalAccountFields(account) {
+    const clean = normalizePersonalAccount(account);
+    if (!clean) return null;
+
+    const fallback = inferIndexForAddress(clean.address,state.currentIndex || getSelectedIndex());
+    const entry = clean.coin ? indexEntryForCoin(clean.coin,fallback) : fallback;
+
+    if ($("#portalThunderwordAddress")) $("#portalThunderwordAddress").value = clean.address;
+    if ($("#portalSpendableAddress")) $("#portalSpendableAddress").value = clean.address;
+    if ($("#portalSpendableNote") && !$("#portalSpendableNote").value) {
+      $("#portalSpendableNote").value = clean.label;
+    }
+    if ($("#portalThunderwordSelect") && entry && entry.name) {
+      $("#portalThunderwordSelect").value = entry.name;
+    }
+
+    const card = $("#portalPersonalAccount");
+    if (card) card.hidden = false;
+    setText("#portalPersonalAccountLabel",clean.label);
+    setText("#portalPersonalAccountCoin",clean.ticker || tickerForCoin(clean.coin) || clean.coin.toUpperCase());
+    setText("#portalPersonalAccountAddress",clean.address);
+    setText("#portalPersonalAccountMeta",
+      "Public account context is remembered in this browser and its address stream is also offered to the configured rigler.org fileProxy. WIF/private material is not stored here."
+    );
+
+    const explorer = $("#portalPersonalAccountExplorer");
+    if (explorer) {
+      const href = getThunderwords() && entry ? getThunderwords().getAddressUrl(entry,clean.address) : "";
+      if (href) {
+        explorer.href = href;
+        explorer.target = "_blank";
+        explorer.rel = "noopener noreferrer";
+        explorer.style.display = "inline-flex";
+      } else {
+        explorer.removeAttribute("href");
+        explorer.style.display = "none";
+      }
+    }
+
+    return { account:clean, entry:entry };
+  }
+
+  function loadPersonalAccountStream(account, opts) {
+    const prepared = populatePersonalAccountFields(account);
+    if (!prepared) return Promise.resolve(null);
+    const options = opts || {};
+
+    return loadAddressStream(
+      prepared.account.address,
+      prepared.entry,
+      prepared.account.label + " " + prepared.account.address,
+      {
+        source:"wif",
+        updateUrl:false,
+        noReloadIfCurrent:options.noReloadIfCurrent !== false
+      }
+    ).then(function (stream) {
+      const search = $("#portalEvmWordSearch");
+      if (search && options.filterResults !== false) {
+        search.value = prepared.account.address;
+        state.portalPage = 1;
+        requestPortalRender();
+      }
+      return stream;
+    });
+  }
+
   async function receiveIdentityAccounts(event) {
     const detail = event && event.detail ? event.detail : {};
     const accounts = Array.isArray(detail.accounts) ? detail.accounts : [];
@@ -4794,16 +4902,33 @@ function getPortalFirstCharacter() {
     const detail = event && event.detail ? event.detail : {};
     const address = String(detail.address || "").trim();
     if (!address) return;
-    const fallback = inferIndexForAddress(address, state.currentIndex || getSelectedIndex());
-    const entry = detail.coin ? indexEntryForCoin(detail.coin, fallback) : fallback;
-    const label = String(detail.label || detail.ticker || "WIF account").trim() + " " + address;
-    const explicitSearch = detail.explicitSearch === true;
-    loadAddressStream(address, entry, label, {
-      source: explicitSearch ? "manual" : "wif",
-      updateUrl: explicitSearch,
-      noReloadIfCurrent: !explicitSearch
-    }).catch(function (error) {
-      setStatus(error.message || String(error), true);
+
+    const account = savePersonalAccount({
+      address:address,
+      coin:detail.coin,
+      ticker:detail.ticker,
+      label:String(detail.label || detail.ticker || "Personal account").trim(),
+      savedAt:Date.now()
+    });
+    if (!account) return;
+
+    populatePersonalAccountFields(account);
+
+    if (detail.explicitSearch === true) {
+      const fallback = inferIndexForAddress(address,state.currentIndex || getSelectedIndex());
+      const entry = detail.coin ? indexEntryForCoin(detail.coin,fallback) : fallback;
+      loadAddressStream(address,entry,account.label + " " + address,{
+        source:"manual",
+        updateUrl:true,
+        noReloadIfCurrent:false
+      }).catch(function (error) {
+        setStatus(error.message || String(error),true);
+      });
+      return;
+    }
+
+    loadPersonalAccountStream(account,{ filterResults:true, noReloadIfCurrent:true }).catch(function (error) {
+      setStatus(error.message || String(error),true);
     });
   }
 
@@ -4824,6 +4949,7 @@ function getPortalFirstCharacter() {
     const loadEvmCatalog = $("#portalLoadEvmCatalogButton");
     const saveCurrentTx = $("#portalSaveCurrentTxButton");
     const copyRawJson = $("#portalCopyRawJsonButton");
+    const loadPersonalAccountButton = $("#portalLoadPersonalAccountButton");
 
     if (!loadThunderword) return;
 
@@ -4837,6 +4963,8 @@ function getPortalFirstCharacter() {
     loadPortalAnnotations();
     renderThunderwordOptions();
     state.urlMainThunderwordRequest = mainThunderwordRequestFromUrl();
+    state.personalAccount = loadPersonalAccount();
+    if (state.personalAccount) populatePersonalAccountFields(state.personalAccount);
     window.addEventListener("chisel:main-account", receiveMainThunderwordAccount);
     window.addEventListener("chisel:identity-accounts", function (event) {
       receiveIdentityAccounts(event).catch(function (error) {
@@ -4907,6 +5035,17 @@ function getPortalFirstCharacter() {
         const note = $("#portalSpendableNote") ? $("#portalSpendableNote").value.trim() : "";
         await loadAddressStream(address, getSelectedIndex(), note || address);
       } catch (error) { setStatus(error.message || String(error), true); }
+    };
+
+    if (loadPersonalAccountButton) loadPersonalAccountButton.onclick = function () {
+      const account = state.personalAccount || loadPersonalAccount();
+      if (!account) {
+        setStatus("No public personal account has been loaded into Chisel yet.",true);
+        return;
+      }
+      loadPersonalAccountStream(account,{ filterResults:true, noReloadIfCurrent:false }).catch(function (error) {
+        setStatus(error.message || String(error),true);
+      });
     };
 
     if (loadConversation) loadConversation.onclick = async function () {
@@ -4987,7 +5126,17 @@ function getPortalFirstCharacter() {
 
     const portalModeButton = document.querySelector('[data-mode-target="portal"]');
     if (portalModeButton) portalModeButton.addEventListener("click", function () {
-      window.setTimeout(maybeAutoLoadConversationStreams, 0);
+      window.setTimeout(function () {
+        const account = state.personalAccount || loadPersonalAccount();
+        if (account) {
+          populatePersonalAccountFields(account);
+          loadPersonalAccountStream(account,{ filterResults:true, noReloadIfCurrent:true }).catch(function (error) {
+            setStatus(error.message || String(error),true);
+          });
+        } else {
+          maybeAutoLoadConversationStreams();
+        }
+      },0);
     });
 
     loadColorMap(DEFAULT_COLOR_PATH).catch(function (error) {
