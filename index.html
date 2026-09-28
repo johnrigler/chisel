@@ -304,6 +304,15 @@
     .addressQrDialogActions {
       justify-content: center;
     }
+    .receiveMonitor {
+      display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+      padding:9px 10px; border:1px solid #263241; border-radius:10px;
+      background:#080c10;
+    }
+    .receiveMonitorStatus { color:#91a4b7; font-size:12px; line-height:1.4; }
+    .receiveMonitorStatus.funded { color:#9dffbd; font-weight:700; }
+    .receiveMonitorStatus.waiting { color:#ffd166; }
+    .receiveMonitorStatus.error { color:#ff8f8f; }
 
     .recipientQrReader {
       width: min(82vw, 360px);
@@ -425,6 +434,7 @@
     }
 
     body[data-mode="start"] .modePanel[data-mode-panel="start"],
+    body[data-mode="send"] .modePanel[data-mode-panel="etch"],
     body[data-mode="etch"] .modePanel[data-mode-panel="etch"],
     body[data-mode="broadcast"] .modePanel[data-mode-panel="etch"],
     body[data-mode="review"] .modePanel[data-mode-panel="review"],
@@ -618,6 +628,7 @@
       width: calc(100vw - 32px);
     }
 
+    body[data-mode="send"] main,
     body[data-mode="etch"] main,
     body[data-mode="broadcast"] main {
       max-width: none;
@@ -1413,12 +1424,12 @@
       <div class="modeNav" aria-label="Chisel modes">
         <button class="modeButton active" type="button" data-mode-target="portal">Portal</button>
         <button class="modeButton" type="button" data-mode-target="start">Start</button>
-        <button class="modeButton" type="button" data-mode-target="etch">Etch</button>
+        <button class="modeButton" type="button" data-mode-target="send">Send</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
         <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
         <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
       </div>
-      <div class="compactHint" id="modeHint">Portal mode is the default reader. Etch mode creates/signs/sends transactions in either one pass or separate copy/paste steps.</div>
+      <div class="compactHint" id="modeHint">Portal mode is the default reader. Send mode receives funds, builds/signs transactions, and sends them on the selected chain.</div>
     </section>
 
 
@@ -1504,7 +1515,7 @@
 
     <section class="modePanel" data-mode-panel="etch">
     <section class="panel hero">
-      <h2 id="heroTitle">Etch transaction workbench</h2>
+      <h2 id="heroTitle">Send crypto</h2>
       <p id="heroText">
         Paste one private key in WIF format, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction. Your private key is only used locally in this session and never sent to the remote API.
       </p>
@@ -1531,12 +1542,16 @@
             <button id="searchSenderAddressButton" class="secondaryButton" type="button" disabled>SEARCH ADDRESS AS THUNDERWORD</button>
             <span class="help">Show the public address for another phone to scan, or search it as its own Portal ledger stream.</span>
           </div>
+          <div class="receiveMonitor">
+            <button id="checkFundsButton" class="secondaryButton" type="button" disabled>CHECK FUNDS</button>
+            <span id="receiveMonitorStatus" class="receiveMonitorStatus">Load a key to watch this address.</span>
+          </div>
         </div>
 
         <label for="wifScanButton">QR key scanner</label>
         <div class="actions">
-          <button id="wifScanButton" class="secondaryButton" type="button">SCAN HEX STICKERS / WIF</button>
-          <span class="help">Opens qrScan.html. The scanner derives its currency list from installed Chisel coin extensions, then assembles four 16-hex QR stickers or accepts a complete WIF.</span>
+          <button id="wifScanButton" class="secondaryButton" type="button">OPEN KEY CAPTURE</button>
+          <span class="help">Opens the current Chisel key-capture tool. Scan four colored fragments, choose a scanned key, then load its selected-chain WIF back into Send.</span>
         </div>
 
         <label id="feeLabel" for="feeRvn">Fee (RVN)</label>
@@ -1618,7 +1633,7 @@
       </div>
 
       <details open>
-        <summary>Manual transaction pipeline</summary>
+        <summary>Advanced send pipeline</summary>
         <p class="help">Use this when you want to stop between createrawtransaction, signrawtransaction, and sendrawtransaction. You can copy any box out, paste edited JSON or hex back in, then continue from that step. Sending a signed raw transaction does not require the WIF.</p>
 
         <div class="wifWarning">WIF handling: Chisel uses the WIF only inside the current browser session. Manual draft save/restore intentionally does not store WIF values. Fixture WIFs are public dummy keys and must not be funded.</div>
