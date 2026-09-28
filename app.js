@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.23";
+  const APP_VERSION = "2.7.24";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -51,6 +51,7 @@
   const elems = {
     currency: document.querySelector("#currency"),
     senderWif: document.querySelector("#senderWif"),
+    saveCredentialButton: document.querySelector("#saveCredentialButton"),
     feeRvn: document.querySelector("#feeRvn"),
     feeLabel: document.querySelector("#feeLabel"),
     opReturnAscii: document.querySelector("#opReturnAscii"),
@@ -1406,6 +1407,10 @@ function clearOutputs() {
   function render() {
     elems.sendButton.disabled = state.isLoading;
     const hasSenderAddress = Boolean(elems.senderAddress && elems.senderAddress.value.trim());
+    const hasSenderWif = Boolean(elems.senderWif && elems.senderWif.value.trim());
+    if (elems.saveCredentialButton) {
+      elems.saveCredentialButton.disabled = state.isLoading || !hasSenderAddress || !hasSenderWif;
+    }
     if (elems.showSenderAddressQrButton) {
       elems.showSenderAddressQrButton.disabled = state.isLoading || !hasSenderAddress;
     }
@@ -2104,6 +2109,45 @@ function onClickAddCommonAddressButton() {
 }
 
 
+
+  async function saveWalletCredential() {
+    const address = elems.senderAddress ? elems.senderAddress.value.trim() : "";
+    const wif = elems.senderWif ? elems.senderWif.value.trim() : "";
+    const coin = getCoin();
+
+    if (!address || !wif) {
+      setStatusMessage("Derive an address and load its WIF before saving the credential.", true);
+      return;
+    }
+
+    try {
+      if (window.PasswordCredential && navigator.credentials && typeof navigator.credentials.store === "function") {
+        const credential = new PasswordCredential({
+          id: address,
+          password: wif,
+          name: (coin.DISPLAY_NAME || coin.NAME) + " " + address
+        });
+
+        await navigator.credentials.store(credential);
+        setStatusMessage(
+          "Sent " + (coin.TICKER || coin.NAME) + " credential to the browser password manager. Username: " + address,
+          false
+        );
+        return;
+      }
+
+      setStatusMessage(
+        "This browser does not expose direct password-manager storage to Chisel. The address/WIF fields are marked as username/password, so the browser can offer its normal save prompt after navigation or send.",
+        false
+      );
+      elems.senderWif.focus();
+    } catch (error) {
+      setStatusMessage(
+        "Password-manager save was not completed: " + (error.message || String(error)),
+        true
+      );
+    }
+  }
 
   //
   // GUI mode shell
@@ -2975,6 +3019,12 @@ function init() {
       elems.confirmManualBroadcast.onchange = render;
     }
 
+    if (elems.saveCredentialButton) {
+      elems.saveCredentialButton.onclick = function onSaveCredentialButton() {
+        saveWalletCredential();
+      };
+    }
+
     if (elems.wifScanButton) {
       elems.wifScanButton.onclick = openQrScanner;
     }
@@ -3060,5 +3110,6 @@ function init() {
   window.sendTransactionContext = sendTransactionContext;
   window.checkSenderFunds = checkSenderFunds;
   window.startReceiveMonitor = startReceiveMonitor;
+  window.saveWalletCredential = saveWalletCredential;
   window.openArtifactScanner = openArtifactScanner;
 })();
