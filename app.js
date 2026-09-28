@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.19";
+  const APP_VERSION = "2.7.20";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -74,6 +74,8 @@
     addCommonAddressButton: document.querySelector("#addCommonAddressButton"),
     showSenderAddressQrButton: document.querySelector("#showSenderAddressQrButton"),
     searchSenderAddressButton: document.querySelector("#searchSenderAddressButton"),
+    checkFundsButton: document.querySelector("#checkFundsButton"),
+    receiveMonitorStatus: document.querySelector("#receiveMonitorStatus"),
     senderAddressQrDialog: document.querySelector("#senderAddressQrDialog"),
     senderAddressQrCode: document.querySelector("#senderAddressQrCode"),
     senderAddressQrValue: document.querySelector("#senderAddressQrValue"),
@@ -156,7 +158,13 @@
     sendResult: null,
     manualContext: null,
     identityPrivateKeyHex: "",
-    identityAccounts: []
+    identityAccounts: [],
+    receiveWatchTimer: null,
+    receiveWatchBusy: false,
+    receiveWatchAddress: "",
+    receiveWatchCurrency: "",
+    receiveWatchHadZero: false,
+    receiveWatchAlerted: false
   };
 
   //
@@ -920,8 +928,8 @@ function setCurrencyForm() {
   const currencyKey = elems.currency.value || DEFAULT_CURRENCY_KEY;
   const coin = CHISEL.getCoin(currencyKey);
 
-  elems.heroTitle.textContent = coin.HERO_TITLE || coin.DISPLAY_NAME || coin.NAME;
-  elems.heroText.textContent = coin.HERO_TEXT || "";
+  elems.heroTitle.textContent = "Send " + (coin.DISPLAY_NAME || coin.NAME);
+  elems.heroText.textContent = "Receive " + (coin.TICKER || coin.NAME) + " at the derived address, watch for incoming funds, then build, sign, and send locally. " + (coin.HERO_TEXT || "");
   elems.currencyHelp.textContent = coin.HELP_TEXT || "";
   elems.feeLabel.textContent = "Fee (" + coin.TICKER + ")";
   elems.spendTotalLabel.textContent = "Spend total (" + coin.TICKER + ")";
@@ -1104,6 +1112,7 @@ function setSuggestedFeeValue(force) {
 }
 
 function clearOutputs() {
+    stopReceiveMonitor();
     state.account = null;
     state.utxos = null;
     state.vin = null;
@@ -1185,7 +1194,7 @@ function clearOutputs() {
       explorerUrl: elems.explorerUrl ? elems.explorerUrl.value : "",
       fee: elems.feeRvn ? elems.feeRvn.value : "",
       senderWifSaved: false,
-      note: "WIF is intentionally not saved in manual Etch drafts.",
+      note: "WIF is intentionally not saved in manual Send drafts.",
       manualUtxoJson: elems.manualUtxoJson ? elems.manualUtxoJson.value : "",
       manualVinJson: elems.manualVinJson ? elems.manualVinJson.value : "",
       manualVoutJson: elems.manualVoutJson ? elems.manualVoutJson.value : "",
@@ -1390,7 +1399,7 @@ function clearOutputs() {
     exportRpcCommandsToManualBox();
     if (elems.confirmManualBroadcast) elems.confirmManualBroadcast.checked = false;
     updateRecipientCostPreview();
-    setStatusMessage("Loaded Etch fixture: " + (fixture.label || elems.etchFixtureSelect.value) + ". Broadcast remains locked.", false);
+    setStatusMessage("Loaded send fixture: " + (fixture.label || elems.etchFixtureSelect.value) + ". Broadcast remains locked.", false);
   }
 
   function render() {
@@ -1401,6 +1410,9 @@ function clearOutputs() {
     }
     if (elems.searchSenderAddressButton) {
       elems.searchSenderAddressButton.disabled = state.isLoading || !hasSenderAddress;
+    }
+    if (elems.checkFundsButton) {
+      elems.checkFundsButton.disabled = state.isLoading || !hasSenderAddress || state.receiveWatchBusy;
     }
     [
       elems.prepareDraftButton,
@@ -1433,6 +1445,125 @@ function clearOutputs() {
     renderJsonBlock(elems.decodedSignedJson, state.decodedSigned);
     renderJsonBlock(elems.sendPayloadJson, state.sendPayload);
     renderJsonBlock(elems.sendResultJson, state.sendResult);
+  }
+
+  function setReceiveMonitorStatus(message,className) {
+    if (!elems.receiveMonitorStatus) return;
+    elems.receiveMonitorStatus.textContent = message;
+    elems.receiveMonitorStatus.className = "receiveMonitorStatus" + (className ? " " + className : "");
+  }
+
+  function stopReceiveMonitor() {
+    if (state.receiveWatchTimer) {
+      clearInterval(state.receiveWatchTimer);
+      state.receiveWatchTimer = null;
+    }
+    state.receiveWatchBusy = false;
+    state.receiveWatchAddress = "";
+    state.receiveWatchCurrency = "";
+    state.receiveWatchHadZero = false;
+    state.receiveWatchAlerted = false;
+    if (elems.receiveMonitorStatus) {
+      setReceiveMonitorStatus("Load a key to watch this address.","");
+    }
+  }
+
+  function alertFundsArrived(coin,balance,address) {
+    const message = balance.toFixed(8) + " " + coin.TICKER + " arrived at " + address;
+    setReceiveMonitorStatus("FUNDS ARRIVED • " + balance.toFixed(8) + " " + coin.TICKER,"funded");
+    if (document.visibilityState === "visible") {
+      try { window.alert(message); } catch (error) {}
+    } else if ("Notification" in window && Notification.permission === "granted") {
+      try { new Notification("Chisel: funds arrived",{body:message}); } catch (error) {}
+    }
+  }
+
+  async function checkSenderFunds(options) {
+    const opts = options || {};
+    const address = elems.senderAddress ? elems.senderAddress.value.trim() : "";
+    if (!address || state.receiveWatchBusy) return null;
+
+    const coin = getCoin();
+    if (!coin || typeof coin.getAddressUtxos !== "function") {
+      setReceiveMonitorStatus("This chain does not expose an address-balance source.","error");
+      return null;
+    }
+
+    const values = getTransportValues();
+    validateTransportValues(coin,values);
+    const watchKey = coin.NAME + "|" + address;
+
+    if (state.receiveWatchCurrency + "|" + state.receiveWatchAddress !== watchKey) {
+      state.receiveWatchCurrency = coin.NAME;
+      state.receiveWatchAddress = address;
+      state.receiveWatchHadZero = false;
+      state.receiveWatchAlerted = false;
+    }
+
+    state.receiveWatchBusy = true;
+    render();
+    setReceiveMonitorStatus("Checking " + coin.TICKER + " address…","");
+
+    try {
+      const client = await makeClientForValues(coin,values);
+      const rawUtxos = await coin.getAddressUtxos(client,values,address);
+      const utxos = (rawUtxos || []).map(CHISEL.normalizeUTXO);
+      const totalUnits = CHISEL.sumUtxoSatoshis(utxos);
+      const balance = coin.unitsToCoin(totalUnits);
+
+      setUtxoData(utxos);
+
+      if (totalUnits > 0) {
+        if (state.receiveWatchHadZero && !state.receiveWatchAlerted && opts.allowArrivalAlert !== false) {
+          state.receiveWatchAlerted = true;
+          alertFundsArrived(coin,balance,address);
+        } else {
+          setReceiveMonitorStatus(balance.toFixed(8) + " " + coin.TICKER + " available • " + utxos.length + " UTXO" + (utxos.length === 1 ? "" : "s"),"funded");
+        }
+
+        if (state.receiveWatchTimer) {
+          clearInterval(state.receiveWatchTimer);
+          state.receiveWatchTimer = null;
+        }
+      } else {
+        state.receiveWatchHadZero = true;
+        setReceiveMonitorStatus("0 " + coin.TICKER + " • watching for incoming funds","waiting");
+      }
+
+      return {coin:coin,address:address,utxos:utxos,totalUnits:totalUnits,balance:balance};
+    } catch (error) {
+      setReceiveMonitorStatus("Balance check failed: " + (error.message || String(error)),"error");
+      return null;
+    } finally {
+      state.receiveWatchBusy = false;
+      render();
+    }
+  }
+
+  function startReceiveMonitor() {
+    const address = elems.senderAddress ? elems.senderAddress.value.trim() : "";
+    if (!address) {
+      stopReceiveMonitor();
+      return;
+    }
+
+    if (state.receiveWatchTimer) {
+      clearInterval(state.receiveWatchTimer);
+      state.receiveWatchTimer = null;
+    }
+
+    state.receiveWatchAddress = address;
+    state.receiveWatchCurrency = getCoin().NAME;
+    state.receiveWatchHadZero = false;
+    state.receiveWatchAlerted = false;
+
+    checkSenderFunds({allowArrivalAlert:false}).then(function (result) {
+      if (!result || result.totalUnits > 0) return;
+      state.receiveWatchTimer = setInterval(function () {
+        if (document.visibilityState === "hidden") return;
+        checkSenderFunds({allowArrivalAlert:true});
+      },15000);
+    });
   }
 
   //
@@ -1977,11 +2108,11 @@ function onClickAddCommonAddressButton() {
   //
   const MODE_HINTS = {
     start: "Start mode explains what Chisel proves: browser-local signing, chain-native graph/indexing, and static or local ledger resources.",
-    etch: "Etch mode builds UTXO transactions. Use RUN ALL for the old one-pass path or the manual pipeline to stop after each raw-transaction step.",
+    send: "Send mode keeps one active currency, watches the derived receive address for funds, then builds, signs, and sends UTXO transactions.",
     review: "Review mode exposes the transaction spine: account, UTXOs, VIN, VOUT, raw hex, signed hex, and broadcast result.",
     portal: "Portal mode is the default Chisel-aware block explorer view over Thunderword indexes and transaction semantics.",
     examples: "Examples mode collects runnable artifacts and reference outputs without mixing them into the transaction workbench.",
-    tools: "Tools mode links to QR/WIF scanning, label generation, legacy decoding, and support utilities without crowding the etcher."
+    tools: "Tools mode links to key capture, QR/WIF scanning, label generation, legacy decoding, and support utilities without crowding Send."
   };
 
   function normalizeMode(value) {
@@ -1989,8 +2120,8 @@ function onClickAddCommonAddressButton() {
       return "start";
     }
 
-    if (value === "broadcast" || value === "etch") {
-      return "etch";
+    if (value === "broadcast" || value === "etch" || value === "send") {
+      return "send";
     }
 
     if (value === "review" || value === "portal" || value === "examples" || value === "tools") {
@@ -2092,6 +2223,7 @@ function onClickAddCommonAddressButton() {
           console.warn("Cross-chain identity derivation skipped:", deriveError);
         });
       }
+      startReceiveMonitor();
     } catch (error) {
       // A partially typed or wrong-network WIF is normal while editing. Do not
       // expose it in a status message, URL, localStorage, or fileProxy.
@@ -2191,6 +2323,7 @@ function onClickAddCommonAddressButton() {
       network: account.network
     });
     render();
+    startReceiveMonitor();
     return true;
   }
 
@@ -2320,12 +2453,8 @@ function onClickAddCommonAddressButton() {
   }
 
   function openQrScanner() {
-    const url = "qrScan.html?rev=20260911a&currency=" + encodeURIComponent(elems.currency.value || DEFAULT_CURRENCY_KEY);
-    const popup = window.open(url, "chiselQrScan", "width=980,height=860");
-
-    if (!popup) {
-      window.location.href = url;
-    }
+    const url = "tools/recorder/index.html";
+    window.location.href = url;
   }
 
   function normalizeScannedRecipientAddress(rawValue) {
@@ -2695,7 +2824,10 @@ function init() {
 
     elems.sendButton.onclick = onClickSendButton;
     elems.senderWif.onkeydown = onKeydownSenderWif;
-    elems.senderWif.onchange = promoteEnteredWifToPortal;
+    elems.senderWif.onchange = function onSenderWifChange() {
+      stopReceiveMonitor();
+      promoteEnteredWifToPortal();
+    };
     elems.currency.onchange = onChangeCurrency;
     elems.currency.addEventListener("change", setUnspendableKindOptions);
     elems.opReturnAscii.oninput = onInputOpReturnAscii;
@@ -2830,6 +2962,12 @@ function init() {
       elems.searchSenderAddressButton.onclick = searchSenderAddressAsThunderword;
     }
 
+    if (elems.checkFundsButton) {
+      elems.checkFundsButton.onclick = function onCheckFundsButton() {
+        checkSenderFunds({allowArrivalAlert:false});
+      };
+    }
+
     if (elems.payloadAnalyzerButton) {
       elems.payloadAnalyzerButton.onclick = openPayloadAnalyzer;
     }
@@ -2838,6 +2976,9 @@ function init() {
       elems.imageEncoderButton.onclick = openImageEncoder;
     }
 
+    window.addEventListener("beforeunload",function () {
+      if (state.receiveWatchTimer) clearInterval(state.receiveWatchTimer);
+    });
     window.addEventListener("message", handleQrScannerMessage);
     window.addEventListener("message", handleArtifactAnalyzerMessage);
     loadPendingQrPayloadFromStorage();
@@ -2872,4 +3013,6 @@ function init() {
   window.buildTransactionContext = buildTransactionContext;
   window.signTransactionContext = signTransactionContext;
   window.sendTransactionContext = sendTransactionContext;
+  window.checkSenderFunds = checkSenderFunds;
+  window.startReceiveMonitor = startReceiveMonitor;
 })();
