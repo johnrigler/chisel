@@ -21,30 +21,28 @@
     }
     h1 { margin:0; font-size:16px; letter-spacing:.04em; }
     #status { color:var(--muted); font-size:12px; text-align:right; }
-    .stageWrap {
-      min-height:0; display:grid; place-items:center; padding:8px;
-      background:#000;
-    }
+    .stageWrap { min-height:0; display:grid; place-items:center; padding:8px; background:#000; }
     canvas {
-      width:100%; height:100%; max-height:calc(100dvh - 146px);
-      object-fit:contain; background:#000; border-radius:10px;
-      touch-action:none;
+      width:100%; height:100%; max-height:calc(100dvh - 154px);
+      object-fit:contain; background:#000; border-radius:10px; touch-action:none;
     }
     video { display:none; }
     .dock {
-      position:sticky; bottom:0; z-index:10; padding:8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+      position:sticky; bottom:0; z-index:10;
+      padding:8px max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
       border-top:1px solid var(--line); background:rgba(13,17,23,.97); backdrop-filter:blur(10px);
     }
     .row { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
-    .row + .row { margin-top:7px; grid-template-columns:1fr 1fr 1fr; }
+    .row + .row { margin-top:7px; grid-template-columns:repeat(6,1fr); }
     button,a.button {
-      min-height:48px; border:1px solid #364352; border-radius:10px; padding:8px;
+      min-height:48px; border:1px solid #364352; border-radius:10px; padding:8px 5px;
       background:#18212b; color:var(--text); font:inherit; font-weight:700; cursor:pointer;
       display:flex; align-items:center; justify-content:center; text-decoration:none; text-align:center;
     }
     button.active { background:var(--accent); border-color:#9b8fff; }
     button.recording { background:#6d1d25; border-color:var(--danger); }
-    button:disabled { opacity:.4; cursor:default; }
+    button.ready { background:#20552c; border-color:#4ea35f; }
+    button:disabled { opacity:.38; cursor:default; }
     #recordButton { font-size:18px; }
     .drawer {
       display:none; position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.74);
@@ -58,17 +56,20 @@
     .sheet h2 { margin:0 0 10px; font-size:16px; }
     .sheet p { color:var(--muted); line-height:1.45; font-size:13px; }
     label { display:grid; gap:6px; margin:12px 0; color:#b8c7d6; font-size:13px; }
-    select,input[type="range"] {
-      width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:#0a0f14; color:var(--text);
+    select {
+      width:100%; padding:10px; border-radius:8px; border:1px solid var(--line);
+      background:#0a0f14; color:var(--text);
     }
-    .scanList { display:grid; gap:8px; margin-top:12px; }
-    .scanItem { padding:10px; border:1px solid var(--line); border-radius:8px; background:#090d12; word-break:break-all; font-size:12px; }
-    .scanTime { color:var(--ok); margin-right:8px; }
+    .publicList { display:grid; gap:8px; margin-top:12px; }
+    .publicItem {
+      padding:10px; border:1px solid var(--line); border-radius:8px; background:#090d12;
+      word-break:break-all; font-size:12px; line-height:1.45;
+    }
     .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
     .actions > * { flex:1 1 140px; }
     @media (orientation:portrait) {
-      canvas { max-height:calc(100dvh - 150px); }
-      .row button { min-height:54px; font-size:12px; }
+      canvas { max-height:calc(100dvh - 158px); }
+      .row button { min-height:54px; font-size:11px; }
     }
   </style>
 </head>
@@ -92,6 +93,9 @@
       <button id="recordButton">● REC</button>
     </div>
     <div class="row">
+      <button id="faceToggle" class="active">FACE ON</button>
+      <button id="checkFragments" disabled>CHECK 4</button>
+      <button id="clearFragments">CLEAR</button>
       <button id="zoomOut">− ZOOM</button>
       <button id="zoomIn">+ ZOOM</button>
       <button id="setupButton">SETUP</button>
@@ -102,8 +106,11 @@
 <div id="setupDrawer" class="drawer">
   <section class="sheet">
     <h2>Broadcast setup</h2>
-    <p>Portrait-first recorder. SCREEN composites the shared display with a front-camera inset. FACE uses the front camera. DESK and SCAN use the rear camera. SCAN accumulates QR payloads while the recording continues.</p>
+    <p>SCAN keeps the rear camera as the world view. FACE ON adds the front camera in the upper-right. Four 16-hex QR fragments become a pending key set. CHECK 4 derives only the public result, celebrates, then clears the fragments.</p>
 
+    <label>Currency / address format
+      <select id="currency"></select>
+    </label>
     <label>Front camera
       <select id="frontCamera"></select>
     </label>
@@ -122,16 +129,23 @@
     <h2 style="margin-top:18px">Last recording</h2>
     <div class="actions">
       <a id="videoDownload" class="button" hidden download="chisel-broadcast.webm">DOWNLOAD VIDEO</a>
-      <a id="jsonDownload" class="button" hidden download="chisel-broadcast.json">DOWNLOAD QR INDEX</a>
+      <a id="jsonDownload" class="button" hidden download="chisel-broadcast.json">DOWNLOAD PUBLIC INDEX</a>
     </div>
 
-    <h2 style="margin-top:18px">QR index</h2>
-    <div id="scanList" class="scanList"></div>
+    <h2 style="margin-top:18px">Public results</h2>
+    <div id="publicList" class="publicList"></div>
   </section>
 </div>
 
 <video id="screenVideo" autoplay muted playsinline></video>
-<video id="cameraVideo" autoplay muted playsinline></video>
+<video id="worldVideo" autoplay muted playsinline></video>
+<video id="faceVideo" autoplay muted playsinline></video>
+
+<script src="../../chisel.js"></script>
+<script src="../../chisel.sign.js"></script>
+<script src="../../chisel.ravencoin.js"></script>
+<script src="../../chisel.digibyte.js"></script>
+<script src="../../chisel.litecoin.js"></script>
 
 <script>
 (function () {
@@ -141,32 +155,40 @@
   const VIDEO_BPS = 6000000;
   const PORTRAIT = { width:1080, height:1920 };
   const LANDSCAPE = { width:1920, height:1080 };
+  const FRAGMENT_LENGTH = 16;
+  const FRAGMENT_COUNT = 4;
 
   const els = {
     stage: document.getElementById("stage"),
     status: document.getElementById("status"),
     screenVideo: document.getElementById("screenVideo"),
-    cameraVideo: document.getElementById("cameraVideo"),
+    worldVideo: document.getElementById("worldVideo"),
+    faceVideo: document.getElementById("faceVideo"),
     recordButton: document.getElementById("recordButton"),
     setupButton: document.getElementById("setupButton"),
     setupDrawer: document.getElementById("setupDrawer"),
     closeSetup: document.getElementById("closeSetup"),
     loadDevices: document.getElementById("loadDevices"),
+    currency: document.getElementById("currency"),
     frontCamera: document.getElementById("frontCamera"),
     rearCamera: document.getElementById("rearCamera"),
     microphone: document.getElementById("microphone"),
+    faceToggle: document.getElementById("faceToggle"),
+    checkFragments: document.getElementById("checkFragments"),
+    clearFragments: document.getElementById("clearFragments"),
     zoomIn: document.getElementById("zoomIn"),
     zoomOut: document.getElementById("zoomOut"),
     videoDownload: document.getElementById("videoDownload"),
     jsonDownload: document.getElementById("jsonDownload"),
-    scanList: document.getElementById("scanList")
+    publicList: document.getElementById("publicList")
   };
 
   const ctx = els.stage.getContext("2d");
   const state = {
     scene:"screen",
     displayStream:null,
-    cameraStream:null,
+    worldStream:null,
+    faceStream:null,
     microphoneStream:null,
     recorderStream:null,
     recorder:null,
@@ -179,11 +201,15 @@
     frontId:"",
     rearId:"",
     microphoneId:"",
-    cameraFacing:"",
+    faceOverlay:true,
     qrDetector:null,
     qrBusy:false,
     lastQrAt:0,
-    scans:new Map(),
+    lastQrValue:"",
+    lastQrValueAt:0,
+    fragments:[],
+    publicResults:[],
+    confetti:[],
     videoUrl:"",
     jsonUrl:""
   };
@@ -227,53 +253,246 @@
     ctx.restore();
   }
 
+  function drawFaceInset() {
+    if (!state.faceOverlay || !els.faceVideo.videoWidth) return;
+    const w = Math.round(els.stage.width * .26);
+    const h = Math.round(w * 4 / 3);
+    const m = Math.round(els.stage.width * .025);
+    const x = els.stage.width - w - m;
+    const y = m;
+    ctx.fillStyle = "rgba(0,0,0,.9)";
+    ctx.fillRect(x-5,y-5,w+10,h+10);
+    drawCover(els.faceVideo,x,y,w,h,true);
+  }
+
   function drawScreenScene() {
     drawCover(els.screenVideo,0,0,els.stage.width,els.stage.height,false);
-    if (state.cameraFacing === "front" && els.cameraVideo.videoWidth) {
-      const w = Math.round(els.stage.width * .28);
-      const h = Math.round(w * 4 / 3);
-      const m = Math.round(els.stage.width * .025);
-      ctx.fillStyle = "#000";
-      ctx.fillRect(els.stage.width-w-m-5,m-5,w+10,h+10);
-      drawCover(els.cameraVideo,els.stage.width-w-m,m,w,h,true);
+    drawFaceInset();
+  }
+
+  function drawFaceScene() {
+    drawCover(els.faceVideo,0,0,els.stage.width,els.stage.height,true);
+  }
+
+  function drawWorldScene() {
+    drawCover(els.worldVideo,0,0,els.stage.width,els.stage.height,false);
+    if (state.scene === "scan") {
+      drawScanPanels();
+      drawFaceInset();
     }
   }
 
-  function drawCameraScene() {
-    drawCover(els.cameraVideo,0,0,els.stage.width,els.stage.height,state.cameraFacing === "front");
+  function fragmentLabel(value) {
+    if (!value) return "";
+    return value.slice(0,4) + "…" + value.slice(-4);
   }
 
-  function drawQrOverlay() {
-    const values = Array.from(state.scans.values()).slice(-4);
-    if (!values.length) return;
+  function drawScanPanels() {
+    const pad = Math.round(els.stage.width * .025);
+    const panelW = Math.round(els.stage.width * .31);
+    const lineH = Math.max(36, Math.round(els.stage.width * .038));
+    const top = pad;
+    const leftX = pad;
+    const rightX = els.stage.width - panelW - pad;
+    const faceW = Math.round(els.stage.width * .26);
+    const faceH = Math.round(faceW * 4 / 3);
+    const rightTop = state.faceOverlay ? top + faceH + pad * 2 : top;
+
     ctx.save();
     ctx.font = Math.max(22, Math.round(els.stage.width * .025)) + "px monospace";
     ctx.textBaseline = "top";
-    values.forEach((item,i) => {
-      const text = timecode(item.firstSeen) + "  " + item.value.slice(0,42);
-      const y = 24 + i * 44;
-      ctx.fillStyle = "rgba(0,0,0,.72)";
-      ctx.fillRect(18,y-6,Math.min(els.stage.width-36,ctx.measureText(text).width+24),38);
+
+    ctx.fillStyle = "rgba(0,0,0,.70)";
+    ctx.fillRect(leftX,top,panelW,Math.max(lineH*6,220));
+    ctx.fillStyle = "#e6edf3";
+    ctx.fillText("FRAGMENTS " + state.fragments.length + "/4",leftX+14,top+12);
+
+    for (let i=0; i<FRAGMENT_COUNT; i++) {
+      const y = top + 12 + lineH * (i+1);
+      const text = state.fragments[i] ? ((i+1) + "  ✓  " + fragmentLabel(state.fragments[i])) : ((i+1) + "  ·");
+      ctx.fillStyle = state.fragments[i] ? "#7ee787" : "#91a4b7";
+      ctx.fillText(text,leftX+14,y);
+    }
+
+    if (state.fragments.length === FRAGMENT_COUNT) {
+      ctx.fillStyle = "#ffd166";
+      ctx.fillText("READY: CHECK 4",leftX+14,top+12+lineH*5);
+    }
+
+    const results = state.publicResults.slice(-4).reverse();
+    const resultH = Math.max(220, lineH * (results.length * 3 + 2));
+    ctx.fillStyle = "rgba(0,0,0,.70)";
+    ctx.fillRect(rightX,rightTop,panelW,resultH);
+    ctx.fillStyle = "#e6edf3";
+    ctx.fillText("PUBLIC KEYS",rightX+14,rightTop+12);
+
+    results.forEach((item,index) => {
+      const baseY = rightTop + 12 + lineH * (index*3+1);
       ctx.fillStyle = "#7ee787";
-      ctx.fillText(text,30,y);
+      ctx.fillText("#" + item.number + " " + item.ticker + " " + item.address.slice(0,20) + "…",rightX+14,baseY);
+      ctx.fillStyle = "#91a4b7";
+      ctx.fillText(item.publicKey.slice(0,22) + "…",rightX+14,baseY+lineH);
     });
+
     ctx.restore();
   }
 
+  function createConfetti() {
+    const count = 90;
+    state.confetti = [];
+    for (let i=0;i<count;i++) {
+      state.confetti.push({
+        x:Math.random()*els.stage.width,
+        y:-Math.random()*els.stage.height*.2,
+        vx:(Math.random()-.5)*5,
+        vy:3+Math.random()*8,
+        size:6+Math.random()*12,
+        life:90+Math.floor(Math.random()*80),
+        hue:Math.floor(Math.random()*360)
+      });
+    }
+  }
+
+  function drawConfetti() {
+    if (!state.confetti.length) return;
+    ctx.save();
+    state.confetti.forEach(p => {
+      ctx.fillStyle = "hsl(" + p.hue + " 85% 62%)";
+      ctx.fillRect(p.x,p.y,p.size,p.size*.55);
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += .07;
+      p.life -= 1;
+    });
+    ctx.restore();
+    state.confetti = state.confetti.filter(p => p.life > 0 && p.y < els.stage.height + 30);
+  }
+
   async function scanQrFrame() {
-    if (state.scene !== "scan" || !state.qrDetector || state.qrBusy || !els.cameraVideo.videoWidth) return;
+    if (state.scene !== "scan" || !state.qrDetector || state.qrBusy || !els.worldVideo.videoWidth) return;
     const now = performance.now();
     if (now - state.lastQrAt < 250) return;
     state.lastQrAt = now;
     state.qrBusy = true;
     try {
-      const found = await state.qrDetector.detect(els.cameraVideo);
-      found.forEach(code => addScan(code.rawValue || ""));
+      const found = await state.qrDetector.detect(els.worldVideo);
+      found.forEach(code => consumeQr(code.rawValue || ""));
     } catch (e) {
-      // Detection is best-effort and should never stop recording.
+      // QR scanning is best effort. It must never interrupt recording.
     } finally {
       state.qrBusy = false;
     }
+  }
+
+  function normalizeHex(value) {
+    return String(value || "").trim().replace(/^0x/i,"").replace(/\s+/g,"").toLowerCase();
+  }
+
+  function consumeQr(raw) {
+    const text = String(raw || "").trim();
+    const now = Date.now();
+    if (!text) return;
+    if (text === state.lastQrValue && now - state.lastQrValueAt < 2500) return;
+    state.lastQrValue = text;
+    state.lastQrValueAt = now;
+
+    const fragment = normalizeHex(text);
+    if (!/^[0-9a-f]{16}$/.test(fragment)) {
+      setStatus("QR seen, but key fragments must be 16 hex characters.");
+      return;
+    }
+
+    if (state.fragments.includes(fragment)) {
+      setStatus("That fragment is already in the pending set.");
+      return;
+    }
+
+    if (state.fragments.length >= FRAGMENT_COUNT) {
+      setStatus("Four fragments are ready. Tap CHECK 4 or CLEAR.");
+      return;
+    }
+
+    state.fragments.push(fragment);
+    updateFragmentControls();
+
+    if (state.fragments.length === FRAGMENT_COUNT) {
+      setStatus("Four fragments ready. Tap CHECK 4.");
+    } else {
+      setStatus("Fragment " + state.fragments.length + " of 4 accepted.");
+    }
+  }
+
+  function updateFragmentControls() {
+    const ready = state.fragments.length === FRAGMENT_COUNT;
+    els.checkFragments.disabled = !ready;
+    els.checkFragments.classList.toggle("ready",ready);
+  }
+
+  function clearFragments(message) {
+    state.fragments = [];
+    updateFragmentControls();
+    if (message) setStatus(message);
+  }
+
+  function getCoinWifPrefix(coin) {
+    if (coin && typeof coin.WIF_PREFIX === "number") return coin.WIF_PREFIX;
+    if (coin && Array.isArray(coin.WIF_PREFIXES) && coin.WIF_PREFIXES.length) return coin.WIF_PREFIXES[0];
+    if (coin && coin.NAME === "litecoin") return 176;
+    if (coin && coin.NAME === "litecoinTestnet") return 239;
+    return 128;
+  }
+
+  async function privateKeyHexToWif(privateKeyHex, coin) {
+    const payload = new Uint8Array(34);
+    const keyBytes = CHISEL.hexToUint8Array(privateKeyHex);
+    payload[0] = getCoinWifPrefix(coin);
+    payload.set(keyBytes,1);
+    payload[33] = 1;
+    return CHISEL.base58CheckEncode(payload);
+  }
+
+  async function checkFragments() {
+    if (state.fragments.length !== FRAGMENT_COUNT) return;
+    const privateKeyHex = state.fragments.join("");
+    const coin = CHISEL.getCoin(els.currency.value);
+
+    try {
+      const wif = await privateKeyHexToWif(privateKeyHex,coin);
+      const account = await coin.wifToAccount(wif);
+      const publicKey = CHISEL.privateKeyHexToPublicKeyHex(account.privateKeyHex,true);
+      const address = account.compressedAddress || account.address;
+      const elapsed = state.recording ? Date.now() - state.startedAt : 0;
+
+      state.publicResults.push({
+        number:state.publicResults.length+1,
+        timeMs:elapsed,
+        currency:coin.NAME,
+        ticker:coin.TICKER || coin.NAME,
+        address:address,
+        publicKey:publicKey
+      });
+
+      renderPublicResults();
+      clearFragments();
+      createConfetti();
+      setStatus("Public key #" + state.publicResults.length + " created. Fragment set cleared.");
+    } catch (error) {
+      setStatus("Key check failed: " + (error.message || String(error)));
+    }
+  }
+
+  function renderPublicResults() {
+    els.publicList.innerHTML = "";
+    state.publicResults.slice().reverse().forEach(item => {
+      const div = document.createElement("div");
+      div.className = "publicItem";
+      div.textContent =
+        "#" + item.number + "  " + timecode(item.timeMs) + "\n" +
+        item.ticker + " address: " + item.address + "\n" +
+        "public key: " + item.publicKey;
+      div.style.whiteSpace = "pre-wrap";
+      els.publicList.append(div);
+    });
   }
 
   function drawFrame() {
@@ -282,43 +501,28 @@
     ctx.fillRect(0,0,els.stage.width,els.stage.height);
 
     if (state.scene === "screen") drawScreenScene();
-    else drawCameraScene();
+    else if (state.scene === "face") drawFaceScene();
+    else drawWorldScene();
 
-    if (state.scene === "scan") {
-      scanQrFrame();
-      drawQrOverlay();
-    }
-
+    if (state.scene === "scan") scanQrFrame();
+    drawConfetti();
     state.animationFrame = requestAnimationFrame(drawFrame);
   }
 
-  function addScan(value) {
-    value = String(value || "").trim();
-    if (!value) return;
-    const elapsed = state.recording ? Date.now() - state.startedAt : 0;
-    const existing = state.scans.get(value);
-    if (existing) {
-      existing.lastSeen = elapsed;
-      existing.count += 1;
-    } else {
-      state.scans.set(value,{value:value,firstSeen:elapsed,lastSeen:elapsed,count:1});
-      renderScans();
-    }
-  }
+  function fillCurrencyOptions() {
+    els.currency.innerHTML = "";
+    if (!window.CHISEL || typeof CHISEL.getCoins !== "function") return;
 
-  function renderScans() {
-    els.scanList.innerHTML = "";
-    Array.from(state.scans.values()).forEach(item => {
-      const div = document.createElement("div");
-      div.className = "scanItem";
-      const t = document.createElement("span");
-      t.className = "scanTime";
-      t.textContent = timecode(item.firstSeen);
-      const v = document.createElement("span");
-      v.textContent = item.value;
-      div.append(t,v);
-      els.scanList.append(div);
+    const coins = CHISEL.getCoins().filter(c => c && c.NAME && typeof c.wifToAccount === "function");
+    coins.forEach(coin => {
+      const o = document.createElement("option");
+      o.value = coin.NAME;
+      o.textContent = coin.DISPLAY_NAME || coin.NAME;
+      els.currency.append(o);
     });
+
+    const preferred = coins.find(c => c.NAME === "litecoin") || coins[0];
+    if (preferred) els.currency.value = preferred.NAME;
   }
 
   async function loadDevices() {
@@ -371,34 +575,39 @@
 
   async function ensureMicrophone() {
     if (state.microphoneStream && state.microphoneStream.active) return;
-    const audio = state.microphoneId ? {deviceId:{exact:state.microphoneId},echoCancellation:true,noiseSuppression:true,autoGainControl:true} : true;
+    const audio = state.microphoneId
+      ? {deviceId:{exact:state.microphoneId},echoCancellation:true,noiseSuppression:true,autoGainControl:true}
+      : true;
     state.microphoneStream = await navigator.mediaDevices.getUserMedia({audio:audio,video:false});
   }
 
-  async function switchCamera(facing) {
-    const wantedId = facing === "front" ? state.frontId : state.rearId;
-    if (state.cameraStream && state.cameraFacing === facing) return;
-    stopStream(state.cameraStream);
-    state.cameraStream = null;
-    els.cameraVideo.srcObject = null;
+  async function ensureFaceCamera() {
+    if (state.faceStream && state.faceStream.active) return;
+    const video = state.frontId
+      ? {deviceId:{exact:state.frontId},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:FRAME_RATE}}
+      : {facingMode:{ideal:"user"}};
+    state.faceStream = await navigator.mediaDevices.getUserMedia({audio:false,video:video});
+    els.faceVideo.srcObject = state.faceStream;
+    await els.faceVideo.play();
+  }
 
-    const video = wantedId
-      ? {deviceId:{exact:wantedId},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:FRAME_RATE}}
-      : {facingMode:{ideal:facing === "front" ? "user" : "environment"}};
-
-    state.cameraStream = await navigator.mediaDevices.getUserMedia({audio:false,video:video});
-    state.cameraFacing = facing;
-    els.cameraVideo.srcObject = state.cameraStream;
-    await els.cameraVideo.play();
+  async function ensureWorldCamera() {
+    if (state.worldStream && state.worldStream.active) return;
+    const video = state.rearId
+      ? {deviceId:{exact:state.rearId},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:FRAME_RATE}}
+      : {facingMode:{ideal:"environment"}};
+    state.worldStream = await navigator.mediaDevices.getUserMedia({audio:false,video:video});
+    els.worldVideo.srcObject = state.worldStream;
+    await els.worldVideo.play();
     updateZoomButtons();
   }
 
-  function getCameraTrack() {
-    return state.cameraStream ? state.cameraStream.getVideoTracks()[0] : null;
+  function getWorldTrack() {
+    return state.worldStream ? state.worldStream.getVideoTracks()[0] : null;
   }
 
   function getZoomInfo() {
-    const track = getCameraTrack();
+    const track = getWorldTrack();
     if (!track || !track.getCapabilities) return null;
     const caps = track.getCapabilities();
     const settings = track.getSettings ? track.getSettings() : {};
@@ -425,18 +634,29 @@
     document.querySelectorAll("[data-scene]").forEach(b => b.classList.toggle("active",b.dataset.scene === scene));
 
     if (scene === "screen") {
+      await ensureFaceCamera();
       if (!state.displayStream) setStatus("SCREEN will ask what display to share when recording starts.");
-      await switchCamera("front");
     } else if (scene === "face") {
-      await switchCamera("front");
+      await ensureFaceCamera();
+      setStatus("FACE view.");
     } else {
-      await switchCamera("rear");
+      await ensureWorldCamera();
+      if (state.faceOverlay) {
+        try { await ensureFaceCamera(); }
+        catch (e) { setStatus("World camera active; front overlay could not open simultaneously."); }
+      }
+      if (scene === "scan" && !state.qrDetector) setStatus("SCAN active, but native QR detection is unavailable.");
+      else setStatus(scene.toUpperCase() + " view.");
     }
+  }
 
-    if (scene === "scan" && !state.qrDetector) {
-      setStatus("SCAN view active. QR detection is not available in this browser.");
-    } else {
-      setStatus(scene.toUpperCase() + " view.");
+  async function toggleFaceOverlay() {
+    state.faceOverlay = !state.faceOverlay;
+    els.faceToggle.classList.toggle("active",state.faceOverlay);
+    els.faceToggle.textContent = state.faceOverlay ? "FACE ON" : "FACE OFF";
+    if (state.faceOverlay) {
+      try { await ensureFaceCamera(); }
+      catch (e) { state.faceOverlay = false; els.faceToggle.classList.remove("active"); els.faceToggle.textContent = "FACE OFF"; setStatus("Front camera cannot run beside the rear camera on this device."); }
     }
   }
 
@@ -471,8 +691,9 @@
   async function startRecording() {
     if (state.recording) return;
     state.chunks = [];
-    state.scans.clear();
-    renderScans();
+    state.publicResults = [];
+    renderPublicResults();
+    clearFragments();
     revokeDownloads();
 
     await ensureDisplay();
@@ -507,7 +728,7 @@
       tool:"Chisel Broadcast",
       created:new Date().toISOString(),
       durationMs:Math.max(0,Date.now()-state.startedAt),
-      scans:Array.from(state.scans.values())
+      publicResults:state.publicResults
     };
     const jsonBlob = new Blob([JSON.stringify(index,null,2)],{type:"application/json"});
     state.jsonUrl = URL.createObjectURL(jsonBlob);
@@ -540,10 +761,27 @@
   els.setupButton.onclick = () => els.setupDrawer.classList.add("open");
   els.closeSetup.onclick = () => els.setupDrawer.classList.remove("open");
   els.setupDrawer.onclick = e => { if (e.target === els.setupDrawer) els.setupDrawer.classList.remove("open"); };
-  els.frontCamera.onchange = e => { state.frontId = e.target.value; if (state.cameraFacing === "front") switchCamera("front"); };
-  els.rearCamera.onchange = e => { state.rearId = e.target.value; if (state.cameraFacing === "rear") switchCamera("rear"); };
-  els.microphone.onchange = e => { state.microphoneId = e.target.value; stopStream(state.microphoneStream); state.microphoneStream = null; };
-  els.recordButton.onclick = () => state.recording ? stopRecording() : startRecording().catch(e => { setStatus("Could not record: " + e.message); });
+  els.frontCamera.onchange = e => {
+    state.frontId = e.target.value;
+    stopStream(state.faceStream);
+    state.faceStream = null;
+    if (state.faceOverlay || state.scene === "face" || state.scene === "screen") ensureFaceCamera().catch(err => setStatus("Front camera error: " + err.message));
+  };
+  els.rearCamera.onchange = e => {
+    state.rearId = e.target.value;
+    stopStream(state.worldStream);
+    state.worldStream = null;
+    if (state.scene === "desk" || state.scene === "scan") ensureWorldCamera().catch(err => setStatus("Rear camera error: " + err.message));
+  };
+  els.microphone.onchange = e => {
+    state.microphoneId = e.target.value;
+    stopStream(state.microphoneStream);
+    state.microphoneStream = null;
+  };
+  els.recordButton.onclick = () => state.recording ? stopRecording() : startRecording().catch(e => setStatus("Could not record: " + e.message));
+  els.faceToggle.onclick = () => toggleFaceOverlay();
+  els.checkFragments.onclick = () => checkFragments();
+  els.clearFragments.onclick = () => clearFragments("Pending fragments cleared.");
   els.zoomIn.onclick = () => changeZoom(1);
   els.zoomOut.onclick = () => changeZoom(-1);
   document.querySelectorAll("[data-scene]").forEach(b => b.onclick = () => setScene(b.dataset.scene).catch(e => setStatus("Camera error: " + e.message)));
@@ -551,14 +789,17 @@
   window.addEventListener("beforeunload",() => {
     if (state.recording) stopRecording();
     stopStream(state.displayStream);
-    stopStream(state.cameraStream);
+    stopStream(state.worldStream);
+    stopStream(state.faceStream);
     stopStream(state.microphoneStream);
     stopStream(state.recorderStream);
   });
 
+  fillCurrencyOptions();
   setCanvasOrientation();
   initQr();
   drawFrame();
+  updateFragmentControls();
   updateZoomButtons();
 })();
 </script>
