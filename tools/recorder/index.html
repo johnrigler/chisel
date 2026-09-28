@@ -1368,7 +1368,16 @@
       els.currency.append(o);
     });
 
-    const preferred = coins.find(c => c.NAME === "litecoin") || coins[0];
+    let requested = "";
+    try {
+      requested = new URL(window.location.href).searchParams.get("currency") || "";
+    } catch (error) {}
+
+    const preferred =
+      coins.find(c => c.NAME === requested) ||
+      coins.find(c => c.NAME === "litecoin") ||
+      coins[0];
+
     if (preferred) els.currency.value = preferred.NAME;
   }
 
