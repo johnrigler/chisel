@@ -38,6 +38,21 @@
     .sideControls.left { left:12px; }
     .sideControls.right { right:12px; }
     .sideControls button { pointer-events:auto; width:100%; min-height:46px; padding:7px 4px; background:rgba(24,33,43,.92); }
+    body.touchDevice .sideControls { width:96px; gap:9px; bottom:18px; }
+    body.touchDevice .sideControls button { min-height:54px; font-size:12px; }
+    body.touchDevice .sideControls.left { left:6%; }
+    body.touchDevice .sideControls.right { right:6%; }
+    body.phone.portrait .sideControls { width:104px; gap:9px; bottom:14px; }
+    body.phone.portrait .sideControls.left { left:8%; }
+    body.phone.portrait .sideControls.right { right:8%; }
+    body.phone.portrait .sideControls button { min-height:58px; font-size:12px; }
+    body.tablet.portrait .sideControls { width:112px; gap:10px; bottom:20px; }
+    body.tablet.portrait .sideControls.left { left:8%; }
+    body.tablet.portrait .sideControls.right { right:8%; }
+    body.tablet.portrait .sideControls button { min-height:60px; font-size:13px; }
+    body.landscape.touchDevice .sideControls { width:106px; bottom:16px; }
+    body.landscape.touchDevice .sideControls.left { left:7%; }
+    body.landscape.touchDevice .sideControls.right { right:7%; }
     .sideControls .spacer { display:none; }
     button,a.button {
       min-height:48px; border:1px solid #364352; border-radius:10px; padding:8px 5px;
@@ -130,10 +145,8 @@
     }
     @media (orientation:portrait) {
       canvas { max-height:calc(100dvh - 58px); }
-      .sideControls { width:78px; gap:6px; }
-      .sideControls button { min-height:44px; font-size:10px; }
     }
-    @media (max-width:520px) {
+    @media (max-width:520px) and (pointer:fine) {
       .sideControls { width:70px; }
       .sideControls button { min-height:42px; font-size:9px; }
     }
@@ -350,7 +363,82 @@
     if (stream) stream.getTracks().forEach(track => track.stop());
   }
 
+  function getLayoutProfile() {
+    const cssW = Math.max(1,window.innerWidth || document.documentElement.clientWidth || 1);
+    const cssH = Math.max(1,window.innerHeight || document.documentElement.clientHeight || 1);
+    const portrait = cssH >= cssW;
+    const shortSide = Math.min(cssW,cssH);
+    const coarse = window.matchMedia ? window.matchMedia("(pointer: coarse)").matches : false;
+    const phone = coarse && shortSide < 600;
+    const tablet = coarse && !phone;
+
+    return {
+      cssW:cssW,
+      cssH:cssH,
+      portrait:portrait,
+      coarse:coarse,
+      phone:phone,
+      tablet:tablet
+    };
+  }
+
+  function applyLayoutClasses() {
+    const p = getLayoutProfile();
+    document.body.classList.toggle("touchDevice",p.coarse);
+    document.body.classList.toggle("phone",p.phone);
+    document.body.classList.toggle("tablet",p.tablet);
+    document.body.classList.toggle("portrait",p.portrait);
+    document.body.classList.toggle("landscape",!p.portrait);
+  }
+
+  function getStageLayout() {
+    const p = getLayoutProfile();
+    const W = els.stage.width;
+    const H = els.stage.height;
+
+    let camera;
+    let stickerY;
+    let stickerScale;
+    let resourceX;
+
+    if (p.phone && p.portrait) {
+      camera = {x:.10*W,y:.055*H,w:.80*W,h:.47*H};
+      stickerY = .58*H;
+      stickerScale = .155;
+      resourceX = .43*W;
+    } else if (p.tablet && p.portrait) {
+      camera = {x:.095*W,y:.05*H,w:.81*W,h:.50*H};
+      stickerY = .61*H;
+      stickerScale = .15;
+      resourceX = .44*W;
+    } else if (p.portrait) {
+      camera = {x:.08*W,y:.05*H,w:.84*W,h:.54*H};
+      stickerY = .64*H;
+      stickerScale = .145;
+      resourceX = .47*W;
+    } else if (p.coarse) {
+      camera = {x:.17*W,y:.045*H,w:.66*W,h:.66*H};
+      stickerY = .73*H;
+      stickerScale = .115;
+      resourceX = .48*W;
+    } else {
+      camera = {x:.10*W,y:.04*H,w:.80*W,h:.72*H};
+      stickerY = .78*H;
+      stickerScale = .11;
+      resourceX = .52*W;
+    }
+
+    return {
+      profile:p,
+      camera:camera,
+      stickerY:stickerY,
+      stickerScale:stickerScale,
+      resourceX:resourceX
+    };
+  }
+
   function setCanvasOrientation() {
+    applyLayoutClasses();
     const portrait = innerHeight >= innerWidth;
     const size = portrait ? PORTRAIT : LANDSCAPE;
     if (els.stage.width !== size.width || els.stage.height !== size.height) {
@@ -377,32 +465,48 @@
     ctx.restore();
   }
 
-  function drawFaceInset() {
+  function drawFaceInset(layout) {
     if (!state.faceOverlay || !els.faceVideo.videoWidth) return;
-    const w = Math.round(els.stage.width * .26);
+    const box = (layout || getStageLayout()).camera;
+    const w = Math.round(box.w * .27);
     const h = Math.round(w * 4 / 3);
-    const m = Math.round(els.stage.width * .025);
-    const x = els.stage.width - w - m;
-    const y = m;
+    const m = Math.max(10,Math.round(box.w * .018));
+    const x = box.x + box.w - w - m;
+    const y = box.y + m;
     ctx.fillStyle = "rgba(0,0,0,.9)";
     ctx.fillRect(x-5,y-5,w+10,h+10);
     drawCover(els.faceVideo,x,y,w,h,true);
   }
 
+  function drawCameraMat(layout) {
+    const b = layout.camera;
+    ctx.fillStyle = "#05070a";
+    ctx.fillRect(b.x-8,b.y-8,b.w+16,b.h+16);
+  }
+
   function drawScreenScene() {
-    drawCover(els.screenVideo,0,0,els.stage.width,els.stage.height,false);
-    drawFaceInset();
+    const layout = getStageLayout();
+    drawCameraMat(layout);
+    const b = layout.camera;
+    drawCover(els.screenVideo,b.x,b.y,b.w,b.h,false);
+    drawFaceInset(layout);
   }
 
   function drawFaceScene() {
-    drawCover(els.faceVideo,0,0,els.stage.width,els.stage.height,true);
+    const layout = getStageLayout();
+    drawCameraMat(layout);
+    const b = layout.camera;
+    drawCover(els.faceVideo,b.x,b.y,b.w,b.h,true);
   }
 
   function drawWorldScene() {
-    drawCover(els.worldVideo,0,0,els.stage.width,els.stage.height,false);
+    const layout = getStageLayout();
+    drawCameraMat(layout);
+    const b = layout.camera;
+    drawCover(els.worldVideo,b.x,b.y,b.w,b.h,false);
     if (state.scene === "scan") {
-      drawScanPanels();
-      drawFaceInset();
+      drawScanPanels(layout);
+      drawFaceInset(layout);
     }
   }
 
@@ -590,13 +694,15 @@
     state.selectedResource = null;
   }
 
-  function drawScanPanels() {
-    const sideReserve = Math.max(92,Math.round(els.stage.width*.09));
-    const available = els.stage.width - sideReserve*2;
+  function drawScanPanels(layout) {
+    layout = layout || getStageLayout();
+    const available = Math.round(els.stage.width*.82);
     const gap = Math.max(8,Math.round(available*.014));
-    const stickerSize = Math.floor((available-gap*3)/4);
-    const startX = sideReserve;
-    const y = els.stage.height - stickerSize - 28;
+    const maxSticker = Math.round(els.stage.width*layout.stickerScale);
+    const stickerSize = Math.min(maxSticker,Math.floor((available-gap*3)/4));
+    const totalWidth = stickerSize*4+gap*3;
+    const startX = Math.round((els.stage.width-totalWidth)/2);
+    const y = Math.round(layout.stickerY);
 
     // Four slots always read left-to-right: 1, 2, 3, 4.
     for (let i=0;i<FRAGMENT_COUNT;i++) {
@@ -620,14 +726,12 @@
     }
 
     const pad = Math.round(els.stage.width*.025);
-    const panelW = Math.round(els.stage.width*.34);
-    const faceW = Math.round(els.stage.width*.26);
-    const faceH = Math.round(faceW*4/3);
-    const rightX = Math.round(els.stage.width*.50);
-    const rightTop = state.faceOverlay ? pad+faceH+pad*2 : pad;
+    const panelW = Math.round(els.stage.width*(layout.profile.portrait ? .40 : .31));
+    const rightX = Math.round(layout.resourceX);
+    const rightTop = Math.round(layout.camera.y + layout.camera.h + pad);
     const results = state.publicResults.slice(-5).reverse();
-    const lineH = Math.max(34,Math.round(els.stage.width*.034));
-    const resultH = Math.max(150,lineH*(results.length*3+2));
+    const lineH = Math.max(30,Math.round(els.stage.width*(layout.profile.portrait ? .030 : .024)));
+    const resultH = Math.max(120,lineH*(results.length*3+2));
     state.resourceHitboxes = [];
 
     ctx.save();
@@ -658,7 +762,7 @@
       const msg = "4/4 READY • CHECK 4";
       const tw = ctx.measureText(msg).width+28;
       const mx = (els.stage.width-tw)/2;
-      const my = y-48;
+      const my = Math.max(layout.camera.y+layout.camera.h+8,y-48);
       ctx.fillRect(mx,my,tw,38);
       ctx.fillStyle = "#ffd166";
       ctx.fillText(msg,mx+14,my+8);
@@ -1171,6 +1275,9 @@
   els.zoomOut.onclick = () => changeZoom(-1);
   document.querySelectorAll("[data-scene]").forEach(b => b.onclick = () => setScene(b.dataset.scene).catch(e => setStatus("Camera error: " + e.message)));
   window.addEventListener("resize",setCanvasOrientation);
+  if (screen.orientation && screen.orientation.addEventListener) {
+    screen.orientation.addEventListener("change",setCanvasOrientation);
+  }
   window.addEventListener("beforeunload",() => {
     if (state.recording) stopRecording();
     stopStream(state.displayStream);
