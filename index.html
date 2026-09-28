@@ -654,6 +654,38 @@
       min-height: 72vh;
     }
 
+    .portalPersonalAccount {
+      display:grid;
+      gap:10px;
+      border:1px solid #6f61e8;
+      border-radius:14px;
+      padding:14px;
+      background:linear-gradient(180deg, rgba(124,109,255,.14), rgba(124,109,255,.05));
+    }
+    .portalPersonalAccount[hidden] { display:none; }
+    .portalPersonalAccountTop {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .portalPersonalAccountAddress {
+      display:block;
+      padding:10px 12px;
+      border:1px solid #344150;
+      border-radius:10px;
+      background:#070b0f;
+      color:#c5f467;
+      overflow-wrap:anywhere;
+      user-select:all;
+    }
+    .portalPersonalAccountMeta {
+      color:#91a4b7;
+      font-size:12px;
+      line-height:1.45;
+    }
+
     .portalStreamHeader {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -1831,6 +1863,22 @@
               <button id="portalLoadTxButton" class="secondaryButton" type="button">LOAD SELECTED-COIN TXID</button>
             </div>
           </details>
+        </section>
+
+        <section id="portalPersonalAccount" class="portalPersonalAccount" hidden>
+          <div class="portalPersonalAccountTop">
+            <div>
+              <div class="stepTitle">Your loaded Chisel address</div>
+              <strong id="portalPersonalAccountLabel">Personal account</strong>
+            </div>
+            <span id="portalPersonalAccountCoin" class="portalStreamCoin">LTC</span>
+          </div>
+          <code id="portalPersonalAccountAddress" class="portalPersonalAccountAddress"></code>
+          <div id="portalPersonalAccountMeta" class="portalPersonalAccountMeta">Public address only. Private key material is not stored in Portal.</div>
+          <div class="actions">
+            <button id="portalLoadPersonalAccountButton" class="secondaryButton" type="button">LOAD MY STREAM</button>
+            <a id="portalPersonalAccountExplorer" class="secondaryButton" href="#">VERIFY ADDRESS</a>
+          </div>
         </section>
 
         <section class="panel portalStreamPanel">
