@@ -1059,7 +1059,7 @@
 
     sessionStorage.setItem("chisel.pendingQrScan",JSON.stringify(payload));
     localStorage.setItem("chisel.pendingQrScan",JSON.stringify(payload));
-    window.location.href = "../../index.html?mode=send&loadScannedWif=1&currency=" + encodeURIComponent(preferred.currency);
+    window.location.href = "../../index.html?mode=portal&loadScannedWif=1&currency=" + encodeURIComponent(preferred.currency);
   }
 
   function deleteResource(resource) {
@@ -1792,8 +1792,9 @@
 
   try {
     const initialUrl = new URL(window.location.href);
-    if (initialUrl.searchParams.get("scanMode") === "artifact1") {
-      setScanMode("artifact1");
+    const requestedScanMode = initialUrl.searchParams.get("scanMode");
+    if (requestedScanMode === "artifact1" || requestedScanMode === "key4") {
+      setScanMode(requestedScanMode);
       setScene("scan").catch(error => setStatus("Camera error: " + error.message));
     }
     if (initialUrl.searchParams.get("view") === "keys" && state.publicResults.length) {
