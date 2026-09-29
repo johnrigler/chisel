@@ -738,14 +738,23 @@
     };
 
     const artifactBody = trimMacPadding(payload);
-    const artifactId = (isMacDougallFirst(first) && modifier === "B" && spacer === "x" && /^[1-9A-Fc]{16}$/.test(artifactBody))
+    // Sticker/index records use LLx followed by exactly 16 hexadecimal digits.
+    // Base58 cannot carry the character "0", so McDougall's "c" is accepted
+    // as the on-ledger representation of zero.
+    const artifactId = (
+      isMacDougallFirst(first) &&
+      first === "L" &&
+      modifier === "L" &&
+      spacer === "x" &&
+      /^[1-9A-Fc]{16}$/.test(artifactBody)
+    )
       ? artifactBody.replace(/c/g, "0").toUpperCase()
       : "";
 
     if (artifactId) {
       record.kind = "artifact-index";
       record.artifactId = artifactId;
-      record.displayText = "Artifact " + artifactId;
+      record.displayText = "Sticker " + artifactId;
     }
     else if (first === "S") record.kind = "image-chord-line";
     else if (isMacDougallFirst(first) && modifier === "A" && spacer === "x") record.kind = "person";
@@ -847,7 +856,7 @@
   function titleFromSemantics(semantics, txid) {
     const records = semantics && semantics.records ? semantics.records : [];
     const artifact = records.find(function (record) { return record.kind === "artifact-index" && record.artifactId; });
-    if (artifact) return "Artifact " + artifact.artifactId;
+    if (artifact) return "Sticker " + artifact.artifactId;
 
     const subject = records.find(function (record) { return record.kind === "subject" && printableText(record.displayText || record.payloadText); });
     if (subject) return subject.displayText || subject.payloadText;
@@ -1564,7 +1573,7 @@
     const artifactId = String(record.artifactId).toUpperCase();
     const frame = document.createElement("div");
     frame.className = "portalArtifactQrFrame";
-    frame.title = "Chisel artifact " + artifactId;
+    frame.title = "Chisel sticker index " + artifactId;
     frame.style.width = "54px";
     frame.style.height = "54px";
     frame.style.padding = "6px";
@@ -1603,7 +1612,7 @@
   function appendRowThumbnail(cell, row) {
     const artifact = artifactIndexRecordForRow(row);
     if (artifact && appendArtifactQrThumbnail(cell, artifact)) {
-      cell.title = "Artifact " + artifact.artifactId + " · " + (artifact.line || "on-chain index");
+      cell.title = "Sticker " + artifact.artifactId + " · " + (artifact.line || "on-chain index");
       return "";
     }
 
@@ -3628,8 +3637,12 @@
   function renderPortalStreamItem(list, row) {
     const primaryUrl = recordTargetUrlForRow(row);
     const isPersonal = personalAccountMatchesRow(row);
+    const stickerRecord = artifactIndexRecordForRow(row);
     const item = document.createElement("div");
-    item.className = "portalStreamItem" + (state.expandedRowKeys[row.key] ? " isExpanded" : "") + (isPersonal ? " isPersonal" : "");
+    item.className = "portalStreamItem" +
+      (state.expandedRowKeys[row.key] ? " isExpanded" : "") +
+      (isPersonal ? " isPersonal" : "") +
+      (stickerRecord ? " hasStickerIndex" : "");
     item.dataset.key = row.key;
     if (isPersonal) {
       item.dataset.personalAddress = state.personalAccount.address;
@@ -3749,15 +3762,21 @@
       if (generation !== state.portalLoadGeneration || !loaded || !loaded.json) return { changed: false, saved: false };
       const exactTime = extractBlockTime(loaded.json);
       const blockHeight = extractBlockHeight(loaded.json);
-      if (!exactTime && !blockHeight) return { changed: false, saved: !!loaded.saved };
+      const hydratedSummary = extractSummary(loaded.json, rowIndexEntry(row));
 
+      // We already fetched the raw transaction to learn its date. Keep it.
+      // That lets the collapsed Portal row recognize LLx sticker/index outputs
+      // immediately instead of waiting for the user to expand the record.
+      row.raw = loaded.json;
+      row.summary = mergePortalSummary(row.summary, hydratedSummary);
       row.summary = mergePortalSummary(row.summary, {
-        blockTime: exactTime || 0,
+        blockTime: exactTime || row.summary.blockTime || 0,
         blockTimeEstimated: false,
-        blockHeight: blockHeight
+        blockHeight: blockHeight || row.summary.blockHeight || 0
       });
       row.blockTime = exactTime || row.blockTime || 0;
       row.localPath = loaded.path || row.localPath;
+      invalidatePortalRowCache(row);
       upsertPortalRow(row, { silent: true, deferSort: true });
       return { changed: true, saved: !!loaded.saved };
     } catch (error) {
