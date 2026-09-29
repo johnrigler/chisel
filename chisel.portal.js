@@ -5257,9 +5257,7 @@ function getPortalFirstCharacter() {
       return;
     }
 
-    loadPersonalAccountStream(account,{ filterResults:true, noReloadIfCurrent:true }).catch(function (error) {
-      setStatus(error.message || String(error),true);
-    });
+    maybeAutoLoadConversationStreams();
   }
 
   function bind() {
@@ -5468,14 +5466,8 @@ function getPortalFirstCharacter() {
     if (portalModeButton) portalModeButton.addEventListener("click", function () {
       window.setTimeout(function () {
         const account = state.personalAccount || loadPersonalAccount();
-        if (account) {
-          populatePersonalAccountFields(account);
-          loadPersonalAccountStream(account,{ filterResults:true, noReloadIfCurrent:true }).catch(function (error) {
-            setStatus(error.message || String(error),true);
-          });
-        } else {
-          maybeAutoLoadConversationStreams();
-        }
+        if (account) populatePersonalAccountFields(account);
+        maybeAutoLoadConversationStreams();
       },0);
     });
 
