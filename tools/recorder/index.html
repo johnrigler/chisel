@@ -280,7 +280,7 @@
 <div id="setupDrawer" class="drawer">
   <section class="sheet">
     <h2>Broadcast setup</h2>
-    <p>SCAN has two meanings. KEY 4 assembles four 16-hex private-key fragments left-to-right. ARTIFACT 1 accepts one public 16-hex artifact ID, maps hex 0 to lowercase c, preserves 1–9 and A–F, then derives the selected chain's obviously-unspendable artifact index address using the second available modifier and lowercase x.</p>
+    <p>SCAN has two meanings. KEY 4 assembles four 16-hex private-key fragments left-to-right. ARTIFACT 1 accepts one public 16-hex sticker, derives its selected-chain unspendable index address, then resolves that address against the ledger. Existing records open directly; an empty address falls back to registration.</p>
 
     <label>Currency / address format
       <select id="currency"></select>
@@ -910,44 +910,35 @@
     }
   }
 
-  async function handoffArtifactRegistration() {
+  async function handoffArtifactResolution() {
     if (!state.artifactId || !state.artifactAddress) {
       setStatus("Scan one artifact QR and wait for its index address.");
       return;
     }
 
     const index = await deriveArtifactIndex(state.artifactId);
-    const payload = {
-      schema:"chisel-artifact-index-v1",
-      artifactId:index.artifactId,
-      mcDougall:index.mcDougall,
-      artifactPrefix:index.prefix,
-      artifactAddress:index.address,
-      currency:index.currency,
-      recipients:[{
-        address:index.address,
-        amount:index.amount,
-        outputType:"unspendable",
-        note:"artifact " + index.artifactId + " " + index.prefix + index.mcDougall
-      }],
-      replaceRecipients:false,
-      createdAt:new Date().toISOString()
-    };
+    const target = new URL("../../index.html",window.location.href);
+    target.searchParams.set("mode","portal");
+    target.searchParams.set("address",index.address);
+    target.searchParams.set("currency",index.currency);
+    target.searchParams.set("label","Artifact " + index.artifactId);
+    target.searchParams.set("artifactScan","1");
+    target.searchParams.set("artifactId",index.artifactId);
+    target.searchParams.set("artifactPrefix",index.prefix);
+    target.searchParams.set("mcDougall",index.mcDougall);
+    target.searchParams.set("amount",index.amount);
 
-    try {
-      sessionStorage.setItem(ARTIFACT_PAYLOAD_STORAGE_KEY,JSON.stringify(payload));
-      localStorage.setItem(ARTIFACT_PAYLOAD_STORAGE_KEY,JSON.stringify(payload));
-    } catch (error) {}
+    setStatus("Resolving artifact on " + (index.ticker || index.currency) + "…");
 
     if (window.opener && !window.opener.closed) {
       try {
-        window.opener.postMessage({type:"chisel.loadArtifactPayload",payload:payload},window.location.origin);
+        window.opener.location.href = target.href;
         window.close();
         return;
       } catch (error) {}
     }
 
-    window.location.href = "../../index.html?mode=send&loadArtifactIndex=1&currency=" + encodeURIComponent(payload.currency);
+    window.location.href = target.href;
   }
 
   async function showScanner() {
@@ -1315,7 +1306,7 @@
       : state.fragments.length === FRAGMENT_COUNT;
     els.checkFragments.disabled = !ready;
     els.checkFragments.classList.toggle("ready",ready);
-    els.checkFragments.textContent = state.scanMode === "artifact1" ? "LOAD INDEX" : "CHECK 4";
+    els.checkFragments.textContent = state.scanMode === "artifact1" ? "OPEN ARTIFACT" : "CHECK 4";
   }
 
   function clearFragments(message) {
@@ -1759,7 +1750,7 @@
   els.faceToggle.onclick = () => toggleFaceOverlay();
   els.checkFragments.onclick = () => {
     if (state.scanMode === "artifact1") {
-      handoffArtifactRegistration().catch(error => setStatus("Could not load artifact index: " + error.message));
+      handoffArtifactResolution().catch(error => setStatus("Could not resolve artifact: " + error.message));
     } else {
       checkFragments();
     }
