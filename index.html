@@ -433,7 +433,6 @@
       display: none;
     }
 
-    body[data-mode="start"] .modePanel[data-mode-panel="start"],
     body[data-mode="send"] .modePanel[data-mode-panel="etch"],
     body[data-mode="etch"] .modePanel[data-mode-panel="etch"],
     body[data-mode="broadcast"] .modePanel[data-mode-panel="etch"],
@@ -1559,17 +1558,16 @@
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
         <button class="modeButton active" type="button" data-mode-target="portal">Portal</button>
-        <button class="modeButton" type="button" data-mode-target="start">Start</button>
         <button class="modeButton" type="button" data-mode-target="send">Send</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
         <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
         <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
       </div>
-      <div class="compactHint" id="modeHint">Portal mode is the default reader. Send mode receives funds, builds/signs transactions, and sends them on the selected chain.</div>
+      <div class="compactHint" id="modeHint">Portal is the default entry point. Scan one public page sticker to open a page; scan the four private stickers only when you want to act as its owner.</div>
     </section>
 
 
-    <section class="modePanel" data-mode-panel="start">
+    <section class="modePanel" data-mode-panel="examples">
       <section class="panel hero">
         <h2>Start: what Chisel proves</h2>
         <p class="muted">This is the colleague-facing bridge between the older signing conversation, the 2020 crypto-linguistic white paper, and the current Chisel implementation. It now starts with the practical reason Chisel is vanilla JavaScript: elliptic gives the browser enough secp256k1 machinery to sign locally without turning the main app into a Node stack dependency tour.</p>
@@ -1918,6 +1916,20 @@
 
 
     <section class="modePanel" data-mode-panel="portal">
+      <section class="panel hero">
+        <h2>Open a Chisel page</h2>
+        <p class="muted">You do not have to log in just to read. The fifth sticker is the public shorthand for a page. Scan that one sticker to resolve its ledger index and open whatever is already attached to it. Scan the four private stickers on the back only when you want Chisel to recognize you as the owner and let you add records.</p>
+        <div class="toolGrid">
+          <a class="toolCard" href="tools/recorder/index.html?scanMode=artifact1&amp;currency=litecoin">
+            <strong>Scan one page sticker</strong>
+            <span>Public path. Scan sticker 5, derive its Litecoin index address, and open the page if it already exists. This is the normal Alaskan K9 Blessing-style entry path and does not load a private key.</span>
+          </a>
+          <a class="toolCard" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin">
+            <strong>Open as the owner</strong>
+            <span>Control path. Scan the four private fragments from the back of the booklet. Chisel derives the identity, returns here to Portal, and keeps Send as the transaction-writing tool rather than the login screen.</span>
+          </a>
+        </div>
+      </section>
       <section class="portalExplorerShell">
         <section class="panel portalDetailGrid portalLegacyViewport" aria-hidden="true">
           <div class="portalSelectedHeader">
@@ -1981,6 +1993,7 @@
           <div id="portalPersonalAccountMeta" class="portalPersonalAccountMeta">Public address only. Private key material is not stored in Portal.</div>
           <div class="actions">
             <button id="portalLoadPersonalAccountButton" class="secondaryButton" type="button">LOAD MY STREAM</button>
+            <button class="secondaryButton" type="button" data-mode-target="send">ADD RECORD</button>
             <a id="portalPersonalAccountExplorer" class="secondaryButton" href="#">VERIFY ADDRESS</a>
           </div>
         </section>
@@ -2209,7 +2222,7 @@
             <strong>Display portal</strong>
             <span>Render base58-color image chords from tx JSON, pasted JSON, or Digibyte explorer data.</span>
           </a>
-          <a class="toolCard" href="?mode=start#selfTestPanel">
+          <a class="toolCard" href="?mode=examples#selfTestPanel">
             <strong>Browser self-test</strong>
             <span>Run fixture, draft, send-lock, Portal boot, and static-data checks before a demo.</span>
           </a>
@@ -2281,7 +2294,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20260928g"></script>
+  <script src="app.js?rev=20260928i"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
