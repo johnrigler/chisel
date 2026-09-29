@@ -2130,16 +2130,31 @@
     return Object.assign({}, DEFAULT_PORTAL_CONFIG);
   }
 
+  function normalizeFileProxyUrl(value) {
+    const url = String(value || "").trim().replace(/\/+$/, "");
+    if (!url) return DEFAULT_FILE_PROXY_URL;
+    if (/^https?:\/\/rigler\.org:7799$/i.test(url)) return DEFAULT_FILE_PROXY_URL;
+    if (/^https?:\/\/127\.0\.0\.1:7799$/i.test(url)) return DEFAULT_FILE_PROXY_URL;
+    if (/^https?:\/\/localhost:7799$/i.test(url)) return DEFAULT_FILE_PROXY_URL;
+    return url;
+  }
+
   function applyPortalConfig(config) {
     state.config = Object.assign({}, DEFAULT_PORTAL_CONFIG, config || {});
+    state.config.fileProxyUrl = normalizeFileProxyUrl(state.config.fileProxyUrl);
     const proxy = $("#portalFileProxyUrl");
-    if (proxy && state.config.fileProxyUrl) proxy.value = String(state.config.fileProxyUrl);
+    if (proxy) {
+      proxy.value = state.config.fileProxyUrl;
+      proxy.setAttribute("autocomplete", "off");
+    }
     applyPortalFilterConfig();
   }
 
   function getFileProxyUrl() {
     const input = $("#portalFileProxyUrl");
-    return String((input && input.value) || configValue("fileProxyUrl", DEFAULT_FILE_PROXY_URL) || DEFAULT_FILE_PROXY_URL).replace(/\/+$/, "");
+    const normalized = normalizeFileProxyUrl((input && input.value) || configValue("fileProxyUrl", DEFAULT_FILE_PROXY_URL));
+    if (input && input.value !== normalized) input.value = normalized;
+    return normalized;
   }
 
   async function fileProxyJson(path, params) {
