@@ -2529,6 +2529,7 @@
     ];
     safeArray(s.evmReceivers).forEach(function (x) { parts.push(x); });
     safeArray(d.receivers).forEach(function (x) { parts.push(x); });
+    portalRowAddresses(row).forEach(function (x) { parts.push(x); });
     collectEvmMediaCards(row).forEach(function (card) {
       parts.push(card.title, card.text, card.url, card.sourceUrl, card.videoId, card.kind);
     });
@@ -3589,11 +3590,51 @@
     return row;
   }
 
+  function portalRowAddresses(row) {
+    const out = [];
+    const seen = Object.create(null);
+
+    function add(value) {
+      const address = String(value || "").trim();
+      if (!address || !isPublicMainThunderwordAddress(address)) return;
+      const key = canonicalMainThunderwordAddress(address);
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(address);
+    }
+
+    if (row && row.index) add(row.index.address);
+    extractInputAddresses(row && row.raw).forEach(add);
+    extractLines(row && row.raw).forEach(add);
+
+    const summary = row && row.summary ? row.summary : {};
+    safeArray(summary.addresses).forEach(add);
+    safeArray(summary.inputAddresses).forEach(add);
+    safeArray(summary.outputAddresses).forEach(add);
+    safeArray(summary.evmReceivers).forEach(add);
+
+    return out;
+  }
+
+  function personalAccountMatchesRow(row) {
+    const account = normalizePersonalAccount(state.personalAccount);
+    if (!account) return false;
+    const target = canonicalMainThunderwordAddress(account.address);
+    return portalRowAddresses(row).some(function (address) {
+      return canonicalMainThunderwordAddress(address) === target;
+    });
+  }
+
   function renderPortalStreamItem(list, row) {
     const primaryUrl = recordTargetUrlForRow(row);
+    const isPersonal = personalAccountMatchesRow(row);
     const item = document.createElement("div");
-    item.className = "portalStreamItem" + (state.expandedRowKeys[row.key] ? " isExpanded" : "");
+    item.className = "portalStreamItem" + (state.expandedRowKeys[row.key] ? " isExpanded" : "") + (isPersonal ? " isPersonal" : "");
     item.dataset.key = row.key;
+    if (isPersonal) {
+      item.dataset.personalAddress = state.personalAccount.address;
+      item.title = "This transaction touches your loaded public account.";
+    }
 
     const line = document.createElement("div");
     line.className = "portalStreamRow" + (row.key === state.selectedRowKey ? " isSelected" : "") + (primaryUrl ? " hasDirectTarget" : "");
