@@ -1,31 +1,37 @@
 # Chisel fileProxy
 
-`fileProxy` is the local filesystem bridge used by Decode and Portal. It keeps browser code simple while avoiding direct filesystem assumptions.
+`fileProxy` is the filesystem/cache bridge used by Chisel Portal. It lets the
+browser treat locally or server-hosted transaction data as a reusable store
+instead of repeatedly asking block explorers for the same raw transaction.
 
-Run from the repository root or from this directory:
+The important distinction is:
 
-```bash
-python3 tools/fileProxy/proxy.py
+- the blockchain/explorer is the authoritative source;
+- fileProxy is a cache, catalog, and persistence layer;
+- JSON files under the Chisel data root are the durable source for rebuilding
+  derived indexes;
+- SQLite is optional derived state, not the primary record.
+
+## Current deployment
+
+On rigler.org the preferred arrangement is:
+
+```text
+browser
+  |
+  | HTTPS
+  v
+https://rigler.org/fileproxy/...
+  |
+  | Apache reverse proxy
+  v
+http://127.0.0.1:7799/...
+  |
+  v
+tools/fileProxy/proxy.py
 ```
 
-Defaults:
-
-- URL: `http://127.0.0.1:7799`
-- Root: the Chisel repository root detected from `tools/fileProxy/proxy.py`
-
-Optional overrides:
-
-```bash
-CHISEL_FILE_ROOT="$PWD" CHISEL_FILE_PORT=7799 python3 tools/fileProxy/proxy.py
-```
-
-## Public HTTPS on `rigler.org`
-
-The current rigler.org deployment uses Apache2 for HTTPS. The preferred setup is
-to keep `fileProxy` on loopback HTTP and let Apache terminate TLS and reverse
-proxy the requests.
-
-Run `fileProxy` like this:
+The Python service should remain bound to loopback:
 
 ```bash
 export CHISEL_FILE_HOST=127.0.0.1
@@ -35,84 +41,389 @@ export CHISEL_FILE_TLS=0
 python3 tools/fileProxy/proxy.py
 ```
 
-Test the Python service locally first:
+Local test:
 
 ```bash
-curl -v http://127.0.0.1:7799/ping
-curl -v http://127.0.0.1:7799/config
+curl http://127.0.0.1:7799/ping
 ```
 
-Enable the Apache proxy modules once:
+Public test through Apache:
 
 ```bash
-sudo a2enmod proxy
-sudo a2enmod proxy_http
+curl https://rigler.org/fileproxy/ping
 ```
 
-Inside the existing `<VirtualHost *:443>` for `rigler.org`, add:
+The Portal configuration should use:
+
+```json
+"fileProxyUrl": "https://rigler.org/fileproxy"
+```
+
+The Chisel client migrates the old `:7799`, localhost, and
+`127.0.0.1:7799` values to the reverse-proxied URL.
+
+Apache configuration:
 
 ```apache
 ProxyPreserveHost On
 
-ProxyPass        /chisel-file/ http://127.0.0.1:7799/
-ProxyPassReverse /chisel-file/ http://127.0.0.1:7799/
+ProxyPass        /fileproxy/ http://127.0.0.1:7799/
+ProxyPassReverse /fileproxy/ http://127.0.0.1:7799/
 ```
 
-Keep the trailing slashes paired exactly as shown. This makes
-`/chisel-file/ping` map to `/ping` on the Python service.
-
-Validate and reload Apache:
+Keep the trailing slashes paired. Then:
 
 ```bash
 sudo apachectl configtest
 sudo systemctl reload apache2
 ```
 
-Then test the public path:
+## What Portal does automatically
 
-```bash
-curl -v https://rigler.org/chisel-file/ping
+The current `chisel.portal.config.json` enables the caching path:
+
+```text
+autoSaveFetchedTransactions = true
+cacheFetchedTransactionsWithFileProxy = true
+localFirstTransactions = true
+autoLoadLocalTransactions = true
+autoHydrateLocalTransactions = true
+backgroundHydrateTransactions = true
+saveDiscoveredLinks = true
+persistMainThunderwords = true
+liveLedgerRefresh = true
 ```
 
-The deployed Portal should use:
+For a UTXO transaction the intended flow is:
+
+```text
+first encounter:
+Portal -> static/local cache -> miss -> explorer/API -> save raw JSON -> display
+
+later encounter:
+Portal -> static/local cache -> hit -> display
+```
+
+`loadTransactionLocalFirst()` checks static data and fileProxy before using a
+live explorer. A live transaction that is fetched successfully is offered to
+`/save-tx` when automatic caching is enabled.
+
+Canonical transaction JSON is stored under:
+
+```text
+data/transactions/<coin>/
+```
+
+The exact filename may be a Base58-derived slug rather than the literal txid.
+Use the API rather than assuming a filename:
+
+```bash
+curl 'https://rigler.org/fileproxy/tx?coin=litecoin&txid=<64hex>'
+```
+
+When Portal decodes links, IPFS references, or related addresses from a
+transaction and `saveDiscoveredLinks` is enabled, it can also write:
+
+```text
+data/links/<coin>/<txid>-links.json
+```
+
+Those files record relationships discovered by Chisel. fileProxy is not a
+general Web crawler. A remote URL, image service ID, or media ID is not
+automatically promoted into a new Chisel record merely because it is reachable
+from a saved link. Special handlers such as TikTok thumbnails and local/IPFS
+asset discovery are explicit exceptions.
+
+This matters for cases such as a ledger record that points to an image whose
+remote service uses a different identifier: Chisel can remember the decoded
+link, but it does not currently recursively ingest arbitrary linked resources.
+
+## Main ThunderWords / address streams
+
+Portal can persist a public address stream with:
+
+```text
+POST /main-stream
+```
+
+The manifest is stored under:
+
+```text
+data/streams/<coin>/
+```
+
+It records the public address, source, label, and discovered transaction IDs.
+WIF/private-key material is rejected by the fileProxy main-stream writer.
+
+The JSON manifest is intentionally the durable record. Any SQLite representation
+should be considered rebuildable derived state.
+
+## JSON index
+
+fileProxy always has a JSON catalog path independent of SQLite:
+
+```text
+data/index/transactions.index.json
+```
+
+`GET /tx-index` reads or rebuilds that catalog. `GET /reindex` first rebuilds
+the JSON catalog and then attempts the optional unified SQLite rebuild.
+
+This gives Chisel a useful index even when SQLite support is unavailable.
+
+## SQLite: current reality
+
+There are two different SQLite ideas that have existed around Chisel and they
+should not be conflated.
+
+### Legacy per-currency / Jist databases
+
+Older tooling and datasets may contain per-currency SQLite/Jist databases.
+The current `tools/fileProxy/proxy.py` does **not** directly open or query
+arbitrary per-currency SQLite databases.
+
+The current supported legacy-import path is `POST /import-jist-feed`. It
+converts Jist-style rows into canonical JSON transaction packets under
+`data/transactions/<coin>/`, writes an import copy and chord representation,
+and refreshes the JSON transaction index.
+
+In other words, current fileProxy prefers:
+
+```text
+legacy/Jist source -> canonical JSON -> Chisel indexes
+```
+
+rather than making the browser depend directly on a collection of old SQLite
+schemas.
+
+### Optional unified SQLite index
+
+`proxy.py` contains a hook for a unified indexer at:
+
+```text
+tools/chisel_index/indexer.py
+```
+
+`GET /ping` reports:
 
 ```json
-"fileProxyUrl": "https://rigler.org/chisel-file"
+"unifiedSqliteIndex": true|false
 ```
 
-This is preferred over exposing Python TLS directly on public port `7799`.
-Apache already owns the site's certificate lifecycle and HTTPS listener, while
-`fileProxy` remains private on `127.0.0.1`.
+If that module exists, `GET /reindex` calls:
 
-### Direct Python TLS fallback
+```python
+indexer.rebuild_index(active_data_root(), include_legacy_jist=False)
+```
 
-Direct TLS is still supported when needed. Use the full Let's Encrypt chain,
-not `cert.pem`:
+The returned status may include the database path and table counts.
+
+As of 2026-09-29, `tools/chisel_index/indexer.py` is **not present in the
+current GitHub repository**, and the observed rigler.org `/ping` response
+reported:
+
+```json
+"unifiedSqliteIndex": false
+```
+
+Therefore the filesystem cache and JSON index are working, but the unified
+SQLite layer should currently be treated as unavailable unless the server has
+an uncommitted/local copy of that indexer module.
+
+Older documentation said that `/reindex` necessarily rebuilt
+`data/index/chisel.sqlite3` and tables such as `transactions`,
+`main_thunderwords`, and `main_thunderword_transactions`. That is only true
+when the optional indexer module is installed. Do not assume those tables exist
+from fileProxy alone.
+
+## External data roots
+
+fileProxy can work with a datastore outside the Git checkout:
 
 ```bash
-CHISEL_FILE_HOST=0.0.0.0 \
-CHISEL_FILE_PORT=7799 \
-CHISEL_FILE_TLS=1 \
-CHISEL_FILE_CERT=/etc/letsencrypt/live/rigler.org/fullchain.pem \
-CHISEL_FILE_KEY=/etc/letsencrypt/live/rigler.org/privkey.pem \
-python3 tools/fileProxy/proxy.py
+export CHISEL_DATA_ROOT=/path/to/chisel-data
 ```
 
-`CHISEL_FILE_CERT` must point to `fullchain.pem`, and
-`CHISEL_FILE_KEY` must point to the matching `privkey.pem`. Using
-`cert.pem` can allow Python to start while remote clients still fail
-certificate validation because the intermediate chain is missing.
+The first configured data root becomes the active data root. A `data` symlink
+inside the repository is also recognized. This is useful for keeping generated
+transaction caches out of Git.
 
-TLS protects transport only. It does not authenticate callers. `fileProxy`
-has write/delete endpoints, so do not expose those publicly without access
-control.
+`CHISEL_DATA_ROOT` expands the filesystem locations fileProxy may access. It
+does not by itself add SQLite-query capability.
+
+Legacy source locations can separately be allowed through:
+
+```bash
+export CHISEL_LEGACY_ROOTS=/path/containing/legacy/data
+```
+
+## How to tell whether fileProxy is helping
+
+Basic health:
+
+```bash
+curl https://rigler.org/fileproxy/ping
+```
+
+A healthy response should contain:
+
+```json
+{
+  "ok": true,
+  "service": "chisel-fileproxy"
+}
+```
+
+Count cached transaction files:
+
+```bash
+find /var/www/html/chisel/data/transactions -type f | wc -l
+```
+
+See files written recently:
+
+```bash
+find /var/www/html/chisel/data/transactions -type f -mmin -10 -print
+```
+
+List Litecoin records known to fileProxy:
+
+```bash
+curl 'https://rigler.org/fileproxy/txids?coin=litecoin'
+```
+
+Retrieve a specific cached transaction without touching an explorer:
+
+```bash
+curl 'https://rigler.org/fileproxy/tx?coin=litecoin&txid=<64hex>'
+```
+
+Inspect the JSON catalog:
+
+```bash
+curl 'https://rigler.org/fileproxy/tx-index?coin=litecoin'
+```
+
+Force derived-index refresh and inspect SQLite status:
+
+```bash
+curl 'https://rigler.org/fileproxy/reindex'
+```
+
+If the response shows:
+
+```json
+"sqlite": {
+  "available": false
+}
+```
+
+then JSON indexing is still useful, but the unified SQLite indexer is absent.
+
+Check newly discovered link records:
+
+```bash
+find /var/www/html/chisel/data/links -type f -mmin -30 -print
+```
+
+A practical efficiency test is to load the same transaction twice while
+watching browser network requests or server logs. The first load may require an
+external explorer request; the second should be satisfied by fileProxy/static
+data when the first result was cached successfully.
+
+fileProxy currently does not maintain explicit hit/miss counters, so a numeric
+cache-hit percentage cannot yet be obtained directly from `/ping`.
+
+## Batching and efficiency
+
+Portal avoids rebuilding indexes after every transaction in a batch.
+`/save-tx` accepts `refreshIndex: false`, allowing several canonical JSON
+writes followed by one `/reindex`.
+
+This is important because the expensive work is discovery/fetching and catalog
+rebuilding, not reading a small cached JSON file.
+
+The current design therefore has three efficiency layers:
+
+1. static/bundled data avoids any server request;
+2. fileProxy cached JSON avoids repeat explorer/API transaction fetches;
+3. derived JSON/SQLite indexes avoid repeatedly scanning every saved file.
+
+At present layers 1 and 2 are active. The JSON portion of layer 3 is active.
+The SQLite portion depends on the optional missing indexer described above.
+
+## Ledger-store conventions
+
+Common paths include:
+
+```text
+txids/<txid>
+txids/<coin>/<txid>.json
+data/transactions/<coin>/
+data/links/<coin>/
+data/streams/<coin>/
+ipfs/<cid>
+data/ipfs/<cid>
+images/
+data/images/
+base57/
+data/base57/
+```
+
+## Main endpoints
+
+Read-oriented:
+
+```text
+GET /ping
+GET /config
+GET /main-streams
+GET /txids?coin=litecoin
+GET /tx-index?coin=litecoin
+GET /tx?coin=litecoin&txid=<64hex>
+GET /reindex
+GET /ipfs?cid=<cid>
+GET /find-assets?txid=<64hex>
+GET /find-assets?cid=<cid>
+GET /raw?path=<relative path>
+GET /list?path=<relative path>
+GET /load?path=<relative path>
+GET /tiktok-thumbnail?url=<url>
+```
+
+Write-oriented:
+
+```text
+POST /save
+POST /save-tx
+POST /main-stream
+POST /save-links
+POST /import-jist-feed
+POST /save-evm-tx
+POST /save-evm-batch
+POST /mkdir
+POST /delete
+```
+
+## Security boundary
+
+Apache TLS protects transport, not authorization.
+
+The public reverse proxy currently makes the selected fileProxy route reachable
+from remote browsers. fileProxy includes write and delete operations and its
+normal CORS response permits cross-origin access. Do not treat
+`https://rigler.org/fileproxy` as a harmless read-only cache unless Apache or
+fileProxy is configured to restrict mutating endpoints.
+
+A safer long-term split would expose public read/cache endpoints separately
+from authenticated administrative write/delete/editor operations.
 
 ## Temporary single-file text editor
 
-The editor is disabled by default.  It is separate from the legacy `/load` and
-`/save` endpoints and exposes only one server-selected file.  For the Dark
-Star technical paper, keep the ordinary Chisel root unchanged and provide the
-Dark Star checkout as a separate editor root:
+The editor is disabled by default. It exposes only one server-selected file and
+uses a separate token for its load/save operations.
+
+Example:
 
 ```bash
 export CHISEL_TEXT_EDITOR=1
@@ -120,63 +431,13 @@ export CHISEL_EDITOR_TOKEN='replace-with-a-long-random-token'
 export CHISEL_EDITOR_ROOT=/var/www/html/darkStar
 export CHISEL_EDITOR_FILE=technical-paper.html
 export CHISEL_EDITOR_PUBLIC_URL=https://johnrigler.github.io/darkStar/technical-paper.html
-
-python3 tools/fileProxy/proxy.py
 ```
 
-Open `https://rigler.org:7799/text-editor`, enter the temporary token, and
-load the paper.  The page presents headings, paragraphs, list items, captions,
-and table cells as screen-width wrapping textareas.  Saving requires the token,
-refuses to overwrite a file that changed after it was loaded, writes
-atomically, and preserves the previous version as
-`.technical-paper.html.bak`.
+With the reverse proxy, use:
 
-When editing is finished, stop the service and restart it without
-`CHISEL_TEXT_EDITOR`, or set that variable to `0`.  The editor page and its
-load/save endpoints then return 404.
+```text
+https://rigler.org/fileproxy/text-editor
+```
 
-The token protects only `/editor/load` and `/editor/save`.  It does not add
-authentication to the older general-purpose write/delete endpoints; the
-existing warning about exposing those endpoints publicly still applies.
-
-Ledger-store conventions:
-
-- `txids/<txid>`
-- `txids/<coin>/<txid>.json`
-- `data/transactions/<coin>/<txid>.json`
-- `ipfs/<cid>` or `data/ipfs/<cid>`
-- local images in `images/`, `data/images/`, `base57/`, `data/base57/`, `ipfs/`, or `data/ipfs/`
-
-Endpoints:
-
-- `GET /ping`
- - `GET /main-streams`
-- `GET /txids?coin=litecoin`
-- `GET /tx?coin=litecoin&txid=<64hex>`
-- `GET /reindex` (refresh the JSON catalog and unified SQLite witness once)
-- `GET /ipfs?cid=<cid>`
-- `GET /find-assets?txid=<64hex>` or `GET /find-assets?cid=<cid>`
-- `GET /raw?path=<relative path>`
-- `GET /list?path=<relative path>`
-- `GET /load?path=<relative path>`
-- `POST /save`
- - `POST /main-stream`
-- `POST /save-tx` (`refreshIndex: false` permits a batch followed by one `/reindex`)
-- `POST /mkdir`
-- `POST /delete`
-
-Decode uses `/tx` and `/txids`. Portal uses `/txids`, `/tx`, and `/find-assets`.
-When Portal finds an uncached transaction while fileProxy is running, it saves
-the canonical JSON first. A current-page date batch saves every cache miss with
-`refreshIndex: false`, then calls `/reindex` once. That rebuild corrects
-`data/index/chisel.sqlite3` and its portable Portal index without repeating the
-ledger lookup on later visits. The older `/load` and `/save` endpoints remain
-available.
-
-Portal v2.7.12 also writes public main-thunderword manifests to
-`data/streams/<coin>/`. They record the selected public address, how it was
-promoted (manual address, URL, rabbit trail, or WIF-derived public account), and
-the returned txids. The WIF is never sent to fileProxy. A single delayed
-`/reindex` turns those manifests plus saved transaction JSON into the SQLite
-tables `main_thunderwords`, `main_thunderword_transactions`, and
-`transactions`.
+The editor token protects only the editor endpoints. It does not authenticate
+the older general-purpose fileProxy write/delete API.
