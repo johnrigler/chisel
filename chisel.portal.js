@@ -1580,6 +1580,9 @@
     const frame = document.createElement("div");
     frame.className = "portalStickerQrFrame";
     frame.title = "Chisel sticker index " + artifactId;
+    // Match tools/qrField: the first six hex digits define the physical
+    // sticker's colored frame while the QR itself stays black on white.
+    frame.style.backgroundColor = "#" + artifactId.slice(0, 6);
 
     const body = document.createElement("div");
     body.className = "portalStickerQrBody";
