@@ -457,6 +457,11 @@
     if (cache && Object.prototype.hasOwnProperty.call(cache, "displayTitle")) return cache.displayTitle;
     const summary = row && row.summary ? row.summary : {};
     const primaryUrl = recordTargetUrlForRow(row);
+    const behaviorTitle = portalBehaviorTitleForRow(row);
+    if (behaviorTitle) {
+      if (cache) cache.displayTitle = behaviorTitle;
+      return behaviorTitle;
+    }
     const rawTitle = summary.title || (row && row.title) || "";
     const anchorTitle = anchorTextsFromHtml(rawTitle)[0] || "";
     let title = isRawHtmlTitle(rawTitle) ? compactMediaTitle(anchorTitle || rawTitle) : printableText(rawTitle);
@@ -1567,55 +1572,110 @@
     }) || null;
   }
 
-  function appendArtifactQrThumbnail(cell, record) {
-    if (!record || !record.artifactId || typeof window.QRCode !== "function") return false;
+  function makeStickerQr(record, size) {
+    if (!record || !record.artifactId || typeof window.QRCode !== "function") return null;
 
     const artifactId = String(record.artifactId).toUpperCase();
+    const pixels = Math.max(96, Number(size) || 220);
     const frame = document.createElement("div");
-    frame.className = "portalArtifactQrFrame";
+    frame.className = "portalStickerQrFrame";
     frame.title = "Chisel sticker index " + artifactId;
-    frame.style.width = "54px";
-    frame.style.height = "54px";
-    frame.style.padding = "6px";
-    frame.style.background = "#" + artifactId.slice(0, 6);
-    frame.style.boxSizing = "border-box";
 
     const body = document.createElement("div");
-    body.style.width = "100%";
-    body.style.height = "100%";
-    body.style.padding = "3px";
-    body.style.background = "#ffffff";
-    body.style.boxSizing = "border-box";
-    body.style.overflow = "hidden";
+    body.className = "portalStickerQrBody";
     frame.appendChild(body);
-    cell.appendChild(frame);
 
     new window.QRCode(body, {
       text: artifactId,
-      width: 128,
-      height: 128,
+      width: pixels,
+      height: pixels,
       colorDark: "#000000",
       colorLight: "#ffffff",
       correctLevel: window.QRCode.CorrectLevel.H
     });
 
-    const qr = body.querySelector("canvas,img");
-    if (qr) {
-      qr.style.width = "100%";
-      qr.style.height = "100%";
-      qr.style.display = "block";
-      qr.style.imageRendering = "pixelated";
+    return frame;
+  }
+
+  /*
+   * Record behaviors are deliberately separate from the generic transaction
+   * renderer. New Chisel record types can add a detector, title and expanded
+   * presentation without teaching renderPortalStreamItem about every format.
+   */
+  const PORTAL_RECORD_BEHAVIORS = [
+    {
+      id: "sticker-index",
+      match: function (row) {
+        return artifactIndexRecordForRow(row);
+      },
+      title: function (record) {
+        return "Sticker " + String(record.artifactId || "").toUpperCase();
+      },
+      renderExpanded: function (container, record) {
+        if (!container || !record) return false;
+
+        const panel = document.createElement("section");
+        panel.className = "portalInterpretedRecord portalStickerRecord";
+        panel.dataset.recordBehavior = "sticker-index";
+
+        const heading = document.createElement("div");
+        heading.className = "stepTitle";
+        heading.textContent = "Sticker index";
+        panel.appendChild(heading);
+
+        const body = document.createElement("div");
+        body.className = "portalStickerRecordBody";
+
+        const qr = makeStickerQr(record, 240);
+        if (qr) body.appendChild(qr);
+
+        const info = document.createElement("div");
+        info.className = "portalStickerRecordInfo";
+
+        const id = document.createElement("code");
+        id.className = "portalStickerRecordId";
+        id.textContent = String(record.artifactId || "").toUpperCase();
+        info.appendChild(id);
+
+        if (record.line) {
+          const source = document.createElement("code");
+          source.className = "portalStickerRecordSource";
+          source.textContent = record.line;
+          info.appendChild(source);
+        }
+
+        body.appendChild(info);
+        panel.appendChild(body);
+        container.appendChild(panel);
+        return true;
+      }
     }
-    return true;
+  ];
+
+  function portalRecordBehaviorForRow(row) {
+    for (let i = 0; i < PORTAL_RECORD_BEHAVIORS.length; i += 1) {
+      const behavior = PORTAL_RECORD_BEHAVIORS[i];
+      const record = behavior.match(row);
+      if (record) return { behavior: behavior, record: record };
+    }
+    return null;
+  }
+
+  function portalBehaviorTitleForRow(row) {
+    const matched = portalRecordBehaviorForRow(row);
+    if (!matched || typeof matched.behavior.title !== "function") return "";
+    return printableText(matched.behavior.title(matched.record, row));
+  }
+
+  function appendPortalInterpretedRecord(container, row) {
+    const matched = portalRecordBehaviorForRow(row);
+    if (!matched || typeof matched.behavior.renderExpanded !== "function") return false;
+    return !!matched.behavior.renderExpanded(container, matched.record, row);
   }
 
   function appendRowThumbnail(cell, row) {
-    const artifact = artifactIndexRecordForRow(row);
-    if (artifact && appendArtifactQrThumbnail(cell, artifact)) {
-      cell.title = "Sticker " + artifact.artifactId + " · " + (artifact.line || "on-chain index");
-      return "";
-    }
-
+    // Record-specific renderers belong in the expanded interpretation area.
+    // The compact thumbnail remains reserved for actual media/image previews.
     const evmImages = collectEvmImageAssets(row);
     if (evmImages.length) {
       const img = document.createElement("img");
@@ -3450,6 +3510,7 @@
     header.appendChild(actions);
     container.appendChild(header);
 
+    appendPortalInterpretedRecord(container, row);
     appendPortalAnnotationEditor(container, row);
 
     const evmImages = collectEvmImageAssets(row);
@@ -3637,12 +3698,12 @@
   function renderPortalStreamItem(list, row) {
     const primaryUrl = recordTargetUrlForRow(row);
     const isPersonal = personalAccountMatchesRow(row);
-    const stickerRecord = artifactIndexRecordForRow(row);
+    const recordBehavior = portalRecordBehaviorForRow(row);
     const item = document.createElement("div");
     item.className = "portalStreamItem" +
       (state.expandedRowKeys[row.key] ? " isExpanded" : "") +
       (isPersonal ? " isPersonal" : "") +
-      (stickerRecord ? " hasStickerIndex" : "");
+      (recordBehavior ? " hasInterpretedRecord behavior-" + recordBehavior.behavior.id : "");
     item.dataset.key = row.key;
     if (isPersonal) {
       item.dataset.personalAddress = state.personalAccount.address;
@@ -5350,6 +5411,9 @@ function getPortalFirstCharacter() {
     buildSemantics: buildSemantics,
     extractInputAddresses: extractInputAddresses,
     displayTitleForRow: displayTitleForRow,
+    portalRecordBehaviorForRow: portalRecordBehaviorForRow,
+    appendPortalInterpretedRecord: appendPortalInterpretedRecord,
+    recordBehaviors: PORTAL_RECORD_BEHAVIORS,
     mediaKindForUrl: mediaKindForUrl,
     tiktokUrlFromUrl: tiktokUrlFromUrl,
     tiktokVideoIdFromUrl: tiktokVideoIdFromUrl,
