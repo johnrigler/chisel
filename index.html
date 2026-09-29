@@ -747,20 +747,74 @@
       border-color: #7c6dff;
     }
 
-    .portalStreamItem.hasStickerIndex {
+    .portalStreamItem.behavior-sticker-index {
       box-shadow: inset 4px 0 0 #111820;
     }
 
-    .portalStreamItem.hasStickerIndex .portalStreamRow {
+    .portalStreamItem.behavior-sticker-index .portalStreamRow {
       background: #fff8dd;
     }
 
-    .portalStreamItem.hasStickerIndex .portalStreamTitle {
+    .portalStreamItem.behavior-sticker-index .portalStreamTitle {
       font-weight: 800;
     }
 
-    .portalStreamItem.hasStickerIndex .portalStreamCoin {
+    .portalStreamItem.behavior-sticker-index .portalStreamCoin {
       border-color: #111820;
+    }
+
+    .portalInterpretedRecord {
+      margin: 12px 0;
+      padding: 14px;
+      border: 1px solid #c9ced4;
+      border-radius: 12px;
+      background: #f7f7f7;
+    }
+
+    .portalStickerRecordBody {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .portalStickerQrFrame {
+      width: 220px;
+      height: 220px;
+      padding: 12px;
+      box-sizing: border-box;
+      border: 1px solid #111820;
+      border-radius: 10px;
+      background: #ffffff;
+    }
+
+    .portalStickerQrBody,
+    .portalStickerQrBody canvas,
+    .portalStickerQrBody img {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    .portalStickerRecordInfo {
+      display: grid;
+      gap: 10px;
+      min-width: min(100%, 260px);
+      flex: 1;
+    }
+
+    .portalStickerRecordId {
+      font-size: 1.1rem;
+      font-weight: 800;
+      user-select: all;
+    }
+
+    .portalStickerRecordSource {
+      overflow-wrap: anywhere;
+      user-select: all;
+      color: #3b4652;
     }
 
     .portalStreamRow {
@@ -2210,7 +2264,7 @@
   <script src="chisel.thunderwords.js?rev=20260906b"></script>
   <script src="data-bundled/portal-starter.js?rev=20260906b"></script>
   <script src="chisel.portal.static-data.js?rev=20260906b"></script>
-  <script src="chisel.portal.js?rev=20260928e"></script>
+  <script src="chisel.portal.js?rev=20260928f"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20260906b"></script>
 
  <script>
@@ -2220,7 +2274,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20260928d"></script>
+  <script src="app.js?rev=20260928e"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
