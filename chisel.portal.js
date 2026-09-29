@@ -144,7 +144,9 @@
     staticRawByTxid: Object.create(null),
     portalSourceFilters: Object.create(null),
     portalAnnotations: Object.create(null),
-    personalAccount: null
+    personalAccount: null,
+    personalStreamReturnView: null,
+    discoveryKickPending: false
   };
 
   const portalRowDerivedCache = new WeakMap();
@@ -2709,6 +2711,49 @@
     requestPortalRender();
   }
 
+
+  function capturePortalView() {
+    const filters = Object.create(null);
+    PORTAL_FILTER_IDS.forEach(function (id) {
+      filters[id] = getPortalFilterValue(id);
+    });
+    return {
+      search: getPortalSearchText(),
+      filters: filters,
+      page: state.portalPage || 1
+    };
+  }
+
+  function setPersonalStreamBackVisible(visible) {
+    const button = $("#portalReturnDefaultStreamButton");
+    if (button) button.hidden = !visible;
+  }
+
+  function restorePortalView(view) {
+    const snapshot = view || { search:"", filters:null, page:1 };
+    const search = $("#portalEvmWordSearch");
+    if (search) search.value = snapshot.search || "";
+    PORTAL_FILTER_IDS.forEach(function (id) {
+      const value = snapshot.filters && Object.prototype.hasOwnProperty.call(snapshot.filters,id)
+        ? !!snapshot.filters[id]
+        : true;
+      setPortalFilterValue(id,value);
+    });
+    state.portalPage = Math.max(1,Number(snapshot.page) || 1);
+    requestPortalRender();
+  }
+
+  function schedulePortalDiscovery() {
+    if (state.discoveryKickPending) return;
+    state.discoveryKickPending = true;
+    window.setTimeout(function () {
+      loadConversationStreams({ reset:false }).catch(function (error) {
+        setStatus("ThunderWords discovery is still waiting: " + (error.message || String(error)), true);
+      }).finally(function () {
+        state.discoveryKickPending = false;
+      });
+    }, 0);
+  }
   function makeBasicSummary(txid, tx, entry) {
     return {
       txid: txid,
@@ -3980,18 +4025,20 @@
 
     if (!state.portalRows.length) {
       list.classList.add("muted");
-      list.textContent = "No transactions loaded.";
-      setText("#portalExplorerCount", "No transactions loaded.");
+      list.textContent = "◷ Loading ThunderWords…";
+      setText("#portalExplorerCount", "◷ Loading ThunderWords…");
       renderPortalPageControls([]);
+      schedulePortalDiscovery();
       return;
     }
 
     const filteredRows = getFilteredPortalRows();
     if (!filteredRows.length) {
       list.classList.add("muted");
-      list.textContent = "No records match these filters.";
-      setText("#portalExplorerCount", "0 shown · " + state.portalRows.length + " loaded");
+      list.textContent = "◷ Looking for matching ThunderWords…";
+      setText("#portalExplorerCount", "◷ 0 shown · " + state.portalRows.length + " loaded");
       renderPortalPageControls(filteredRows);
+      schedulePortalDiscovery();
       return;
     }
 
@@ -4486,12 +4533,13 @@
 
   function renderEmptyTransactionList(message) {
     if (!state.portalRows.length) {
+      const text = message || "◷ Loading ThunderWords…";
       const list = $("#portalTransactionList");
       if (list) {
         list.classList.add("muted");
-        list.textContent = message || "No transactions loaded.";
+        list.textContent = text;
       }
-      setText("#portalExplorerCount", message || "No transactions loaded.");
+      setText("#portalExplorerCount", text);
     }
   }
 
@@ -4500,7 +4548,8 @@
     state.currentTransactions = result.transactions || [];
 
     if (!result || !result.transactions || !result.transactions.length) {
-      renderEmptyTransactionList("No transactions returned for this index.");
+      renderEmptyTransactionList("◷ No ledger rows here yet. Loading other ThunderWords…");
+      schedulePortalDiscovery();
       return;
     }
 
@@ -5120,6 +5169,10 @@ function getPortalFirstCharacter() {
     const prepared = populatePersonalAccountFields(account);
     if (!prepared) return Promise.resolve(null);
     const options = opts || {};
+    if (options.captureReturnView !== false && !state.personalStreamReturnView) {
+      state.personalStreamReturnView = capturePortalView();
+    }
+    setPersonalStreamBackVisible(true);
 
     return loadAddressStream(
       prepared.account.address,
@@ -5227,6 +5280,7 @@ function getPortalFirstCharacter() {
     const saveCurrentTx = $("#portalSaveCurrentTxButton");
     const copyRawJson = $("#portalCopyRawJsonButton");
     const loadPersonalAccountButton = $("#portalLoadPersonalAccountButton");
+    const returnDefaultStreamButton = $("#portalReturnDefaultStreamButton");
 
     if (!loadThunderword) return;
 
@@ -5320,9 +5374,18 @@ function getPortalFirstCharacter() {
         setStatus("No public personal account has been loaded into Chisel yet.",true);
         return;
       }
-      loadPersonalAccountStream(account,{ filterResults:true, noReloadIfCurrent:false }).catch(function (error) {
+      loadPersonalAccountStream(account,{ filterResults:true, noReloadIfCurrent:false, captureReturnView:true }).catch(function (error) {
         setStatus(error.message || String(error),true);
       });
+    };
+
+    if (returnDefaultStreamButton) returnDefaultStreamButton.onclick = function () {
+      const previous = state.personalStreamReturnView;
+      state.personalStreamReturnView = null;
+      restorePortalView(previous);
+      setPersonalStreamBackVisible(false);
+      setStatus("Returned to the previous ThunderWords view.",false);
+      if (!state.portalRows.length) schedulePortalDiscovery();
     };
 
     if (loadConversation) loadConversation.onclick = async function () {
