@@ -1907,6 +1907,59 @@
     return request.coin ? indexEntryForCoin(request.coin, fallback) : fallback;
   }
 
+  function artifactScanRequestFromUrl() {
+    try {
+      const params = new URL(window.location.href).searchParams;
+      if (params.get("artifactScan") !== "1") return null;
+
+      const artifactId = String(params.get("artifactId") || "").trim().toLowerCase();
+      const artifactAddress = String(params.get("address") || "").trim();
+      const currency = String(params.get("currency") || "").trim();
+      const artifactPrefix = String(params.get("artifactPrefix") || "").trim();
+      const mcDougall = String(params.get("mcDougall") || "").trim();
+      const amount = String(params.get("amount") || "0.00001").trim();
+
+      if (!/^[0-9a-f]{16}$/.test(artifactId) || !artifactAddress) return null;
+
+      return {
+        artifactId:artifactId,
+        artifactAddress:artifactAddress,
+        currency:currency,
+        artifactPrefix:artifactPrefix,
+        mcDougall:mcDougall,
+        amount:amount
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function handoffUnregisteredArtifact(request) {
+    if (!request) return false;
+
+    const payload = {
+      schema:"chisel-artifact-index-v1",
+      artifactId:request.artifactId,
+      mcDougall:request.mcDougall,
+      artifactPrefix:request.artifactPrefix,
+      artifactAddress:request.artifactAddress,
+      currency:request.currency,
+      recipients:[{
+        address:request.artifactAddress,
+        amount:request.amount,
+        outputType:"unspendable",
+        note:"artifact " + request.artifactId + " " + request.artifactPrefix + request.mcDougall
+      }],
+      replaceRecipients:false,
+      createdAt:new Date().toISOString()
+    };
+
+    setStatus("No ledger entry exists for artifact " + request.artifactId + ". Opening registration in Send.", false);
+    const targetOrigin = window.location.origin === "null" ? "*" : window.location.origin;
+    window.postMessage({type:"chisel.loadArtifactPayload",payload:payload},targetOrigin);
+    return true;
+  }
+
   function loadMainThunderwordFromUrl() {
     const request = state.urlMainThunderwordRequest || mainThunderwordRequestFromUrl();
     if (!request || !configBool("autoLoadMainThunderwordFromUrl", true)) return Promise.resolve(null);
@@ -1916,6 +1969,22 @@
       source: "url",
       updateUrl: false,
       noReloadIfCurrent: true
+    }).then(function (result) {
+      const artifact = artifactScanRequestFromUrl();
+      if (!artifact || !result || !Array.isArray(result.transactions)) return result;
+
+      if (result.transactions.length) {
+        setStatus(
+          "Artifact " + artifact.artifactId + " resolved on " +
+          (entry.ticker || entry.coin || entry.name || artifact.currency) +
+          " with " + result.transactions.length + " ledger transaction(s).",
+          false
+        );
+        return result;
+      }
+
+      handoffUnregisteredArtifact(artifact);
+      return result;
     });
   }
 
@@ -4490,6 +4559,8 @@
         setStatus("Background hydration failed: " + (error.message || String(error)), true);
       });
     }, 0);
+
+    return result;
   }
 
   async function loadThunderwordIndex() {
