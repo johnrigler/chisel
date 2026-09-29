@@ -782,14 +782,21 @@
     .portalStickerQrFrame {
       width: 220px;
       height: 220px;
-      padding: 12px;
+      padding: 24px;
       box-sizing: border-box;
-      border: 1px solid #111820;
-      border-radius: 10px;
       background: #ffffff;
     }
 
-    .portalStickerQrBody,
+    .portalStickerQrBody {
+      width: 100%;
+      height: 100%;
+      padding: 13px;
+      box-sizing: border-box;
+      background: #ffffff;
+      display: grid;
+      place-items: center;
+    }
+
     .portalStickerQrBody canvas,
     .portalStickerQrBody img {
       width: 100% !important;
@@ -2264,7 +2271,7 @@
   <script src="chisel.thunderwords.js?rev=20260906b"></script>
   <script src="data-bundled/portal-starter.js?rev=20260906b"></script>
   <script src="chisel.portal.static-data.js?rev=20260906b"></script>
-  <script src="chisel.portal.js?rev=20260928f"></script>
+  <script src="chisel.portal.js?rev=20260928g"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20260906b"></script>
 
  <script>
@@ -2274,7 +2281,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20260928e"></script>
+  <script src="app.js?rev=20260928f"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
