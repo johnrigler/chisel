@@ -737,7 +737,17 @@
       payloadBase58Candidate: macPayloadToBase58Candidate(payload)
     };
 
-    if (first === "S") record.kind = "image-chord-line";
+    const artifactBody = trimMacPadding(payload);
+    const artifactId = (isMacDougallFirst(first) && modifier === "B" && spacer === "x" && /^[1-9A-Fc]{16}$/.test(artifactBody))
+      ? artifactBody.replace(/c/g, "0").toUpperCase()
+      : "";
+
+    if (artifactId) {
+      record.kind = "artifact-index";
+      record.artifactId = artifactId;
+      record.displayText = "Artifact " + artifactId;
+    }
+    else if (first === "S") record.kind = "image-chord-line";
     else if (isMacDougallFirst(first) && modifier === "A" && spacer === "x") record.kind = "person";
     else if (isMacDougallFirst(first) && modifier === "B" && spacer === "x") record.kind = "transport";
     else if (isMacDougallFirst(first) && modifier === "C" && spacer === "x") record.kind = "subject";
@@ -836,6 +846,9 @@
 
   function titleFromSemantics(semantics, txid) {
     const records = semantics && semantics.records ? semantics.records : [];
+    const artifact = records.find(function (record) { return record.kind === "artifact-index" && record.artifactId; });
+    if (artifact) return "Artifact " + artifact.artifactId;
+
     const subject = records.find(function (record) { return record.kind === "subject" && printableText(record.displayText || record.payloadText); });
     if (subject) return subject.displayText || subject.payloadText;
 
@@ -1260,9 +1273,14 @@
     const opText = semantics.records.filter(function (record) { return record.kind === "op-return" && record.text; }).map(function (record) { return record.text; })[0] || "";
     const opUrls = semantics.records.filter(function (record) { return record.kind === "op-return-url"; }).map(function (record) { return record.url; });
     const primaryUrl = primaryUrlFromSemantics(semantics);
+    const artifact = semantics.records.find(function (record) {
+      return record.kind === "artifact-index" && record.artifactId;
+    });
 
     return {
       txid: txid,
+      artifactId: artifact ? artifact.artifactId : "",
+      artifactAddress: artifact ? artifact.line : "",
       title: title,
       primaryUrl: primaryUrl,
       lines: lines.length,
@@ -1524,7 +1542,71 @@
     return [];
   }
 
+  function artifactIndexRecordForRow(row) {
+    const summary = row && row.summary ? row.summary : {};
+    if (summary.artifactId) {
+      return {
+        kind: "artifact-index",
+        artifactId: String(summary.artifactId).toUpperCase(),
+        line: String(summary.artifactAddress || "")
+      };
+    }
+    if (!row || !row.raw) return null;
+    const semantics = buildSemantics(row.raw, extractLines(row.raw));
+    return semantics.records.find(function (record) {
+      return record.kind === "artifact-index" && record.artifactId;
+    }) || null;
+  }
+
+  function appendArtifactQrThumbnail(cell, record) {
+    if (!record || !record.artifactId || typeof window.QRCode !== "function") return false;
+
+    const artifactId = String(record.artifactId).toUpperCase();
+    const frame = document.createElement("div");
+    frame.className = "portalArtifactQrFrame";
+    frame.title = "Chisel artifact " + artifactId;
+    frame.style.width = "54px";
+    frame.style.height = "54px";
+    frame.style.padding = "6px";
+    frame.style.background = "#" + artifactId.slice(0, 6);
+    frame.style.boxSizing = "border-box";
+
+    const body = document.createElement("div");
+    body.style.width = "100%";
+    body.style.height = "100%";
+    body.style.padding = "3px";
+    body.style.background = "#ffffff";
+    body.style.boxSizing = "border-box";
+    body.style.overflow = "hidden";
+    frame.appendChild(body);
+    cell.appendChild(frame);
+
+    new window.QRCode(body, {
+      text: artifactId,
+      width: 128,
+      height: 128,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: window.QRCode.CorrectLevel.H
+    });
+
+    const qr = body.querySelector("canvas,img");
+    if (qr) {
+      qr.style.width = "100%";
+      qr.style.height = "100%";
+      qr.style.display = "block";
+      qr.style.imageRendering = "pixelated";
+    }
+    return true;
+  }
+
   function appendRowThumbnail(cell, row) {
+    const artifact = artifactIndexRecordForRow(row);
+    if (artifact && appendArtifactQrThumbnail(cell, artifact)) {
+      cell.title = "Artifact " + artifact.artifactId + " · " + (artifact.line || "on-chain index");
+      return "";
+    }
+
     const evmImages = collectEvmImageAssets(row);
     if (evmImages.length) {
       const img = document.createElement("img");
