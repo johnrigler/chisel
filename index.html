@@ -1993,6 +1993,7 @@
           <div id="portalPersonalAccountMeta" class="portalPersonalAccountMeta">Public address only. Private key material is not stored in Portal.</div>
           <div class="actions">
             <button id="portalLoadPersonalAccountButton" class="secondaryButton" type="button">LOAD MY STREAM</button>
+            <button id="portalReturnDefaultStreamButton" class="secondaryButton" type="button" hidden>BACK TO THUNDERWORDS</button>
             <button class="secondaryButton" type="button" data-mode-target="send">ADD RECORD</button>
             <a id="portalPersonalAccountExplorer" class="secondaryButton" href="#">VERIFY ADDRESS</a>
           </div>
@@ -2002,7 +2003,7 @@
           <div class="portalStreamHeader">
             <div>
               <div class="stepTitle">Transaction stream</div>
-              <p id="portalExplorerCount" class="muted">No transactions loaded.</p>
+              <p id="portalExplorerCount" class="muted">◷ Loading ThunderWords…</p>
             </div>
             <div class="actions">
               <button id="portalLoadStaticDatasetButton" class="secondaryButton" type="button">REFRESH</button>
@@ -2026,13 +2027,14 @@
             <button id="portalFocusJethroButton" class="secondaryButton portalPageButton" type="button">only Jethro</button>
             <button id="portalShowAllSourcesButton" class="secondaryButton portalPageButton" type="button">show all</button>
           </div>
-          <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">Loading…</div>
+          <div id="portalTransactionList" class="portalTransactionList portalStreamTable muted" tabindex="0">◷ Loading ThunderWords…</div>
           <div id="portalPageControls" class="portalPageControls muted"></div>
         </section>
       </section>
 
-      <details class="panel portalDrawer">
-        <summary>Local data / fileProxy</summary>
+      <details id="filePortalSettings" class="panel portalDrawer">
+        <summary>☰ File portal / storage</summary>
+        <p class="help">Storage is a Portal concern, not part of signing. rigler.org/fileProxy can cache ledger data now and can later host signed off-ledger records associated with a Chisel page.</p>
         <div class="portalControls">
           <div class="portalIndexBar">
             <div>
@@ -2284,7 +2286,7 @@
   <script src="chisel.thunderwords.js?rev=20260906b"></script>
   <script src="data-bundled/portal-starter.js?rev=20260906b"></script>
   <script src="chisel.portal.static-data.js?rev=20260906b"></script>
-  <script src="chisel.portal.js?rev=20260928h"></script>
+  <script src="chisel.portal.js?rev=20260928j"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20260906b"></script>
 
  <script>
@@ -2294,7 +2296,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20260928i"></script>
+  <script src="app.js?rev=20260928j"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
