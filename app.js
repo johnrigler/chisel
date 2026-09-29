@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.29";
+  const APP_VERSION = "2.7.30";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -2153,17 +2153,16 @@ function onClickAddCommonAddressButton() {
   // GUI mode shell
   //
   const MODE_HINTS = {
-    start: "Start mode explains what Chisel proves: browser-local signing, chain-native graph/indexing, and static or local ledger resources.",
-    send: "Send mode keeps one active currency, watches the derived receive address for funds, then builds, signs, and sends UTXO transactions.",
+    send: "Send mode is the write/sign workbench. Identity can already be loaded from Portal before you come here.",
     review: "Review mode exposes the transaction spine: account, UTXOs, VIN, VOUT, raw hex, signed hex, and broadcast result.",
-    portal: "Portal mode is the default Chisel-aware block explorer view over Thunderword indexes and transaction semantics.",
-    examples: "Examples mode collects runnable artifacts and reference outputs without mixing them into the transaction workbench.",
+    portal: "Portal is the default entry point: one public sticker opens a page; four private stickers establish control when you need to write.",
+    examples: "Examples now also holds the old Start/origin/demo material so it stays available without occupying primary navigation.",
     tools: "Tools mode links to key capture, QR/WIF scanning, label generation, legacy decoding, and support utilities without crowding Send."
   };
 
   function normalizeMode(value) {
     if (value === "origin" || value === "start") {
-      return "start";
+      return "examples";
     }
 
     if (value === "broadcast" || value === "etch" || value === "send") {
@@ -2457,9 +2456,9 @@ function onClickAddCommonAddressButton() {
       });
     }
     setStatusMessage(
-      "Loaded scanned WIF from " + (sourceLabel || "QR scanner") +
-      (payload.address ? ". Public address is ready to search." : ". Deriving public address...") +
-      " Review, then send.",
+      "Loaded booklet identity from " + (sourceLabel || "QR scanner") +
+      (payload.address ? ". Its public address is ready in Portal." : ". Deriving its public address...") +
+      " Use ADD RECORD or Send only when you want to write.",
       false
     );
 
