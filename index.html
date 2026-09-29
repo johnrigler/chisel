@@ -2034,12 +2034,12 @@
 
       <details id="filePortalSettings" class="panel portalDrawer">
         <summary>☰ File portal / storage</summary>
-        <p class="help">Storage is a Portal concern, not part of signing. rigler.org/fileProxy can cache ledger data now and can later host signed off-ledger records associated with a Chisel page.</p>
+        <p class="help">Storage is a Portal concern, not part of signing. rigler.org/fileproxy can cache ledger data now and can later host signed off-ledger records associated with a Chisel page.</p>
         <div class="portalControls">
           <div class="portalIndexBar">
             <div>
               <label for="portalFileProxyUrl">fileProxy URL</label>
-              <input id="portalFileProxyUrl" type="text" spellcheck="false" value="http://127.0.0.1:7799">
+              <input id="portalFileProxyUrl" type="text" spellcheck="false" autocomplete="off" value="https://rigler.org/fileproxy">
             </div>
             <div class="actions">
               <button id="portalLoadLocalTxidsButton" class="secondaryButton" type="button">LOAD UTXO DATA</button>
@@ -2286,7 +2286,7 @@
   <script src="chisel.thunderwords.js?rev=20260906b"></script>
   <script src="data-bundled/portal-starter.js?rev=20260906b"></script>
   <script src="chisel.portal.static-data.js?rev=20260906b"></script>
-  <script src="chisel.portal.js?rev=20260928j"></script>
+  <script src="chisel.portal.js?rev=20260929a"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20260906b"></script>
 
  <script>
