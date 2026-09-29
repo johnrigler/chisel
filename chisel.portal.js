@@ -4,7 +4,7 @@
   const DEFAULT_DIGIBYTE_TXID = "d8eef1586bb88d192d3284726407c307f0c54b1c023b7ef343e401eb89ea098d";
   const DEFAULT_COLOR_PATH = "b57.json";
   const DEFAULT_THUNDERWORD_INDEX = "digibyteGeneral";
-  const DEFAULT_FILE_PROXY_URL = "https://rigler.org:7799";
+  const DEFAULT_FILE_PROXY_URL = "https://rigler.org/fileproxy";
   const DEFAULT_SCALE = 10;
   const DEFAULT_SKIP_PREFIX = 2;
   const DEFAULT_SKIP_SUFFIX = 6;
