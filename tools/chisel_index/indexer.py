@@ -432,6 +432,62 @@ def stream_record(data_root: Path, path: Path, value: Dict[str, Any], now: int) 
     }
 
 
+def database_path(data_root: Any) -> Path:
+    return Path(data_root).expanduser().resolve() / "index" / "chisel.sqlite3"
+
+
+def list_transactions(data_root: Any, coin: Any = None) -> List[Dict[str, Any]]:
+    """Read the derived SQLite catalog without touching transaction JSON files."""
+    database = database_path(data_root)
+    if not database.is_file():
+        return []
+    clean_coin = normalize_coin(coin) if coin else ""
+    sql = """
+        SELECT coin, txid, json_path, byte_size, modified_at,
+               block_time, block_height, title, op_return_text
+          FROM transactions
+    """
+    params: List[Any] = []
+    if clean_coin:
+        sql += " WHERE coin = ?"
+        params.append(clean_coin)
+    sql += " ORDER BY coin, COALESCE(block_time, modified_at) DESC, txid"
+
+    conn = sqlite3.connect(str(database))
+    conn.row_factory = sqlite3.Row
+    try:
+        return [dict(row) for row in conn.execute(sql, params)]
+    finally:
+        conn.close()
+
+
+def transaction_path(data_root: Any, txid: Any, coin: Any = None) -> str:
+    """Return a canonical transaction JSON path from the SQLite catalog."""
+    clean_txid = str(txid or "").strip().lower()
+    if not is_txid(clean_txid):
+        return ""
+    database = database_path(data_root)
+    if not database.is_file():
+        return ""
+    clean_coin = normalize_coin(coin) if coin else ""
+
+    conn = sqlite3.connect(str(database))
+    try:
+        if clean_coin:
+            row = conn.execute(
+                "SELECT json_path FROM transactions WHERE coin = ? AND txid = ? LIMIT 1",
+                (clean_coin, clean_txid),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT json_path FROM transactions WHERE txid = ? ORDER BY coin LIMIT 1",
+                (clean_txid,),
+            ).fetchone()
+        return str(row[0]) if row else ""
+    finally:
+        conn.close()
+
+
 def rebuild_index(data_root: Any, include_legacy_jist: bool = False) -> Dict[str, Any]:
     """Rebuild index/chisel.sqlite3 from canonical Chisel datastore files."""
 
