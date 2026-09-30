@@ -2179,6 +2179,21 @@ def find_tx_file(txid, coin=None):
     if not is_txid(txid):
         raise ValueError("txid must be 64 hex characters")
     target = str(txid).lower()
+
+    # Prefer the derived SQLite catalog when available. This avoids the bounded
+    # recursive filesystem scan for cached transactions whose filenames are
+    # Base58 slugs rather than raw txids.
+    try:
+        indexer = load_chisel_indexer()
+        if indexer is not None and hasattr(indexer, "transaction_path"):
+            indexed = indexer.transaction_path(active_data_root(), target, coin)
+            if indexed:
+                indexed_path = (active_data_root() / indexed).resolve()
+                if indexed_path.exists() and indexed_path.is_file() and is_allowed_path(indexed_path):
+                    return indexed_path
+    except Exception:
+        pass
+
     candidates = []
     b58 = base58_from_hex(target)
     for root in tx_roots(coin):
@@ -2217,7 +2232,36 @@ def find_tx_file(txid, coin=None):
     return None
 
 
-def list_txids(coin=None):
+def list_txids(coin=None, with_source=False):
+    # The SQLite witness is the fastest catalog when it is present and healthy.
+    # Fall back to the filesystem so fileProxy remains useful before the first
+    # rebuild or if the database is deliberately removed.
+    try:
+        indexer = load_chisel_indexer()
+        if indexer is not None and hasattr(indexer, "list_transactions"):
+            indexed_rows = indexer.list_transactions(active_data_root(), coin)
+            database = Path(active_data_root()) / "index" / "chisel.sqlite3"
+            if database.is_file():
+                rows = []
+                for row in indexed_rows:
+                    json_path = str(row.get("json_path") or "")
+                    file_path = (active_data_root() / json_path).resolve() if json_path else None
+                    rows.append({
+                        "txid": str(row.get("txid") or "").lower(),
+                        "coin": normalize_coin_name(row.get("coin")),
+                        "ticker": ticker_for_coin(row.get("coin")),
+                        "path": rel_path(file_path) if file_path else "",
+                        "file_slug": file_path.stem if file_path else "",
+                        "size": int(row.get("byte_size") or 0),
+                        "modified": int(row.get("modified_at") or 0),
+                        "blockTime": int(row.get("block_time") or 0),
+                        "blockHeight": int(row.get("block_height") or 0),
+                        "title": str(row.get("title") or ""),
+                    })
+                return (rows, "sqlite") if with_source else rows
+    except Exception:
+        pass
+
     out = []
     seen = set()
     for root in tx_roots(coin):
@@ -2251,7 +2295,7 @@ def list_txids(coin=None):
                 "modified": int(st.st_mtime)
             })
     out.sort(key=lambda row: (row.get("coin") or "", -row["modified"], row["txid"]))
-    return out
+    return (out, "filesystem") if with_source else out
 
 
 def find_ipfs_file(cid):
@@ -2602,8 +2646,15 @@ class Handler(BaseHTTPRequestHandler):
 
             if parsed.path == "/txids":
                 coin = normalize_coin_name(query.get("coin", [""])[0].strip()) or None
-                rows = list_txids(coin)
-                send_json(self, {"ok": True, "root": str(ROOT), "data_roots": [str(p) for p in EXTRA_DATA_ROOTS], "coin": coin or "", "transactions": rows})
+                rows, catalog_source = list_txids(coin, with_source=True)
+                send_json(self, {
+                    "ok": True,
+                    "root": str(ROOT),
+                    "data_roots": [str(p) for p in EXTRA_DATA_ROOTS],
+                    "coin": coin or "",
+                    "catalogSource": catalog_source,
+                    "transactions": rows,
+                })
                 return
 
             if parsed.path == "/tx-index":
