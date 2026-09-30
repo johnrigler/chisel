@@ -47,5 +47,6 @@
   ],
   "staticManifestMirrors": [
     "https://rigler.org/chisel-data/manifest.json"
-  ]
+  ],
+  "autoTrackRecognizedAddresses": true
 }
