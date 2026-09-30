@@ -292,6 +292,15 @@ List Litecoin records known to fileProxy:
 curl 'https://rigler.org/fileproxy/txids?coin=litecoin'
 ```
 
+When the unified database is healthy, this response should include:
+
+```json
+"catalogSource": "sqlite"
+```
+
+If SQLite is unavailable, fileProxy falls back to the filesystem and reports
+`"catalogSource": "filesystem"`.
+
 Retrieve a specific cached transaction without touching an explorer:
 
 ```bash
@@ -319,6 +328,8 @@ If the response shows:
 ```
 
 then JSON indexing is still useful, but the unified SQLite indexer is absent.
+A healthy deployment should instead report `"available": true`,
+`"ok": true`, and nonzero transaction counts.
 
 Check newly discovered link records:
 
@@ -349,8 +360,11 @@ The current design therefore has three efficiency layers:
 2. fileProxy cached JSON avoids repeat explorer/API transaction fetches;
 3. derived JSON/SQLite indexes avoid repeatedly scanning every saved file.
 
-At present layers 1 and 2 are active. The JSON portion of layer 3 is active.
-The SQLite portion depends on the optional missing indexer described above.
+At present all three layers are active when `tools/chisel_index/indexer.py`
+is installed and `index/chisel.sqlite3` has been built. `/txids` now prefers
+the SQLite catalog and reports `"catalogSource": "sqlite"` when it is serving
+from the unified index. Cached transaction lookup also consults SQLite before
+falling back to filename guesses and recursive filesystem scanning.
 
 ## Ledger-store conventions
 
