@@ -261,6 +261,27 @@ def stream_files(data_root: Path) -> Iterator[Path]:
             yield path.resolve()
 
 
+def database_schema_compatible(conn: sqlite3.Connection) -> bool:
+    """Return True when an existing database matches the unified-index schema.
+
+    Older experimental Chisel SQLite files used different transaction columns.
+    CREATE TABLE IF NOT EXISTS cannot migrate those tables, so detect them before
+    creating indexes that assume the current schema.
+    """
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'"
+    ).fetchone()
+    if row is None:
+        return True
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(transactions)")}
+    required = {
+        "coin", "txid", "json_path", "json_sha256", "byte_size",
+        "modified_at", "block_time", "block_height", "title",
+        "op_return_text", "indexed_at",
+    }
+    return required.issubset(columns)
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
@@ -436,6 +457,16 @@ def rebuild_index(data_root: Any, include_legacy_jist: bool = False) -> Dict[str
         try:
             conn.execute("PRAGMA journal_mode = DELETE")
             conn.execute("PRAGMA synchronous = FULL")
+            if not database_schema_compatible(conn):
+                conn.close()
+                legacy = database.with_name(
+                    database.name + ".legacy-" + str(int(time.time()))
+                )
+                database.replace(legacy)
+                result["replacedLegacyDatabase"] = str(legacy)
+                conn = sqlite3.connect(str(database))
+                conn.execute("PRAGMA journal_mode = DELETE")
+                conn.execute("PRAGMA synchronous = FULL")
             init_schema(conn)
             conn.execute("BEGIN IMMEDIATE")
             conn.execute("DELETE FROM main_thunderword_transactions")
