@@ -2156,6 +2156,7 @@ def refresh_all_indexes(coin=None):
             "available": True,
             "database": status.get("database", ""),
             "counts": status.get("counts", {}),
+            "skippedTransactionDetails": status.get("skippedTransactionDetails", []),
             "legacyJistIncluded": bool(status.get("legacyJistIncluded", False)),
             "error": status.get("error", ""),
             "replacedLegacyDatabase": status.get("replacedLegacyDatabase", ""),
