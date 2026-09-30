@@ -384,6 +384,41 @@ base57/
 data/base57/
 ```
 
+## Persistent Chisel graph growth
+
+Portal now treats recognized Chisel addresses as persistent graph roots rather
+than session-only rabbit trails.
+
+Automatic tracking is deliberately conservative. A discovered address is
+persisted when Portal recognizes a Chisel-native semantic form such as:
+
+- sticker/index addresses (`LLx` plus the 16-character encoded artifact id);
+- person, transport, and subject MacDougall records;
+- repeated Thunderword/index records;
+- free-verse MacDougall records;
+- recognized Chisel address tokens carried inside OP_RETURN text.
+
+Ordinary sender/VIN addresses are displayed but are not recursively enrolled by
+default. Their transaction rows expose a `track` control so the user can
+deliberately promote one into the persistent graph.
+
+Recognized graph roots are written through the existing `/main-stream` endpoint.
+Their discovered transaction ids are then retained in the stream manifest and
+included in the rebuildable SQLite witness. This means an address or transaction
+normally needs to be discovered from the ledger only once; later Portal sessions
+can reuse the canonical JSON and persistent stream relationships.
+
+The browser setting controlling automatic recognized-address enrollment is:
+
+```json
+"autoTrackRecognizedAddresses": true
+```
+
+This is intentionally narrower than "follow every sender/recipient". The graph
+should grow because Chisel recognizes a protocol object or because a user
+explicitly chooses `track`, not merely because an unrelated address touched a
+transaction.
+
 ## Main endpoints
 
 Read-oriented:
