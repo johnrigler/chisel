@@ -347,20 +347,20 @@ def init_schema(conn: sqlite3.Connection) -> None:
     )
 
 
-def transaction_record(data_root: Path, path: Path, now: int) -> Optional[Tuple[Any, ...]]:
+def transaction_record(data_root: Path, path: Path, now: int) -> Tuple[Optional[Tuple[Any, ...]], str]:
     value = json_object(path)
     if value is None:
-        return None
+        return None, "invalid JSON object or unreadable file"
     txid = extract_txid(value, path)
     if not txid:
-        return None
+        return None, "no recognizable 64-hex transaction id"
     coin = infer_coin_from_path(data_root, path, value)
     try:
         relative_path = str(path.relative_to(data_root))
         stat = path.stat()
         digest = sha256_file(path)
-    except OSError:
-        return None
+    except OSError as exc:
+        return None, "file/stat/hash error: " + str(exc)
     return (
         coin,
         txid,
@@ -373,7 +373,7 @@ def transaction_record(data_root: Path, path: Path, now: int) -> Optional[Tuple[
         extract_title(value),
         extract_op_return(value),
         now,
-    )
+    ), ""
 
 
 def stream_transactions(value: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -449,6 +449,7 @@ def rebuild_index(data_root: Any, include_legacy_jist: bool = False) -> Dict[str
             "skippedTransactions": 0,
             "skippedStreams": 0,
         },
+        "skippedTransactionDetails": [],
     }
     try:
         root.mkdir(parents=True, exist_ok=True)
@@ -475,9 +476,17 @@ def rebuild_index(data_root: Any, include_legacy_jist: bool = False) -> Dict[str
 
             tx_keys: Set[Tuple[str, str]] = set()
             for path in transaction_files(root):
-                record = transaction_record(root, path, now)
+                record, skip_reason = transaction_record(root, path, now)
                 if record is None:
                     result["counts"]["skippedTransactions"] += 1
+                    try:
+                        skipped_path = str(path.relative_to(root))
+                    except ValueError:
+                        skipped_path = str(path)
+                    result["skippedTransactionDetails"].append({
+                        "path": skipped_path,
+                        "reason": skip_reason or "unrecognized transaction record",
+                    })
                     continue
                 conn.execute(
                     """
