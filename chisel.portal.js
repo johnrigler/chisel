@@ -2735,7 +2735,10 @@
     return {
       search: getPortalSearchText(),
       filters: filters,
-      page: state.portalPage || 1
+      page: state.portalPage || 1,
+      expandedRowKeys: Object.keys(state.expandedRowKeys || {}),
+      selectedRowKey: state.selectedRowKey || "",
+      selectedTxid: state.selectedTxid || ""
     };
   }
 
@@ -2755,6 +2758,12 @@
       setPortalFilterValue(id,value);
     });
     state.portalPage = Math.max(1,Number(snapshot.page) || 1);
+    state.expandedRowKeys = Object.create(null);
+    safeArray(snapshot.expandedRowKeys).forEach(function (key) {
+      if (state.portalRowKeys[key]) state.expandedRowKeys[key] = true;
+    });
+    state.selectedRowKey = state.portalRowKeys[snapshot.selectedRowKey] ? snapshot.selectedRowKey : "";
+    state.selectedTxid = state.selectedRowKey ? (snapshot.selectedTxid || state.portalRowKeys[state.selectedRowKey].txid || "") : "";
     requestPortalRender();
   }
 
@@ -5194,8 +5203,8 @@ function getPortalFirstCharacter() {
       prepared.entry,
       prepared.account.label + " " + prepared.account.address,
       {
-        source:"wif",
-        updateUrl:false,
+        source:options.source || "wif",
+        updateUrl:options.updateUrl === true,
         noReloadIfCurrent:options.noReloadIfCurrent !== false
       }
     ).then(function (stream) {
@@ -5259,20 +5268,18 @@ function getPortalFirstCharacter() {
 
     populatePersonalAccountFields(account);
 
-    if (detail.explicitSearch === true) {
-      const fallback = inferIndexForAddress(address,state.currentIndex || getSelectedIndex());
-      const entry = detail.coin ? indexEntryForCoin(detail.coin,fallback) : fallback;
-      loadAddressStream(address,entry,account.label + " " + address,{
-        source:"manual",
-        updateUrl:true,
-        noReloadIfCurrent:false
-      }).catch(function (error) {
-        setStatus(error.message || String(error),true);
-      });
-      return;
-    }
-
-    maybeAutoLoadConversationStreams();
+    // A scanner/account handoff is an explicit change of Portal context. Keep
+    // that personal address stream active instead of allowing the default
+    // ThunderWords auto-loader to become the visible view a moment later.
+    loadPersonalAccountStream(account,{
+      filterResults:true,
+      noReloadIfCurrent:false,
+      captureReturnView:true,
+      source:detail.explicitSearch === true ? "manual" : "scanner",
+      updateUrl:detail.explicitSearch === true
+    }).catch(function (error) {
+      setStatus(error.message || String(error),true);
+    });
   }
 
   function bind() {
