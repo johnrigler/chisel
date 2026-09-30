@@ -3156,6 +3156,7 @@
 
       line.appendChild(lookup);
       line.appendChild(makeAddressExplorerLink(address, entry));
+      line.appendChild(makeTrackAddressButton(address, entry, row && row.txid));
       list.appendChild(line);
     });
 
@@ -4739,26 +4740,131 @@ function getPortalFirstCharacter() {
     return extractLines(txJson).indexOf(needle) !== -1;
   }
 
+  function autoTrackedTrailKind(kind) {
+    return [
+      "artifact-index",
+      "person",
+      "transport",
+      "subject",
+      "thunderword-index",
+      "free-verse"
+    ].indexOf(String(kind || "")) >= 0;
+  }
+
+  function recognizedTrailFromAddress(address, sourceIndex, sourceTxid, fallbackTitle) {
+    const clean = String(address || "").trim();
+    if (!looksLikeAddressLine(clean)) return null;
+    const record = classifyAddressLine(clean, 0);
+    if (!autoTrackedTrailKind(record.kind)) return null;
+    return {
+      address: clean,
+      title: record.displayText || record.payloadText || fallbackTitle || clean,
+      kind: record.kind,
+      marker: record.marker,
+      sourceTxid: sourceTxid || "",
+      index: inferIndexForAddress(clean, sourceIndex)
+    };
+  }
+
+  function opReturnRecognizedTrails(semantics, sourceIndex, sourceTxid) {
+    const out = [];
+    const seen = Object.create(null);
+    safeArray(semantics && semantics.records).forEach(function (record) {
+      if (record.kind !== "op-return" || !record.text) return;
+      String(record.text).match(/[1-9A-HJ-NP-Za-km-z]{26,80}/g)?.forEach(function (token) {
+        const trail = recognizedTrailFromAddress(token, sourceIndex, sourceTxid, "OP_RETURN " + token);
+        if (!trail || seen[trail.address]) return;
+        seen[trail.address] = true;
+        trail.kind = "op-return-" + trail.kind;
+        out.push(trail);
+      });
+    });
+    return out;
+  }
+
+  function trailIsAutoTracked(trail) {
+    const kind = String(trail && trail.kind || "");
+    return autoTrackedTrailKind(kind) || kind.indexOf("op-return-") === 0;
+  }
+
+  async function persistRecognizedTrail(trail, txids) {
+    if (!trail || !trail.address || !trailIsAutoTracked(trail)) return null;
+    if (!configBool("autoTrackRecognizedAddresses", true)) return null;
+    const entry = trail.index || inferIndexForAddress(trail.address, state.currentIndex || getSelectedIndex());
+    const stream = makeMainThunderword(
+      entry,
+      trail.address,
+      trail.title || trail.address,
+      "recognized-" + trail.kind,
+      { sourceTxid: trail.sourceTxid || "" }
+    );
+    const saved = await persistMainThunderword(stream, txids || []);
+    scheduleMainThunderwordReindex();
+    return saved;
+  }
+
+  async function trackAddressManually(address, entry, sourceTxid) {
+    const clean = String(address || "").trim();
+    if (!isPublicMainThunderwordAddress(clean)) throw new Error("Only a public address can be tracked.");
+    const targetEntry = inferIndexForAddress(clean, entry || state.currentIndex || getSelectedIndex());
+    const stream = makeMainThunderword(
+      targetEntry,
+      clean,
+      "Tracked " + clean,
+      "manual-follow",
+      { sourceTxid: sourceTxid || "" }
+    );
+    const saved = await persistMainThunderword(stream, []);
+    scheduleMainThunderwordReindex();
+    setStatus("Tracking " + clean + " as a persistent Chisel graph root.", false);
+    return saved;
+  }
+
+  function makeTrackAddressButton(address, entry, sourceTxid) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondaryButton";
+    button.textContent = "track";
+    button.title = "Persist this ordinary address as a Chisel graph root";
+    button.onclick = function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      trackAddressManually(address, entry, sourceTxid).then(function () {
+        button.textContent = "tracked";
+      }).catch(function (error) {
+        button.disabled = false;
+        setStatus(error.message || String(error), true);
+      });
+    };
+    return button;
+  }
+
   function findRabbitTrailTargets(txJson, sourceIndex) {
     const sourceAddress = sourceIndex && sourceIndex.address;
     const lines = extractLines(txJson);
     const semantics = buildSemantics(txJson, lines);
     const targets = [];
+    const sourceTxid = extractTxid(txJson);
     const hasSource = txHasAddressLine(txJson, sourceAddress);
 
     if (!hasSource) return targets;
 
     semantics.records.forEach(function (record) {
-      if (["subject", "transport", "person", "address", "thunderword-index", "free-verse"].indexOf(record.kind) < 0) return;
+      if (["artifact-index", "subject", "transport", "person", "address", "thunderword-index", "free-verse"].indexOf(record.kind) < 0) return;
       if (!record.line || record.line === sourceAddress || record.kind === "image-chord-line") return;
       if (String(record.line).charAt(0) === "S") return;
       targets.push({
         address: record.line,
-        title: record.payloadText || record.line,
+        title: record.displayText || record.payloadText || record.line,
         kind: record.kind,
         marker: record.marker,
-        sourceTxid: extractTxid(txJson)
+        sourceTxid: sourceTxid
       });
+    });
+
+    opReturnRecognizedTrails(semantics, sourceIndex, sourceTxid).forEach(function (trail) {
+      targets.push(trail);
     });
 
     if (configBool("rabbitTrailSenders", true)) {
@@ -4769,7 +4875,7 @@ function getPortalFirstCharacter() {
           title: "sender " + address,
           kind: "sender",
           marker: "VIN",
-          sourceTxid: extractTxid(txJson)
+          sourceTxid: sourceTxid
         });
       });
     }
@@ -4906,7 +5012,13 @@ function getPortalFirstCharacter() {
         const trailKey = ((targetIndex && (targetIndex.coin || targetIndex.name)) || hydrated.coin || "unknown") + ":" + trail.address;
         if (seenTrail.has(trailKey)) return;
         seenTrail.add(trailKey);
-        trails.push(Object.assign(trail, { index: targetIndex, fetchable: indexCanFetch(targetIndex) }));
+        const discoveredTrail = Object.assign(trail, { index: targetIndex, fetchable: indexCanFetch(targetIndex) });
+        trails.push(discoveredTrail);
+        if (trailIsAutoTracked(discoveredTrail)) {
+          persistRecognizedTrail(discoveredTrail, []).catch(function (error) {
+            console.warn("Recognized Chisel graph node could not be persisted:", error);
+          });
+        }
       });
 
       if (i === getPortalPageSize() - 1) {
@@ -4953,6 +5065,11 @@ function getPortalFirstCharacter() {
       try {
         const childRows = await fetchIndexRows(child, "rabbit trail: " + trail.title);
         trail.transactions = childRows.length;
+        if (trailIsAutoTracked(trail)) {
+          persistRecognizedTrail(trail, childRows.map(function (row) { return row.txid; })).catch(function (error) {
+            console.warn("Recognized Chisel graph transactions could not be persisted:", error);
+          });
+        }
         const uniqueRows = childRows.filter(function (row) {
           const key = rowKey(Object.assign({}, row, { index: child, coin: child.coin || child.ticker || child.name }));
           if (seenChildTx.has(key)) return false;
