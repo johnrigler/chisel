@@ -70,3 +70,151 @@
     }
   };
 })();
+
+(function installRecipientAddressScannerBridge() {
+  "use strict";
+
+  var STORAGE_KEY = "chisel.pendingRecipientAddress.v1";
+  var popup = null;
+
+  function getCurrencyKey() {
+    var currency = document.getElementById("currency");
+    return currency && currency.value ? currency.value : "litecoin";
+  }
+
+  function setStatus(text, isError) {
+    var status = document.getElementById("status");
+    if (!status) return;
+    status.textContent = text;
+    if (isError) {
+      status.classList.add("error");
+    } else {
+      status.classList.remove("error");
+    }
+  }
+
+  function loadRecipientAddress(payload) {
+    var field = document.getElementById("spendableAddress");
+    var selectedCurrency = getCurrencyKey();
+
+    if (!field || !payload || payload.type !== "chisel.loadRecipientAddress") {
+      return false;
+    }
+
+    if (!payload.address || typeof payload.address !== "string") {
+      setStatus("Recipient scanner returned no public address.", true);
+      return false;
+    }
+
+    if (payload.currency && payload.currency !== selectedCurrency) {
+      setStatus(
+        "Scanned address is for " + payload.currency + ", but Etch is using " + selectedCurrency + ".",
+        true
+      );
+      return false;
+    }
+
+    field.value = payload.address.trim();
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    field.focus();
+    setStatus("Recipient address scanned. Enter an amount, then add the spendable output.", false);
+    return true;
+  }
+
+  function readStoredPayload() {
+    var raw = null;
+
+    try { raw = sessionStorage.getItem(STORAGE_KEY); } catch (error) {}
+    if (!raw) {
+      try { raw = localStorage.getItem(STORAGE_KEY); } catch (error) {}
+    }
+    if (!raw) return null;
+
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function clearStoredPayload() {
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch (error) {}
+    try { localStorage.removeItem(STORAGE_KEY); } catch (error) {}
+  }
+
+  function consumeStoredPayload() {
+    var payload = readStoredPayload();
+    var url;
+
+    if (payload && loadRecipientAddress(payload)) {
+      clearStoredPayload();
+    }
+
+    try {
+      url = new URL(window.location.href);
+      if (url.searchParams.has("loadScannedRecipient")) {
+        url.searchParams.delete("loadScannedRecipient");
+        history.replaceState(null, "", url.pathname + (url.search ? url.search : "") + url.hash);
+      }
+    } catch (error) {}
+  }
+
+  function openRecipientScanner() {
+    var url = "addressScan.html?rev=20260912a&currency=" + encodeURIComponent(getCurrencyKey());
+
+    popup = window.open(url, "chiselRecipientAddressScan", "width=900,height=860");
+    if (!popup) {
+      window.location.href = url;
+    }
+  }
+
+  function installButton() {
+    var spendableTool = document.getElementById("spendableTool");
+    var addButton = document.getElementById("addSpendableButton");
+    var controls;
+    var scanButton;
+
+    if (!spendableTool || !addButton || document.getElementById("scanSpendableAddressButton")) {
+      return;
+    }
+
+    controls = document.createElement("div");
+    controls.className = "actions";
+
+    scanButton = document.createElement("button");
+    scanButton.id = "scanSpendableAddressButton";
+    scanButton.className = "secondaryButton";
+    scanButton.type = "button";
+    scanButton.textContent = "SCAN RECIPIENT QR";
+    scanButton.title = "Scan a spendable public address from another phone";
+    scanButton.addEventListener("click", openRecipientScanner);
+
+    spendableTool.insertBefore(controls, addButton);
+    controls.appendChild(scanButton);
+    controls.appendChild(addButton);
+  }
+
+  window.addEventListener("message", function onRecipientAddressMessage(event) {
+    var data = event && event.data;
+
+    if (!data || data.type !== "chisel.loadRecipientAddress") {
+      return;
+    }
+
+    if (popup && event.source && event.source !== popup) {
+      return;
+    }
+
+    if (window.location.protocol !== "file:" && event.origin && event.origin !== window.location.origin) {
+      return;
+    }
+
+    if (loadRecipientAddress(data)) {
+      clearStoredPayload();
+    }
+  });
+
+  installButton();
+  setTimeout(consumeStoredPayload, 0);
+})();

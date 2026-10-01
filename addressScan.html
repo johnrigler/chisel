@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <title>Chisel Spendable Address Scanner</title>
+  <script src="vendor/html5-qrcode.min.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0b0d10;
+      color: #e6edf3;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    header { border-bottom: 1px solid #222a33; background: #0f1318; }
+    header .shell, main { max-width: 900px; margin: 0 auto; padding: 24px; }
+    main { display: grid; gap: 16px; }
+    h1, h2, p { margin: 0; }
+    p { color: #9fb0c0; line-height: 1.5; }
+    .panel {
+      background: #11161c;
+      border: 1px solid #222a33;
+      border-radius: 12px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+    }
+    .grid { display: grid; gap: 12px; grid-template-columns: 170px minmax(0, 1fr); align-items: start; }
+    label { color: #b8c7d6; padding-top: 10px; font-size: 14px; }
+    input, button, textarea { font: inherit; }
+    input, textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #2c3642;
+      border-radius: 10px;
+      background: #0a0f14;
+      color: #e6edf3;
+      outline: none;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    input:focus, textarea:focus { border-color: #7c6dff; box-shadow: 0 0 0 3px rgba(124, 109, 255, 0.16); }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      background: linear-gradient(180deg, #8b7bff 0%, #705dff 100%);
+      color: white;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    button.secondary { background: #1d2630; color: #d7e2ee; border: 1px solid #2c3642; }
+    button:disabled { opacity: 0.55; cursor: default; }
+    .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .help { color: #91a4b7; font-size: 13px; line-height: 1.5; }
+    .value { color: #c5f467; overflow-wrap: anywhere; }
+    #reader {
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid #2c3642;
+      background: #05080b;
+      min-height: 280px;
+    }
+    #status { color: #ffd166; min-height: 1.5em; }
+    #status.error { color: #ff7b7b; }
+    .warning {
+      border: 1px solid #6b3a1f;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #120b07;
+      color: #ffd7b5;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      label { padding-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <h1>Chisel Spendable Address Scanner</h1>
+      <p>Scan a public payment address from another phone and return it to the Etch spendable-output field.</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Public address only</h2>
+      <div class="grid">
+        <label>Selected chain</label>
+        <div id="currencyLabel" class="value">loading...</div>
+      </div>
+      <div class="warning">This scanner intentionally rejects WIFs, raw private keys, and QR key fragments. Use the separate QR / WIF scanner for private-key loading.</div>
+    </section>
+
+    <section class="panel">
+      <h2>Scan or paste address</h2>
+      <div id="reader"></div>
+      <div class="actions">
+        <button id="startButton" type="button">START CAMERA</button>
+        <button id="changeCameraButton" class="secondary" type="button">CHANGE CAMERA</button>
+        <button id="stopButton" class="secondary" type="button">STOP CAMERA</button>
+      </div>
+      <div class="grid">
+        <label for="rawInput">QR / manual input</label>
+        <textarea id="rawInput" autocomplete="off" spellcheck="false" placeholder="Paste a public address or a standard payment URI such as litecoin:L...?amount=..."></textarea>
+      </div>
+      <div class="actions">
+        <button id="useManualButton" class="secondary" type="button">CHECK PASTED ADDRESS</button>
+      </div>
+      <p class="help">The camera opens on the rear-facing camera when the browser permits it. Plain Base58Check P2PKH addresses and chain payment URIs are accepted.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Verified recipient</h2>
+      <div class="grid">
+        <label for="addressOutput">Spendable address</label>
+        <input id="addressOutput" type="text" readonly spellcheck="false" />
+      </div>
+      <div id="status">Idle</div>
+      <div class="actions">
+        <button id="loadChiselButton" type="button" disabled>USE IN CHISEL ETCH</button>
+        <button id="clearButton" class="secondary" type="button">CLEAR</button>
+      </div>
+      <p class="help">Only the public address is returned. This does not add an output or broadcast anything; it only fills the Etch spendable-address field.</p>
+    </section>
+  </main>
+
+  <script src="chisel.js?rev=20260912a"></script>
+  <script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "chisel.pendingRecipientAddress.v1";
+  var CURRENCIES = {
+    ravencoin: { label: "Ravencoin", p2pkhPrefix: 60, uriSchemes: ["ravencoin", "rvn"] },
+    digibyte: { label: "Digibyte", p2pkhPrefix: 30, uriSchemes: ["digibyte", "dgb"] },
+    litecoin: { label: "Litecoin", p2pkhPrefix: 48, uriSchemes: ["litecoin", "ltc"] },
+    litecoinTestnet: { label: "Litecoin Testnet", p2pkhPrefix: 111, uriSchemes: ["litecoin", "ltc"] }
+  };
+  var PRIVATE_KEY_PREFIXES = [128, 176, 239];
+
+  var html5QrCode = null;
+  var cameraDevices = [];
+  var activeCameraIndex = 0;
+  var activeCameraId = "";
+  var currentAddress = "";
+  var lastScanText = "";
+  var lastScanAt = 0;
+
+  var elems = {
+    currencyLabel: document.getElementById("currencyLabel"),
+    reader: document.getElementById("reader"),
+    startButton: document.getElementById("startButton"),
+    changeCameraButton: document.getElementById("changeCameraButton"),
+    stopButton: document.getElementById("stopButton"),
+    rawInput: document.getElementById("rawInput"),
+    useManualButton: document.getElementById("useManualButton"),
+    addressOutput: document.getElementById("addressOutput"),
+    status: document.getElementById("status"),
+    loadChiselButton: document.getElementById("loadChiselButton"),
+    clearButton: document.getElementById("clearButton")
+  };
+
+  function getRequestedCurrency() {
+    try {
+      var url = new URL(window.location.href);
+      return url.searchParams.get("currency") || "litecoin";
+    } catch (error) {
+      return "litecoin";
+    }
+  }
+
+  var currencyKey = getRequestedCurrency();
+  if (!CURRENCIES[currencyKey]) {
+    currencyKey = "litecoin";
+  }
+  var currency = CURRENCIES[currencyKey];
+  elems.currencyLabel.textContent = currency.label + " (P2PKH prefix " + currency.p2pkhPrefix + ")";
+
+  function setStatus(text, isError) {
+    elems.status.textContent = text;
+    elems.status.className = isError ? "error" : "";
+  }
+
+  function clearResult() {
+    currentAddress = "";
+    elems.addressOutput.value = "";
+    elems.loadChiselButton.disabled = true;
+  }
+
+  function parseJson(text) {
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function extractPublicAddress(raw) {
+    var text = String(raw || "").trim();
+    var json;
+    var colonIndex;
+    var scheme;
+    var remainder;
+    var questionIndex;
+
+    if (!text) {
+      throw new Error("No QR or address text was provided.");
+    }
+
+    json = parseJson(text);
+    if (json && typeof json === "object") {
+      if (json.wif || json.privateKey || json.privateKeyHex || json.fragment || json.keyFragment) {
+        throw new Error("Private-key material is not accepted by the public-address scanner.");
+      }
+      if (json.currency && CURRENCIES[json.currency] && json.currency !== currencyKey) {
+        throw new Error("QR is for " + CURRENCIES[json.currency].label + ", but Etch is using " + currency.label + ".");
+      }
+      if (json.address) {
+        text = String(json.address).trim();
+      }
+    }
+
+    if (/^(?:0x)?[0-9a-f]{64}$/i.test(text)) {
+      throw new Error("A raw 32-byte private key is not a spendable public address.");
+    }
+
+    colonIndex = text.indexOf(":");
+    if (colonIndex > 0 && /^[a-z][a-z0-9+.-]*$/i.test(text.slice(0, colonIndex))) {
+      scheme = text.slice(0, colonIndex).toLowerCase();
+      if (currency.uriSchemes.indexOf(scheme) === -1) {
+        throw new Error("Payment URI scheme " + scheme + " does not match " + currency.label + ".");
+      }
+      remainder = text.slice(colonIndex + 1).replace(/^\/\//, "");
+      questionIndex = remainder.indexOf("?");
+      if (questionIndex >= 0) {
+        remainder = remainder.slice(0, questionIndex);
+      }
+      text = decodeURIComponent(remainder).trim();
+    }
+
+    return text;
+  }
+
+  async function validateAddress(raw) {
+    var address = extractPublicAddress(raw);
+    var payload;
+    var version;
+
+    try {
+      payload = await CHISEL.base58CheckDecode(address);
+    } catch (error) {
+      throw new Error("QR is not a valid Base58Check address.");
+    }
+
+    version = payload[0];
+
+    if ((payload.length === 33 || payload.length === 34) && PRIVATE_KEY_PREFIXES.indexOf(version) >= 0) {
+      throw new Error("QR contains a WIF/private-key payload, not a public address.");
+    }
+
+    if (payload.length !== 21) {
+      throw new Error("Expected a 21-byte P2PKH address payload, got " + payload.length + " bytes.");
+    }
+
+    if (version !== currency.p2pkhPrefix) {
+      throw new Error(
+        "Address belongs to P2PKH prefix " + version + ", not " + currency.label + " prefix " + currency.p2pkhPrefix + "."
+      );
+    }
+
+    return address;
+  }
+
+  async function acceptRaw(raw) {
+    clearResult();
+    try {
+      currentAddress = await validateAddress(raw);
+      elems.addressOutput.value = currentAddress;
+      elems.loadChiselButton.disabled = false;
+      setStatus("Verified " + currency.label + " spendable address.", false);
+      stopCamera();
+      return currentAddress;
+    } catch (error) {
+      setStatus(error.message || String(error), true);
+      return "";
+    }
+  }
+
+  function onScanSuccess(decodedText) {
+    var now = Date.now();
+    var text = String(decodedText || "").trim();
+
+    if (!text) {
+      return;
+    }
+    if (text === lastScanText && now - lastScanAt < 1500) {
+      return;
+    }
+    lastScanText = text;
+    lastScanAt = now;
+    elems.rawInput.value = text;
+    acceptRaw(text);
+  }
+
+  async function enumerateCameras() {
+    try {
+      cameraDevices = await Html5Qrcode.getCameras();
+    } catch (error) {
+      cameraDevices = [];
+    }
+    return cameraDevices;
+  }
+
+  function chooseRearCameraIndex(devices) {
+    var i;
+    var label;
+
+    for (i = 0; i < devices.length; i += 1) {
+      label = String(devices[i].label || "").toLowerCase();
+      if (/back|rear|environment/.test(label)) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  async function startCamera(preferRearCamera) {
+    var scanConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    if (!window.Html5Qrcode) {
+      setStatus("QR camera library is unavailable.", true);
+      return;
+    }
+
+    if (!html5QrCode) {
+      html5QrCode = new Html5Qrcode("reader");
+    }
+
+    try {
+      if (preferRearCamera) {
+        await html5QrCode.start(
+          { facingMode: { exact: "environment" } },
+          scanConfig,
+          onScanSuccess
+        );
+        setStatus("Rear camera active. Point it at a public-address QR.", false);
+        return;
+      }
+
+      if (!cameraDevices.length) {
+        await enumerateCameras();
+      }
+      if (!cameraDevices.length) {
+        throw new Error("No camera was found.");
+      }
+
+      activeCameraIndex = Math.max(0, Math.min(activeCameraIndex, cameraDevices.length - 1));
+      activeCameraId = cameraDevices[activeCameraIndex].id;
+      await html5QrCode.start(activeCameraId, scanConfig, onScanSuccess);
+      setStatus("Camera active. Point it at a public-address QR.", false);
+    } catch (rearCameraError) {
+      if (preferRearCamera) {
+        await enumerateCameras();
+        if (cameraDevices.length) {
+          activeCameraIndex = chooseRearCameraIndex(cameraDevices);
+          try {
+            activeCameraId = cameraDevices[activeCameraIndex].id;
+            await html5QrCode.start(activeCameraId, scanConfig, onScanSuccess);
+            setStatus("Camera active. Point it at a public-address QR.", false);
+            return;
+          } catch (fallbackError) {
+            setStatus("Could not start camera: " + (fallbackError.message || String(fallbackError)), true);
+            return;
+          }
+        }
+      }
+      setStatus("Could not start camera: " + (rearCameraError.message || String(rearCameraError)), true);
+    }
+  }
+
+  async function stopCamera() {
+    if (!html5QrCode || !html5QrCode.isScanning) {
+      return;
+    }
+    try {
+      await html5QrCode.stop();
+    } catch (error) {
+      // Ignore stop races after a successful scan.
+    }
+  }
+
+  async function changeCamera() {
+    await stopCamera();
+    if (!cameraDevices.length) {
+      await enumerateCameras();
+    }
+    if (!cameraDevices.length) {
+      setStatus("No alternate camera is available.", true);
+      return;
+    }
+    activeCameraIndex = (activeCameraIndex + 1) % cameraDevices.length;
+    startCamera(false);
+  }
+
+  function storePayload() {
+    var payload = JSON.stringify({
+      type: "chisel.loadRecipientAddress",
+      currency: currencyKey,
+      address: currentAddress
+    });
+
+    try { sessionStorage.setItem(STORAGE_KEY, payload); } catch (error) {}
+    try { localStorage.setItem(STORAGE_KEY, payload); } catch (error) {}
+  }
+
+  function loadIntoChisel() {
+    if (!currentAddress) {
+      setStatus("Scan or verify a public address first.", true);
+      return;
+    }
+
+    storePayload();
+
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({
+        type: "chisel.loadRecipientAddress",
+        currency: currencyKey,
+        address: currentAddress
+      }, window.location.origin);
+      window.close();
+      return;
+    }
+
+    window.location.href = "index.html?mode=etch&loadScannedRecipient=1";
+  }
+
+  elems.startButton.onclick = function () { startCamera(true); };
+  elems.changeCameraButton.onclick = changeCamera;
+  elems.stopButton.onclick = stopCamera;
+  elems.useManualButton.onclick = function () { acceptRaw(elems.rawInput.value); };
+  elems.loadChiselButton.onclick = loadIntoChisel;
+  elems.clearButton.onclick = function () {
+    elems.rawInput.value = "";
+    clearResult();
+    setStatus("Idle", false);
+  };
+
+  window.addEventListener("pagehide", stopCamera);
+  window.addEventListener("beforeunload", stopCamera);
+
+  startCamera(true);
+})();
+  </script>
+</body>
+</html>
