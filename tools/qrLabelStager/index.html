@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <title>QR Label Stager</title>
+  <style>
+    :root {
+      --sheet-left: 0.1875in;
+      --sheet-top: 0.5in;
+      --label-width: 2.625in;
+      --label-height: 1in;
+      --label-gap-x: 0.125in;
+      --label-gap-y: 0in;
+
+      --qr-size: 0.72in;
+      --label-pad-x: 0.11in;
+      --label-pad-y: 0.08in;
+      --content-gap: 0.10in;
+
+      --ink: #111;
+      --muted: #666;
+      --panel: #f2f2f2;
+      --paper: #fff;
+      --good: #0b6623;
+      --bad: #9b0000;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #e9e9e9;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body { padding: 18px; }
+
+    h1, h2, p { margin-block-start: 0; }
+    h1 { font-size: 22px; margin-block-end: 6px; }
+    h2 { font-size: 15px; margin-block-end: 10px; }
+    p { color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+    button, input, textarea, select { font: inherit; }
+
+    button {
+      cursor: pointer;
+      border: 1px solid #111;
+      border-radius: 5px;
+      padding: 8px 12px;
+      background: #111;
+      color: #fff;
+    }
+
+    button.secondary {
+      background: #fff;
+      color: #111;
+    }
+
+    button.danger {
+      background: var(--bad);
+      border-color: var(--bad);
+    }
+
+    label {
+      display: block;
+      margin-block-end: 4px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 7px 8px;
+      border: 1px solid #999;
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 66px;
+      resize: vertical;
+      line-height: 1.25;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(360px, 520px) minmax(430px, 1fr);
+      gap: 18px;
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      padding: 16px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .form-grid { display: grid; gap: 12px; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .slot-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 50px);
+      gap: 6px;
+    }
+
+    .slot-button {
+      position: relative;
+      width: 50px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid #777;
+      background: #fff;
+      color: #111;
+    }
+
+    .slot-button.selected {
+      background: #111;
+      color: #fff;
+    }
+
+    .slot-button.filled::after {
+      content: "";
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      right: 4px;
+      bottom: 4px;
+      border-radius: 50%;
+      background: var(--good);
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 2.625in 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .label-preview {
+      width: 2.625in;
+      height: 1in;
+      border: 1px solid #111;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+
+    .sheet-preview {
+      position: relative;
+      width: 4.25in;
+      height: 5.5in;
+      border: 1px solid #999;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .sheet-preview-grid {
+      position: absolute;
+      left: calc(var(--sheet-left) / 2);
+      top: calc(var(--sheet-top) / 2);
+      display: grid;
+      grid-template-columns: repeat(3, 1.3125in);
+      grid-template-rows: repeat(10, 0.5in);
+      column-gap: calc(var(--label-gap-x) / 2);
+    }
+
+    .sheet-preview-cell {
+      width: 1.3125in;
+      height: 0.5in;
+      border: 1px dashed #ccc;
+      display: grid;
+      place-items: center;
+      color: #aaa;
+      font-size: 9px;
+    }
+
+    .sheet-preview-cell.filled {
+      background: #eef8ef;
+      color: #111;
+      font-weight: 700;
+    }
+
+    .sheet-preview-cell.selected { border: 2px solid #111; }
+
+    .qr-label {
+      width: var(--label-width);
+      height: var(--label-height);
+      padding: var(--label-pad-y) var(--label-pad-x);
+      background: #fff;
+      color: #111;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: var(--qr-size) 1fr;
+      gap: var(--content-gap);
+      align-items: center;
+    }
+
+    .qr-wrap {
+      width: var(--qr-size);
+      height: var(--qr-size);
+      display: grid;
+      place-items: center;
+    }
+
+    .qr-wrap img,
+    .qr-wrap canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+
+    .text-wrap {
+      min-width: 0;
+      display: grid;
+      gap: 0.05in;
+      align-content: center;
+    }
+
+    .line1 {
+      font-size: 10pt;
+      font-weight: 800;
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+    }
+
+    .line2 {
+      font-size: 8.5pt;
+      line-height: 1.08;
+      overflow-wrap: anywhere;
+    }
+
+    .payload-small {
+      font-size: 6.5pt;
+      line-height: 1.05;
+      color: #555;
+      overflow-wrap: anywhere;
+    }
+
+    .empty-label {
+      width: 2.625in;
+      height: 1in;
+      display: grid;
+      place-items: center;
+      color: #999;
+      font-size: 12px;
+    }
+
+    .status { min-height: 17px; color: var(--good); font-size: 12px; font-weight: 700; }
+    .error { min-height: 17px; color: var(--bad); font-size: 12px; font-weight: 700; }
+
+    code {
+      padding: 1px 4px;
+      background: #ddd;
+      border-radius: 3px;
+    }
+
+    #printSheet {
+      position: relative;
+      display: none;
+      width: 8.5in;
+      height: 11in;
+      background: #fff;
+    }
+
+    .print-cell {
+      position: absolute;
+      width: var(--label-width);
+      height: var(--label-height);
+      overflow: hidden;
+    }
+
+    @page {
+      size: Letter;
+      margin: 0;
+    }
+
+    @media print {
+      html, body {
+        width: 8.5in;
+        height: 11in;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+      }
+
+      .app { display: none; }
+
+      #printSheet {
+        display: block;
+        margin: 0;
+        page-break-after: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="panel">
+      <h1>QR Label Stager</h1>
+      <p>
+        Separate from QR Field. Uses Avery 5160 geometry: 2.625 × 1 inch labels, 3 × 10 per sheet.
+        Stage only the labels you want, including partially used sheets.
+      </p>
+
+      <div class="form-grid">
+        <div>
+          <label>Select label position</label>
+          <div id="slotGrid" class="slot-grid"></div>
+        </div>
+
+        <div>
+          <label for="mode">QR payload mode</label>
+          <select id="mode">
+            <option value="fixed">Fixed value / URL</option>
+            <option value="seeded">Base URL + random suffix</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="payload">QR value or base URL</label>
+          <textarea id="payload" spellcheck="false" placeholder="https://example.com/item/"></textarea>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="suffixLength">Random suffix length</label>
+            <input id="suffixLength" type="number" min="4" max="64" step="1" value="16" />
+          </div>
+          <div>
+            <label for="suffixJoiner">Joiner before suffix</label>
+            <input id="suffixJoiner" type="text" value="" placeholder="?id= or / or #" />
+          </div>
+        </div>
+
+        <div>
+          <label for="text1">Text line / box 1</label>
+          <textarea id="text1" placeholder="Primary explanation"></textarea>
+        </div>
+
+        <div>
+          <label for="text2">Text line / box 2</label>
+          <textarea id="text2" placeholder="Secondary explanation"></textarea>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="offsetX">Sheet offset X, inches</label>
+            <input id="offsetX" type="number" step="0.01" value="0" />
+          </div>
+          <div>
+            <label for="offsetY">Sheet offset Y, inches</label>
+            <input id="offsetY" type="number" step="0.01" value="0" />
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button id="saveSlotButton" type="button">Save slot</button>
+          <button id="fillEmptyButton" type="button">Fill empty slots</button>
+          <button id="newSuffixButton" class="secondary" type="button">New suffix</button>
+          <button id="clearSlotButton" class="danger" type="button">Clear slot</button>
+        </div>
+
+        <div class="button-row">
+          <button id="printButton" type="button">Print / save PDF</button>
+          <button id="clearSheetButton" class="danger" type="button">Clear sheet</button>
+        </div>
+
+        <h2>Persistence</h2>
+
+        <div class="row">
+          <div>
+            <label for="fileProxyUrl">FileProxy URL</label>
+            <input id="fileProxyUrl" value="http://localhost:7799" />
+          </div>
+          <div>
+            <label for="fileProxyPath">FileProxy file</label>
+            <input id="fileProxyPath" value="qrLabelStager/labels.json" />
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button id="saveProxyButton" class="secondary" type="button">Save to FileProxy</button>
+          <button id="loadProxyButton" class="secondary" type="button">Load from FileProxy</button>
+          <button id="exportButton" class="secondary" type="button">Export JSON</button>
+          <button id="importButton" class="secondary" type="button">Import JSON</button>
+        </div>
+
+        <input id="jsonInput" hidden type="file" accept="application/json,.json" />
+
+        <div id="error" class="error"></div>
+        <div id="status" class="status"></div>
+
+        <p>
+          In seeded mode each saved label gets its own random suffix. The suffix is generated once when
+          the slot is staged, so reprinting the sheet preserves the same QR values.
+        </p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Preview</h2>
+      <div class="preview-grid">
+        <div id="labelPreview" class="label-preview"></div>
+        <div class="sheet-preview">
+          <div id="sheetPreviewGrid" class="sheet-preview-grid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section id="printSheet"></section>
+
+  <template id="labelTemplate">
+    <article class="qr-label">
+      <div class="qr-wrap" data-field="qr"></div>
+      <div class="text-wrap">
+        <div class="line1" data-field="text1"></div>
+        <div class="line2" data-field="text2"></div>
+        <div class="payload-small" data-field="payload"></div>
+      </div>
+    </article>
+  </template>
+
+  <script src="../../vendor/qrcode.min.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      const COLUMN_COUNT = 3;
+      const ROW_COUNT = 10;
+      const SLOT_COUNT = COLUMN_COUNT * ROW_COUNT;
+
+      const LABEL_WIDTH_INCHES = 2.625;
+      const LABEL_HEIGHT_INCHES = 1;
+      const LABEL_GAP_X_INCHES = 0.125;
+      const LABEL_GAP_Y_INCHES = 0;
+      const SHEET_LEFT_INCHES = 0.1875;
+      const SHEET_TOP_INCHES = 0.5;
+
+      const QR_PIXEL_SIZE = 180;
+      const STORAGE_KEY = "chisel.qrLabelStager.v1";
+      const EXPORT_VERSION = "chisel.qrLabelStager.v1";
+
+      const elems = {
+        clearSheetButton: document.querySelector("#clearSheetButton"),
+        clearSlotButton: document.querySelector("#clearSlotButton"),
+        error: document.querySelector("#error"),
+        exportButton: document.querySelector("#exportButton"),
+        fileProxyPath: document.querySelector("#fileProxyPath"),
+        fileProxyUrl: document.querySelector("#fileProxyUrl"),
+        fillEmptyButton: document.querySelector("#fillEmptyButton"),
+        importButton: document.querySelector("#importButton"),
+        jsonInput: document.querySelector("#jsonInput"),
+        labelPreview: document.querySelector("#labelPreview"),
+        labelTemplate: document.querySelector("#labelTemplate"),
+        loadProxyButton: document.querySelector("#loadProxyButton"),
+        mode: document.querySelector("#mode"),
+        newSuffixButton: document.querySelector("#newSuffixButton"),
+        offsetX: document.querySelector("#offsetX"),
+        offsetY: document.querySelector("#offsetY"),
+        payload: document.querySelector("#payload"),
+        printButton: document.querySelector("#printButton"),
+        printSheet: document.querySelector("#printSheet"),
+        saveProxyButton: document.querySelector("#saveProxyButton"),
+        saveSlotButton: document.querySelector("#saveSlotButton"),
+        sheetPreviewGrid: document.querySelector("#sheetPreviewGrid"),
+        slotGrid: document.querySelector("#slotGrid"),
+        status: document.querySelector("#status"),
+        suffixJoiner: document.querySelector("#suffixJoiner"),
+        suffixLength: document.querySelector("#suffixLength"),
+        text1: document.querySelector("#text1"),
+        text2: document.querySelector("#text2")
+      };
+
+      const state = {
+        labels: Array(SLOT_COUNT).fill(null),
+        selectedSlot: 1,
+        offsetX: 0,
+        offsetY: 0,
+        printHistory: []
+      };
+
+      function setStatus(message) {
+        elems.status.textContent = message || "";
+        elems.error.textContent = "";
+      }
+
+      function setError(message) {
+        elems.error.textContent = message || "";
+        elems.status.textContent = "";
+      }
+
+      function randomHex(length) {
+        const bytes = new Uint8Array(Math.ceil(length / 2));
+        crypto.getRandomValues(bytes);
+
+        return Array.from(bytes, function (byte) {
+          return byte.toString(16).padStart(2, "0");
+        }).join("").slice(0, length).toUpperCase();
+      }
+
+      function getSelectedIndex() {
+        return state.selectedSlot - 1;
+      }
+
+      function makePayload(forceNewSuffix) {
+        const base = elems.payload.value.trim();
+
+        if (!base) {
+          throw new Error("Enter a QR value or base URL.");
+        }
+
+        if (elems.mode.value === "fixed") {
+          return {
+            qrValue: base,
+            suffix: ""
+          };
+        }
+
+        const suffixLength = Math.max(4, Math.min(64, Number(elems.suffixLength.value) || 16));
+        const current = state.labels[getSelectedIndex()];
+        const suffix = !forceNewSuffix && current && current.mode === "seeded" && current.suffix
+          ? current.suffix
+          : randomHex(suffixLength);
+
+        return {
+          qrValue: base + elems.suffixJoiner.value + suffix,
+          suffix: suffix
+        };
+      }
+
+      function getFormLabel(forceNewSuffix) {
+        const built = makePayload(forceNewSuffix);
+
+        return {
+          mode: elems.mode.value,
+          base: elems.payload.value.trim(),
+          suffixLength: Number(elems.suffixLength.value) || 16,
+          suffixJoiner: elems.suffixJoiner.value,
+          suffix: built.suffix,
+          qrValue: built.qrValue,
+          text1: elems.text1.value.trim(),
+          text2: elems.text2.value.trim()
+        };
+      }
+
+      function getSlotPosition(slotNumber) {
+        const index = slotNumber - 1;
+        const column = index % COLUMN_COUNT;
+        const row = Math.floor(index / COLUMN_COUNT);
+
+        return {
+          left: SHEET_LEFT_INCHES + state.offsetX + column * (LABEL_WIDTH_INCHES + LABEL_GAP_X_INCHES),
+          top: SHEET_TOP_INCHES + state.offsetY + row * (LABEL_HEIGHT_INCHES + LABEL_GAP_Y_INCHES)
+        };
+      }
+
+      function exportData() {
+        return {
+          version: EXPORT_VERSION,
+          savedAt: new Date().toISOString(),
+          layout: {
+            name: "Avery 5160",
+            columns: COLUMN_COUNT,
+            rows: ROW_COUNT,
+            labelWidthInches: LABEL_WIDTH_INCHES,
+            labelHeightInches: LABEL_HEIGHT_INCHES
+          },
+          selectedSlot: state.selectedSlot,
+          offsetX: state.offsetX,
+          offsetY: state.offsetY,
+          labels: state.labels,
+          printHistory: state.printHistory,
+          fileProxy: {
+            url: elems.fileProxyUrl.value.trim(),
+            path: elems.fileProxyPath.value.trim()
+          }
+        };
+      }
+
+      function saveLocal() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(exportData()));
+      }
+
+      function loadData(data) {
+        if (!data || data.version !== EXPORT_VERSION || !Array.isArray(data.labels) || data.labels.length !== SLOT_COUNT) {
+          throw new Error("That is not a QR Label Stager v1 file.");
+        }
+
+        state.labels = data.labels;
+        state.selectedSlot = Number(data.selectedSlot) || 1;
+        state.offsetX = Number(data.offsetX) || 0;
+        state.offsetY = Number(data.offsetY) || 0;
+        state.printHistory = Array.isArray(data.printHistory) ? data.printHistory : [];
+
+        if (data.fileProxy) {
+          if (data.fileProxy.url) elems.fileProxyUrl.value = data.fileProxy.url;
+          if (data.fileProxy.path) elems.fileProxyPath.value = data.fileProxy.path;
+        }
+
+        elems.offsetX.value = String(state.offsetX);
+        elems.offsetY.value = String(state.offsetY);
+        setFormFromSelected();
+        saveLocal();
+        render();
+      }
+
+      function loadLocal() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+
+        try {
+          loadData(JSON.parse(raw));
+        } catch (error) {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+
+      function setFormFromSelected() {
+        const label = state.labels[getSelectedIndex()];
+        if (!label) return;
+
+        elems.mode.value = label.mode || "fixed";
+        elems.payload.value = label.base || label.qrValue || "";
+        elems.suffixLength.value = String(label.suffixLength || 16);
+        elems.suffixJoiner.value = label.suffixJoiner || "";
+        elems.text1.value = label.text1 || "";
+        elems.text2.value = label.text2 || "";
+      }
+
+      function createLabelNode(label) {
+        const fragment = elems.labelTemplate.content.cloneNode(true);
+        const article = fragment.querySelector(".qr-label");
+        const qr = fragment.querySelector("[data-field='qr']");
+        const text1 = fragment.querySelector("[data-field='text1']");
+        const text2 = fragment.querySelector("[data-field='text2']");
+        const payload = fragment.querySelector("[data-field='payload']");
+
+        text1.textContent = label.text1 || "";
+        text2.textContent = label.text2 || "";
+        payload.textContent = label.qrValue || "";
+
+        new QRCode(qr, {
+          text: label.qrValue,
+          width: QR_PIXEL_SIZE,
+          height: QR_PIXEL_SIZE,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H
+        });
+
+        return article;
+      }
+
+      function createEmptyLabel() {
+        const div = document.createElement("div");
+        div.className = "empty-label";
+        div.textContent = "Empty slot";
+        return div;
+      }
+
+      function renderSlotButtons() {
+        elems.slotGrid.replaceChildren();
+
+        for (let slot = 1; slot <= SLOT_COUNT; slot++) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "slot-button";
+          button.textContent = String(slot);
+
+          if (slot === state.selectedSlot) button.classList.add("selected");
+          if (state.labels[slot - 1]) button.classList.add("filled");
+
+          button.onclick = function () {
+            state.selectedSlot = slot;
+            setFormFromSelected();
+            saveLocal();
+            render();
+          };
+
+          elems.slotGrid.append(button);
+        }
+      }
+
+      function renderLabelPreview() {
+        elems.labelPreview.replaceChildren();
+        const label = state.labels[getSelectedIndex()];
+        elems.labelPreview.append(label ? createLabelNode(label) : createEmptyLabel());
+      }
+
+      function renderSheetPreview() {
+        elems.sheetPreviewGrid.replaceChildren();
+
+        for (let slot = 1; slot <= SLOT_COUNT; slot++) {
+          const cell = document.createElement("div");
+          cell.className = "sheet-preview-cell";
+          cell.textContent = String(slot);
+
+          if (state.labels[slot - 1]) cell.classList.add("filled");
+          if (slot === state.selectedSlot) cell.classList.add("selected");
+
+          elems.sheetPreviewGrid.append(cell);
+        }
+      }
+
+      function renderPrintSheet() {
+        elems.printSheet.replaceChildren();
+
+        state.labels.forEach(function (label, index) {
+          if (!label) return;
+
+          const slot = index + 1;
+          const pos = getSlotPosition(slot);
+          const cell = document.createElement("div");
+
+          cell.className = "print-cell";
+          cell.style.left = pos.left + "in";
+          cell.style.top = pos.top + "in";
+          cell.append(createLabelNode(label));
+
+          elems.printSheet.append(cell);
+        });
+      }
+
+      function render() {
+        renderSlotButtons();
+        renderLabelPreview();
+        renderSheetPreview();
+        renderPrintSheet();
+      }
+
+      function saveSelected(forceNewSuffix) {
+        try {
+          state.offsetX = Number(elems.offsetX.value) || 0;
+          state.offsetY = Number(elems.offsetY.value) || 0;
+          state.labels[getSelectedIndex()] = getFormLabel(Boolean(forceNewSuffix));
+          saveLocal();
+          render();
+          setStatus("Saved slot " + state.selectedSlot + ".");
+        } catch (error) {
+          setError(error.message);
+        }
+      }
+
+      function fillEmptySlots() {
+        try {
+          const base = elems.payload.value.trim();
+          if (!base) throw new Error("Enter a QR value or base URL first.");
+
+          for (let i = 0; i < SLOT_COUNT; i++) {
+            if (state.labels[i]) continue;
+
+            let qrValue = base;
+            let suffix = "";
+
+            if (elems.mode.value === "seeded") {
+              const len = Math.max(4, Math.min(64, Number(elems.suffixLength.value) || 16));
+              suffix = randomHex(len);
+              qrValue = base + elems.suffixJoiner.value + suffix;
+            }
+
+            state.labels[i] = {
+              mode: elems.mode.value,
+              base: base,
+              suffixLength: Number(elems.suffixLength.value) || 16,
+              suffixJoiner: elems.suffixJoiner.value,
+              suffix: suffix,
+              qrValue: qrValue,
+              text1: elems.text1.value.trim(),
+              text2: elems.text2.value.trim()
+            };
+          }
+
+          saveLocal();
+          render();
+          setStatus("Filled all empty slots.");
+        } catch (error) {
+          setError(error.message);
+        }
+      }
+
+      function clearSelected() {
+        state.labels[getSelectedIndex()] = null;
+        saveLocal();
+        render();
+        setStatus("Cleared slot " + state.selectedSlot + ".");
+      }
+
+      function clearSheet() {
+        if (!confirm("Clear all staged labels?")) return;
+        state.labels = Array(SLOT_COUNT).fill(null);
+        saveLocal();
+        render();
+        setStatus("Sheet cleared.");
+      }
+
+      function downloadJson() {
+        const blob = new Blob([JSON.stringify(exportData(), null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "qr-label-stager.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      async function saveToFileProxy() {
+        try {
+          const baseUrl = elems.fileProxyUrl.value.trim().replace(/\/$/, "");
+          const path = elems.fileProxyPath.value.trim();
+          if (!baseUrl || !path) throw new Error("Set FileProxy URL and file path.");
+
+          const response = await fetch(baseUrl + "/save?filename=" + encodeURIComponent(path), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(exportData())
+          });
+
+          if (!response.ok) throw new Error("FileProxy save failed: " + response.status);
+          const result = await response.json();
+          setStatus("Saved FileProxy: " + (result.saved || path));
+        } catch (error) {
+          setError(error.message);
+        }
+      }
+
+      async function loadFromFileProxy() {
+        try {
+          const baseUrl = elems.fileProxyUrl.value.trim().replace(/\/$/, "");
+          const path = elems.fileProxyPath.value.trim();
+          if (!baseUrl || !path) throw new Error("Set FileProxy URL and file path.");
+
+          const response = await fetch(baseUrl + "/load", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: path })
+          });
+
+          if (!response.ok) throw new Error("FileProxy load failed: " + response.status);
+          const data = await response.json();
+          loadData(data);
+          setStatus("Loaded FileProxy: " + path);
+        } catch (error) {
+          setError(error.message);
+        }
+      }
+
+      function onPrint() {
+        const filled = state.labels.filter(Boolean).length;
+        state.printHistory.push({
+          printedAt: new Date().toISOString(),
+          filledSlots: filled,
+          labels: state.labels.filter(Boolean).map(function (label, index) {
+            return {
+              slot: state.labels.indexOf(label) + 1,
+              qrValue: label.qrValue,
+              text1: label.text1,
+              text2: label.text2
+            };
+          })
+        });
+
+        saveLocal();
+        renderPrintSheet();
+        window.print();
+      }
+
+      elems.saveSlotButton.onclick = function () { saveSelected(false); };
+      elems.newSuffixButton.onclick = function () { saveSelected(true); };
+      elems.fillEmptyButton.onclick = fillEmptySlots;
+      elems.clearSlotButton.onclick = clearSelected;
+      elems.clearSheetButton.onclick = clearSheet;
+      elems.printButton.onclick = onPrint;
+      elems.exportButton.onclick = downloadJson;
+      elems.importButton.onclick = function () { elems.jsonInput.click(); };
+      elems.saveProxyButton.onclick = saveToFileProxy;
+      elems.loadProxyButton.onclick = loadFromFileProxy;
+
+      elems.jsonInput.onchange = async function () {
+        const file = elems.jsonInput.files && elems.jsonInput.files[0];
+        if (!file) return;
+
+        try {
+          loadData(JSON.parse(await file.text()));
+          setStatus("Imported JSON.");
+        } catch (error) {
+          setError(error.message);
+        }
+
+        elems.jsonInput.value = "";
+      };
+
+      loadLocal();
+      elems.offsetX.value = String(state.offsetX);
+      elems.offsetY.value = String(state.offsetY);
+      render();
+    })();
+  </script>
+</body>
+</html>
