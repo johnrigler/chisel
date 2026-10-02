@@ -30,6 +30,10 @@
       --LABEL_PADDING: 0.12in;
       --FRAME_PADDING: 0.22in;
       --DENSE_GAP: 0.10in;
+      --DENSE_CELL_SIZE: 0.70in;
+      --DENSE_FRAME_PADDING: 0.12in;
+      --DENSE_LABEL_PADDING: 0.04in;
+      --DENSE_MINI_BORDER: 0.04in;
 
       --FONT_SIZE: 10pt;
       --SHOW_GUIDES: 1;
@@ -132,18 +136,26 @@
       place-items: center;
     }
 
+    .labelFrame.isDense {
+      padding: var(--DENSE_FRAME_PADDING);
+    }
+
+    .labelBody.isDense {
+      padding: var(--DENSE_LABEL_PADDING);
+    }
+
     .qrGrid {
       display: grid;
-      grid-template-columns: repeat(2, 0.63in);
-      grid-template-rows: repeat(2, 0.63in);
+      grid-template-columns: repeat(2, var(--DENSE_CELL_SIZE));
+      grid-template-rows: repeat(2, var(--DENSE_CELL_SIZE));
       gap: var(--DENSE_GAP);
       place-content: center;
     }
 
     .miniQrFrame {
-      width: 0.63in;
-      height: 0.63in;
-      padding: 0.04in;
+      width: var(--DENSE_CELL_SIZE);
+      height: var(--DENSE_CELL_SIZE);
+      padding: var(--DENSE_MINI_BORDER);
       display: grid;
       place-items: center;
     }
@@ -407,6 +419,8 @@
             const qrGrid = document.createElement("div");
             qrGrid.className = "qrGrid";
             labelParts.frame.style.background = "transparent";
+            labelParts.frame.classList.add("isDense");
+            labelParts.body.classList.add("isDense");
 
             labelData.qrValues.forEach(function renderDenseQr(value) {
               const miniQr = createMiniQrCell(getBorderColorFromValue(value));
