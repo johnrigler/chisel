@@ -29,7 +29,7 @@
       --QR_SIZE_DENSE: 0.56in;
       --LABEL_PADDING: 0.12in;
       --FRAME_PADDING: 0.22in;
-      --DENSE_GAP: 0.04in;
+      --DENSE_GAP: 0.10in;
 
       --FONT_SIZE: 10pt;
       --SHOW_GUIDES: 1;
@@ -133,18 +133,16 @@
     }
 
     .qrGrid {
-      width: var(--QR_SIZE);
-      height: var(--QR_SIZE);
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      grid-template-rows: repeat(2, 1fr);
+      grid-template-columns: repeat(2, 0.63in);
+      grid-template-rows: repeat(2, 0.63in);
       gap: var(--DENSE_GAP);
       place-content: center;
     }
 
     .miniQrFrame {
-      width: 100%;
-      height: 100%;
+      width: 0.63in;
+      height: 0.63in;
       padding: 0.04in;
       display: grid;
       place-items: center;
