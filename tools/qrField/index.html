@@ -26,8 +26,10 @@
       --ROWS: 5;
 
       --QR_SIZE: 1.3in;
+      --QR_SIZE_DENSE: 0.56in;
       --LABEL_PADDING: 0.12in;
       --FRAME_PADDING: 0.22in;
+      --DENSE_GAP: 0.08in;
 
       --FONT_SIZE: 10pt;
       --SHOW_GUIDES: 1;
@@ -59,15 +61,32 @@
       margin: 0;
     }
 
-    .toolbar button {
+    .toolbar button,
+    .toolbar select {
       width: fit-content;
       padding: 10px 14px;
-      border: 0;
       border-radius: 8px;
+      font: inherit;
+    }
+
+    .toolbar button {
+      border: 0;
       background: #111;
       color: #fff;
       cursor: pointer;
-      font: inherit;
+    }
+
+    .toolbar select {
+      border: 1px solid #bbb;
+      background: #fff;
+      color: #111;
+    }
+
+    .toolbarControls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
     }
 
     .sheet {
@@ -111,6 +130,19 @@
       height: var(--QR_SIZE);
       display: grid;
       place-items: center;
+    }
+
+    .qrGrid {
+      display: grid;
+      grid-template-columns: repeat(2, var(--QR_SIZE_DENSE));
+      grid-template-rows: repeat(2, var(--QR_SIZE_DENSE));
+      gap: var(--DENSE_GAP);
+      place-content: center;
+    }
+
+    .qrGrid .qrSlot {
+      width: var(--QR_SIZE_DENSE);
+      height: var(--QR_SIZE_DENSE);
     }
 
     .qrSlot img,
@@ -177,7 +209,16 @@
       <span class="helpCode">--LABEL_HEIGHT</span>
       until the guides line up with your real label stock.
     </p>
-    <button id="printButton" type="button">PRINT</button>
+    <div class="toolbarControls">
+      <label>
+        Density
+        <select id="densitySelect">
+          <option value="1">1 QR per label (20 total)</option>
+          <option value="4">4 QR per label (80 total)</option>
+        </select>
+      </label>
+      <button id="printButton" type="button">PRINT</button>
+    </div>
   </section>
 
   <main class="sheet" id="sheet"></main>
@@ -192,6 +233,7 @@
       const ROWS = 5;
       const TOTAL_LABELS = COLUMNS * ROWS;
       const QR_PIXEL_SIZE = 180;
+      const QR_PIXEL_SIZE_DENSE = 96;
       const HEX_LENGTH = 16;
 
       //
@@ -199,13 +241,17 @@
       //
       const elems = {
         printButton: document.querySelector("#printButton"),
+        densitySelect: document.querySelector("#densitySelect"),
         sheet: document.querySelector("#sheet")
       };
 
       //
       // State
       //
-      let cachedLabels = null;
+      const cachedData = {
+        1: null,
+        4: null
+      };
 
       //
       // Helpers
@@ -228,22 +274,23 @@
       //
       // Data
       //
-      function getLabelData() {
-        if (cachedLabels) {
-          return cachedLabels;
+      function getLabelData(density) {
+        if (cachedData[density]) {
+          return cachedData[density];
         }
 
-        cachedLabels = Array.from({ length: TOTAL_LABELS }, function mapLabel() {
-          const VALUE = getRandomHex(HEX_LENGTH);
+        cachedData[density] = Array.from({ length: TOTAL_LABELS }, function mapLabel() {
+          const values = Array.from({ length: density }, function makeValue() {
+            return getRandomHex(HEX_LENGTH);
+          });
 
           return {
-            qrValue: VALUE,
-            text: VALUE,
-            borderColor: getBorderColorFromValue(VALUE)
+            qrValues: values,
+            borderColor: getBorderColorFromValue(values[0])
           };
         });
 
-        return cachedLabels;
+        return cachedData[density];
       }
 
       //
@@ -296,13 +343,13 @@
         elems.sheet.append(label);
       }
 
-      function renderQrCode(qrSlot, value) {
+      function renderQrCode(qrSlot, value, pixelSize) {
         qrSlot.innerHTML = "";
 
         new QRCode(qrSlot, {
           text: value,
-          width: QR_PIXEL_SIZE,
-          height: QR_PIXEL_SIZE,
+          width: pixelSize,
+          height: pixelSize,
           colorDark: "#000000",
           colorLight: "#ffffff",
           correctLevel: QRCode.CorrectLevel.H
@@ -310,23 +357,37 @@
       }
 
       function renderLabels() {
-        const labels = getLabelData();
+        const density = Number(elems.densitySelect.value);
+        const labels = getLabelData(density);
+
+        elems.sheet.innerHTML = "";
 
         labels.forEach(function renderLabel(labelData, index) {
           const rowIndex = Math.floor(index / COLUMNS);
           const columnIndex = index % COLUMNS;
           const labelParts = createLabel();
-          const qrSlot = createQrSlot();
-          // const text = createLabelText(labelData.text);
 
           setLabelPosition(labelParts.label, columnIndex, rowIndex);
           setLabelBorderColor(labelParts.frame, labelData.borderColor);
 
-          labelParts.body.append(qrSlot, "");
-	// the code above printed the value out below the hex.
-	// when I take it out completely, the qr code does not display.
+          if (density === 4) {
+            const qrGrid = document.createElement("div");
+            qrGrid.className = "qrGrid";
+
+            labelData.qrValues.forEach(function renderDenseQr(value) {
+              const qrSlot = createQrSlot();
+              qrGrid.append(qrSlot);
+              renderQrCode(qrSlot, value, QR_PIXEL_SIZE_DENSE);
+            });
+
+            labelParts.body.append(qrGrid);
+          } else {
+            const qrSlot = createQrSlot();
+            labelParts.body.append(qrSlot);
+            renderQrCode(qrSlot, labelData.qrValues[0], QR_PIXEL_SIZE);
+          }
+
           appendLabel(labelParts.label);
-          renderQrCode(qrSlot, labelData.qrValue);
         });
       }
 
@@ -339,6 +400,7 @@
 
       function addEventListeners() {
         elems.printButton.onclick = onPrintButtonClick;
+        elems.densitySelect.onchange = renderLabels;
       }
 
       //
