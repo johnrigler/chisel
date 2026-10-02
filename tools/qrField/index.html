@@ -29,7 +29,7 @@
       --QR_SIZE_DENSE: 0.56in;
       --LABEL_PADDING: 0.12in;
       --FRAME_PADDING: 0.22in;
-      --DENSE_GAP: 0.08in;
+      --DENSE_GAP: 0.04in;
 
       --FONT_SIZE: 10pt;
       --SHOW_GUIDES: 1;
@@ -133,22 +133,19 @@
     }
 
     .qrGrid {
+      width: var(--QR_SIZE);
+      height: var(--QR_SIZE);
       display: grid;
-      grid-template-columns: repeat(2, var(--QR_SIZE_DENSE));
-      grid-template-rows: repeat(2, var(--QR_SIZE_DENSE));
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
       gap: var(--DENSE_GAP);
       place-content: center;
     }
 
-    .qrGrid .qrSlot {
-      width: var(--QR_SIZE_DENSE);
-      height: var(--QR_SIZE_DENSE);
-    }
-
     .miniQrFrame {
-      width: var(--QR_SIZE_DENSE);
-      height: var(--QR_SIZE_DENSE);
-      padding: 0.06in;
+      width: 100%;
+      height: 100%;
+      padding: 0.04in;
       display: grid;
       place-items: center;
     }
@@ -162,8 +159,8 @@
     }
 
     .miniQrBody .qrSlot {
-      width: calc(var(--QR_SIZE_DENSE) - 0.12in);
-      height: calc(var(--QR_SIZE_DENSE) - 0.12in);
+      width: 100%;
+      height: 100%;
     }
 
     .qrSlot img,
@@ -254,7 +251,7 @@
       const ROWS = 5;
       const TOTAL_LABELS = COLUMNS * ROWS;
       const QR_PIXEL_SIZE = 180;
-      const QR_PIXEL_SIZE_DENSE = 96;
+      const QR_PIXEL_SIZE_DENSE = 128;
       const HEX_LENGTH = 16;
 
       //
