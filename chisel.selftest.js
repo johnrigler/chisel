@@ -436,11 +436,41 @@
     }
   }
 
+  async function runIdentityArtifactTest(log) {
+    assert(window.CHISEL, "CHISEL is not installed.");
+    assert(typeof CHISEL.signArtifact === "function", "CHISEL.signArtifact is unavailable.");
+    assert(typeof CHISEL.verifyArtifact === "function", "CHISEL.verifyArtifact is unavailable.");
+    assertEqual(
+      CHISEL.canonicalize({ z: 1, a: { d: 4, b: 2 }, list: [3, 2, 1] }),
+      '{"a":{"b":2,"d":4},"list":[3,2,1],"z":1}',
+      "Canonical signed JSON"
+    );
+
+    const privateKeyHex = "1".padStart(64, "0");
+    const envelope = await CHISEL.signArtifact({
+      privateKeyHex: privateKeyHex,
+      type: "selftest",
+      payload: {
+        message: "portable",
+        count: 1
+      }
+    });
+
+    assert(/^chisel:v1:[0-9a-f]{66}$/.test(envelope.identity), "Signed artifact identity is invalid.");
+    assert(CHISEL.shortIdentity(envelope.identity).indexOf("…") > 0, "Short identity was not produced.");
+    assert(await CHISEL.verifyArtifact(envelope), "Fresh signed artifact did not verify.");
+
+    const tampered = JSON.parse(JSON.stringify(envelope));
+    tampered.payload.count = 2;
+    assert(!(await CHISEL.verifyArtifact(tampered)), "Tampered signed artifact verified.");
+    log.pass("Generic Chisel identity signing, canonicalization, verification, and tamper detection passed.");
+  }
+
   async function runAllSelfTests() {
     const log = makeLog("selfTestOutput");
     log.reset("Chisel browser self-test");
     try {
-      await runBase57ImageTest(log);
+      await runIdentityArtifactTest(log);\n      await runBase57ImageTest(log);
       await runPortalStaticDataCharacterizationTest(log);
       await runPortalBootTest(log);
       await runPortalUiTest(log);
@@ -604,6 +634,7 @@
 
   window.CHISEL_SELFTEST = {
     runAllSelfTests: runAllSelfTests,
+    runIdentityArtifactTest: function () { return runIdentityArtifactTest(makeLog("selfTestOutput")); },
     runBase57ImageTest: function () { return runBase57ImageTest(makeLog("selfTestOutput")); },
     runPortalStaticDataCharacterizationTest: function () { return runPortalStaticDataCharacterizationTest(makeLog("selfTestOutput")); },
     runEtchFixtureTest: function () { return runEtchFixtureTest(makeLog("selfTestOutput")); },
