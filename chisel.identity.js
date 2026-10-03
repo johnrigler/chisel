@@ -125,11 +125,14 @@
       return false;
     }
 
-    return CHISEL.verifyDigestSignature({
-      identity: envelope.identity,
-      digest: digest,
-      signature: signatureHex
-    });
+    try {
+      return ec.keyFromPublic(publicKeyHex, "hex").verify(digest, {
+        r: signatureHex.slice(0, 64),
+        s: signatureHex.slice(64)
+      });
+    } catch (error) {
+      return false;
+    }
   };
 
   CHISEL.signArtifact = async function signArtifact(options) {
@@ -179,14 +182,11 @@
 
     if (digest !== String(envelope.proof.digest || "").toLowerCase()) return false;
 
-    try {
-      return ec.keyFromPublic(publicKeyHex, "hex").verify(digest, {
-        r: signatureHex.slice(0, 64),
-        s: signatureHex.slice(64)
-      });
-    } catch (error) {
-      return false;
-    }
+    return CHISEL.verifyDigestSignature({
+      identity: envelope.identity,
+      digest: digest,
+      signature: signatureHex
+    });
   };
 
   CHISEL.SIGNED_ARTIFACT = Object.freeze({
