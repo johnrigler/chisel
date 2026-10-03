@@ -100,7 +100,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   </section>
 </main>
 
-<script src="vendor/ethers-6.6.0.umd.min.js"></script>
+<script src="vendor/ethers-6.6.0.umd.min.js"></script>\n<script src="chisel.js?rev=20260906b"></script>\n<script src="chisel.sign.js?rev=20260906b"></script>\n<script src="chisel.identity.js?rev=20261003a"></script>
 <script>
 (() => {
   "use strict";
@@ -168,7 +168,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     currentIdentity = derived.identity;
     currentLitecoinAddress = derived.litecoinAddress;
     litecoinAddressOut.textContent = currentLitecoinAddress;
-    identityOut.textContent = shortIdentity(currentIdentity);
+    identityOut.textContent = CHISEL.shortIdentity(currentIdentity);
     identityOut.title = currentIdentity;
     result.classList.remove("hidden");
     result.scrollIntoView({ behavior: "smooth", block: "start" });
