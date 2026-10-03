@@ -93,6 +93,11 @@ code { overflow-wrap: anywhere; color: #c5f467; }
       <code id="identity"></code>
       <p class="muted">Derivation: <code>chisel-identity-v1</code> · BIP-39 English · <code>m/44'/0'/0'/0/0</code> · compressed secp256k1 public key. Litecoin address: legacy P2PKH from the same key.</p>
     </details>
+    <div id="signRequest" class="panel hidden">
+      <h2>Signature request</h2>
+      <p id="signRequestText" class="muted"></p>
+      <code id="signRequestDigest"></code>
+    </div>
     <div class="actions">
       <button id="continue" class="primary" type="button">CONTINUE</button>
       <button id="openChisel" type="button">OPEN CHISEL WITH THIS IDENTITY</button>
@@ -100,7 +105,10 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   </section>
 </main>
 
-<script src="vendor/ethers-6.6.0.umd.min.js"></script>\n<script src="chisel.js?rev=20260906b"></script>\n<script src="chisel.sign.js?rev=20260906b"></script>\n<script src="chisel.identity.js?rev=20261003a"></script>
+<script src="vendor/ethers-6.6.0.umd.min.js"></script>
+<script src="chisel.js?rev=20260906b"></script>
+<script src="chisel.sign.js?rev=20260906b"></script>
+<script src="chisel.identity.js?rev=20261003b"></script>
 <script>
 (() => {
   "use strict";
@@ -120,6 +128,15 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   const litecoinAddressOut = document.getElementById("litecoinAddress");
   const continueButton = document.getElementById("continue");
   const openChisel = document.getElementById("openChisel");
+  const signRequest = document.getElementById("signRequest");
+  const signRequestText = document.getElementById("signRequestText");
+  const signRequestDigest = document.getElementById("signRequestDigest");
+  const requestParams = new URLSearchParams(location.search);
+  const requestedDigest = String(requestParams.get("signDigest") || "").trim().toLowerCase();
+  const requestedType = String(requestParams.get("signType") || "").trim();
+  const requestedApp = String(requestParams.get("app") || "").trim();
+  const requestedNonce = String(requestParams.get("request") || "").trim();
+  const hasSignRequest = /^[0-9a-f]{64}$/.test(requestedDigest) && requestedType.length > 0;
 
   let currentPhrase = "";
   let currentPrivateKey = "";
@@ -162,6 +179,18 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     litecoinAddressOut.textContent = currentLitecoinAddress;
     identityOut.textContent = CHISEL.shortIdentity(currentIdentity);
     identityOut.title = currentIdentity;
+    if (hasSignRequest) {
+      signRequestText.textContent = (requestedApp || "An application") + " is asking this identity to sign a " + requestedType + " artifact.";
+      signRequestDigest.textContent = requestedDigest.slice(0, 12) + "…" + requestedDigest.slice(-12);
+      signRequestDigest.title = requestedDigest;
+      signRequest.classList.remove("hidden");
+      continueButton.textContent = "SIGN & RETURN";
+      openChisel.classList.add("hidden");
+    } else {
+      signRequest.classList.add("hidden");
+      continueButton.textContent = "CONTINUE";
+      openChisel.classList.remove("hidden");
+    }
     result.classList.remove("hidden");
     result.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -199,13 +228,17 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     });
   }
 
-  function returnUrl() {
-    const params = new URLSearchParams(location.search);
-    const target = params.get("return");
+  function returnUrl(extra) {
+    const target = requestParams.get("return");
     if (!target) return "";
     try {
       const url = new URL(target, location.href);
       url.searchParams.set("identity", currentIdentity);
+      Object.entries(extra || {}).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          url.searchParams.set(key, String(value));
+        }
+      });
       return url.toString();
     } catch (error) {
       return "";
@@ -271,7 +304,31 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     }
   });
 
-  continueButton.addEventListener("click", () => {
+  continueButton.addEventListener("click", async () => {
+    if (!currentPrivateKey) return;
+
+    if (hasSignRequest) {
+      continueButton.disabled = true;
+      try {
+        const proof = CHISEL.signDigest({
+          privateKeyHex: currentPrivateKey,
+          digest: requestedDigest
+        });
+        const target = returnUrl({
+          signature: proof.signature,
+          digest: proof.digest,
+          algorithm: proof.algorithm,
+          request: requestedNonce
+        });
+        if (!target) throw new Error("Signature request has no valid return URL.");
+        location.href = target;
+      } catch (error) {
+        alert(error.message || String(error));
+        continueButton.disabled = false;
+      }
+      return;
+    }
+
     const target = returnUrl();
     if (target) {
       location.href = target;
