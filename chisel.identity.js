@@ -89,27 +89,68 @@
     return CHISEL.sha256Hex(CHISEL.bytesToHex(bytes));
   }
 
+  CHISEL.artifactDigest = async function artifactDigest(type, payload) {
+    return digestText(CHISEL.artifactSigningText(type, payload));
+  };
+
+  CHISEL.signDigest = function signDigest(options) {
+    const opts = options || {};
+    const privateKeyHex = normalizePrivateKey(opts.privateKeyHex);
+    const digest = String(opts.digest || "").trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(digest)) {
+      throw new Error("Expected a 32-byte digest.");
+    }
+
+    const signature = ec.keyFromPrivate(privateKeyHex).sign(digest, { canonical: true });
+    return {
+      identity: CHISEL.identityFromPrivateKey(privateKeyHex),
+      algorithm: ALGORITHM,
+      digest: digest,
+      signature: signature.r.toString(16, 64) + signature.s.toString(16, 64)
+    };
+  };
+
+  CHISEL.verifyDigestSignature = function verifyDigestSignature(options) {
+    const opts = options || {};
+    let publicKeyHex;
+    try {
+      publicKeyHex = identityPublicKey(opts.identity);
+    } catch (error) {
+      return false;
+    }
+
+    const digest = String(opts.digest || "").trim().toLowerCase();
+    const signatureHex = String(opts.signature || "").trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(digest) || !/^[0-9a-f]{128}$/.test(signatureHex)) {
+      return false;
+    }
+
+    return CHISEL.verifyDigestSignature({
+      identity: envelope.identity,
+      digest: digest,
+      signature: signatureHex
+    });
+  };
+
   CHISEL.signArtifact = async function signArtifact(options) {
     const opts = options || {};
     const privateKeyHex = normalizePrivateKey(opts.privateKeyHex);
     const type = String(opts.type || "").trim();
     const payload = opts.payload;
-    const identity = CHISEL.identityFromPrivateKey(privateKeyHex);
-    const digest = await digestText(CHISEL.artifactSigningText(type, payload));
-    const signature = ec.keyFromPrivate(privateKeyHex).sign(digest, { canonical: true });
-    const compact =
-      signature.r.toString(16, 64) +
-      signature.s.toString(16, 64);
+    const proof = CHISEL.signDigest({
+      privateKeyHex: privateKeyHex,
+      digest: await CHISEL.artifactDigest(type, payload)
+    });
 
     return {
       format: FORMAT,
       type: type,
-      identity: identity,
+      identity: proof.identity,
       payload: payload,
       proof: {
-        algorithm: ALGORITHM,
-        digest: digest,
-        signature: compact
+        algorithm: proof.algorithm,
+        digest: proof.digest,
+        signature: proof.signature
       }
     };
   };
@@ -131,7 +172,7 @@
 
     let digest;
     try {
-      digest = await digestText(CHISEL.artifactSigningText(envelope.type, envelope.payload));
+      digest = await CHISEL.artifactDigest(envelope.type, envelope.payload);
     } catch (error) {
       return false;
     }
