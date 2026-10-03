@@ -154,14 +154,6 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     };
   }
 
-  function shortIdentity(identity) {
-    const value = String(identity || "").trim();
-    const match = value.match(/^chisel:v1:([0-9a-fA-F]{66})$/);
-    if (!match) return value;
-    const key = match[1].toLowerCase();
-    return key.slice(0, 8) + "…" + key.slice(-8);
-  }
-
   function showIdentity(derived) {
     currentPhrase = derived.phrase;
     currentPrivateKey = derived.privateKey;
