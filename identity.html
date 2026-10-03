@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chisel Identity</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #0b0d10;
+  color: #e6edf3;
+  font: 16px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+main { max-width: 780px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
+.panel { border: 1px solid #2c3642; border-radius: 12px; background: #11161c; padding: 16px; display: grid; gap: 12px; }
+h1,h2,p { margin: 0; }
+.muted { color: #91a4b7; }
+.warning { color: #ffd166; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+button, textarea, input {
+  font: inherit;
+  color: inherit;
+  background: #171d24;
+  border: 1px solid #3b4653;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+button { cursor: pointer; font-weight: 700; }
+button.primary { background: #705dff; border-color: #8b7bff; }
+button:disabled { opacity: .5; cursor: default; }
+textarea { width: 100%; min-height: 96px; resize: vertical; }
+.words {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.words li { padding: 9px; border: 1px solid #2c3642; border-radius: 8px; background: #080c10; }
+.words b { color: #91a4b7; margin-right: 6px; }
+code { overflow-wrap: anywhere; color: #c5f467; }
+.challenge { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.challenge label { display: grid; gap: 5px; }
+.hidden { display: none !important; }
+@media (max-width:600px) {
+  .words { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .challenge { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<main>
+  <section class="panel">
+    <h1>Chisel identity</h1>
+    <p class="muted">Create a portable identity without funding a wallet. The twelve words recover the identity. They stay in this browser page and are never sent to FileProxy or Lantern.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Create or recover</h2>
+    <div class="actions">
+      <button id="generate" class="primary" type="button">GENERATE 12 WORDS</button>
+      <button id="recover" type="button">RECOVER FROM WORDS</button>
+    </div>
+
+    <div id="generated" class="hidden">
+      <p class="warning">Write these words down in order. Do not put them in FileProxy, a public note, or a ledger transaction.</p>
+      <ol id="words" class="words"></ol>
+      <div id="challenge" class="challenge"></div>
+      <div class="actions">
+        <button id="verify" type="button">I WROTE THEM DOWN</button>
+      </div>
+    </div>
+
+    <div id="recovery" class="hidden">
+      <label for="phrase">Twelve words</label>
+      <textarea id="phrase" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="word1 word2 ... word12"></textarea>
+      <div class="actions">
+        <button id="recoverUse" type="button">USE THIS IDENTITY</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="result" class="panel hidden">
+    <h2>Public identity</h2>
+    <p class="muted">This identifier is public. Applications such as Lantern may use it as a namespace. It is not a private key.</p>
+    <code id="identity"></code>
+    <p class="muted">Derivation: <code>chisel-identity-v1</code> · BIP-39 English · <code>m/44'/0'/0'/0/0</code> · compressed secp256k1 public key.</p>
+    <div class="actions">
+      <button id="continue" class="primary" type="button">CONTINUE</button>
+      <button id="openChisel" type="button">OPEN CHISEL WITH THIS IDENTITY</button>
+    </div>
+  </section>
+</main>
+
+<script src="vendor/ethers-6.6.0.umd.min.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  const PATH = "m/44'/0'/0'/0/0";
+  const generate = document.getElementById("generate");
+  const recover = document.getElementById("recover");
+  const generated = document.getElementById("generated");
+  const recovery = document.getElementById("recovery");
+  const words = document.getElementById("words");
+  const challenge = document.getElementById("challenge");
+  const verify = document.getElementById("verify");
+  const phrase = document.getElementById("phrase");
+  const recoverUse = document.getElementById("recoverUse");
+  const result = document.getElementById("result");
+  const identityOut = document.getElementById("identity");
+  const continueButton = document.getElementById("continue");
+  const openChisel = document.getElementById("openChisel");
+
+  let currentPhrase = "";
+  let currentPrivateKey = "";
+  let currentIdentity = "";
+  let challengeIndexes = [];
+
+  function normalizePhrase(value) {
+    return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  function derive(value) {
+    const clean = normalizePhrase(value);
+    const parts = clean.split(" ");
+    if (parts.length !== 12) throw new Error("Expected exactly 12 words.");
+
+    const wallet = ethers.HDNodeWallet.fromPhrase(clean, "", PATH);
+    const compressed = ethers.SigningKey.computePublicKey(wallet.privateKey, true);
+    return {
+      phrase: clean,
+      privateKey: wallet.privateKey.replace(/^0x/, ""),
+      identity: "chisel:v1:" + compressed.replace(/^0x/, "")
+    };
+  }
+
+  function showIdentity(derived) {
+    currentPhrase = derived.phrase;
+    currentPrivateKey = derived.privateKey;
+    currentIdentity = derived.identity;
+    identityOut.textContent = currentIdentity;
+    result.classList.remove("hidden");
+    result.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderWords(value) {
+    words.textContent = "";
+    value.split(" ").forEach((word, index) => {
+      const li = document.createElement("li");
+      const n = document.createElement("b");
+      n.textContent = (index + 1) + ".";
+      li.appendChild(n);
+      li.appendChild(document.createTextNode(word));
+      words.appendChild(li);
+    });
+  }
+
+  function makeChallenge(value) {
+    const list = value.split(" ");
+    const first = crypto.getRandomValues(new Uint32Array(1))[0] % 12;
+    let second = crypto.getRandomValues(new Uint32Array(1))[0] % 12;
+    if (second === first) second = (second + 5) % 12;
+    challengeIndexes = [first, second].sort((a,b) => a-b);
+    challenge.textContent = "";
+    challengeIndexes.forEach(index => {
+      const label = document.createElement("label");
+      label.textContent = "Word " + (index + 1);
+      const input = document.createElement("input");
+      input.type = "text";
+      input.autocomplete = "off";
+      input.autocapitalize = "none";
+      input.spellcheck = false;
+      input.dataset.index = String(index);
+      label.appendChild(input);
+      challenge.appendChild(label);
+    });
+  }
+
+  function returnUrl() {
+    const params = new URLSearchParams(location.search);
+    const target = params.get("return");
+    if (!target) return "";
+    try {
+      const url = new URL(target, location.href);
+      url.searchParams.set("identity", currentIdentity);
+      return url.toString();
+    } catch (error) {
+      return "";
+    }
+  }
+
+  generate.addEventListener("click", () => {
+    const random = ethers.Wallet.createRandom();
+    const value = random.mnemonic && random.mnemonic.phrase;
+    if (!value) {
+      alert("Mnemonic generation is unavailable in this browser.");
+      return;
+    }
+    currentPhrase = normalizePhrase(value);
+    renderWords(currentPhrase);
+    makeChallenge(currentPhrase);
+    generated.classList.remove("hidden");
+    recovery.classList.add("hidden");
+    result.classList.add("hidden");
+  });
+
+  recover.addEventListener("click", () => {
+    recovery.classList.remove("hidden");
+    generated.classList.add("hidden");
+    result.classList.add("hidden");
+    phrase.focus();
+  });
+
+  verify.addEventListener("click", () => {
+    const list = currentPhrase.split(" ");
+    const inputs = Array.from(challenge.querySelectorAll("input"));
+    const ok = inputs.every(input => normalizePhrase(input.value) === list[Number(input.dataset.index)]);
+    if (!ok) {
+      alert("The verification words do not match.");
+      return;
+    }
+    try {
+      showIdentity(derive(currentPhrase));
+    } catch (error) {
+      alert(error.message || String(error));
+    }
+  });
+
+  recoverUse.addEventListener("click", () => {
+    try {
+      showIdentity(derive(phrase.value));
+    } catch (error) {
+      alert(error.message || String(error));
+    }
+  });
+
+  continueButton.addEventListener("click", () => {
+    const target = returnUrl();
+    if (target) {
+      location.href = target;
+      return;
+    }
+    location.href = "index.html?mode=portal";
+  });
+
+  openChisel.addEventListener("click", () => {
+    if (!currentPrivateKey) return;
+    try {
+      sessionStorage.setItem("chisel.pendingQrScan", JSON.stringify({
+        privateKeyHex: currentPrivateKey,
+        source: "chisel-identity-v1"
+      }));
+    } catch (error) {}
+    location.href = "index.html?mode=portal";
+  });
+})();
+</script>
+</body>
+</html>
