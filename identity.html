@@ -55,7 +55,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
 <main>
   <section class="panel">
     <h1>Chisel identity</h1>
-    <p class="muted">Create a portable identity without funding a wallet. The twelve words recover the identity. They stay in this browser page and are never sent to FileProxy or Lantern.</p>
+    <p class="muted">Create an identity you can use with Lantern and other Chisel tools. You do not need to put any money in it. The twelve recovery words are the part you must keep private.</p>
   </section>
 
   <section class="panel">
@@ -66,9 +66,9 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     </div>
 
     <div id="generated" class="hidden">
-      <p class="warning">Write these words down in order. Do not put them in FileProxy, a public note, or a ledger transaction.</p>
+      <p class="warning">Write these 12 recovery words down in order and keep them private. Anyone with these words can recover this identity.</p>
       <ol id="words" class="words"></ol>
-      <div id="challenge" class="challenge"></div>
+      <div id="challenge" class="challenge hidden"></div>
       <div class="actions">
         <button id="verify" type="button">I WROTE THEM DOWN</button>
       </div>
@@ -84,10 +84,15 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   </section>
 
   <section id="result" class="panel hidden">
-    <h2>Public identity</h2>
-    <p class="muted">This identifier is public. Applications such as Lantern may use it as a namespace. It is not a private key.</p>
-    <code id="identity"></code>
-    <p class="muted">Derivation: <code>chisel-identity-v1</code> · BIP-39 English · <code>m/44'/0'/0'/0/0</code> · compressed secp256k1 public key.</p>
+    <h2>Your identity</h2>
+    <p class="muted">This Litecoin address is the public name for this identity. It is safe to share.</p>
+    <code id="litecoinAddress"></code>
+    <details>
+      <summary>Technical details</summary>
+      <p class="muted">Chisel also keeps a machine-readable identifier for applications such as Lantern.</p>
+      <code id="identity"></code>
+      <p class="muted">Derivation: <code>chisel-identity-v1</code> · BIP-39 English · <code>m/44'/0'/0'/0/0</code> · compressed secp256k1 public key. Litecoin address: legacy P2PKH from the same key.</p>
+    </details>
     <div class="actions">
       <button id="continue" class="primary" type="button">CONTINUE</button>
       <button id="openChisel" type="button">OPEN CHISEL WITH THIS IDENTITY</button>
@@ -112,16 +117,26 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   const recoverUse = document.getElementById("recoverUse");
   const result = document.getElementById("result");
   const identityOut = document.getElementById("identity");
+  const litecoinAddressOut = document.getElementById("litecoinAddress");
   const continueButton = document.getElementById("continue");
   const openChisel = document.getElementById("openChisel");
 
   let currentPhrase = "";
   let currentPrivateKey = "";
   let currentIdentity = "";
+  let currentLitecoinAddress = "";
   let challengeIndexes = [];
+  let challengeStage = false;
 
   function normalizePhrase(value) {
     return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  function litecoinAddressFromCompressedPublicKey(compressed) {
+    const pubkeyHash = ethers.ripemd160(ethers.sha256(compressed));
+    const payload = "0x30" + pubkeyHash.replace(/^0x/, "");
+    const checksum = ethers.sha256(ethers.sha256(payload)).slice(2, 10);
+    return ethers.encodeBase58(payload + checksum);
   }
 
   function derive(value) {
@@ -134,7 +149,8 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     return {
       phrase: clean,
       privateKey: wallet.privateKey.replace(/^0x/, ""),
-      identity: "chisel:v1:" + compressed.replace(/^0x/, "")
+      identity: "chisel:v1:" + compressed.replace(/^0x/, ""),
+      litecoinAddress: litecoinAddressFromCompressedPublicKey(compressed)
     };
   }
 
@@ -142,6 +158,8 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     currentPhrase = derived.phrase;
     currentPrivateKey = derived.privateKey;
     currentIdentity = derived.identity;
+    currentLitecoinAddress = derived.litecoinAddress;
+    litecoinAddressOut.textContent = currentLitecoinAddress;
     identityOut.textContent = currentIdentity;
     result.classList.remove("hidden");
     result.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -203,6 +221,10 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     currentPhrase = normalizePhrase(value);
     renderWords(currentPhrase);
     makeChallenge(currentPhrase);
+    challengeStage = false;
+    challenge.classList.add("hidden");
+    words.classList.remove("hidden");
+    verify.textContent = "I WROTE THEM DOWN";
     generated.classList.remove("hidden");
     recovery.classList.add("hidden");
     result.classList.add("hidden");
@@ -216,11 +238,21 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   });
 
   verify.addEventListener("click", () => {
+    if (!challengeStage) {
+      challengeStage = true;
+      words.classList.add("hidden");
+      challenge.classList.remove("hidden");
+      verify.textContent = "VERIFY WORDS";
+      const firstInput = challenge.querySelector("input");
+      if (firstInput) firstInput.focus();
+      return;
+    }
+
     const list = currentPhrase.split(" ");
     const inputs = Array.from(challenge.querySelectorAll("input"));
     const ok = inputs.every(input => normalizePhrase(input.value) === list[Number(input.dataset.index)]);
     if (!ok) {
-      alert("The verification words do not match.");
+      alert("Those words do not match. Check what you wrote down and try again.");
       return;
     }
     try {
