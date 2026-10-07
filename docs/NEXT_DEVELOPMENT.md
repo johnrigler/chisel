@@ -1,6 +1,6 @@
 # Chisel: Next Development Sequence
 
-Status: active development roadmap, updated 2026-09-08.
+Status: active development roadmap, updated 2026-10-06.
 
 This is the durable order of operations for the next Chisel work. The goal is to keep Chisel useful while turning M64 from an experimental compression feature into a stable recovery substrate without turning any one ledger or carrier into a required platform.
 
@@ -281,6 +281,93 @@ Milestones:
 8. compare a recorded tree hash and later a deterministic IPFS/CAR root CID.
 
 Success changes M64 from compact storage into part of Chisel's recovery substrate.
+
+
+## 9. eCash messaging, subscriptions, and identity provenance
+
+Status: design notes captured from live CashTab/XEC experiments; no Chisel implementation yet.
+
+A live CashTab experiment showed several distinct behaviors that Chisel should treat separately:
+
+- CashTab's "Stake" flow can be a UI wrapper around an Agora purchase of a third-party token such as XECX, not a native consensus staking operation.
+- XECX reward payments arrive as ordinary XEC transactions and can therefore be independently verified from address history through Chronik rather than trusted from wallet UI labels.
+- unsolicited broadcasters can send tiny XEC outputs plus OP_RETURN/application metadata so that a message appears in wallet transaction history;
+- CashTab may mark such transactions as possible spam/scam, but a binary warning does not explain provenance;
+- one observed broadcaster used the chain for delivery while routing replies toward mutable Web2 identities such as Telegram, short URLs, and GitHub accounts. That breaks the strongest identity continuity available in the transaction itself.
+
+This suggests a Chisel communication layer built around explicit consent and address-rooted identity.
+
+Candidate message types:
+
+```text
+MSG
+REPLY
+SUB
+UNSUB
+CLAIM
+ACK
+```
+
+A subscription should be an actual transaction from subscriber to publisher, for example a tiny XEC payment plus a Chisel marker. The subscriber address then becomes the return route and the ledger becomes the subscription history.
+
+A publisher may broadcast efficiently with one transaction containing:
+
+- one shared OP_RETURN or locator payload;
+- many tiny subscriber outputs;
+- a sequence number or object identifier;
+- optionally an IPFS CID or another carrier-neutral content reference.
+
+The whole publication should not be duplicated into every output. The payment/output is the notification primitive; larger content may live on IPFS or another carrier and be verified by hash/signature.
+
+Trust state should be derived from history instead of reduced to a generic spam flag:
+
+```text
+unknown sender
+    -> unsolicited
+
+address I previously paid with SUB
+    -> subscribed
+
+sender I have replied to
+    -> conversational
+
+signed identity claim present
+    -> claimed external identity
+
+UNSUB seen later
+    -> muted/unsubscribed
+```
+
+Chisel should preserve the difference between a sender address and claims made by that sender. Telegram handles, GitHub usernames, websites, names, and avatars are mutable external claims, not the root identity.
+
+A claim can be represented conceptually as:
+
+```text
+CLAIM github=johnrigler
+CLAIM telegram=@example
+CLAIM url=https://example.org
+```
+
+The useful proof is that the same key/address that emits the message also emits or signs the claim. Reciprocal proof on the external service is stronger still.
+
+Chisel should therefore present provenance directly, for example:
+
+```text
+Sender: <address>
+Prior relationship: none / subscribed / replied
+Messages seen: <count>
+Shortened external link: yes/no
+Claimed identities:
+  GitHub <name>    signed by sender
+  Telegram <name>  signed by sender
+External link owner matches claimed identity: unknown / yes / no
+```
+
+Do not infer that a short-link destination, Telegram account, GitHub repository owner, and on-chain broadcaster are the same entity merely because free-form text connects them.
+
+The live eCash experiment also suggests a useful anti-spam rule: payment itself can be part of the rate limiter. A Chisel inbox may accept a message when the sender is subscribed/trusted, or require a configurable minimum amount from unknown senders. Unknown message-bearing dust may be collapsed by default rather than rendered with the same prominence as established contacts.
+
+Chronik is the preferred eCash read path for this work. The implementation goal is to classify raw address history into explicit Chisel semantics without depending on CashTab rendering.
 
 ## Technical debt policy
 
