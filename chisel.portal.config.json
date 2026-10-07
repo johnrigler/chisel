@@ -39,6 +39,7 @@
   "portalFilterEvmJethro": true,
   "portalFilterOther": true,
   "portalFilterDogecoin": true,
+  "portalFilterEcash": true,
   "autoLoadStaticDataset": true,
   "autoSearchLedgersAfterStatic": true,
   "staticManifestPaths": [
