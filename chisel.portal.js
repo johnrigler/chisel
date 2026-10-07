@@ -55,6 +55,7 @@
     portalFilterLitecoin: true,
     portalFilterBitcoin: true,
     portalFilterDogecoin: true,
+    portalFilterEcash: true,
     portalFilterEvmGomez: true,
     portalFilterEvmJethro: true,
     portalFilterOther: true
@@ -1768,13 +1769,14 @@
   function isPublicMainThunderwordAddress(value) {
     const address = String(value || "").trim();
     if (/^0x[0-9a-fA-F]{40}$/.test(address)) return true;
+    if (/^(?:ecash|etoken):[qp][0-9a-z]{40,110}$/i.test(address)) return true;
     if (/^[1-9A-HJ-NP-Za-km-z]{26,40}$/.test(address)) return true;
     return /^(?:bc1|tb1|ltc1|tltc1|dgb1|rvn1)[ac-hj-np-z02-9]{20,90}$/i.test(address);
   }
 
   function canonicalMainThunderwordAddress(value) {
     const address = String(value || "").trim();
-    return /^0x/i.test(address) ? address.toLowerCase() : address;
+    return /^(?:0x|ecash:|etoken:)/i.test(address) ? address.toLowerCase() : address;
   }
 
   function mainThunderwordCoin(entry) {
@@ -2049,6 +2051,11 @@
       return root && root === first;
     });
     if (byRoot) return byRoot;
+
+    if (/^(?:ecash|etoken):/i.test(text)) {
+      const xec = indexes.find(function (entry) { return /ecash|xec/i.test([entry.coin, entry.ticker, entry.name, entry.label].join(" ")); });
+      if (xec) return xec;
+    }
 
     if (/^0x[0-9a-fA-F]{40}$/.test(text)) {
       const evm = indexes.find(function (entry) { return /polygon|matic|evm/i.test([entry.coin, entry.ticker, entry.name, entry.label].join(" ")); });
@@ -2487,6 +2494,9 @@
       bitcoin: "bitcoin",
       doge: "dogecoin",
       dogecoin: "dogecoin",
+      xec: "ecash",
+      ecash: "ecash",
+      etoken: "ecash",
       evm: "evm",
       eth: "evm",
       ethereum: "evm",
@@ -2503,6 +2513,7 @@
     if (coin === "litecoin") return "LTC";
     if (coin === "bitcoin") return "BTC";
     if (coin === "dogecoin") return "DOGE";
+    if (coin === "ecash") return "XEC";
     if (coin === "evm") return "EVM";
     return "";
   }
@@ -2599,7 +2610,7 @@
   }
 
   const PORTAL_FILTER_IDS = [
-    "digibyte", "ravencoin", "litecoin", "bitcoin", "dogecoin", "evmGomez", "evmJethro", "other"
+    "digibyte", "ravencoin", "litecoin", "bitcoin", "dogecoin", "ecash", "evmGomez", "evmJethro", "other"
   ];
 
   function portalFilterConfigKey(id) {
@@ -2625,6 +2636,7 @@
     if (coin === "litecoin") return "litecoin";
     if (coin === "bitcoin") return "bitcoin";
     if (coin === "dogecoin") return "dogecoin";
+    if (coin === "ecash") return "ecash";
     if (coin === "evm" || contractName || contractAddress.match(/^0x/)) {
       if (contractName.indexOf("gomez") !== -1 || contractAddress.indexOf("5a2220d56f56") !== -1) return "evmGomez";
       if (contractName.indexOf("jethro") !== -1 || contractAddress.indexOf("0076416c84c7") !== -1) return "evmJethro";
@@ -2779,9 +2791,24 @@
     }, 0);
   }
   function makeBasicSummary(txid, tx, entry) {
+    const raw = tx && tx.raw && typeof tx.raw === "object" ? tx.raw : {};
+    const stats = raw.stats && typeof raw.stats === "object" ? raw.stats : {};
+    const coin = normalizeCoinName(entry && (entry.coin || entry.ticker || entry.name));
+    let title = "transaction " + shortTxid(txid);
+
+    // explorer.e.cash exposes an address-history JSON row without full vin/vout.
+    // Preserve it as a useful feed row now; native Chronik hydration can replace
+    // this later without changing the Portal row model.
+    if (coin === "ecash" && Number.isFinite(Number(stats.deltaSats))) {
+      const xec = Number(stats.deltaSats) / 100;
+      const signed = (xec > 0 ? "+" : "") + xec.toLocaleString(undefined, { maximumFractionDigits: 2 }) + " XEC";
+      const tokenTicker = raw.token && raw.token.tokenTicker ? String(raw.token.tokenTicker).trim() : "";
+      title = signed + (tokenTicker ? " · " + tokenTicker : "");
+    }
+
     return {
       txid: txid,
-      title: "transaction " + shortTxid(txid),
+      title: title,
       lines: 0,
       imageLines: 0,
       ipfsCount: 0,
@@ -4989,6 +5016,14 @@ function getPortalFirstCharacter() {
       const row = state.portalRowKeys[key] || ordered[i];
       const visible = isVisiblePortalRow(row) || !!state.expandedRowKeys[key];
       visibleChanges = visibleChanges || visible;
+      if (!row.raw && !rowCanHydrate(row)) {
+        if ((i + 1) % 4 === 0) {
+          if (visibleChanges) requestPortalRender();
+          visibleChanges = false;
+          await yieldPortalThread();
+        }
+        continue;
+      }
       const previousRawCacheSave = row.rawCacheSavedAt || 0;
       const previousRawCacheError = row.rawCacheError || "";
       const hydrated = await hydratePortalRow(key, Object.assign({
