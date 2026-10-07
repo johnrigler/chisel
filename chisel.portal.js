@@ -1779,6 +1779,17 @@
     return /^(?:0x|ecash:|etoken:)/i.test(address) ? address.toLowerCase() : address;
   }
 
+  function normalizeAddressForEntry(value, entry) {
+    let address = String(value || "").trim();
+    const coin = normalizeCoinName(entry && (entry.coin || entry.ticker || entry.name));
+    // CashAddr is often copied without its human-readable prefix. When the
+    // selected profile is eCash, accept the bare payload and restore ecash:.
+    if (coin === "ecash" && !/^[a-z]+:/i.test(address) && /^[qp][0-9a-z]{40,110}$/i.test(address)) {
+      address = "ecash:" + address.toLowerCase();
+    }
+    return address;
+  }
+
   function mainThunderwordCoin(entry) {
     return normalizeCoinName(entry && (entry.coin || entry.ticker || entry.name)) || "unknown";
   }
@@ -1993,7 +2004,7 @@
   }
 
   function loadAddressStream(address, entry, label, opts) {
-    const clean = String(address || "").trim();
+    const clean = normalizeAddressForEntry(address, entry || getSelectedIndex());
     if (!clean) return Promise.reject(new Error("Address is required."));
     const cloned = cloneIndexForAddress(entry || getSelectedIndex(), clean, label || clean);
     const options = opts || {};
@@ -4630,7 +4641,11 @@
   async function loadAddressIndex(entryOverride, addressOverride, opts) {
     const api = getThunderwords();
     const entry = entryOverride || getSelectedIndex();
-    const address = String(addressOverride || ($("#portalThunderwordAddress") ? $("#portalThunderwordAddress").value.trim() : entry.address) || "").trim();
+    const address = normalizeAddressForEntry(
+      addressOverride || ($("#portalThunderwordAddress") ? $("#portalThunderwordAddress").value.trim() : entry.address) || "",
+      entry
+    );
+    if ($("#portalThunderwordAddress")) $("#portalThunderwordAddress").value = address;
     const activeEntry = cloneIndexForAddress(entry, address, entry.label || entry.address || address);
     const mainThunderword = (opts && opts.mainThunderword) || mainThunderwordForEntry(activeEntry);
     const reset = false;
