@@ -58,7 +58,7 @@
   function normalizeTxid(tx) {
     if (typeof tx === "string") return tx;
     if (!tx || typeof tx !== "object") return "";
-    return tx.txid || tx.hash || tx.id || tx.tx_hash || "";
+    return tx.txid || tx.txHash || tx.hash || tx.id || tx.tx_hash || "";
   }
 
   function firstValue(values) {
@@ -442,6 +442,21 @@
     note: "Local Dogecoin Chisel rows imported from bunOven / Bun jist JSONL through fileProxy."
   });
 
+
+  installIndex("ecashAddress", {
+    label: "eCash address / explorer feed",
+    group: "manual",
+    coin: "ecash",
+    ticker: "XEC",
+    address: "",
+    sourceType: "explorer-json",
+    canFetchAddress: true,
+    canFetchTx: false,
+    addressTxsUrlTemplate: "https://explorer.e.cash/api/address/{address}/transactions?take=200",
+    addressUrlTemplate: "https://explorer.e.cash/address/{address}",
+    txUrlTemplate: "https://explorer.e.cash/tx/{txid}",
+    note: "First-pass eCash feed adapter. Address history comes from explorer.e.cash JSON. Full transaction hydration is intentionally deferred until Chisel has a native Chronik/protobuf adapter."
+  });
 
   installIndex("polygonGeneral", {
     label: "Polygon / EVM general thunderword contract",
