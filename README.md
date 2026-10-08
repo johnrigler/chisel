@@ -1,6 +1,18 @@
 # Chisel
 
-Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts.
+**Use Chisel in your browser:** explore public ledger artifacts, construct transactions, inspect outputs, and use the QR and identity tools. No framework installation is required to open the hosted application.
+
+<p align="center">
+  <a href="https://johnrigler.github.io/chisel/"><img src="docs/chisel-readme-preview.svg" alt="Representative preview of the Chisel Portal interface, showing navigation and an artifact search field" width="800"></a>
+</p>
+
+<p align="center"><a href="https://johnrigler.github.io/chisel/"><strong>▶ OPEN CHISEL</strong></a> · <a href="https://johnrigler.github.io/chisel/?mode=portal">Explore the Portal</a></p>
+
+*Illustrative interface preview, not a live screenshot. Open the hosted Chisel application for the actual interface.*
+
+Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts. **Portal** is the primary public reader; **Send**, **Review**, **Examples**, and **Tools** expose other workflows. It is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
+
+## What it does
 
 A transaction output can be more than a payment. An address can carry readable structure. An amount can carry a small code. An OP_RETURN can carry text. A transaction can become a public note, breadcrumb, receipt, ritual, or searchable index.
 
