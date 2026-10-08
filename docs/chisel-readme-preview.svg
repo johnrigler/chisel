@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520">
+<rect width="1000" height="520" rx="20" fill="#0b0d10"/>
+<rect width="1000" height="70" fill="#0f1318"/>
+<text x="36" y="44" font-family="monospace" font-size="31" fill="#e6edf3">CHISEL</text>
+<text x="960" y="40" text-anchor="end" font-family="monospace" font-size="16" fill="#9fb0c0">browser-first ledger tools</text>
+<g font-family="monospace" font-size="17" text-anchor="middle">
+<rect x="34" y="91" width="130" height="43" rx="9" fill="#242b35"/><text x="99" y="119" fill="#fff">Send</text>
+<rect x="175" y="91" width="130" height="43" rx="9" fill="#7865f4"/><text x="240" y="119" fill="#fff">Portal</text>
+<rect x="316" y="91" width="130" height="43" rx="9" fill="#242b35"/><text x="381" y="119" fill="#fff">Review</text>
+<rect x="457" y="91" width="130" height="43" rx="9" fill="#242b35"/><text x="522" y="119" fill="#fff">Examples</text>
+<rect x="598" y="91" width="130" height="43" rx="9" fill="#242b35"/><text x="663" y="119" fill="#fff">Tools</text>
+</g>
+<rect x="34" y="156" width="932" height="326" rx="13" fill="#11161c" stroke="#2c3642"/>
+<text x="57" y="193" font-family="monospace" font-size="23" fill="#e6edf3">Portal · Explore ledger artifacts</text>
+<text x="57" y="225" font-family="monospace" font-size="15" fill="#9fb0c0">Read transaction outputs, human-readable addresses, and public records.</text>
+<rect x="57" y="250" width="720" height="55" rx="8" fill="#080c10" stroke="#394858"/>
+<text x="76" y="283" font-family="monospace" font-size="18" fill="#c5f467">Enter an address or Thunderword...</text>
+<rect x="796" y="250" width="141" height="55" rx="8" fill="#7865f4"/>
+<text x="867" y="284" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="18" fill="#fff">Explore</text>
+<rect x="57" y="330" width="880" height="120" rx="9" fill="#0a0f14" stroke="#263241"/>
+<text x="76" y="360" font-family="monospace" font-size="17" fill="#d7e2ee">LEDGER STREAM</text>
+<text x="76" y="390" font-family="monospace" font-size="16" fill="#9fb0c0">Transactions → ordered outputs → readable artifacts</text>
+<text x="76" y="421" font-family="monospace" font-size="16" fill="#c5f467">DGB · DOGE · LTC · public data</text>
+</svg>
