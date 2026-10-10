@@ -470,7 +470,8 @@
     const log = makeLog("selfTestOutput");
     log.reset("Chisel browser self-test");
     try {
-      await runIdentityArtifactTest(log);\n      await runBase57ImageTest(log);
+      await runIdentityArtifactTest(log);
+      await runBase57ImageTest(log);
       await runPortalStaticDataCharacterizationTest(log);
       await runPortalBootTest(log);
       await runPortalUiTest(log);
