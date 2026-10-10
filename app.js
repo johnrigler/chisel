@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.31C";
+  const APP_VERSION = "2.7.31D";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -993,6 +993,13 @@ function setCurrencyForm() {
   function setStatusMessage(message, isError) {
     state.status = message;
     state.isError = Boolean(isError);
+    if (window.chiselActivity) {
+      // Deliberately log a generic status here. Provider messages can contain wallet data.
+      window.chiselActivity("Send", isError ? "Operation failed (see status in Send)" :
+        message === STATUS_IDLE ? "Ready" :
+        message === STATUS_DONE ? "Transaction sent successfully" : "State updated",
+        isError ? "error" : "info");
+    }
     render();
   }
 
@@ -1816,8 +1823,11 @@ function getMinimumRequiredFeeUnits(coin, values) {
   }
 
   async function runBuildSignDecodeSend() {
+    if (window.chiselActivity) window.chiselActivity("Send", "Building transaction");
     const context = await buildTransactionContext();
+    if (window.chiselActivity) window.chiselActivity("Send", "Signing locally");
     await signTransactionContext(context);
+    if (window.chiselActivity) window.chiselActivity("Send", "Broadcasting signed transaction");
     await sendTransactionContext(context);
     setStatusMessage(STATUS_DONE, false);
     setGuiMode("send");
@@ -2024,6 +2034,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
   //
 
 async function onClickSendButton() {
+  if (window.chiselActivity) window.chiselActivity("Send", "Send button pressed");
   try {
     clearOutputs();
     setLoadingState(true);
@@ -2954,6 +2965,7 @@ function init() {
     populateEtchFixtureSelect();
 
     elems.sendButton.onclick = onClickSendButton;
+    if (window.chiselActivity) window.chiselActivity("Send", "Button handler attached");
     elems.senderWif.onkeydown = onKeydownSenderWif;
     elems.senderWif.onchange = function onSenderWifChange() {
       stopReceiveMonitor();
@@ -3128,7 +3140,8 @@ function init() {
     render();
   } catch (error) {
     console.error(error);
-    setStatusMessage(error.message || String(error), true);
+    if (window.chiselActivity) window.chiselActivity("Initialization", "Send unavailable: initialization failed", "error");
+    try { setStatusMessage(error.message || String(error), true); } catch (_) {}
   }
 }
 
