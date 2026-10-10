@@ -1543,6 +1543,9 @@
         display: none;
       }
     }
+    .chiselStatusLine { position:sticky; top:0; z-index:20; border:1px solid #344150; border-radius:10px; background:#080c10; color:#c5f467; padding:10px 12px; font-size:13px; overflow-wrap:anywhere; }
+    .chiselStatusLine[data-level="error"] { color:#ff7b7b; border-color:#b34444; }
+    .chiselStatusLine[data-level="busy"] { color:#ffd166; }
     .activityPanel { border:1px solid #344150; border-radius:10px; padding:10px; background:#080c10; min-width:0; }
     .activityPanel summary { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
     #activityCurrent { color:#ffd166; overflow-wrap:anywhere; font-size:12px; }
@@ -1579,6 +1582,15 @@
             <strong>Navigation</strong>
             <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
             <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
+            <details id="activityPanel" class="activityPanel">
+              <summary><strong>Activity log</strong></summary>
+              <div class="activityControls">
+                <span id="activityHealth">Checking components...</span>
+                <button type="button" class="secondaryButton" id="activityCopy">COPY LOG</button>
+                <button type="button" class="secondaryButton" id="activityClear">CLEAR</button>
+              </div>
+              <pre id="activityTrace" class="activityTrace" aria-label="Application activity log"></pre>
+            </details>
             <strong>FileProxy</strong>
             <label class="menuCheck"><input type="checkbox" id="fileProxyDiagnostics"> Save non-sensitive Send diagnostics (opt-in)</label>
             <div id="fileProxyMenuMount"></div>
@@ -1595,15 +1607,7 @@
         <button class="modeButton" type="button" data-mode-target="send">Send</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
       </div>
-      <details id="activityPanel" class="activityPanel" open>
-        <summary><strong>Activity</strong> <span id="activityCurrent" role="status" aria-live="polite">Starting Chisel...</span></summary>
-        <div class="activityControls">
-          <span id="activityHealth">Checking components...</span>
-          <button type="button" class="secondaryButton" id="activityCopy">COPY LOG</button>
-          <button type="button" class="secondaryButton" id="activityClear">CLEAR</button>
-        </div>
-        <pre id="activityTrace" class="activityTrace" aria-label="Application activity log"></pre>
-      </details>
+      <div id="activityCurrent" class="chiselStatusLine" role="status" aria-live="polite">Chisel: Starting…</div>
       <div class="compactHint" id="modeHint">Portal is the default entry point. Scan one public page sticker to open a page; scan the four private stickers only when you want to act as its owner.</div>
     </section>
 
@@ -2357,18 +2361,27 @@
     window.chiselActivity = function (source, message, level) {
       const item = new Date().toLocaleTimeString() + " [" + safe(source) + "] " + safe(message);
       trace.push(item); if (trace.length > 200) trace.shift();
-      current.textContent = safe(source) + ": " + safe(message);
+      const src = safe(source);
+      const msg = safe(message);
+      // Diagnostic events are recorded but do not displace the current operation.
+      const relevant = /^(Send|JavaScript|Initialization|Broadcast|Navigation|Boot)$/.test(src);
+      const hardFailure = level === "error" && !/^(Portal|FileProxy)$/.test(src);
+      const sendRetry = src === "Send" && !/unavailable/i.test(msg);
+      if (sendRetry) current.dataset.latched = "";
+      if (hardFailure) current.dataset.latched = "error";
+      if ((relevant || hardFailure) && (!current.dataset.latched || hardFailure)) {
+        current.textContent = src + ": " + msg;
+        current.dataset.level = hardFailure ? "error" : /broadcast|build|sign|load|start/i.test(msg) ? "busy" : "info";
+      }
       output.textContent = trace.join("\n");
       output.scrollTop = output.scrollHeight;
-      if(level === "error") current.style.color="#ff7b7b";
-      else current.style.color="#ffd166";
       /* No private material, URLs or arbitrary exception strings are persisted. */
     };
     document.getElementById("activityCopy").onclick = function () {
       if(navigator.clipboard) navigator.clipboard.writeText(trace.join("\n")).catch(()=>{});
     };
     document.getElementById("activityClear").onclick = function () {
-      trace.length=0; output.textContent=""; current.textContent="Log cleared";
+      trace.length=0; output.textContent="";
     };
     document.querySelectorAll("[data-mode-target]").forEach(function (button) {
       button.addEventListener("click", function () {
@@ -2397,6 +2410,13 @@
         window.chiselActivity("Portal",/error|fail|unavailable/i.test(p.textContent)?"Load failed":/loading|fetch/i.test(p.textContent)?"Loading":/loaded|found|records/i.test(p.textContent)?"Response received":"Status changed");
       }
     });
+    const sendStatus = document.getElementById("status");
+    if(sendStatus) new MutationObserver(function () {
+      const msg = sendStatus.textContent.trim();
+      if(!msg || msg === sendStatus.dataset.lastActivity) return;
+      sendStatus.dataset.lastActivity = msg;
+      window.chiselActivity("Send", msg, /error|fail|timeout|rejected|unavailable/i.test(msg) || sendStatus.classList.contains("error") ? "error" : "info");
+    }).observe(sendStatus,{subtree:true,childList:true,characterData:true,attributes:false});
     const portal=document.getElementById("portalStatus");
     if(portal) observer.observe(portal,{subtree:true,childList:true,characterData:true});
     window.chiselActivity("Boot","UI available; loading scripts");
@@ -2414,7 +2434,7 @@
   <script src="chisel.unspendable.js?rev=20260906b"></script>
   <script src="chisel.image.js?rev=20260906b"></script>
   <script src="chisel.sign.js?rev=20260906b"></script>
-  <script src="chisel.identity.js?rev=20261009F"></script>
+  <script src="chisel.identity.js?rev=20261009G"></script>
   <script src="chisel.ravencoin.js?rev=20260906b"></script>
   <script src="chisel.digibyte.js?rev=20260906b"></script>
   <script src="chisel.litecoin.js?rev=20261009C"></script>
@@ -2431,7 +2451,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20261009F"></script>
+  <script src="app.js?rev=20261009G"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
