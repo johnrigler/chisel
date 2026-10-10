@@ -234,3 +234,57 @@
     max-height: 48vh;
   }
 }
+
+/* 2026-10 portrait: use viewport width, never desktop minimums. */
+@media (max-width:760px) {
+  html, body { max-width:100%; overflow-x:clip; }
+  header, header .shell, main, main > section, .modePanel,
+  .portalExplorerShell, .portalStreamPanel, .portalPersonalAccount,
+  .portalStreamHeader, .portalTransactionList, .portalStreamItem {
+    min-width:0; max-width:100%; box-sizing:border-box;
+  }
+  header .shell { width:100%; padding:10px 12px; }
+  .topBar { min-width:0; width:100%; gap:6px; }
+  .topBar > div { min-width:0; }
+  .topBar h1 { font-size:1.2rem; }
+  .appMenu { flex-shrink:0; }
+  .appMenuContents { width:min(92vw,360px); right:0; }
+  body[data-mode="portal"] main { width:100%; max-width:100%; padding:6px; }
+  body[data-mode="portal"] .panel { padding:9px; }
+  .portalIndexBar { grid-template-columns:minmax(0,1fr); }
+  .portalIndexBar > *, .portalPersonalAccount > *, .portalPersonalAccountTop > * { min-width:0; max-width:100%; }
+  .portalPersonalAccountTop, .portalStreamHeader .actions,
+  .portalPersonalAccount .actions { gap:6px; }
+  .portalPersonalAccount .actions { display:flex; flex-wrap:wrap; }
+  .portalPersonalAccount .actions button { flex:1 1 auto; min-width:0; font-size:12px; padding:9px 8px; }
+  .portalFilterBar { grid-template-columns:repeat(3,minmax(0,1fr)); padding:7px; gap:5px; }
+  .portalFilterBar .compactOption { font-size:11px; overflow:hidden; }
+  .portalFilterBar .compactOption input { width:15px; height:15px; }
+  .portalStreamRow,
+  .portalStreamItem:not(.isExpanded) .portalStreamRow,
+  .portalStreamItem.isExpanded .portalStreamRow {
+    grid-template-columns:16px minmax(0,1fr) auto;
+    grid-template-areas:"toggle title coin" "thumb thumb thumb" "time time time";
+    padding:7px 6px; gap:2px 5px; width:100%;
+  }
+  .portalStreamRow > .portalExpandButton {
+    width:16px; height:24px; min-width:0; padding:0; border:0;
+    background:transparent; color:#5b6777; box-shadow:none;
+    font-size:15px; line-height:24px; grid-area:toggle;
+  }
+  .portalStreamRow > .portalStreamThumb {
+    width:auto; min-height:0; margin-top:2px; justify-content:flex-start;
+    border:0; background:transparent;
+  }
+  .portalStreamRow > .portalStreamThumb .portalStreamThumbImage {
+    width:auto; max-width:120px; max-height:65px; object-fit:contain;
+  }
+  .portalStreamRow > .portalStreamTime { font-size:10px; line-height:1.1; color:#66717b; }
+  .portalStreamRow > .portalStreamTitle { font-size:12px; }
+  .portalStreamRow > .portalStreamCoin { font-size:10px; min-width:0; }
+  .portalStreamItem.isExpanded .portalStreamRow {
+    grid-template-areas:"toggle title coin" "thumb thumb thumb" "time time verify";
+  }
+  .portalInlineDetails, .portalExpandedBody, .portalInlineImageSide { min-width:0; max-width:100%; }
+  .portalExpandedBody { grid-template-columns:minmax(0,1fr); }
+}
