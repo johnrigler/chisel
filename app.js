@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.31M";
+  const APP_VERSION = "2.7.31N";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -2966,6 +2966,22 @@ function init() {
 
     elems.sendButton.onclick = onClickSendButton;
     if (window.chiselActivity) window.chiselActivity("Send", "Button handler attached");
+    const switchIdentityButton = document.getElementById("switchIdentityButton");
+    if (switchIdentityButton) {
+      switchIdentityButton.onclick = function () {
+        stopReceiveMonitor();
+        state.identityPrivateKeyHex = "";
+        state.account = null;
+        state.utxos = [];
+        elems.senderWif.value = "";
+        setInputValue(elems.senderAddress, "");
+        clearOutputs();
+        render();
+        setStatusMessage("Identity cleared. Select another saved WIF from your password manager.", false);
+        elems.senderWif.focus();
+        if (window.chiselActivity) window.chiselActivity("Identity", "Switched to account selection");
+      };
+    }
     elems.senderWif.onkeydown = onKeydownSenderWif;
     elems.senderWif.onchange = function onSenderWifChange() {
       stopReceiveMonitor();
