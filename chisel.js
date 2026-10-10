@@ -865,31 +865,54 @@
     async function getAddressUtxoReports(address, options) {
       const opts = options || {};
       const providerNames = getProviderNames(opts);
-      const reports = [];
+      const timeoutMs = Math.max(1000, Number(opts.providerTimeoutMs) || 10000);
 
-      for (let i = 0; i < providerNames.length; i += 1) {
-        const provider = getProvider(providerNames[i], opts);
-
-        if (typeof provider.getAddressUtxos !== "function") {
-          reports.push({ provider: provider.NAME, ok: false, error: "Provider has no getAddressUtxos()." });
-          continue;
+      // Query providers concurrently. A stalled endpoint must not block
+      // fallback providers or leave the Send screen waiting indefinitely.
+      return Promise.all(providerNames.map(async function queryProvider(providerName) {
+        let provider;
+        try {
+          provider = getProvider(providerName, opts);
+        } catch (error) {
+          return { provider: providerName, ok: false, error: error.message || String(error) };
         }
 
-        try {
-          const result = await provider.getAddressUtxos(address, opts);
+        if (typeof provider.getAddressUtxos !== "function") {
+          return { provider: provider.NAME, ok: false, error: "Provider has no getAddressUtxos()." };
+        }
 
-          reports.push({
+        let timer;
+        const started = Date.now();
+        try {
+          const result = await Promise.race([
+            Promise.resolve().then(function startProviderRequest() {
+              return provider.getAddressUtxos(address, opts);
+            }),
+            new Promise(function timeoutProvider(resolve, reject) {
+              timer = setTimeout(function reportTimeout() {
+                reject(new Error("Provider timed out after " + timeoutMs + "ms"));
+              }, timeoutMs);
+            })
+          ]);
+          return {
             provider: provider.NAME,
             ok: true,
             url: provider.lastUrl || "",
+            elapsedMs: Date.now() - started,
             result: result
-          });
+          };
         } catch (error) {
-          reports.push({ provider: provider.NAME, ok: false, url: provider.lastUrl || "", error: error.message || String(error) });
+          return {
+            provider: provider.NAME,
+            ok: false,
+            url: provider.lastUrl || "",
+            elapsedMs: Date.now() - started,
+            error: error.message || String(error)
+          };
+        } finally {
+          clearTimeout(timer);
         }
-      }
-
-      return reports;
+      }));
     }
 
     async function getAddressUtxosWithReport(address, options) {
