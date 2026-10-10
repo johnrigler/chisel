@@ -1768,6 +1768,7 @@
       <div class="actions">
         <button id="sendButton" type="button">RUN ALL: BUILD, SIGN, SEND</button>
         <div id="status">Idle</div>
+        <div id="sendConfirmation" class="help" aria-live="polite" style="width:100%;overflow-wrap:anywhere"></div>
       </div>
 
       <div class="help" id="currencyHelp">
@@ -1858,60 +1859,60 @@
         <h2>Review transaction pipeline</h2>
         <p class="muted">These are the raw objects Chisel uses internally. Keep this mode as the engineering microscope: account, UTXOs, VIN, VOUT, unsigned hex, signed hex, and broadcast result.</p>
       </section>
-      <section class="panel">
-        <div class="stepTitle">1. Account</div>
+      <details class="panel">
+        <summary class="stepTitle">1. Account</summary>
         <pre id="accountJson" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">2. UTXOs</div>
+      <details class="panel">
+        <summary class="stepTitle">2. UTXOs</summary>
         <pre id="utxoJson" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">3. VIN</div>
+      <details class="panel">
+        <summary class="stepTitle">3. VIN</summary>
         <pre id="vinJson" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">4. VOUT</div>
+      <details class="panel">
+        <summary class="stepTitle">4. VOUT</summary>
         <pre id="voutJson" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">5. Build payload</div>
+      <details class="panel">
+        <summary class="stepTitle">5. Build payload</summary>
         <pre id="buildPayloadJson" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">6. Unsigned raw transaction</div>
+      <details class="panel">
+        <summary class="stepTitle">6. Unsigned raw transaction</summary>
         <code id="rawHex" class="hex"></code>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">7. Decoded unsigned transaction</div>
+      <details class="panel">
+        <summary class="stepTitle">7. Decoded unsigned transaction</summary>
         <pre id="decodedUnsignedJson" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">8. Signed raw transaction</div>
+      <details class="panel">
+        <summary class="stepTitle">8. Signed raw transaction</summary>
         <code id="signedHex" class="hex"></code>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">9. Decoded signed transaction</div>
+      <details class="panel">
+        <summary class="stepTitle">9. Decoded signed transaction</summary>
         <pre id="decodedSignedJson" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">10. Send payload</div>
+      <details class="panel">
+        <summary class="stepTitle">10. Send payload</summary>
         <pre id="sendPayloadJson" class="json"></pre>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="stepTitle">11. Broadcast result</div>
+      <details class="panel">
+        <summary class="stepTitle">11. Broadcast result</summary>
         <pre id="sendResultJson" class="json"></pre>
-      </section>
+      </details>
     </section>
 
 
