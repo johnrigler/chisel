@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.31B";
+  const APP_VERSION = "2.7.31C";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -1058,6 +1058,23 @@ function setCurrencyForm() {
 
   function setSendResultData(sendResult) {
     state.sendResult = sendResult;
+    const confirmation = document.getElementById("sendConfirmation");
+    if (confirmation) {
+      confirmation.replaceChildren();
+      const txid = String(sendResult && (sendResult.txid || sendResult.result) || "");
+      if (/^[0-9a-fA-F]{64}$/.test(txid)) {
+        confirmation.append(document.createTextNode("Broadcast accepted. Transaction: "));
+        const a = document.createElement("a");
+        a.href = (getCoin().NAME === "litecoin" ? "https://litecoinspace.org/tx/" : getCoin().DEFAULT_EXPLORER_URL || "") + txid;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = txid;
+        confirmation.appendChild(a);
+        confirmation.append(document.createTextNode(" · Awaiting block confirmation."));
+      } else {
+        confirmation.textContent = "Broadcast response received. Open Review for technical details.";
+      }
+    }
     render();
   }
 
@@ -1803,7 +1820,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
     await signTransactionContext(context);
     await sendTransactionContext(context);
     setStatusMessage(STATUS_DONE, false);
-    setGuiMode("review");
+    setGuiMode("send");
 
     return context;
   }
