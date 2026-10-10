@@ -2380,7 +2380,6 @@
         updateHeaderIdentity();
       });
       sendCurrency.addEventListener("change", syncCurrency);
-      syncCurrency();
     }
     const identityName = document.getElementById("headerIdentityName");
     const identityBalance = document.getElementById("headerIdentityBalance");
@@ -2403,6 +2402,7 @@
     };
     if (account) new MutationObserver(updateHeaderIdentity).observe(account,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden"]});
     updateHeaderIdentity();
+    if (headerCurrency && sendCurrency) { headerCurrency.value = sendCurrency.value; updateHeaderIdentity(); }
     const appMenu = document.getElementById("appMenu");
     if (appMenu) {
       appMenu.querySelectorAll("[data-mode-target]").forEach(button => {
