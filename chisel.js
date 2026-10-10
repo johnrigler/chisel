@@ -973,25 +973,57 @@
     async function broadcastRawTransactionWithReport(rawHex, options) {
       const opts = options || {};
       const providerNames = getProviderNames(opts);
+      const timeoutMs = Math.max(1000, Number(opts.broadcastTimeoutMs) || 12000);
       const reports = [];
 
+      // Unlike UTXO reads, broadcasting has side effects. A timeout gives
+      // an UNKNOWN result: do not automatically submit to another provider.
       for (let i = 0; i < providerNames.length; i += 1) {
-        const provider = getProvider(providerNames[i], opts);
-
+        const name = providerNames[i];
+        let provider;
+        try {
+          provider = getProvider(name, opts);
+        } catch (error) {
+          reports.push({ provider: name, ok: false, error: error.message || String(error) });
+          continue;
+        }
         if (typeof provider.broadcastRawTransaction !== "function") {
           reports.push({ provider: provider.NAME, ok: false, error: "Provider has no broadcastRawTransaction()." });
           continue;
         }
-
+        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        let timeoutId;
+        const timedOptions = Object.assign({}, opts, controller ? { signal: controller.signal } : {});
         try {
-          const result = await provider.broadcastRawTransaction(rawHex, opts);
-
+          const result = await Promise.race([
+            Promise.resolve().then(function submit() {
+              return provider.broadcastRawTransaction(rawHex, timedOptions);
+            }),
+            new Promise(function timeout(resolve, reject) {
+              timeoutId = setTimeout(function timedOut() {
+                if (controller) controller.abort();
+                const error = new Error("Broadcast outcome UNKNOWN: " + provider.NAME +
+                  " did not respond within " + timeoutMs +
+                  "ms. Check the address or transaction in an explorer before attempting another send.");
+                error.broadcastOutcomeUnknown = true;
+                reject(error);
+              }, timeoutMs);
+            })
+          ]);
           reports.push({ provider: provider.NAME, ok: true, result: result });
+          return CHISEL.firstSuccessfulProviderResult(reports);
         } catch (error) {
           reports.push({ provider: provider.NAME, ok: false, error: error.message || String(error) });
+          if (error.broadcastOutcomeUnknown || (error.name === "AbortError")) {
+            const uncertain = new Error(error.message || "Broadcast outcome UNKNOWN; inspect the network before retrying.");
+            uncertain.broadcastOutcomeUnknown = true;
+            uncertain.attemptedProviders = CHISEL.providerAttemptSummary(reports);
+            throw uncertain;
+          }
+        } finally {
+          clearTimeout(timeoutId);
         }
       }
-
       return CHISEL.firstSuccessfulProviderResult(reports);
     }
 
