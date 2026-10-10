@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.31";
+  const APP_VERSION = "2.7.31B";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -970,6 +970,26 @@ function setCurrencyForm() {
   render();
 }
 
+  // Diagnostics are metadata-only. Never send WIFs, addresses, signed hex,
+  // transaction payloads, or arbitrary provider error text to FileProxy.
+  function logSafeSendStage(stage, outcome) {
+    const checkbox = document.querySelector("#fileProxyDiagnostics");
+    if (!checkbox || !checkbox.checked) return;
+    const allowed = ["utxo-request", "broadcast-start", "broadcast-ok", "broadcast-error"];
+    if (!allowed.includes(stage)) return;
+    const field = document.querySelector("#portalFileProxyUrl");
+    const base = String(field && field.value || "https://rigler.org/fileproxy").replace(/\\/$/, "");
+    if (!/^https:\/\//i.test(base)) return;
+    const record = { app: "chisel", version: APP_VERSION, stage: stage, outcome: outcome === "error" ? "error" : "info", at: new Date().toISOString() };
+    const filename = "chisel-diagnostics/" + Date.now() + "-" + Math.random().toString(36).slice(2, 10) + ".json";
+    const controller = new AbortController();
+    const timer = setTimeout(function () { controller.abort(); }, 3500);
+    fetch(base + "/save?filename=" + encodeURIComponent(filename), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record), signal: controller.signal
+    }).catch(function () {}).finally(function () { clearTimeout(timer); });
+  }
+
   function setStatusMessage(message, isError) {
     state.status = message;
     state.isError = Boolean(isError);
@@ -1661,6 +1681,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
     });
 
     setStatusMessage("Fetching UTXOs for " + account.address + (coin.USES_THIRD_PARTY_PROVIDERS ? " via providers..." : "..."), false);
+    logSafeSendStage("utxo-request", "info");
     const rawUtxos = await coin.getAddressUtxos(client, values, account.address);
     const utxos = rawUtxos.map(CHISEL.normalizeUTXO);
     setUtxoData(utxos);
@@ -1763,7 +1784,15 @@ function getMinimumRequiredFeeUnits(coin, values) {
 
   async function sendTransactionContext(context) {
     setStatusMessage(context.coin.USES_THIRD_PARTY_PROVIDERS ? "Broadcasting signed transaction through providers..." : "Broadcasting signed transaction...", false);
-    const sendResult = await context.coin.sendRawTransaction(context.client, context.values, context.signedHex);
+    logSafeSendStage("broadcast-start", "info");
+    let sendResult;
+    try {
+      sendResult = await context.coin.sendRawTransaction(context.client, context.values, context.signedHex);
+      logSafeSendStage("broadcast-ok", "info");
+    } catch (error) {
+      logSafeSendStage("broadcast-error", "error");
+      throw error;
+    }
     setSendResultData(sendResult);
 
     return context;
