@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.31E";
+  const APP_VERSION = "2.7.31F";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -978,7 +978,7 @@ function setCurrencyForm() {
     const allowed = ["utxo-request", "broadcast-start", "broadcast-ok", "broadcast-error"];
     if (!allowed.includes(stage)) return;
     const field = document.querySelector("#portalFileProxyUrl");
-    const base = String(field && field.value || "https://rigler.org/fileproxy").replace(/\\/$/, "");
+    const base = String(field && field.value || "https://rigler.org/fileproxy").replace(/\/$/, "");
     if (!/^https:\/\//i.test(base)) return;
     const record = { app: "chisel", version: APP_VERSION, stage: stage, outcome: outcome === "error" ? "error" : "info", at: new Date().toISOString() };
     const filename = "chisel-diagnostics/" + Date.now() + "-" + Math.random().toString(36).slice(2, 10) + ".json";
