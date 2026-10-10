@@ -1554,6 +1554,19 @@
     .activityControls button { padding:5px 9px; font-size:11px; }
     .activityTrace { max-height:200px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:11px; line-height:1.4; color:#d7e2ee; margin:10px 0 0; }
 
+    .headerBrand { flex:0 0 auto; min-width:0; }
+    .headerIdentity { margin-left:auto; min-width:0; display:grid; gap:2px; text-align:right; font-size:12px; }
+    .headerIdentityName { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:25ch; color:#e6edf3; font-weight:700; }
+    .headerIdentityBalance { white-space:nowrap; font-size:11px; color:#91a4b7; }
+    .headerIcon { flex:0 0 auto; width:34px; height:34px; display:grid; place-items:center; text-decoration:none; font-size:20px; background:#1d2630; color:#e6edf3; border:1px solid #344150; border-radius:9px; }
+    #identityMenuMount { min-width:0; display:grid; gap:9px; }
+    #identityMenuMount .portalPersonalAccount { padding:9px; }
+    #identityMenuMount .portalPersonalAccountAddress { font-size:11px; }
+    #identityMenuMount .actions { display:flex; flex-wrap:wrap; gap:6px; }
+    #identityMenuMount .actions button, #identityMenuMount .actions a { font-size:11px; padding:7px; }
+    .identityMenuActions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .identityMenuActions a { color:#e6edf3; padding:9px; border:1px solid #344150; border-radius:8px; text-decoration:none; font-size:12px; text-align:center; }
+    @media(max-width:600px) { .topBar {gap:5px;} .headerBrand h1 {font-size:17px;} .headerBrand p {font-size:10px;} .headerIdentityName {max-width:115px;} .headerIcon {width:31px;height:32px;font-size:17px;} }
     .topBar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .appMenu { position:relative; border:0; padding:0; z-index:100; }
     .appMenu > summary { list-style:none; cursor:pointer; border:1px solid #344150; background:#1d2630; border-radius:10px; font-size:23px; width:45px; height:43px; display:grid; place-items:center; }
@@ -1569,13 +1582,19 @@
     #fileProxyMenuMount input { max-width:100%; }
     @media (max-width:600px) { header .shell { padding:12px 16px; } .appMenuContents { right:-4px; } }
   </style>
-  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261009H" />
+  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261009I" />
 </head>
 <body data-mode="portal">
   <header>
     <div class="shell">
       <div class="topBar">
-        <div><h1>Chisel</h1><p id="version" class="muted"></p></div>
+        <div class="headerBrand"><h1>Chisel</h1><p id="version" class="muted"></p></div>
+        <div class="headerIdentity" id="headerIdentity" title="Current public identity; open menu for account actions">
+          <span class="headerIdentityName" id="headerIdentityName">Public viewer</span>
+          <span class="headerIdentityBalance" id="headerIdentityBalance">Balance: —</span>
+        </div>
+        <a class="headerIcon" href="tools/recorder/index.html?scanMode=artifact1&amp;currency=litecoin" aria-label="Scan public page sticker" title="Scan public page sticker">▣</a>
+        <a class="headerIcon" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin" aria-label="Load owner identity using four key stickers" title="Load identity">♙</a>
         <details class="appMenu" id="appMenu">
           <summary aria-label="Open application menu" title="Menu">☰</summary>
           <div class="appMenuContents">
@@ -1591,6 +1610,8 @@
               </div>
               <pre id="activityTrace" class="activityTrace" aria-label="Application activity log"></pre>
             </details>
+            <strong>Identity and pages</strong>
+            <div id="identityMenuMount"></div>
             <strong>FileProxy</strong>
             <label class="menuCheck"><input type="checkbox" id="fileProxyDiagnostics"> Save non-sensitive Send diagnostics (opt-in)</label>
             <div id="fileProxyMenuMount"></div>
@@ -1962,20 +1983,6 @@
 
 
     <section class="modePanel" data-mode-panel="portal">
-      <section class="panel hero">
-        <h2>Open a Chisel page</h2>
-        <p class="muted">You do not have to log in just to read. The fifth sticker is the public shorthand for a page. Scan that one sticker to resolve its ledger index and open whatever is already attached to it. Scan the four private stickers on the back only when you want Chisel to recognize you as the owner and let you add records.</p>
-        <div class="toolGrid">
-          <a class="toolCard" href="tools/recorder/index.html?scanMode=artifact1&amp;currency=litecoin">
-            <strong>Scan one page sticker</strong>
-            <span>Public path. Scan sticker 5, derive its Litecoin index address, and open the page if it already exists. This is the normal Alaskan K9 Blessing-style entry path and does not load a private key.</span>
-          </a>
-          <a class="toolCard" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin">
-            <strong>Open as the owner</strong>
-            <span>Control path. Scan the four private fragments from the back of the booklet. Chisel derives the identity, returns here to Portal, and keeps Send as the transaction-writing tool rather than the login screen.</span>
-          </a>
-        </div>
-      </section>
       <section class="portalExplorerShell">
         <section class="panel portalDetailGrid portalLegacyViewport" aria-hidden="true">
           <div class="portalSelectedHeader">
@@ -2341,6 +2348,35 @@
       const summary = proxySettings.querySelector("summary");
       if (summary) summary.textContent = "Storage, providers and cache settings";
     }
+    // Reparent, never clone: existing Portal listeners and IDs remain valid.
+    const identityMount = document.getElementById("identityMenuMount");
+    const account = document.getElementById("portalPersonalAccount");
+    if (identityMount) {
+      const shortcuts = document.createElement("div");
+      shortcuts.className = "identityMenuActions";
+      shortcuts.innerHTML = '<a href="tools/recorder/index.html?scanMode=artifact1&amp;currency=litecoin">▣ Scan page</a><a href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin">♙ Load identity</a>';
+      identityMount.appendChild(shortcuts);
+      if (account) identityMount.appendChild(account);
+    }
+    const identityName = document.getElementById("headerIdentityName");
+    const identityBalance = document.getElementById("headerIdentityBalance");
+    const updateHeaderIdentity = function () {
+      if (!account || account.hidden) {
+        identityName.textContent = "Public viewer";
+        identityBalance.textContent = "Balance: —";
+        return;
+      }
+      const coin = document.getElementById("portalPersonalAccountCoin");
+      const address = document.getElementById("portalPersonalAccountAddress");
+      const label = document.getElementById("portalPersonalAccountLabel");
+      const addr = address && address.textContent.trim();
+      const display = label && label.textContent.trim();
+      identityName.textContent = (coin && coin.textContent.trim() || "") + " · " + (addr ? addr.slice(0,6) + "…" + addr.slice(-4) : display || "Identity");
+      identityName.title = addr || display || "";
+      identityBalance.textContent = "Balance: —";
+    };
+    if (account) new MutationObserver(updateHeaderIdentity).observe(account,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden"]});
+    updateHeaderIdentity();
     const appMenu = document.getElementById("appMenu");
     if (appMenu) {
       appMenu.querySelectorAll("[data-mode-target]").forEach(button => {
@@ -2451,7 +2487,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20261009H"></script>
+  <script src="app.js?rev=20261009I"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
