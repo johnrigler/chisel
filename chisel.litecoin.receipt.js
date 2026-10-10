@@ -66,15 +66,17 @@
     let panel = document.getElementById(PANEL_ID);
     if (panel) return panel;
 
+    const sendConfirmation = document.getElementById("sendConfirmation");
     const sendResult = document.getElementById("sendResultJson");
-    if (!sendResult || !sendResult.parentNode) return null;
+    const host = sendConfirmation || (sendResult && sendResult.parentNode);
+    if (!host) return null;
 
     panel = document.createElement("div");
     panel.id = PANEL_ID;
     panel.className = "compactHint";
     panel.style.marginTop = "12px";
     panel.style.whiteSpace = "normal";
-    sendResult.parentNode.appendChild(panel);
+    host.appendChild(panel);
     return panel;
   }
 
