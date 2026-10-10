@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.31N";
+  const APP_VERSION = "2.7.31O";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -2407,6 +2407,8 @@ function onClickAddCommonAddressButton() {
     const coin = getCoin();
     const wif = await privateKeyHexToWifForCoin(privateKeyHex, coin, true);
     const account = await coin.wifToAccount(wif);
+
+    if (getCoin().NAME !== coin.NAME || state.identityPrivateKeyHex !== privateKeyHex) return false;
 
     elems.senderWif.value = wif;
     setInputValue(elems.senderAddress, account.compressedAddress || account.address);
