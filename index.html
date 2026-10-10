@@ -2372,11 +2372,12 @@
     const headerCurrency = document.getElementById("headerCurrency");
     const sendCurrency = document.getElementById("currency");
     if (headerCurrency && sendCurrency) {
-      const syncCurrency = function () { headerCurrency.value = sendCurrency.value; };
+      const syncCurrency = function () { headerCurrency.value = sendCurrency.value; if (typeof updateHeaderIdentity === "function") updateHeaderIdentity(); };
       headerCurrency.addEventListener("change", function () {
         sendCurrency.value = headerCurrency.value;
         sendCurrency.dispatchEvent(new Event("change", { bubbles: true }));
         if (window.chiselActivity) window.chiselActivity("Currency", "Selected " + headerCurrency.selectedOptions[0].textContent + " for Send");
+        updateHeaderIdentity();
       });
       sendCurrency.addEventListener("change", syncCurrency);
       syncCurrency();
@@ -2515,6 +2516,6 @@
 </script>
 
   <script src="app.js?rev=20261009K"></script>
-  <script src="chisel.selftest.js?rev=20260906b"></script>
+  <script src="chisel.selftest.js?rev=20261009L"></script>
 </body>
 </html>
