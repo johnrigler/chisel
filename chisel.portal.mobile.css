@@ -288,3 +288,52 @@
   .portalInlineDetails, .portalExpandedBody, .portalInlineImageSide { min-width:0; max-width:100%; }
   .portalExpandedBody { grid-template-columns:minmax(0,1fr); }
 }
+
+/* 2.7.31J portrait rows: thumbnail spans metadata and descriptor lines. */
+@media(max-width:760px) {
+  .portalStreamRow,
+  .portalStreamItem:not(.isExpanded) .portalStreamRow,
+  .portalStreamItem.isExpanded .portalStreamRow {
+    display:grid;
+    grid-template-columns:18px 76px minmax(0,1fr) auto;
+    grid-template-areas:
+      "toggle thumb time coin"
+      "toggle thumb title title";
+    gap:3px 7px;
+    align-items:center;
+    min-height:55px;
+    width:100%;
+    padding:6px 7px;
+  }
+  .portalStreamRow > .portalExpandButton {
+    grid-area:toggle; width:18px; height:28px; font-size:15px;
+    align-self:center; background:transparent; border:0; padding:0;
+  }
+  .portalStreamRow > .portalStreamThumb {
+    grid-area:thumb; width:76px; max-width:76px; height:46px; max-height:46px;
+    min-height:0; margin:0; display:flex; justify-content:center; align-items:center;
+  }
+  .portalStreamRow > .portalStreamThumb.isEmpty { display:block; visibility:hidden; }
+  .portalStreamRow > .portalStreamThumb .portalStreamThumbImage,
+  .portalStreamRow > .portalStreamThumb .portalStreamThumbCanvas {
+    max-width:76px; max-height:46px; width:auto; height:auto; object-fit:contain;
+  }
+  .portalStreamRow > .portalStreamTime {
+    grid-area:time; font-size:10px; line-height:1.25; overflow:hidden;
+    white-space:nowrap; min-width:0;
+  }
+  .portalStreamRow > .portalStreamCoin { grid-area:coin; justify-self:end; font-size:10px; }
+  .portalStreamRow > .portalStreamTitle {
+    grid-area:title; font-size:12px; line-height:1.3; min-width:0;
+    white-space:normal; overflow-wrap:anywhere; overflow:visible;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .portalStreamItem.isExpanded .portalStreamRow {
+    grid-template-areas:
+      "toggle thumb time coin"
+      "toggle thumb title title";
+  }
+  .portalStreamItem.isExpanded .portalStreamRow > .portalStreamVerify { display:none; }
+  .portalStreamPanel, .portalTransactionList, .portalStreamItem, .portalStreamRow { min-width:0; }
+  .portalFilterBar { overflow-wrap:anywhere; }
+}
