@@ -1,7 +1,7 @@
 /* Chisel diagnostics: public metadata only. No form values, URLs, key material, or response bodies. */
 (function () {
   "use strict";
-  const MAX=1000, KEY="chisel.debug.events.v1";
+  const MAX=1000, KEY="chisel.debug.events.v1", RELEASE="20261009P";
   let events=[];
   try { const saved=JSON.parse(sessionStorage.getItem(KEY)||"[]"); if(Array.isArray(saved)) events=saved.slice(-MAX); } catch (_) {}
   const sensitive=/\b(?:[KL5][1-9A-HJ-NP-Za-km-z]{48,52}|(?:0x)?[0-9a-fA-F]{64,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;
@@ -30,6 +30,14 @@
     });
     return {viewportWidth:w,documentWidth:document.documentElement.scrollWidth,offenders:found};
   }
+  function scripts() {
+    return Array.from(document.scripts).filter(s=>s.src).map(s=>{
+      const u=new URL(s.src,location.href);
+      const entry=performance.getEntriesByName(s.src).slice(-1)[0];
+      return {file:u.pathname.split("/").pop(),rev:u.searchParams.get("rev")||null,
+        loaded:!!entry,bytes:entry && typeof entry.transferSize==="number"?entry.transferSize:null};
+    });
+  }
   function snapshot() {
     const coin=document.getElementById("headerCurrency");
     const mode=document.body && document.body.dataset.mode || "unknown";
@@ -37,12 +45,12 @@
     const balance=document.getElementById("headerIdentityBalance");
     const identity=document.getElementById("headerIdentityName");
     return {
-      schema:"chisel-debug-v1",exportedAt:new Date().toISOString(),
+      schema:"chisel-debug-v2",exportedAt:new Date().toISOString(),release:RELEASE,
       version:clean(v && v.textContent),mode:clean(mode),selectedCurrency:coin?clean(coin.value):null,
       identityLabel:identity?clean(identity.textContent).replace(/\b[A-Za-z0-9]{15,}\b/g,"[account]"):null,
       balanceState:balance ? (/\d/.test(balance.textContent)?"populated":"pending") : "unavailable",
       environment:{userAgent:navigator.userAgent,screen:{width:screen.width,height:screen.height},viewport:{width:innerWidth,height:innerHeight,devicePixelRatio:devicePixelRatio}},
-      layout:overflow(),events:events.slice()
+      assetManifest:scripts(),viewportMeta:document.querySelector('meta[name="viewport"]')?.content||null,\n      historyNote:"events may span multiple reloads in this browser tab; use boot timestamps to separate sessions",\n      layout:overflow(),events:events.slice()
     };
   }
   function download() {
