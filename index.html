@@ -1550,15 +1550,41 @@
     #activityHealth { flex:1; color:#91a4b7; font-size:12px; }
     .activityControls button { padding:5px 9px; font-size:11px; }
     .activityTrace { max-height:200px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:11px; line-height:1.4; color:#d7e2ee; margin:10px 0 0; }
+
+    .topBar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .appMenu { position:relative; border:0; padding:0; z-index:100; }
+    .appMenu > summary { list-style:none; cursor:pointer; border:1px solid #344150; background:#1d2630; border-radius:10px; font-size:23px; width:45px; height:43px; display:grid; place-items:center; }
+    .appMenu > summary::-webkit-details-marker { display:none; }
+    .appMenuContents { position:absolute; top:calc(100% + 8px); right:0; width:min(94vw,420px); max-height:min(76vh,760px); overflow:auto; padding:14px; border:1px solid #344150; border-radius:12px; background:#11161c; box-shadow:0 16px 50px #000b; display:grid; gap:10px; }
+    .appMenuContents > strong { font-size:12px; color:#91a4b7; text-transform:uppercase; }
+    .appMenuContents > button { text-align:left; }
+    .menuCheck { padding:6px 0; line-height:1.4; font-size:12px; display:flex; gap:8px; align-items:flex-start; }
+    .menuCheck input { width:auto; margin-top:3px; }
+    #fileProxyMenuMount { min-width:0; }
+    #fileProxyMenuMount #filePortalSettings { display:block; padding:9px; min-height:0; background:#0a0f14; }
+    #fileProxyMenuMount .portalIndexBar, #fileProxyMenuMount .portalControls { display:grid; grid-template-columns:1fr; min-width:0; }
+    #fileProxyMenuMount input { max-width:100%; }
+    @media (max-width:600px) { header .shell { padding:12px 16px; } .appMenuContents { right:-4px; } }
   </style>
   <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20260906b" />
 </head>
 <body data-mode="portal">
   <header>
     <div class="shell">
-      <h1>Chisel</h1>
-      <p id="version" class="muted"></p>
-      <label class="inlineOption compactOption" style="font-size:12px"><input type="checkbox" id="fileProxyDiagnostics"> Save non-sensitive send-stage diagnostics to FileProxy (opt-in)</label>
+      <div class="topBar">
+        <div><h1>Chisel</h1><p id="version" class="muted"></p></div>
+        <details class="appMenu" id="appMenu">
+          <summary aria-label="Open application menu" title="Menu">☰</summary>
+          <div class="appMenuContents">
+            <strong>Navigation</strong>
+            <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
+            <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
+            <strong>FileProxy</strong>
+            <label class="menuCheck"><input type="checkbox" id="fileProxyDiagnostics"> Save non-sensitive Send diagnostics (opt-in)</label>
+            <div id="fileProxyMenuMount"></div>
+          </div>
+        </details>
+      </div>
     </div>
   </header>
 
@@ -1568,8 +1594,6 @@
         <button class="modeButton active" type="button" data-mode-target="portal">Portal</button>
         <button class="modeButton" type="button" data-mode-target="send">Send</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
-        <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
-        <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
       </div>
       <details id="activityPanel" class="activityPanel" open>
         <summary><strong>Activity</strong> <span id="activityCurrent" role="status" aria-live="polite">Starting Chisel...</span></summary>
@@ -2304,6 +2328,27 @@
   <script>
   /* Always-on navigation and diagnostics, independent of app.js initialization. */
   (function () {
+    // Move the existing FileProxy settings rather than cloning IDs or creating duplicate state.
+    const mount = document.getElementById("fileProxyMenuMount");
+    const proxySettings = document.getElementById("filePortalSettings");
+    if (mount && proxySettings) {
+      mount.appendChild(proxySettings);
+      proxySettings.open = false;
+      const summary = proxySettings.querySelector("summary");
+      if (summary) summary.textContent = "Storage, providers and cache settings";
+    }
+    const appMenu = document.getElementById("appMenu");
+    if (appMenu) {
+      appMenu.querySelectorAll("[data-mode-target]").forEach(button => {
+        button.addEventListener("click", () => { appMenu.open = false; });
+      });
+      document.addEventListener("pointerdown", event => {
+        if (appMenu.open && !appMenu.contains(event.target)) appMenu.open = false;
+      });
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape") appMenu.open = false;
+      });
+    }
     const trace = [];
     const current = document.getElementById("activityCurrent");
     const output = document.getElementById("activityTrace");
@@ -2381,7 +2426,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20261009D"></script>
+  <script src="app.js?rev=20261009E"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
