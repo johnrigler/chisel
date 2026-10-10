@@ -1584,7 +1584,7 @@
     #fileProxyMenuMount input { max-width:100%; }
     @media (max-width:600px) { header .shell { padding:12px 16px; } .appMenuContents { right:-4px; } }
   </style>
-  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261009J" />
+  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261009K" />
 </head>
 <body data-mode="portal">
   <header>
@@ -1619,6 +1619,8 @@
               </div>
               <pre id="activityTrace" class="activityTrace" aria-label="Application activity log"></pre>
             </details>
+            <strong>Diagnostics</strong>
+            <div class="activityControls"><button type="button" class="secondaryButton" id="downloadDebugJson">DOWNLOAD DEBUG JSON</button><button type="button" class="secondaryButton" id="clearDebugJson">CLEAR DEBUG HISTORY</button></div>
             <strong>Identity and pages</strong>
             <div id="identityMenuMount"></div>
             <strong>FileProxy</strong>
@@ -2419,6 +2421,7 @@
     const safe = value => String(value == null ? "" : value).replace(/(?:[KL5][1-9A-HJ-NP-Za-km-z]{48,52}|[0-9a-fA-F]{64,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))/g,"[redacted]").slice(0,220);
     window.chiselActivity = function (source, message, level) {
       const item = new Date().toLocaleTimeString() + " [" + safe(source) + "] " + safe(message);
+      if(window.CHISEL_DIAGNOSTICS) window.CHISEL_DIAGNOSTICS.record("activity."+source, /^(Send|JavaScript|Initialization|Broadcast|Navigation|Boot|FileProxy|Portal)$/.test(source) ? safe(message) : "State update");
       trace.push(item); if (trace.length > 200) trace.shift();
       const src = safe(source);
       const msg = safe(message);
@@ -2487,6 +2490,7 @@
     });
   })();
   </script>
+  <script src="chisel.debug.js?rev=20261009K"></script>
   <script src="vendor/qrcode.min.js?rev=20260911b"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20260927a"></script>
   <script src="chisel.js?rev=20261009B"></script>
@@ -2510,7 +2514,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20261009J"></script>
+  <script src="app.js?rev=20261009K"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
