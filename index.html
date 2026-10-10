@@ -1543,6 +1543,13 @@
         display: none;
       }
     }
+    .activityPanel { border:1px solid #344150; border-radius:10px; padding:10px; background:#080c10; min-width:0; }
+    .activityPanel summary { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    #activityCurrent { color:#ffd166; overflow-wrap:anywhere; font-size:12px; }
+    .activityControls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding-top:10px; }
+    #activityHealth { flex:1; color:#91a4b7; font-size:12px; }
+    .activityControls button { padding:5px 9px; font-size:11px; }
+    .activityTrace { max-height:200px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:11px; line-height:1.4; color:#d7e2ee; margin:10px 0 0; }
   </style>
   <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20260906b" />
 </head>
@@ -1564,6 +1571,15 @@
         <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
         <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
       </div>
+      <details id="activityPanel" class="activityPanel" open>
+        <summary><strong>Activity</strong> <span id="activityCurrent" role="status" aria-live="polite">Starting Chisel...</span></summary>
+        <div class="activityControls">
+          <span id="activityHealth">Checking components...</span>
+          <button type="button" class="secondaryButton" id="activityCopy">COPY LOG</button>
+          <button type="button" class="secondaryButton" id="activityClear">CLEAR</button>
+        </div>
+        <pre id="activityTrace" class="activityTrace" aria-label="Application activity log"></pre>
+      </details>
       <div class="compactHint" id="modeHint">Portal is the default entry point. Scan one public page sticker to open a page; scan the four private stickers only when you want to act as its owner.</div>
     </section>
 
@@ -2285,6 +2301,64 @@
     </div>
   </dialog>
 
+  <script>
+  /* Always-on navigation and diagnostics, independent of app.js initialization. */
+  (function () {
+    const trace = [];
+    const current = document.getElementById("activityCurrent");
+    const output = document.getElementById("activityTrace");
+    const health = document.getElementById("activityHealth");
+    const safe = value => String(value == null ? "" : value).replace(/(?:[KL5][1-9A-HJ-NP-Za-km-z]{48,52}|[0-9a-fA-F]{64,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))/g,"[redacted]").slice(0,220);
+    window.chiselActivity = function (source, message, level) {
+      const item = new Date().toLocaleTimeString() + " [" + safe(source) + "] " + safe(message);
+      trace.push(item); if (trace.length > 200) trace.shift();
+      current.textContent = safe(source) + ": " + safe(message);
+      output.textContent = trace.join("\n");
+      output.scrollTop = output.scrollHeight;
+      if(level === "error") current.style.color="#ff7b7b";
+      else current.style.color="#ffd166";
+      /* No private material, URLs or arbitrary exception strings are persisted. */
+    };
+    document.getElementById("activityCopy").onclick = function () {
+      if(navigator.clipboard) navigator.clipboard.writeText(trace.join("\n")).catch(()=>{});
+    };
+    document.getElementById("activityClear").onclick = function () {
+      trace.length=0; output.textContent=""; current.textContent="Log cleared";
+    };
+    document.querySelectorAll("[data-mode-target]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        if(typeof window.setGuiMode === "function") return;
+        const mode=button.dataset.modeTarget;
+        document.body.dataset.mode=mode;
+        document.querySelectorAll("[data-mode-target]").forEach(b=>b.classList.toggle("active",b===button));
+        window.chiselActivity("Navigation",mode+" (standalone fallback)");
+      });
+    });
+    window.addEventListener("error", function (e) {
+      window.chiselActivity("JavaScript","Script error; inspect developer console","error");
+    });
+    window.addEventListener("unhandledrejection", function () {
+      window.chiselActivity("JavaScript","Unhandled asynchronous failure","error");
+    });
+    const observer = new MutationObserver(function () {
+      const p=document.getElementById("portalStatus");
+      if(p && p.textContent && p.textContent !== observer.last) {
+        observer.last=p.textContent;
+        /* Portal may include addresses: report category, not arbitrary content. */
+        window.chiselActivity("Portal",/error|fail|unavailable/i.test(p.textContent)?"Load failed":/loading|fetch/i.test(p.textContent)?"Loading":/loaded|found|records/i.test(p.textContent)?"Response received":"Status changed");
+      }
+    });
+    const portal=document.getElementById("portalStatus");
+    if(portal) observer.observe(portal,{subtree:true,childList:true,characterData:true});
+    window.chiselActivity("Boot","UI available; loading scripts");
+    window.addEventListener("load",function () {
+      const pieces=[["Core",!!window.CHISEL],["Send",typeof window.runBuildSignDecodeSend==="function"],["Portal",!!window.CHISEL_PORTAL || !!document.getElementById("portalStatus")]];
+      pieces.forEach(([name,ok])=>window.chiselActivity(name,ok?"Initialized":"Unavailable",ok?"info":"error"));
+      health.textContent=pieces.map(([name,ok])=>name+": "+(ok?"ready":"unavailable")).join(" · ")+" · FileProxy: not tested";
+      window.chiselActivity("FileProxy","Not tested; optional service");
+    });
+  })();
+  </script>
   <script src="vendor/qrcode.min.js?rev=20260911b"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20260927a"></script>
   <script src="chisel.js?rev=20261009B"></script>
@@ -2307,7 +2381,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20261009C"></script>
+  <script src="app.js?rev=20261009D"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
