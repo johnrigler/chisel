@@ -2380,10 +2380,14 @@
       });
     });
     window.addEventListener("error", function (e) {
-      window.chiselActivity("JavaScript","Script error; inspect developer console","error");
-    });
-    window.addEventListener("unhandledrejection", function () {
-      window.chiselActivity("JavaScript","Unhandled asynchronous failure","error");
+      const file = e.filename ? e.filename.split("/").pop().split("?")[0] : "unknown script";
+      const where = e.lineno ? ":" + e.lineno + (e.colno ? ":" + e.colno : "") : "";
+      const detail = e.message || (e.error && e.error.name) || "Script load error";
+      window.chiselActivity("JavaScript",file + where + " " + detail,"error");
+    }, true);
+    window.addEventListener("unhandledrejection", function (e) {
+      const reason = e.reason;
+      window.chiselActivity("JavaScript","Promise: " + (reason && reason.message || reason && reason.name || "rejected"),"error");
     });
     const observer = new MutationObserver(function () {
       const p=document.getElementById("portalStatus");
@@ -2409,7 +2413,8 @@
   <script src="chisel.js?rev=20261009B"></script>
   <script src="chisel.unspendable.js?rev=20260906b"></script>
   <script src="chisel.image.js?rev=20260906b"></script>
-  <script src="chisel.sign.js?rev=20260906b"></script>\n  <script src="chisel.identity.js?rev=20261003c"></script>
+  <script src="chisel.sign.js?rev=20260906b"></script>
+  <script src="chisel.identity.js?rev=20261009F"></script>
   <script src="chisel.ravencoin.js?rev=20260906b"></script>
   <script src="chisel.digibyte.js?rev=20260906b"></script>
   <script src="chisel.litecoin.js?rev=20261009C"></script>
@@ -2426,7 +2431,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20261009E"></script>
+  <script src="app.js?rev=20261009F"></script>
   <script src="chisel.selftest.js?rev=20260906b"></script>
 </body>
 </html>
