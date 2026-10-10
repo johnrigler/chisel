@@ -2352,7 +2352,7 @@
     if(portal) observer.observe(portal,{subtree:true,childList:true,characterData:true});
     window.chiselActivity("Boot","UI available; loading scripts");
     window.addEventListener("load",function () {
-      const pieces=[["Core",!!window.CHISEL],["Send",typeof window.runBuildSignDecodeSend==="function"],["Portal",!!window.CHISEL_PORTAL || !!document.getElementById("portalStatus")]];
+      const pieces=[["Core",!!window.CHISEL],["Send",typeof window.runBuildSignDecodeSend==="function"],["Portal",!!window.CHISEL_PORTAL]];
       pieces.forEach(([name,ok])=>window.chiselActivity(name,ok?"Initialized":"Unavailable",ok?"info":"error"));
       health.textContent=pieces.map(([name,ok])=>name+": "+(ok?"ready":"unavailable")).join(" · ")+" · FileProxy: not tested";
       window.chiselActivity("FileProxy","Not tested; optional service");
