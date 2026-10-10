@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.7.31Q";
+  const APP_VERSION = "2.7.31R";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -1589,6 +1589,20 @@ function clearOutputs() {
       render();
     }
   }
+
+  // Read-only balance lookup for the account shown in the header. No signing or broadcasting.
+  window.CHISEL_LOOKUP_BALANCE = async function (currencyKey, address) {
+    const coin = CHISEL.getCoin(currencyKey);
+    if (!coin || typeof coin.getAddressUtxos !== "function") throw new Error("Balance provider unavailable");
+    if (!address || address.length < 24) throw new Error("No complete public address");
+    const values = getTransportValues();
+    validateTransportValues(coin,values);
+    const client = await makeClientForValues(coin,values);
+    const raw = await coin.getAddressUtxos(client,values,address);
+    const utxos = (raw || []).map(CHISEL.normalizeUTXO);
+    return {amount:coin.unitsToCoin(CHISEL.sumUtxoSatoshis(utxos)).toFixed(8),ticker:coin.TICKER,utxoCount:utxos.length};
+  };
+  window.dispatchEvent(new Event("chisel:balance-api-ready"));
 
   function startReceiveMonitor() {
     const address = elems.senderAddress ? elems.senderAddress.value.trim() : "";
