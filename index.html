@@ -2401,24 +2401,49 @@
       const normalizedAccount = accountCoin.toLowerCase().replace(/[^a-z0-9]/g, "");
       const aliases = {digibyte:["dgb","digibyte"],litecoin:["ltc","litecoin"],ravencoin:["rvn","ravencoin"],litecoinTestnet:["tltc","litecointestnet"]};
       const match = !!(aliases[selectedKey] && aliases[selectedKey].some(alias => normalizedAccount === alias || normalizedAccount.startsWith(alias+"account")));
-      if (accountCoin && !match) {
+      const signature = [selectedKey, accountCoin, addr, match].join("|");
+      if (updateHeaderIdentity.lastState === signature) return;
+      updateHeaderIdentity.lastState = signature;
+      const requestId = updateHeaderIdentity.requestId = (updateHeaderIdentity.requestId || 0) + 1;
+      window.CHISEL_DIAGNOSTICS?.record("identity.sync", "currency="+selectedKey+" accountCoin="+accountCoin+" matched="+match);
+      if (!accountCoin || !match) {
         identityName.textContent = "No " + sendCoin + " account selected";
-        identityName.title = accountCoin + " account available; switch currency to use it";
+        identityName.title = accountCoin ? accountCoin + " account available; switch currency to use it" : "No account loaded";
         identityBalance.textContent = "Balance: unavailable";
-      } else {
-        identityName.textContent = addr ? addr.slice(0,6) + "…" + addr.slice(-4) : display || "Identity";
-        identityName.title = addr || display || "";
+        window.CHISEL_DIAGNOSTICS?.record("balance.state", "unavailable: currency/account mismatch");
+        return;
+      }
+      identityName.textContent = addr ? addr.slice(0,6) + "…" + addr.slice(-4) : display || "Identity";
+      identityName.title = addr || display || "";
+      identityBalance.textContent = "Balance: loading";
+      const lookup = window.CHISEL_LOOKUP_BALANCE;
+      if (typeof lookup !== "function") {
         identityBalance.textContent = "Balance: not loaded";
+        window.CHISEL_DIAGNOSTICS?.record("balance.state", "lookup API not ready");
+        return;
       }
-      const state = [selectedKey, accountCoin, match, identityName.textContent].join("|");
-      if (updateHeaderIdentity.lastState !== state) {
-        updateHeaderIdentity.lastState = state;
-        window.CHISEL_DIAGNOSTICS?.record("identity.sync", "currency="+selectedKey+" accountCoin="+accountCoin+" matched="+match);
-        window.CHISEL_DIAGNOSTICS?.record("balance.state", match ? "not loaded: no balance lookup connected to header" : "unavailable: no matching currency account");
-      }
+      const started = performance.now();
+      window.CHISEL_DIAGNOSTICS?.record("balance.start", "currency="+selectedKey);
+      Promise.race([
+        lookup(selectedKey,addr),
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error("Balance request timeout")),12000))
+      ]).then(result=>{
+        if (updateHeaderIdentity.requestId !== requestId) return;
+        identityBalance.textContent = result.amount+" "+result.ticker;
+        window.CHISEL_DIAGNOSTICS?.record("balance.success", "currency="+selectedKey+" utxos="+result.utxoCount+" ms="+Math.round(performance.now()-started));
+      }).catch(error=>{
+        if (updateHeaderIdentity.requestId !== requestId) return;
+        identityBalance.textContent = "Balance: unavailable";
+        const reason = /timeout/i.test(error?.message||"") ? "timeout" : (error?.name||"lookup-error");
+        window.CHISEL_DIAGNOSTICS?.record("balance.failure", "currency="+selectedKey+" reason="+reason+" ms="+Math.round(performance.now()-started));
+      });
     };
     if (account) new MutationObserver(updateHeaderIdentity).observe(account,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden"]});
     updateHeaderIdentity();
+    window.addEventListener("chisel:balance-api-ready", function () {
+      updateHeaderIdentity.lastState = null;
+      updateHeaderIdentity();
+    });
     if (headerCurrency && sendCurrency) { headerCurrency.value = sendCurrency.value; updateHeaderIdentity(); }
     const appMenu = document.getElementById("appMenu");
     if (appMenu) {
@@ -2508,22 +2533,22 @@
     });
   })();
   </script>
-  <script src="chisel.debug.js?rev=20261009Q"></script>
-  <script src="vendor/qrcode.min.js?rev=20261009Q"></script>
-  <script src="vendor/html5-qrcode.min.js?rev=20261009Q"></script>
-  <script src="chisel.js?rev=20261009Q"></script>
-  <script src="chisel.unspendable.js?rev=20261009Q"></script>
-  <script src="chisel.image.js?rev=20261009Q"></script>
-  <script src="chisel.sign.js?rev=20261009Q"></script>
-  <script src="chisel.identity.js?rev=20261009Q"></script>
-  <script src="chisel.ravencoin.js?rev=20261009Q"></script>
-  <script src="chisel.digibyte.js?rev=20261009Q"></script>
-  <script src="chisel.litecoin.js?rev=20261009Q"></script>
-  <script src="chisel.thunderwords.js?rev=20261009Q"></script>
-  <script src="data-bundled/portal-starter.js?rev=20261009Q"></script>
-  <script src="chisel.portal.static-data.js?rev=20261009Q"></script>
-  <script src="chisel.portal.js?rev=20261009Q"></script>
-  <script src="fixtures/etch/etch-fixtures.js?rev=20261009Q"></script>
+  <script src="chisel.debug.js?rev=20261009R"></script>
+  <script src="vendor/qrcode.min.js?rev=20261009R"></script>
+  <script src="vendor/html5-qrcode.min.js?rev=20261009R"></script>
+  <script src="chisel.js?rev=20261009R"></script>
+  <script src="chisel.unspendable.js?rev=20261009R"></script>
+  <script src="chisel.image.js?rev=20261009R"></script>
+  <script src="chisel.sign.js?rev=20261009R"></script>
+  <script src="chisel.identity.js?rev=20261009R"></script>
+  <script src="chisel.ravencoin.js?rev=20261009R"></script>
+  <script src="chisel.digibyte.js?rev=20261009R"></script>
+  <script src="chisel.litecoin.js?rev=20261009R"></script>
+  <script src="chisel.thunderwords.js?rev=20261009R"></script>
+  <script src="data-bundled/portal-starter.js?rev=20261009R"></script>
+  <script src="chisel.portal.static-data.js?rev=20261009R"></script>
+  <script src="chisel.portal.js?rev=20261009R"></script>
+  <script src="fixtures/etch/etch-fixtures.js?rev=20261009R"></script>
 
  <script>
   window.CHISEL_DEBUG = {
@@ -2532,7 +2557,7 @@
   };
 </script>
 
-  <script src="app.js?rev=20261009Q"></script>
-  <script src="chisel.selftest.js?rev=20261009Q"></script>
+  <script src="app.js?rev=20261009R"></script>
+  <script src="chisel.selftest.js?rev=20261009R"></script>
 </body>
 </html>
