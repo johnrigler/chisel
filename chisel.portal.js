@@ -3898,7 +3898,9 @@
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "secondaryButton portalExpandButton";
-    toggle.textContent = state.expandedRowKeys[row.key] ? "−" : "+";
+    toggle.textContent = state.expandedRowKeys[row.key] ? "⌄" : "›";
+    toggle.setAttribute("aria-expanded", state.expandedRowKeys[row.key] ? "true" : "false");
+    toggle.setAttribute("aria-label", state.expandedRowKeys[row.key] ? "Collapse transaction details" : "Expand transaction details");
     toggle.title = state.expandedRowKeys[row.key] ? "collapse inline record" : "expand inline record";
     toggle.onclick = function (event) {
       event.preventDefault();
