@@ -48,7 +48,7 @@
       schema:"chisel-debug-v2",exportedAt:new Date().toISOString(),release:RELEASE,
       version:clean(v && v.textContent),mode:clean(mode),selectedCurrency:coin?clean(coin.value):null,
       identityLabel:identity?clean(identity.textContent).replace(/\b[A-Za-z0-9]{15,}\b/g,"[account]"):null,
-      balanceState:balance ? (/\d/.test(balance.textContent)?"populated":"pending") : "unavailable",
+      balanceState:balance ? (/\d/.test(balance.textContent)?"populated":(/unavailable/i.test(balance.textContent)?"unavailable":(/not loaded/i.test(balance.textContent)?"not-loaded":"pending"))) : "unavailable",
       environment:{userAgent:navigator.userAgent,screen:{width:screen.width,height:screen.height},viewport:{width:innerWidth,height:innerHeight,devicePixelRatio:devicePixelRatio}},
       assetManifest:scripts(),viewportMeta:document.querySelector('meta[name="viewport"]')?.content||null,
       historyNote:"events may span multiple reloads in this browser tab; use boot timestamps to separate sessions",
