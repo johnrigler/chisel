@@ -2421,7 +2421,7 @@
     const safe = value => String(value == null ? "" : value).replace(/(?:[KL5][1-9A-HJ-NP-Za-km-z]{48,52}|[0-9a-fA-F]{64,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))/g,"[redacted]").slice(0,220);
     window.chiselActivity = function (source, message, level) {
       const item = new Date().toLocaleTimeString() + " [" + safe(source) + "] " + safe(message);
-      if(window.CHISEL_DIAGNOSTICS) window.CHISEL_DIAGNOSTICS.record("activity."+source, /^(Send|JavaScript|Initialization|Broadcast|Navigation|Boot|FileProxy|Portal)$/.test(source) ? safe(message) : "State update");
+      if(window.CHISEL_DIAGNOSTICS) window.CHISEL_DIAGNOSTICS.record("activity."+source, /error|fail|reject|timeout|unavailable/i.test(String(message)) ? "Failure reported" : /broadcast/i.test(String(message)) ? "Broadcast stage" : /sign/i.test(String(message)) ? "Signing stage" : /load|fetch/i.test(String(message)) ? "Loading stage" : "State update");
       trace.push(item); if (trace.length > 200) trace.shift();
       const src = safe(source);
       const msg = safe(message);
