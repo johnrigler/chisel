@@ -1,7 +1,7 @@
 /* Chisel diagnostics: public metadata only. No form values, URLs, key material, or response bodies. */
 (function () {
   "use strict";
-  const MAX=1000, KEY="chisel.debug.events.v1", RELEASE="20261009Q";
+  const MAX=1000, KEY="chisel.debug.events.v1", RELEASE="20261009R";
   let events=[];
   try { const saved=JSON.parse(sessionStorage.getItem(KEY)||"[]"); if(Array.isArray(saved)) events=saved.slice(-MAX); } catch (_) {}
   const sensitive=/\b(?:[KL5][1-9A-HJ-NP-Za-km-z]{48,52}|(?:0x)?[0-9a-fA-F]{64,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;
