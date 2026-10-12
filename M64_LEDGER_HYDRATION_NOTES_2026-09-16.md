@@ -140,3 +140,43 @@ A separate data-contract design may place immutable payload bytes in **runtime b
 - Never execute hydrated source or bytecode from an untrusted record automatically; explicit validation, user opt-in, bounded resources and sandboxing are required.
 
 **Architectural principle:** Publish cheaply, discover by Chisel's on-chain index, hydrate and interpret off-chain, and invoke Solidity only when consensus-enforced execution is required.
+
+
+## Direct M64 instruction interpretation (2026-10-11 proposal)
+
+**Status: speculative design, not implemented.** This is an optional *executable profile* of M64, not a claim that the existing M64 encoding already defines an instruction language. Preserve the existing data/hydration format and backward compatibility; executable records must have an unambiguous format/version marker distinct from ordinary document records.
+
+### Concept: interpret without full hydration
+
+For a restricted command vocabulary, a Solidity interpreter can walk a compact M64-encoded instruction stream in **current-call calldata**. It reads a symbol/opcode, resolves its versioned definition, validates typed operands, performs an allowed action, and advances. It need not first expand the entire program into Solidity source, JSON, or EVM bytecode. This is *interpretation performed by a deployed EVM contract*, not native EVM execution of M64.
+
+Possible experimental operations: `LOOKUP` (resolve key to registered contract), `READ` (query an allowlisted interface), `COMPARE`, `VERIFY`, and `CALL` (call an explicitly permitted function). `TRANSFER` must have separate explicit wallet/contract authorization and spending constraints. Never permit raw arbitrary `CALL`/`DELEGATECALL` supplied by untrusted data.
+
+Example **illustrative semantics, not syntax or implementation**:
+
+```text
+LOOKUP JETHRO
+READ JETHRO SOME_KEY
+COMPARE RESULT >= LIMIT
+CALL GOMEZ APPROVED_ACTION
+```
+
+### Two interpreters, one specification
+
+- **Browser interpreter:** Vanilla JavaScript, IPFS/static-host compatible; can inspect/simulate commands, resolve Chisel's *on-chain* index, and show expected calls without signing or spending funds automatically.
+- **EVM interpreter:** Solidity contract accepts an executable-profile byte stream supplied in the *current* transaction, uses contract storage/registries and approved cross-contract calls, and enforces any financial consequences atomically on-chain.
+- Both need exactly specified opcode meanings, operand types, integer widths, overflow/rounding, byte order, string/bytes distinctions, lookup failure behavior, revert/error semantics, versioned symbol tables, and canonical encoding. JS simulation is informational; only EVM execution enforces consensus. Test both engines against identical known-answer fixtures.
+
+**Historical constraint:** A contract cannot pull an old transaction's calldata by hash. If a program was previously inscribed in a plain transaction, a client must supply it again to the EVM, or a contract must expose the bytes in current state/runtime code, or a proof/commitment verification design must be added. Never confuse client retrieval with trustless EVM access to history.
+
+### Minimal pilot and benchmarks
+
+1. Define a distinct versioned M64 executable envelope and a tiny read-only instruction set (`LOOKUP`, `READ`, `COMPARE`). Keep ordinary M64 document hydration unchanged.
+2. Build deterministic fixtures and a browser-side reference interpreter.
+3. Implement a narrow Solidity interpreter with immutable/versioned dictionary identities, input length and opcode count limits, bounded loops, allowlisted destinations/selectors, and clear revert behavior.
+4. Compare gas for: direct native Solidity/ABI calls; uncompressed command calldata + interpreter; compressed M64 command calldata + on-chain symbol decoding. Include transaction intrinsic calldata gas, registry/storage reads, interpreter cost, and any one-time symbol-table deployment cost.
+5. Add an authorized `CALL` experiment only after matching cross-engine test vectors and reviewing reentrancy, denial-of-service, access controls, malicious registries, and value-transfer limits.
+
+Compression may lower calldata fees but on-chain decoding can outweigh the savings. Short scripts may be cheaper as normal ABI calls; repeated commands and larger shared vocabularies are the cases worth measuring. Keep gas optimization distinct from the primary protocol goal: independently verifiable, interoperable semantics.
+
+**Design principle:** Hydrate full documents when users need the original artifact; interpret executable-profile M64 incrementally when a narrow, explicitly authorized on-chain decision is required.
