@@ -194,3 +194,7 @@ The chord is a local view, not a replacement for the transaction fixture JSON.
 ## Literal handling
 
 The Dogecoin data is literal output data from the uploaded Bun jist feed. It is not reconstructed from printed Joyce and typos are not repaired.
+
+## ETHDenver 2027 coordination
+
+See [the project-specific ETHDenver / Zorkmid notes](docs/ethdenver-zorkmid-integration.md) for the proposed physical dartboard demonstration, conference materials, optional Zorkmid/ Base integration, and delivery gates. These are plans, not claims that a token, venue, or showcase is live.
