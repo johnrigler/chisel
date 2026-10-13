@@ -3622,6 +3622,104 @@
     return block;
   }
 
+  // A transaction reference should identify its chain, not its current explorer.
+  // This is deliberately plain text: a QR scanner can hand it to Mogwai later.
+  function qualifiedTransactionIdForRow(row) {
+    const txid = String(row && row.txid || "").trim();
+    if (!/^(?:0x)?[0-9a-f]{64}$/i.test(txid)) return "";
+    const hash = txid.replace(/^0x/i, "").toLowerCase();
+    const coin = canonicalCoinForRow(row);
+    const sourceId = sourceIdForRow(row);
+
+    if (coin === "evm" || sourceId === "evmGomez" || sourceId === "evmJethro") {
+      const chainId = String(
+        (row.index && row.index.chainId) ||
+        (row.summary && row.summary.chainId) ||
+        (row.raw && row.raw.chainId) ||
+        ((sourceId === "evmGomez" || sourceId === "evmJethro") ? "137" : "")
+      ).trim();
+      const networks = {
+        "1": "ethereum",
+        "137": "polygon",
+        "8453": "base",
+        "80002": "polygon-amoy",
+        "11155111": "ethereum-sepolia"
+      };
+      if (networks[chainId]) return networks[chainId] + ":0x" + hash;
+      // Preserve chain specificity for other EVM networks; never guess Polygon.
+      return /^[0-9]{1,10}$/.test(chainId) ? "eip155:" + chainId + "/tx:0x" + hash : "";
+    }
+
+    const prefixes = {
+      bitcoin: "bitcoin",
+      digibyte: "digibyte",
+      dogecoin: "dogecoin",
+      ecash: "ecash",
+      litecoin: "litecoin",
+      ravencoin: "ravencoin"
+    };
+    return prefixes[coin] ? prefixes[coin] + ":" + hash : "";
+  }
+
+  function appendPortalTransactionQr(container, row) {
+    const qualified = qualifiedTransactionIdForRow(row);
+    if (!qualified) return null;
+
+    const card = document.createElement("div");
+    card.className = "portalTransactionQr";
+
+    const qr = document.createElement("div");
+    qr.className = "portalTransactionQrCode";
+    qr.setAttribute("aria-label", "QR code for " + qualified);
+    if (typeof window.QRCode === "function") {
+      try {
+        new window.QRCode(qr, {
+          text: qualified,
+          width: 132,
+          height: 132,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: window.QRCode.CorrectLevel.M
+        });
+      } catch (error) {
+        qr.textContent = "QR unavailable";
+      }
+    } else {
+      qr.textContent = "QR unavailable";
+    }
+    card.appendChild(qr);
+
+    const info = document.createElement("div");
+    info.className = "portalTransactionQrInfo";
+    const label = document.createElement("strong");
+    label.textContent = "Chain-qualified transaction ID";
+    info.appendChild(label);
+    const value = document.createElement("code");
+    value.textContent = qualified;
+    info.appendChild(value);
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "secondaryButton";
+    copy.textContent = "copy qualified ID";
+    copy.onclick = async function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("Clipboard unavailable");
+        await navigator.clipboard.writeText(qualified);
+        setStatus("Copied chain-qualified transaction ID.", false);
+      } catch (error) {
+        // HTTP and file:// may not expose navigator.clipboard.
+        if (typeof window.prompt === "function") window.prompt("Copy qualified transaction ID:", qualified);
+      }
+    };
+    info.appendChild(copy);
+    card.appendChild(info);
+    container.appendChild(card);
+    return card;
+  }
+
   function appendPortalInlineDetails(container, row) {
     container.innerHTML = "";
 
@@ -3688,6 +3786,7 @@
     header.appendChild(tx);
     if (meta.textContent) header.appendChild(meta);
     header.appendChild(actions);
+    appendPortalTransactionQr(header, row);
     container.appendChild(header);
 
     appendPortalInterpretedRecord(container, row);
