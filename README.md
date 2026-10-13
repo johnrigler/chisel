@@ -198,3 +198,12 @@ The Dogecoin data is literal output data from the uploaded Bun jist feed. It is 
 ## ETHDenver 2027 coordination
 
 See [the project-specific ETHDenver / Zorkmid notes](docs/ethdenver-zorkmid-integration.md) for the proposed physical dartboard demonstration, conference materials, optional Zorkmid/ Base integration, and delivery gates. These are plans, not claims that a token, venue, or showcase is live.
+
+## CertLedger / Daisy evidence checkpoints
+
+Project Jupiter and other CertLedger-style investigations now primarily
+hold evolving source records in yearly Daisy repositories. Chisel remains
+an **optional** ledger-anchoring tool for selected, frozen and reviewed
+SHA-256 evidence manifests, not a web-source monitor or a source of legal
+truth. See [Proposed manifest and transaction-receipt contract](docs/CERTLEDGER-ANCHOR-MANIFEST.md).
+No wallet, signing, send or broadcast behavior changes are implied.
