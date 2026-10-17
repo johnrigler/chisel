@@ -1,13 +1,13 @@
 # Chisel key and image printer
 
-Open https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print1
+Open https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print2
 or choose **Tools → Key and image printer** in Chisel.
 
 This merges the former Key InstaPrint PNG tool with the CTP500 BLE transport
 verified on Teal Printer. It is plain browser JavaScript for HTTPS/static/IPFS
 hosting. No printing server, package install, or native app is required.
 
-1. Create a key preview from a WIF/private hex value, or choose an image file.
+1. Paste a WIF/private hex value and choose **Derive and preview**, or choose an image file.
    A scanner handoff creates the key preview automatically.
 2. Choose **Connect Bluetooth printer** on the phone and select **Teal Printer**.
    Close InstaPrint and disconnect Bluetooth Internals first. On a Chromebook,
@@ -19,6 +19,10 @@ hosting. No printing server, package install, or native app is required.
 browsers can still generate/export the image. Normal prints contain only that
 image and the final paper feed. The separate **Printer diagnostics** link retains
 the timed test receipt.
+
+The preview image and export links appear only after an image is prepared.
+Connecting the printer alone does not prepare or print an image. **Create key
+preview** also rebuilds a receipt from the current packet and section selections.
 
 The default uses the measured ble3 setting: eight-row trimmed raster bands,
 20-byte writes without responses at a minimum 25 ms start interval, and eight

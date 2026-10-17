@@ -99,7 +99,7 @@
       .storedRow { grid-template-columns: 1fr auto; }
       .storedRow > div { grid-column: 1 / -1; }
     }
-    .hidden { display: none; }
+    .hidden, a.button.hidden { display: none; }
   </style>
 </head>
 <body>
@@ -133,7 +133,7 @@
         <label><input id="includeManifest" type="checkbox" checked /> include JSON manifest</label>
       </div>
       <div class="actions">
-        <button id="deriveButton" type="button">Derive key packet</button>
+        <button id="deriveButton" type="button">Derive and preview</button>
         <button id="printButton" type="button">Create key preview</button>
         <button id="saveButton" type="button">Save packet to this device</button>
         <button id="clearInputButton" type="button">Clear input</button>
@@ -163,7 +163,7 @@
         <option value="acknowledged">Acknowledged writes</option>
         <option value="compatibility">Original pacing and raster feed</option>
       </select>
-      <p id="previewSummary" class="muted">Create a key preview or choose an image.</p>
+      <p id="previewSummary" class="muted">Choose Derive and preview, Create key preview, or an image file to prepare a print.</p>
       <div class="actions">
         <button id="directPrintButton" type="button" disabled>Print preview</button>
       </div>
@@ -174,7 +174,7 @@
         <a id="openLink" class="button hidden" target="_blank" rel="noopener">Open image</a>
         <a id="returnToScanner" class="button hidden">RETURN TO SCANNED KEYS</a>
       </div>
-      <div id="previewWrap"><img id="previewImage" alt="Black-and-white printer preview" /></div>
+      <div id="previewWrap" class="hidden"><img id="previewImage" alt="Black-and-white printer preview" /></div>
     </section>
 
     <section class="panel">
@@ -198,7 +198,7 @@
   <script src="../../chisel.digibyte.js?2.5.2d"></script>
   <script src="../../chisel.litecoin.js?2.5.2j"></script>
 
-  <script type="module" src="./key-print.js?v=20261016-print1"></script>
+  <script type="module" src="./key-print.js?v=20261016-print2"></script>
 
 </body>
 </html>
