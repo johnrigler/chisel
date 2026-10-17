@@ -207,3 +207,10 @@ an **optional** ledger-anchoring tool for selected, frozen and reviewed
 SHA-256 evidence manifests, not a web-source monitor or a source of legal
 truth. See [Proposed manifest and transaction-receipt contract](docs/CERTLEDGER-ANCHOR-MANIFEST.md).
 No wallet, signing, send or broadcast behavior changes are implied.
+
+## CTP500 thermal printer
+
+[Open the phone-accessible CTP500 printer test](https://johnrigler.github.io/chisel/ctp500-test.html?v=20261016-ble2).
+Android Chrome uses BLE; Chromebook/desktop can use Web Serial. The page
+renders its test image locally and sends it directly to the selected printer.
+See [printer setup, confirmed tests, and transfer timing](ctp500.md).
