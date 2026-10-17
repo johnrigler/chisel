@@ -61,7 +61,7 @@
     .empty-sheet { display: grid; place-items: center; min-height: 180px; padding: 24px; border: 1px dashed #46576c; border-radius: 10px; text-align: center; color: #a5b5c8; }
     .print-controls { align-content: start; }
     #printerStatus, #status { overflow-wrap: anywhere; font-size: 14px; }
-    #printerStatus:empty, #status:empty { display: none; }
+    #printerStatus:empty, #status:empty, #connectionError:empty { display: none; }
     progress { width: 100%; height: 12px; accent-color: #90c7ff; }
     .export-actions { font-size: 14px; }
     .export-actions a { padding: 8px 12px; }
@@ -107,16 +107,7 @@
           <label for="keyInput">Private key (WIF or 64 hex characters)</label>
           <textarea id="keyInput" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste your private key here"></textarea>
         </div>
-        <p class="muted warn">The receipt can include private keys. Keep the printed receipt covered.</p>
-        <details>
-          <summary>Receipt options</summary>
-          <div class="checks">
-            <label><input id="includePrivate" type="checkbox" checked /> Private WIF: QR code and text</label>
-            <label><input id="includePrivateHex" type="checkbox" checked /> Private key in hex</label>
-            <label><input id="includePublic" type="checkbox" checked /> Address and public key</label>
-            <label><input id="includeManifest" type="checkbox" checked /> Public JSON manifest</label>
-          </div>
-        </details>
+        <p class="muted">Two sides: private WIF and receiving address. Fold the private side behind the address; turn the paper sideways to read it.</p>
         <div class="actions">
           <button id="deriveButton" class="primary next-action" type="button">Continue</button>
           <button id="clearInputButton" class="secondary" type="button">Clear</button>
@@ -151,6 +142,7 @@
             </select>
           </div>
           <p id="printDetails" class="muted">CTP500 · 384 dots wide.</p>
+          <p class="muted">Keep this tab open while sending. Closing it can stop the transfer. The page tries to keep your screen awake until sending finishes.</p>
           <p class="muted">Close InstaPrint and disconnect Bluetooth Internals before connecting. For Serial on a Chromebook, pair the printer in system Bluetooth settings first.</p>
           <p><a href="../../ctp500-test.html?v=20261016-ble3">Printer diagnostics</a></p>
         </div>
@@ -178,10 +170,9 @@
       </div>
     </section>
     <details class="panel support-details">
-      <summary>Key details and saving</summary>
+      <summary>Save this key on your device</summary>
       <p class="muted warn">Saved keys are not encrypted. Only save them on a device you trust.</p>
       <div class="actions"><button id="saveButton" class="secondary" type="button">Save key on this device</button></div>
-      <pre id="packetOutput"></pre>
     </details>
     <details class="panel support-details">
       <summary>Saved keys on this device</summary>
@@ -200,6 +191,6 @@
   <script src="../../chisel.ravencoin.js?2.5.2d"></script>
   <script src="../../chisel.digibyte.js?2.5.2d"></script>
   <script src="../../chisel.litecoin.js?2.5.2j"></script>
-  <script type="module" src="./key-print.js?v=20261016-print3"></script>
+  <script type="module" src="./key-print.js?v=20261016-print4"></script>
 </body>
 </html>

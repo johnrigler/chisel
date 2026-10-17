@@ -103,3 +103,54 @@ test('overlapping Serial jobs are rejected without opening another writer', asyn
   await pending;
   assert.equal(f.state.opens, 1);
 });
+
+function eventSurface() {
+  const listeners = new Map();
+  return {
+    addEventListener(type, fn) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(fn); },
+    removeEventListener(type, fn) { listeners.get(type)?.delete(fn); },
+    fire(type, event = {}) { for (const fn of listeners.get(type) || []) fn(event); },
+    listenerCount(type) { return listeners.get(type)?.size || 0; },
+  };
+}
+
+function printSession(request) {
+  const f = fixture();
+  const doc = Object.assign(eventSurface(), { visibilityState: 'visible' });
+  const env = Object.assign(eventSurface(), { document: doc, navigator: { wakeLock: { request } } });
+  f.context.sessionEnv = env;
+  const finish = vm.runInContext('ctp500BeginPrintSession(sessionEnv)', f.context);
+  return { env, doc, finish };
+}
+
+test('a print session keeps the visible screen awake and removes its leave guard when finished', async () => {
+  let releases = 0;
+  const lock = Object.assign(eventSurface(), { released: false, async release() { releases++; this.released = true; this.fire('release'); } });
+  const f = printSession(async type => { assert.equal(type, 'screen'); return lock; });
+  await Promise.resolve();
+  let prevented = false;
+  const event = { preventDefault() { prevented = true; } };
+  f.env.fire('beforeunload', event);
+  assert(prevented);
+  assert.equal(event.returnValue, '');
+  await f.finish();
+  assert.equal(releases, 1);
+  assert.equal(f.env.listenerCount('beforeunload'), 0);
+  assert.equal(f.doc.listenerCount('visibilitychange'), 0);
+});
+
+test('a wake lock arriving after a print finishes is released instead of leaking', async () => {
+  let resolveRequest, releases = 0;
+  const f = printSession(() => new Promise(resolve => { resolveRequest = resolve; }));
+  await f.finish();
+  resolveRequest({ async release() { releases++; } });
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(releases, 1);
+});
+
+test('wake-lock denial does not reject the print session', async () => {
+  const f = printSession(async () => { throw new Error('Battery policy denied wake lock'); });
+  await Promise.resolve(); await Promise.resolve();
+  await f.finish();
+  assert.equal(f.env.listenerCount('beforeunload'), 0);
+});

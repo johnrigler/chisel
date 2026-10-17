@@ -2,7 +2,39 @@
 import { ctp500Encode, ctp500EncodeBands } from './ctp500.js?v=20261016-ble3';
 import { ctp500ConnectBLE } from './ctp500-ble.js?v=20261016-ble3';
 
-export const CTP500_PRINT_VERSION = '20261016-print1';
+export const CTP500_PRINT_VERSION = '20261016-print4';
+
+// This keeps a visible page awake; it is not a background print service.
+export function ctp500BeginPrintSession(env = globalThis) {
+  const doc = env.document;
+  let active = true, lock = null, requesting = false;
+  function warnBeforeLeaving(event) {
+    if (!active) return;
+    event.preventDefault(); event.returnValue = '';
+  }
+  async function acquire() {
+    if (!active || requesting || (lock && !lock.released) || doc?.visibilityState !== 'visible' || !env.navigator?.wakeLock) return;
+    requesting = true;
+    try {
+      const candidate = await env.navigator.wakeLock.request('screen');
+      if (!active || doc.visibilityState !== 'visible') { await candidate.release(); return; }
+      lock = candidate;
+      candidate.addEventListener('release', () => { if (lock === candidate) lock = null; });
+    } catch { /* Battery policy or unsupported wake locks must not stop printing. */ }
+    finally { requesting = false; }
+  }
+  function onVisible() { if (doc.visibilityState === 'visible') void acquire(); }
+  env.addEventListener?.('beforeunload', warnBeforeLeaving);
+  doc?.addEventListener('visibilitychange', onVisible);
+  void acquire();
+  return async function finish() {
+    active = false;
+    env.removeEventListener?.('beforeunload', warnBeforeLeaving);
+    doc?.removeEventListener('visibilitychange', onVisible);
+    const previous = lock; lock = null;
+    try { await previous?.release(); } catch {}
+  };
+}
 
 // The returned canvas is the black/white, 384-dot image sent to the printer.
 export function ctp500PreparePrint(source, { mode = 'fast', threshold = 128 } = {}) {

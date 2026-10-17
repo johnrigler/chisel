@@ -1,4 +1,5 @@
-import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?v=20261016-print1';
+import { ctp500ConnectPrinter, ctp500PreparePrint, ctp500BeginPrintSession } from '../../ctp500-print.js?v=20261016-print4';
+import { createKeyReceipt } from './key-receipt.js?v=20261016-print4';
 
 (function () {
   const STORAGE_KEY = "chisel.keyPrint.records.v1";
@@ -6,12 +7,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   const currencySelect = document.getElementById("currencySelect");
   const keyInput = document.getElementById("keyInput");
   const recordLabel = document.getElementById("recordLabel");
-  const includePrivate = document.getElementById("includePrivate");
-  const includePrivateHex = document.getElementById("includePrivateHex");
-  const includePublic = document.getElementById("includePublic");
-  const includeManifest = document.getElementById("includeManifest");
   const status = document.getElementById("status");
-  const packetOutput = document.getElementById("packetOutput");
   const previewImage = document.getElementById("previewImage");
   const previewWrap = document.getElementById("previewWrap");
   const downloadLink = document.getElementById("downloadLink");
@@ -144,7 +140,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     emptySheet.classList.add("hidden");
     downloadLink.download = source === "key" ? "chisel-key-print.png" : "chisel-image-print.png";
     downloadLink.classList.remove("hidden"); openLink.classList.remove("hidden");
-    previewSummary.textContent = source === "key" ? "Your key receipt is ready." : "Your image is ready.";
+    previewSummary.textContent = source === "key" ? "Private WIF and receiving address, with a fold line." : "Your image is ready.";
     printDetails.textContent = "384 × " + job.canvas.height + " dots · " + job.bytes.length.toLocaleString() + " bytes."
       + (job.mode === "fast" ? " BLE estimate: " + Math.ceil(job.bytes.length / 800) + " s at 800 bytes/s; actual speed varies." : "");
     printerStatus.textContent = "";
@@ -180,6 +176,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     const started = performance.now();
     let updated = -Infinity;
     printing = true;
+    const finishSession = ctp500BeginPrintSession();
     printProgress.value = 0; printProgress.classList.remove("hidden");
     printerStatus.textContent = "Sending to " + printer.label + "…";
     updatePrinterControls();
@@ -202,6 +199,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
       throw error;
     } finally {
       printing = false;
+      await finishSession();
     }
   }
 
@@ -237,17 +235,6 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
 
   function normalizeHex(value) {
     return String(value || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
-  }
-
-  function chunkText(value, size) {
-    const text = String(value || "");
-    const chunks = [];
-
-    for (let i = 0; i < text.length; i += size) {
-      chunks.push(text.slice(i, i + size));
-    }
-
-    return chunks.join("\n");
   }
 
   function getCoin() {
@@ -337,8 +324,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
       warning: "This object contains private key material if wif/privateKeyHex are present."
     };
 
-    packetOutput.textContent = JSON.stringify(currentPacket, null, 2);
-    setStatus("Derived packet for " + currentPacket.displayName + " address " + currentPacket.address + ".", "ok");
+    setStatus("Key loaded for " + currentPacket.displayName + ".", "ok");
     return currentPacket;
   }
 
@@ -367,199 +353,11 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     return canvas;
   }
 
-  function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
-    const value = String(text || "");
-    const hardLines = value.split("\n");
-    let cursorY = y;
-
-    hardLines.forEach(function drawHardLine(line) {
-      let current = "";
-
-      for (let i = 0; i < line.length; i += 1) {
-        const test = current + line[i];
-        if (ctx.measureText(test).width > maxWidth && current) {
-          ctx.fillText(current, x, cursorY);
-          cursorY += lineHeight;
-          current = line[i];
-        } else {
-          current = test;
-        }
-      }
-
-      ctx.fillText(current, x, cursorY);
-      cursorY += lineHeight;
-    });
-
-    return cursorY;
-  }
-
-  function measureWrappedText(ctx, text, maxWidth, lineHeight) {
-    const probe = document.createElement("canvas");
-    const probeCtx = probe.getContext("2d");
-    probeCtx.font = ctx.font;
-    let lines = 0;
-
-    String(text || "").split("\n").forEach(function countHardLine(line) {
-      let current = "";
-
-      for (let i = 0; i < line.length; i += 1) {
-        const test = current + line[i];
-        if (probeCtx.measureText(test).width > maxWidth && current) {
-          lines += 1;
-          current = line[i];
-        } else {
-          current = test;
-        }
-      }
-      lines += 1;
-    });
-
-    return lines * lineHeight;
-  }
-
-  function addSection(sections, title, text, qrText, options) {
-    options = options || {};
-    sections.push({
-      title: title,
-      text: String(text || ""),
-      qrText: qrText || text,
-      secret: !!options.secret,
-      foldAfter: !!options.foldAfter
-    });
-  }
-
   async function createImage() {
     const packet = currentPacket || await derivePacket();
-    const width = 384;
-    const margin = 24;
-    const qrSize = Math.min(280, width - margin * 2);
-    const lineHeight = 18;
-    const sections = [];
-    const manifest = JSON.stringify({
-      schema: packet.schema,
-      label: packet.label,
-      currency: packet.currency,
-      network: packet.network,
-      address: packet.address,
-      compressed: packet.compressed,
-      createdAt: packet.createdAt
-    }, null, 2);
-
-    addSection(sections, "CHISEL KEY PACKET", packet.label + "\n" + packet.displayName + " / " + packet.network + "\n" + packet.createdAt, manifest);
-
-    if (includePrivateHex.checked) {
-      addSection(
-        sections,
-        "SECRET: PRIVATE HEX",
-        "KEEP COVERED\n" + chunkText(packet.privateKeyHex, 32),
-        packet.privateKeyHex,
-        { secret: true, foldAfter: !includePrivate.checked }
-      );
-    }
-
-    if (includePrivate.checked) {
-      addSection(
-        sections,
-        "SECRET: PRIVATE WIF",
-        "KEEP COVERED\n" + chunkText(packet.wif, 32),
-        packet.wif,
-        { secret: true, foldAfter: true }
-      );
-    }
-
-    if (includePublic.checked) {
-      addSection(sections, "ADDRESS", chunkText(packet.address, 32), packet.address);
-      addSection(sections, "COMPRESSED PUBLIC KEY", chunkText(packet.compressedPublicKeyHex, 32), packet.compressedPublicKeyHex);
-    }
-
-    if (includeManifest.checked) {
-      addSection(sections, "PUBLIC MANIFEST", manifest, manifest);
-    }
-
-    const measureCanvas = document.createElement("canvas");
-    const measureCtx = measureCanvas.getContext("2d");
-    measureCtx.font = "16px ui-monospace, Menlo, Consolas, monospace";
-
-    let height = margin;
-    sections.forEach(function measureSection(section) {
-      measureCtx.font = "bold 20px ui-monospace, Menlo, Consolas, monospace";
-      height += measureWrappedText(measureCtx, section.title, width - margin * 2, 24) + 10;
-      height += qrSize + 12;
-      measureCtx.font = "16px ui-monospace, Menlo, Consolas, monospace";
-      height += measureWrappedText(measureCtx, section.text, width - margin * 2, lineHeight);
-      height += 24;
-      if (section.foldAfter) {
-        height += 56;
-      }
-    });
-    height += margin;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = "#000000";
-    ctx.textBaseline = "top";
-    ctx.font = "bold 20px ui-monospace, Menlo, Consolas, monospace";
-
-    let y = margin;
-    sections.forEach(function drawSection(section) {
-      const sectionTop = y;
-      ctx.font = "bold 20px ui-monospace, Menlo, Consolas, monospace";
-      const titleHeight = measureWrappedText(ctx, section.title, width - margin * 2, 24);
-
-      if (section.secret) {
-        ctx.save();
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 3;
-        ctx.setLineDash([10, 7]);
-        ctx.strokeRect(8, y - 8, width - 16, titleHeight + 14);
-        ctx.restore();
-      }
-
-      ctx.font = "bold 20px ui-monospace, Menlo, Consolas, monospace";
-      y = wrapCanvasText(ctx, section.title, margin, y, width - margin * 2, 24) + 10;
-
-      const qrCanvas = makeQrCanvas(section.qrText, qrSize);
-      ctx.drawImage(qrCanvas, Math.floor((width - qrSize) / 2), y, qrSize, qrSize);
-      y += qrSize + 12;
-
-      ctx.font = "16px ui-monospace, Menlo, Consolas, monospace";
-      y = wrapCanvasText(ctx, section.text, margin, y, width - margin * 2, lineHeight);
-      y += 24;
-
-      if (section.secret) {
-        ctx.save();
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(8, sectionTop - 10, width - 16, y - sectionTop + 4);
-        ctx.restore();
-      }
-
-      if (section.foldAfter) {
-        ctx.save();
-        ctx.setLineDash([12, 8]);
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(8, y + 10);
-        ctx.lineTo(width - 8, y + 10);
-        ctx.stroke();
-        ctx.restore();
-
-        ctx.font = "bold 15px ui-monospace, Menlo, Consolas, monospace";
-        ctx.textAlign = "center";
-        ctx.fillText("FOLD HERE TO HIDE SECRET", width / 2, y + 20);
-        ctx.fillText("CLIP CLOSED", width / 2, y + 37);
-        ctx.textAlign = "left";
-        y += 56;
-      }
-    });
-
+    const canvas = createKeyReceipt(packet, { makeQrCanvas });
     showPreview(canvas, "key");
-    setStatus("Key receipt ready.", "ok");
+    setStatus("Foldable key receipt ready.", "ok");
   }
 
   function readRecords() {
@@ -600,7 +398,6 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
         currencySelect.value = record.currency;
         recordLabel.value = record.label;
         keyInput.value = record.wif || record.privateKeyHex || "";
-        packetOutput.textContent = JSON.stringify(record, null, 2);
         await createImage();
         continueToPrinter();
       }));
@@ -704,16 +501,13 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   }));
   saveButton.addEventListener("click", () => run(saveCurrentPacket));
   document.getElementById("clearInputButton").addEventListener("click", () => {
-    keyInput.value = ""; packetOutput.textContent = ""; currentPacket = null; clearPreview();
+    keyInput.value = ""; currentPacket = null; clearPreview();
     setStatus("Input cleared.");
   });
   [keyInput, recordLabel].forEach(input => input.addEventListener("input", () => {
-    currentPacket = null; packetOutput.textContent = "";
+    currentPacket = null;
     if (previewSource === "key") clearPreview();
     else updatePrinterControls();
-  }));
-  [includePrivate, includePrivateHex, includePublic, includeManifest].forEach(input => input.addEventListener("change", () => {
-    if (previewSource === "key") clearPreview();
   }));
 
   returnToScanner.addEventListener("click", function onReturnToScanner(event) {
@@ -731,7 +525,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
 
   currencySelect.addEventListener("change", () => run(async () => {
     if (currentPacket?.privateKeyHex) keyInput.value = currentPacket.privateKeyHex;
-    currentPacket = null; packetOutput.textContent = "";
+    currentPacket = null;
     if (previewSource === "key") clearPreview();
     if (keyInput.value.trim()) await derivePacket();
   }));

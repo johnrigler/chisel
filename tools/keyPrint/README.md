@@ -1,6 +1,6 @@
 # Chisel key and image printer
 
-Open https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print3
+Open https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print4
 or choose **Tools → Key and image printer** in Chisel.
 
 This merges the former Key InstaPrint PNG tool with the CTP500 BLE transport
@@ -20,8 +20,7 @@ connection, or directly to Print if the printer is already connected. Only the
 final Print button sends data to the printer. The receipt image sits in a bounded
 scroll area so a long receipt does not push the Print button far down the page.
 
-**Save image** exports the same black-and-white, 384-dot PNG. Advanced receipt
-options, key details and saving, and printer settings are expandable. Unsupported
+**Save image** exports the same black-and-white, 384-dot PNG. Key saving and printer settings are expandable. Unsupported
 browsers can still save images. Normal prints contain only the displayed image
 and final paper feed. The diagnostic receipt remains under Printer settings and
 help. Connection controls for unavailable transports are hidden.
@@ -29,13 +28,16 @@ help. Connection controls for unavailable transports are hidden.
 The default uses the measured ble3 setting: eight-row trimmed raster bands,
 20-byte writes without responses at a minimum 25 ms start interval, and eight
 LF bytes for final feed. Acknowledged and original-pacing presets are available.
-The displayed time estimate uses 800 bytes/second; actual duration is reported
-after transmission. Long key packets take longer than the small diagnostic
-sample because they contain several QR codes.
+The transfer estimate uses 800 bytes/second; actual duration is reported
+after transmission.
 
-Key QRs are rendered directly at 384-dot layout size with integer module sizes
-and at least four quiet modules. Editing the key, label, currency, or section
-selection invalidates the old key receipt. Printing requires a prepared image
+The folded key receipt contains only a WIF QR/text panel and an address QR/text
+panel, with the currency printed on both sides. Raw private hex, public keys,
+and JSON are not printed. Two equal panels are laid out sideways and rotated
+into a 384 × 1280-dot strip. The private panel folds behind the address panel.
+The full WIF and address each occupy one line. QR modules remain whole pixels
+with at least four quiet modules on each side. Editing the key, label, or
+currency invalidates the old receipt. Printing requires a prepared image
 and an explicit button press. A failed transfer disconnects and is never retried
 automatically; restart the printer before another attempt.
 
@@ -52,7 +54,7 @@ Call the connection function from the user's Connect button. Keep that returned
 connection for subsequent print jobs:
 
 ```js
-import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?v=20261016-print1';
+import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?v=20261016-print4';
 
 let printer;
 connectButton.onclick = async () => {
@@ -86,3 +88,24 @@ A system-wide Android printer would require an installed native PrintService;
 this page uses an explicit browser Bluetooth connection. John deferred native
 driver work in favor of one-time browser use.
 Android reference: https://developer.android.com/reference/android/printservice/PrintService
+
+## Page lifetime and buffering
+
+The whole job is prepared in browser memory before transmission. The verified
+BLE pacing remains unchanged; device buffer capacity is unknown. Closing or
+navigating away from the page can stop a transfer. Web Bluetooth is unavailable
+in service workers, so a service worker cannot own this connection. Reliable
+printing after the page closes would require a separate native/local spooler.
+
+While sending, the page requests a screen wake lock, reacquires it when visible
+again, and registers a browser leave confirmation. Wake lock denial never stops
+a print. Both resources are released when the transfer succeeds or fails. Mobile
+browsers may omit leave prompts; these measures do not promise background printing.
+
+WIF contains the private scalar and compression/network information, but its
+prefix is not currency-unique: Ravencoin and DigiByte mainnet both use 128. The
+selected currency label is therefore retained on both printed panels. Existing
+internal packet/storage formats remain compatible; their JSON is not shown or printed.
+
+References: [Web Bluetooth](https://developer.mozilla.org/en-US/docs/Web/API/Web_Bluetooth_API),
+[Screen Wake Lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API).
