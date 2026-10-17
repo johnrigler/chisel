@@ -210,7 +210,7 @@ No wallet, signing, send or broadcast behavior changes are implied.
 
 ## CTP500 thermal printer
 
-[Open the key and image printer](https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print1)
+[Open the key and image printer](https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print2)
 for direct phone BLE printing, Chromebook Serial printing, or PNG export.
 This replaces the former InstaPrint handoff with the verified browser transport
 and retains scanner handoffs. Connect once per page and print the current preview.

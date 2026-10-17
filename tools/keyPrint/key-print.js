@@ -13,6 +13,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   const status = document.getElementById("status");
   const packetOutput = document.getElementById("packetOutput");
   const previewImage = document.getElementById("previewImage");
+  const previewWrap = document.getElementById("previewWrap");
   const downloadLink = document.getElementById("downloadLink");
   const openLink = document.getElementById("openLink");
   const returnToScanner = document.getElementById("returnToScanner");
@@ -57,10 +58,11 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
 
   function clearPreview() {
     preparedJob = null; previewSource = null;
+    previewWrap.classList.add("hidden");
     previewImage.removeAttribute("src");
     downloadLink.removeAttribute("href"); openLink.removeAttribute("href");
     downloadLink.classList.add("hidden"); openLink.classList.add("hidden");
-    previewSummary.textContent = "Create a key preview or choose an image.";
+    previewSummary.textContent = "Choose Derive and preview, Create key preview, or an image file to prepare a print.";
     printerStatus.textContent = "";
     updatePrinterControls();
   }
@@ -70,6 +72,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     const dataUrl = job.canvas.toDataURL("image/png");
     preparedJob = job; previewSource = source;
     previewImage.src = dataUrl; downloadLink.href = dataUrl; openLink.href = dataUrl;
+    previewWrap.classList.remove("hidden");
     downloadLink.download = source === "key" ? "chisel-key-print.png" : "chisel-image-print.png";
     downloadLink.classList.remove("hidden"); openLink.classList.remove("hidden");
     previewSummary.textContent = "384 × " + job.canvas.height + " dots · " + job.bytes.length.toLocaleString() + " bytes."
@@ -608,7 +611,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   }
 
   document.getElementById("deriveButton").addEventListener("click", () => run(async () => {
-    clearPreview(); await derivePacket();
+    clearPreview(); await derivePacket(); await createImage();
   }));
   document.getElementById("printButton").addEventListener("click", () => run(createImage));
   document.getElementById("saveButton").addEventListener("click", () => run(saveCurrentPacket));
