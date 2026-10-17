@@ -317,7 +317,7 @@
     <div class="resourceTop">
       <h2 id="resourceTitle">Chisel Resource</h2>
       <div class="resourceActions">
-        <button id="openInstaprint" class="instaButton" type="button">INSTAPRINT PNG</button>
+        <button id="openInstaprint" class="instaButton" type="button">PRINT / PNG</button>
         <button id="loadIntoChisel" class="chiselButton" type="button">LOAD INTO CHISEL</button>
         <button id="printResource" type="button">PRINT PAGE</button>
         <button id="deleteResource" class="deleteKeyButton" type="button">DELETE KEY</button>
@@ -341,7 +341,7 @@
       <div id="resourceAddresses" class="addressGrid"></div>
     </section>
 
-    <p class="resourceHint">The red QR and private-key text are secret material. Printing or recording this view creates another copy of the private key. InstaPrint opens as a separate PNG-oriented tool.</p>
+    <p class="resourceHint">The red QR and private-key text are secret material. Printing or recording this view creates another copy of the private key. The printer tool opens separately for direct Bluetooth printing or PNG export.</p>
   </section>
 </div>
 
@@ -786,7 +786,7 @@
       if (resource.instaprintVisited) {
         const badge = document.createElement("span");
         badge.className = "instaVisitedBadge";
-        badge.textContent = "✓ INSTAPRINT";
+        badge.textContent = "✓ PRINT PREVIEW";
         metaWrap.append(badge);
       }
       header.append(title,metaWrap);
@@ -1038,7 +1038,7 @@
       createdAt:new Date().toISOString()
     };
     localStorage.setItem("chisel.keyPrint.handoff.v1",JSON.stringify(handoff));
-    window.location.href = "../keyPrint/index.html?handoff=1";
+    window.location.href = "../keyPrint/index.html?handoff=1&v=20261016-print1";
   }
 
   function loadResourceIntoChisel(resource) {

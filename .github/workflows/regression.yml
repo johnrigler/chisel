@@ -20,7 +20,7 @@ jobs:
           node-version: '20'
 
       - name: Run protocol and crypto-boundary tests
-        run: node --test tests/m64.test.mjs tests/m64.evm.test.mjs tests/secp256k1-boundary.test.mjs tests/qr-etch-handoff.test.mjs
+        run: node --test tests/m64.test.mjs tests/m64.evm.test.mjs tests/secp256k1-boundary.test.mjs tests/qr-etch-handoff.test.mjs tests/ctp500-print.test.mjs
 
       - name: Check browser JavaScript syntax
         run: |
@@ -36,6 +36,11 @@ jobs:
           node --check chisel.thunderwords.js
           node --check chisel.portal.js
           node --check app.js
+          node --input-type=module --check < ctp500.js
+          node --input-type=module --check < ctp500-ble.js
+          node --input-type=module --check < ctp500-print.js
+          node --input-type=module --check < tools/keyPrint/key-print.js
+          node tests/check-inline-scripts.mjs tools/recorder/index.html
           node tests/check-inline-scripts.mjs index.html qrScan.html tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html tools/m64Artifact/packet-polygon.html
 
       - name: Check fileProxy Python syntax

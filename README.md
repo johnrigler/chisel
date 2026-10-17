@@ -210,7 +210,13 @@ No wallet, signing, send or broadcast behavior changes are implied.
 
 ## CTP500 thermal printer
 
-[Open the phone-accessible CTP500 printer test](https://johnrigler.github.io/chisel/ctp500-test.html?v=20261016-ble3).
+[Open the key and image printer](https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print1)
+for direct phone BLE printing, Chromebook Serial printing, or PNG export.
+This replaces the former InstaPrint handoff with the verified browser transport
+and retains scanner handoffs. Connect once per page and print the current preview.
+See [the printer tool guide](tools/keyPrint/README.md).
+
+[Open the diagnostic receipt](https://johnrigler.github.io/chisel/ctp500-test.html?v=20261016-ble3).
 Android Chrome uses BLE; Chromebook/desktop can use Web Serial. The page
 renders the test and measured diagnostic footer locally, sends both to the printer,
 and lets you save the receipt as a PNG.
