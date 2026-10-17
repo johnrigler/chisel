@@ -221,3 +221,11 @@ Android Chrome uses BLE; Chromebook/desktop can use Web Serial. The page
 renders the test and measured diagnostic footer locally, sends both to the printer,
 and lets you save the receipt as a PNG.
 See [printer setup, confirmed tests, and transfer timing](ctp500.md).
+
+## Native eCash notes in Zorkmid
+
+The [Zorkmid Chisel view](https://johnrigler.github.io/lantern/world.html#view=etch)
+uses the new, separate `chisel.ecash.js` module for native eCash mainnet notes and
+IPFS URIs. It signs locally with Bitcoin ABC's library, reviews the fee/change,
+and requires an explicit broadcast action. See [ECASH.md](ECASH.md) for protocol,
+limits, SDK provenance, and tests. The existing legacy signer is unchanged.

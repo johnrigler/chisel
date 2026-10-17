@@ -1,0 +1,14 @@
+{
+  "name": "chisel-ecash-browser-sdk",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "ecash-lib": "4.14.4",
+    "chronik-client": "4.3.3",
+    "esbuild": "0.25.10"
+  }
+}
