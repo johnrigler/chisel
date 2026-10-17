@@ -1,28 +1,30 @@
 # Chisel key and image printer
 
-Open https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print2
+Open https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print3
 or choose **Tools → Key and image printer** in Chisel.
 
 This merges the former Key InstaPrint PNG tool with the CTP500 BLE transport
 verified on Teal Printer. It is plain browser JavaScript for HTTPS/static/IPFS
 hosting. No printing server, package install, or native app is required.
 
-1. Paste a WIF/private hex value and choose **Derive and preview**, or choose an image file.
-   A scanner handoff creates the key preview automatically.
-2. Choose **Connect Bluetooth printer** on the phone and select **Teal Printer**.
-   Close InstaPrint and disconnect Bluetooth Internals first. On a Chromebook,
-   use **Choose Serial** after pairing the printer in system Bluetooth settings.
-3. Check the preview, then choose **Print preview**. Keep the page visible.
-   The connection remains available for further prints on this page.
+1. Choose **Key receipt**, paste a WIF/private hex value, and press **Continue**.
+   Or choose **Image or photo** and select a file. A scanner handoff prepares
+   its key receipt automatically.
+2. Choose **Connect printer** and select **Teal Printer** on the phone. On a
+   Chromebook, the Serial connection is available after system Bluetooth pairing.
+3. Check the displayed receipt or image, then press the large **Print** button.
+   Keep the page open until the transfer finishes. The connection can be reused.
 
-**Download PNG** exports the same black-and-white, 384-dot image. Unsupported
-browsers can still generate/export the image. Normal prints contain only that
-image and the final paper feed. The separate **Printer diagnostics** link retains
-the timed test receipt.
+The next action and its numbered step are highlighted. Continue moves to
+connection, or directly to Print if the printer is already connected. Only the
+final Print button sends data to the printer. The receipt image sits in a bounded
+scroll area so a long receipt does not push the Print button far down the page.
 
-The preview image and export links appear only after an image is prepared.
-Connecting the printer alone does not prepare or print an image. **Create key
-preview** also rebuilds a receipt from the current packet and section selections.
+**Save image** exports the same black-and-white, 384-dot PNG. Advanced receipt
+options, key details and saving, and printer settings are expandable. Unsupported
+browsers can still save images. Normal prints contain only the displayed image
+and final paper feed. The diagnostic receipt remains under Printer settings and
+help. Connection controls for unavailable transports are hidden.
 
 The default uses the measured ble3 setting: eight-row trimmed raster bands,
 20-byte writes without responses at a minimum 25 ms start interval, and eight
@@ -33,14 +35,14 @@ sample because they contain several QR codes.
 
 Key QRs are rendered directly at 384-dot layout size with integer module sizes
 and at least four quiet modules. Editing the key, label, currency, or section
-selection invalidates the old key preview. Printing requires a current preview
+selection invalidates the old key receipt. Printing requires a prepared image
 and an explicit button press. A failed transfer disconnects and is never retried
 automatically; restart the printer before another attempt.
 
 Existing saved packets and one-shot recorder handoffs keep their original
 storage names and packet schema for compatibility. The recorder's **PRINT / PNG**
-button opens this tool; its **PRINT PREVIEW** badge records a prepared preview,
-not proof of physical printing. Images are not automatically added to device
+button opens this tool; its **READY TO PRINT** badge records a prepared receipt,
+rather than proof of physical printing. Images are not automatically added to device
 storage or uploaded to a server.
 
 ## Reuse from another browser page

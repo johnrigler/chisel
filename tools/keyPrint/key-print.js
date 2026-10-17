@@ -32,14 +32,79 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   const printMode = document.getElementById("printMode");
   const imageFile = document.getElementById("imageFile");
   const previewSummary = document.getElementById("previewSummary");
+  const emptySheet = document.getElementById("emptySheet");
+  const nextStep = document.getElementById("nextStep");
+  const printDetails = document.getElementById("printDetails");
+  const printProgress = document.getElementById("printProgress");
+  const keyChoice = document.getElementById("keyChoice");
+  const imageChoice = document.getElementById("imageChoice");
+  const keyFields = document.getElementById("keyFields");
+  const imageFields = document.getElementById("imageFields");
+  const deriveButton = document.getElementById("deriveButton");
+  const saveButton = document.getElementById("saveButton");
+  const connectionHelp = document.getElementById("connectionHelp");
+  const connectionError = document.getElementById("connectionError");
+  let contentMode = "key", printing = false;
 
   function updatePrinterControls() {
     const connected = !!printer?.connected;
-    connectBleButton.disabled = busy || !globalThis.isSecureContext || !navigator.bluetooth || (connected && printer.transport === "ble");
-    connectSerialButton.disabled = busy || !globalThis.isSecureContext || !navigator.serial || (connected && printer.transport === "serial");
+    const canBle = !!(globalThis.isSecureContext && navigator.bluetooth);
+    const canSerial = !!(globalThis.isSecureContext && navigator.serial);
+    connectBleButton.disabled = busy || !canBle || connected;
+    connectSerialButton.disabled = busy || !canSerial || connected;
+    connectBleButton.classList.toggle("hidden", !canBle || connected);
+    connectSerialButton.classList.toggle("hidden", !canSerial || connected);
+    connectSerialButton.classList.toggle("primary", !canBle);
+    connectSerialButton.classList.toggle("secondary", canBle);
+    connectSerialButton.textContent = canBle ? "Use Serial (Chromebook)" : "Connect printer";
     disconnectPrinterButton.disabled = busy || !printer;
+    disconnectPrinterButton.classList.toggle("hidden", !connected);
     directPrintButton.disabled = busy || !connected || !preparedJob;
-    printerConnection.textContent = connected ? "Connected: " + printer.label + " (" + (printer.transport === "ble" ? "Bluetooth" : "Serial") + ")." : "Printer disconnected.";
+    directPrintButton.textContent = printing ? "Printing…" : "Print";
+    saveButton.disabled = busy || contentMode !== "key" || !currentPacket;
+    deriveButton.classList.toggle("next-action", !preparedJob && contentMode === "key");
+    connectBleButton.classList.toggle("next-action", !!preparedJob && !connected && canBle);
+    connectSerialButton.classList.toggle("next-action", !!preparedJob && !connected && !canBle && canSerial);
+    directPrintButton.classList.toggle("next-action", !!preparedJob && connected);
+    document.getElementById("contentSection").classList.toggle("current-step", !preparedJob);
+    document.getElementById("printerSection").classList.toggle("current-step", !!preparedJob && !connected && (canBle || canSerial));
+    document.getElementById("printSection").classList.toggle("current-step", !!preparedJob && (connected || (!canBle && !canSerial)));
+    printerConnection.textContent = connected ? "Connected to " + printer.label + "." : "Printer not connected.";
+    printerConnection.classList.toggle("ok", connected);
+    connectionHelp.textContent = connected ? "You can use this connection for more prints."
+      : canBle ? "Choose Teal Printer from the Bluetooth list. You only need to connect once."
+      : canSerial ? "Pair the printer in system Bluetooth settings, then choose it here."
+      : "This browser can save images. Direct printing requires Bluetooth or Serial support on HTTPS or localhost.";
+    nextStep.textContent = printing ? "Keep this page open until the transfer finishes."
+      : busy ? "Please wait…"
+      : !preparedJob ? "Complete step 1 to continue."
+      : connected ? "Ready to print. Keep this page open while printing."
+      : canBle || canSerial ? "Connect your printer in step 2, then press Print."
+      : "Use Save image, or open this page in a browser that supports direct printing.";
+  }
+
+  function goToStep(id) {
+    const section = document.getElementById(id);
+    const heading = section.querySelector("h2");
+    heading.setAttribute("tabindex", "-1");
+    heading.focus({ preventScroll: true });
+    section.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  }
+
+  function continueToPrinter() {
+    goToStep(printer?.connected || !(globalThis.isSecureContext && (navigator.bluetooth || navigator.serial)) ? "printSection" : "printerSection");
+  }
+
+  function selectContent(mode) {
+    if (contentMode === mode) return;
+    contentMode = mode;
+    keyChoice.setAttribute("aria-pressed", String(mode === "key"));
+    imageChoice.setAttribute("aria-pressed", String(mode === "image"));
+    keyFields.classList.toggle("hidden", mode !== "key");
+    imageFields.classList.toggle("hidden", mode !== "image");
+    imageFile.value = "";
+    clearPreview();
+    setStatus(mode === "key" ? "Paste your private key, then press Continue." : "Choose an image to continue.");
   }
 
   async function run(action) {
@@ -59,10 +124,13 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   function clearPreview() {
     preparedJob = null; previewSource = null;
     previewWrap.classList.add("hidden");
+    emptySheet.classList.remove("hidden");
     previewImage.removeAttribute("src");
     downloadLink.removeAttribute("href"); openLink.removeAttribute("href");
     downloadLink.classList.add("hidden"); openLink.classList.add("hidden");
-    previewSummary.textContent = "Choose Derive and preview, Create key preview, or an image file to prepare a print.";
+    previewSummary.textContent = "Prepare a key receipt or choose an image in step 1.";
+    printDetails.textContent = "CTP500 · 384 dots wide.";
+    printProgress.classList.add("hidden"); printProgress.value = 0;
     printerStatus.textContent = "";
     updatePrinterControls();
   }
@@ -73,19 +141,27 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     preparedJob = job; previewSource = source;
     previewImage.src = dataUrl; downloadLink.href = dataUrl; openLink.href = dataUrl;
     previewWrap.classList.remove("hidden");
+    emptySheet.classList.add("hidden");
     downloadLink.download = source === "key" ? "chisel-key-print.png" : "chisel-image-print.png";
     downloadLink.classList.remove("hidden"); openLink.classList.remove("hidden");
-    previewSummary.textContent = "384 × " + job.canvas.height + " dots · " + job.bytes.length.toLocaleString() + " bytes."
+    previewSummary.textContent = source === "key" ? "Your key receipt is ready." : "Your image is ready.";
+    printDetails.textContent = "384 × " + job.canvas.height + " dots · " + job.bytes.length.toLocaleString() + " bytes."
       + (job.mode === "fast" ? " BLE estimate: " + Math.ceil(job.bytes.length / 800) + " s at 800 bytes/s; actual speed varies." : "");
-    printerStatus.textContent = "Preview ready. Nothing has been printed.";
+    printerStatus.textContent = "";
     updatePrinterControls();
   }
 
   async function connectPrinter(transport) {
+    connectionError.textContent = "";
     if (printer) await printer.disconnect();
     printer = null;
     updatePrinterControls();
-    const next = await ctp500ConnectPrinter({ transport });
+    let next;
+    try { next = await ctp500ConnectPrinter({ transport }); }
+    catch (error) {
+      connectionError.textContent = "Could not connect: " + (error.message || String(error));
+      throw error;
+    }
     printer = next;
     printer.device?.addEventListener("gattserverdisconnected", () => {
       if (printer === next) {
@@ -93,41 +169,51 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
         if (!busy) printerStatus.textContent = "Bluetooth disconnected. Reconnect before printing.";
       }
     });
-    printerStatus.textContent = "Connected. The same connection can be used for repeated prints.";
+    printerStatus.textContent = "";
     updatePrinterControls();
+    if (preparedJob) goToStep("printSection");
   }
 
-  async function printPreview() {
-    if (!printer?.connected || !preparedJob) throw new Error("Connect a printer and create a preview first.");
+  async function printCurrentImage() {
+    if (!printer?.connected || !preparedJob) throw new Error("Choose what to print and connect a printer first.");
     const job = preparedJob;
     const started = performance.now();
     let updated = -Infinity;
-    printerStatus.textContent = "Sending preview to " + printer.label + "…";
+    printing = true;
+    printProgress.value = 0; printProgress.classList.remove("hidden");
+    printerStatus.textContent = "Sending to " + printer.label + "…";
+    updatePrinterControls();
     try {
       const result = await printer.write(job.bytes, (sent, total) => {
         const now = performance.now();
         if (now - updated > 400 || sent === total) {
-          printerStatus.textContent = "Sending: " + Math.round(sent / total * 100) + "% · " + sent + "/" + total + " bytes · " + ((now - started) / 1000).toFixed(1) + " s";
+          printProgress.value = sent / total * 100;
+          printerStatus.textContent = "Sending: " + Math.round(sent / total * 100) + "% · " + ((now - started) / 1000).toFixed(1) + " s";
           updated = now;
         }
       }, { mode: job.mode });
       const seconds = result.elapsedMs / 1000;
-      printerStatus.textContent = "Sent " + result.bytes + " bytes in " + seconds.toFixed(1) + " s (" + Math.round(result.bytes / Math.max(seconds, .001)) + " bytes/s). Check the paper. Ready for another print.";
+      printProgress.value = 100;
+      printerStatus.textContent = "Sent to printer in " + seconds.toFixed(1) + " s. Check the paper. You can print again.";
     } catch (error) {
       printerStatus.textContent = "Print transfer failed after " + (error.transferStats?.bytes || 0) + " bytes. No automatic retry. Restart the printer before trying again. " + error.message;
       try { await printer?.disconnect(); } catch {}
       printer = null;
       throw error;
+    } finally {
+      printing = false;
     }
   }
 
+  keyChoice.addEventListener("click", () => selectContent("key"));
+  imageChoice.addEventListener("click", () => selectContent("image"));
   connectBleButton.addEventListener("click", () => run(() => connectPrinter("ble")));
   connectSerialButton.addEventListener("click", () => run(() => connectPrinter("serial")));
   disconnectPrinterButton.addEventListener("click", () => run(async () => {
     await printer?.disconnect(); printer = null;
     printerStatus.textContent = "Printer disconnected.";
   }));
-  directPrintButton.addEventListener("click", () => run(printPreview));
+  directPrintButton.addEventListener("click", () => run(printCurrentImage));
   printMode.addEventListener("change", () => run(() => {
     if (preparedJob) showPreview(preparedJob.canvas, previewSource);
   }));
@@ -138,11 +224,10 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     const bitmap = await createImageBitmap(file);
     try { showPreview(bitmap, "image"); }
     finally { bitmap.close(); }
-    setStatus("Image preview ready for printing or PNG export.", "ok");
+    setStatus("Image ready.", "ok");
+    continueToPrinter();
   }));
   window.addEventListener("pagehide", () => { Promise.resolve(printer?.disconnect()).catch(() => {}); });
-  if (!globalThis.isSecureContext) printerStatus.textContent = "Use HTTPS or localhost to connect a printer.";
-  else if (!navigator.bluetooth && !navigator.serial) printerStatus.textContent = "This browser can export PNGs. Direct printing needs a browser with Web Bluetooth or Web Serial.";
   updatePrinterControls();
 
   function setStatus(message, className) {
@@ -474,7 +559,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     });
 
     showPreview(canvas, "key");
-    setStatus("Created key preview: " + width + " × " + height + " pixels.", "ok");
+    setStatus("Key receipt ready.", "ok");
   }
 
   function readRecords() {
@@ -494,7 +579,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     storedList.innerHTML = "";
 
     if (!records.length) {
-      storedList.innerHTML = "<p class=\"muted\">No stored key packets.</p>";
+      storedList.innerHTML = "<p class=\"muted\">No saved keys.</p>";
       return;
     }
 
@@ -507,16 +592,18 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
 
       const load = document.createElement("button");
       load.type = "button";
-      load.textContent = "Load";
-      load.addEventListener("click", function loadRecord() {
+      load.textContent = "Use key";
+      load.addEventListener("click", () => run(async () => {
+        selectContent("key");
         clearPreview();
         currentPacket = record;
         currencySelect.value = record.currency;
         recordLabel.value = record.label;
         keyInput.value = record.wif || record.privateKeyHex || "";
         packetOutput.textContent = JSON.stringify(record, null, 2);
-        setStatus("Loaded stored packet: " + record.label + ".", "ok");
-      });
+        await createImage();
+        continueToPrinter();
+      }));
 
       const del = document.createElement("button");
       del.type = "button";
@@ -541,7 +628,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     records.unshift(packet);
     writeRecords(records.slice(0, 50));
     renderStoredList();
-    setStatus("Saved packet to this browser origin.", "ok");
+    setStatus("Key saved on this device.", "ok");
   }
 
   async function loadHandoffIfPresent() {
@@ -592,7 +679,8 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
       } catch (error) {}
     }
 
-    setStatus("Scanner handoff loaded. Preview is ready to print or export. Return to the scanned-key list when finished.", "ok");
+    setStatus("Scanned key loaded. Your receipt is ready.", "ok");
+    continueToPrinter();
     return true;
   }
 
@@ -610,11 +698,11 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
     });
   }
 
-  document.getElementById("deriveButton").addEventListener("click", () => run(async () => {
+  deriveButton.addEventListener("click", () => run(async () => {
     clearPreview(); await derivePacket(); await createImage();
+    continueToPrinter();
   }));
-  document.getElementById("printButton").addEventListener("click", () => run(createImage));
-  document.getElementById("saveButton").addEventListener("click", () => run(saveCurrentPacket));
+  saveButton.addEventListener("click", () => run(saveCurrentPacket));
   document.getElementById("clearInputButton").addEventListener("click", () => {
     keyInput.value = ""; packetOutput.textContent = ""; currentPacket = null; clearPreview();
     setStatus("Input cleared.");
@@ -622,6 +710,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   [keyInput, recordLabel].forEach(input => input.addEventListener("input", () => {
     currentPacket = null; packetOutput.textContent = "";
     if (previewSource === "key") clearPreview();
+    else updatePrinterControls();
   }));
   [includePrivate, includePrivateHex, includePublic, includeManifest].forEach(input => input.addEventListener("change", () => {
     if (previewSource === "key") clearPreview();
@@ -637,7 +726,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   document.getElementById("clearStoredButton").addEventListener("click", function onClearStored() {
     localStorage.removeItem(STORAGE_KEY);
     renderStoredList();
-    setStatus("Stored packets cleared.");
+    setStatus("Saved keys cleared.");
   });
 
   currencySelect.addEventListener("change", () => run(async () => {
@@ -651,7 +740,7 @@ import { ctp500ConnectPrinter, ctp500PreparePrint } from '../../ctp500-print.js?
   renderStoredList();
   run(() => loadHandoffIfPresent().then(function onHandoff(loaded) {
     if (!loaded) {
-      setStatus("Ready. Paste a WIF or 64-hex private key. Private material prints first so it can be folded over and clipped closed.");
+      setStatus("Paste your private key and press Continue, or choose Image or photo.");
     }
   }).catch(function onHandoffError(error) {
     setStatus("Scanner handoff failed: " + (error.message || String(error)), "bad");

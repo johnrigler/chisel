@@ -786,7 +786,7 @@
       if (resource.instaprintVisited) {
         const badge = document.createElement("span");
         badge.className = "instaVisitedBadge";
-        badge.textContent = "✓ PRINT PREVIEW";
+        badge.textContent = "✓ READY TO PRINT";
         metaWrap.append(badge);
       }
       header.append(title,metaWrap);
@@ -1038,7 +1038,7 @@
       createdAt:new Date().toISOString()
     };
     localStorage.setItem("chisel.keyPrint.handoff.v1",JSON.stringify(handoff));
-    window.location.href = "../keyPrint/index.html?handoff=1&v=20261016-print2";
+    window.location.href = "../keyPrint/index.html?handoff=1&v=20261016-print3";
   }
 
   function loadResourceIntoChisel(resource) {

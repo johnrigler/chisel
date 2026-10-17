@@ -3,193 +3,196 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel key and image printer</title>
+  <title>Chisel printer</title>
   <style>
-    :root { color-scheme: dark; }
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: #0b0d10;
-      color: #e6edf3;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    header, main { max-width: 1100px; margin: 0 auto; padding: 24px; }
-    header { border-bottom: 1px solid #222a33; }
-    h1, h2, h3, p { margin: 0; }
-    main { display: grid; gap: 16px; }
-    .panel {
-      background: #11161c;
-      border: 1px solid #222a33;
-      border-radius: 12px;
-      padding: 16px;
-      display: grid;
-      gap: 12px;
-    }
-    .grid { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: start; }
-    label { color: #b8c7d6; padding-top: 10px; font-size: 14px; }
-    input, select, button, textarea { font: inherit; }
-    input, select, textarea {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid #2c3642;
-      border-radius: 10px;
-      background: #0a0f14;
-      color: #e6edf3;
-      outline: none;
-    }
-    textarea { min-height: 130px; resize: vertical; }
-    button, a.button {
-      border: 1px solid #3a4655;
-      border-radius: 10px;
-      background: #1b2430;
-      color: #e6edf3;
-      padding: 11px 14px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-    }
-    button:hover, a.button:hover { background: #243143; }
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-    .checks { display: flex; flex-wrap: wrap; gap: 14px; }
-    .checks label { padding-top: 0; display: flex; gap: 8px; align-items: center; }
-    .checks input { width: auto; }
-    .muted { color: #9fb0c0; line-height: 1.5; }
-    .warn { color: #ffd37a; }
-    .bad { color: #ff8f8f; }
-    .ok { color: #9dffbd; }
-    pre {
-      white-space: pre-wrap;
-      word-break: break-word;
-      margin: 0;
-      background: #070a0e;
-      border: 1px solid #222a33;
-      border-radius: 10px;
-      padding: 12px;
-      overflow: auto;
-    }
-    #previewWrap {
-      background: #05070a;
-      border: 1px solid #222a33;
-      border-radius: 12px;
-      padding: 12px;
-      overflow: auto;
-    }
-    #previewImage {
-      max-width: 100%;
-      image-rendering: pixelated;
-      background: white;
-    }
-    .storedRow {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      gap: 8px;
-      align-items: center;
-      padding: 8px;
-      border: 1px solid #222a33;
-      border-radius: 10px;
-      background: #0a0f14;
-    }
-    button:disabled { opacity: .5; cursor: default; }
+    body { margin: 0; background: #0b1017; color: #e6edf3; line-height: 1.5; }
+    header, main { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    header { padding-bottom: 8px; }
+    header a { font-size: 14px; }
+    h1 { font-size: clamp(26px, 5vw, 34px); margin: 12px 0 6px; line-height: 1.2; }
+    h2 { font-size: 21px; line-height: 1.3; margin: 0; }
+    p { margin: 0; }
+    main { display: grid; gap: 20px; padding-bottom: 40px; }
     a { color: #9dc9ff; }
-    .grid > *, .storedRow > * { min-width: 0; overflow-wrap: anywhere; }
-    @media (max-width: 600px) {
-      header, main { padding: 14px; }
-      .grid { grid-template-columns: 1fr; gap: 8px; }
-      label { padding-top: 4px; }
+    .panel { background: #121a25; border: 1px solid #2a3747; border-radius: 16px; padding: 24px; }
+    .step-panel { display: grid; gap: 20px; scroll-margin-top: 16px; }
+    .step-heading { display: flex; align-items: center; gap: 12px; }
+    .step-number { display: grid; place-items: center; flex: 0 0 34px; height: 34px; border-radius: 50%; background: #263547; color: #b9c9da; font-weight: 700; }
+    .current-step { border-color: #72b5ff; }
+    .current-step .step-number { background: #8bc2ff; color: #071a30; }
+    .content-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .content-choice { min-height: 64px; text-align: left; font-size: 18px; font-weight: 650; }
+    .content-choice[aria-pressed="true"] { border-color: #8bc2ff; background: #213951; box-shadow: inset 0 0 0 1px #8bc2ff; }
+    .content-fields, .fields, .print-controls { display: grid; gap: 16px; }
+    .fields { grid-template-columns: 1fr 1fr; }
+    .field { display: grid; gap: 6px; min-width: 0; }
+    label { font-size: 15px; font-weight: 550; }
+    input, select, button, textarea { font: inherit; }
+    input, select, textarea { width: 100%; padding: 13px 14px; border: 1px solid #46576c; border-radius: 9px; background: #0b111a; color: #e6edf3; }
+    textarea { min-height: 105px; resize: vertical; font-family: ui-monospace, monospace; font-size: 14px; overflow-wrap: anywhere; }
+    button, a.button { border: 1px solid #46576c; border-radius: 10px; background: #233144; color: #e6edf3; padding: 12px 18px; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
+    button:hover, a.button:hover { background: #304158; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #8bc2ff; outline-offset: 3px; }
+    button:disabled { opacity: .45; cursor: default; }
+    .primary { min-height: 58px; font-size: 19px; font-weight: 700; }
+    .next-action { background: #90c7ff; border-color: #90c7ff; color: #071b31; box-shadow: 0 0 0 3px #90c7ff20; }
+    .next-action:hover { background: #b0d7ff; }
+    .wide { width: 100%; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .actions .primary { flex: 1 1 240px; }
+    .secondary { background: transparent; }
+    .muted { color: #a5b5c8; font-size: 14px; }
+    .warn { color: #f3c879; }
+    .bad { color: #ffabab; }
+    .ok { color: #9dffbd; }
+    .connection { font-size: 16px; }
+    details > summary { cursor: pointer; font-weight: 600; padding: 3px 0; }
+    details[open] > summary { margin-bottom: 16px; }
+    .checks { display: grid; gap: 12px; margin: 16px 0; }
+    .checks label { display: flex; gap: 10px; align-items: center; font-weight: 400; }
+    .checks input { width: 20px; height: 20px; flex: 0 0 20px; accent-color: #90c7ff; }
+    input[type="file"] { padding: 10px; }
+    input[type="file"]::file-selector-button { border: 0; border-radius: 7px; padding: 12px 16px; margin-right: 12px; background: #90c7ff; color: #071b31; font: inherit; font-weight: 650; cursor: pointer; }
+    .print-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 24px; align-items: start; }
+    #previewWrap { max-height: 430px; overflow: auto; padding: 16px; border-radius: 10px; background: #283344; text-align: center; }
+    #previewImage { display: block; width: 384px; max-width: 100%; height: auto; margin: 0 auto; background: white; image-rendering: pixelated; }
+    .empty-sheet { display: grid; place-items: center; min-height: 180px; padding: 24px; border: 1px dashed #46576c; border-radius: 10px; text-align: center; color: #a5b5c8; }
+    .print-controls { align-content: start; }
+    #printerStatus, #status { overflow-wrap: anywhere; font-size: 14px; }
+    #printerStatus:empty, #status:empty { display: none; }
+    progress { width: 100%; height: 12px; accent-color: #90c7ff; }
+    .export-actions { font-size: 14px; }
+    .export-actions a { padding: 8px 12px; }
+    pre { margin: 16px 0 0; padding: 14px; border-radius: 10px; background: #080e16; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .storedRow { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid #2a3747; }
+    .storedRow > div { min-width: 0; overflow-wrap: anywhere; }
+    .support-details { background: transparent; padding: 18px 24px; }
+    .support-details .actions { margin-top: 16px; }
+    .hidden, a.button.hidden { display: none; }
+    @media (max-width: 640px) {
+      header, main { padding: 16px; }
+      header { padding-bottom: 4px; }
+      .panel { padding: 18px; }
+      .fields, .print-layout { grid-template-columns: 1fr; }
+      .print-layout { gap: 16px; }
+      #previewWrap { max-height: 280px; padding: 12px; }
+      .content-choice { padding: 14px; font-size: 16px; }
       .storedRow { grid-template-columns: 1fr auto; }
       .storedRow > div { grid-column: 1 / -1; }
+      .actions .primary { flex-basis: 100%; }
     }
-    .hidden, a.button.hidden { display: none; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Chisel key and image printer</h1>
-    <p><a href="../../index.html?mode=tools">Chisel tools</a> · <a href="#printPreview">Image / printer</a> · <a href="../../ctp500-test.html?v=20261016-ble3">Printer diagnostics</a></p>
-    <p class="muted">Create a key receipt or choose an image, connect the CTP500 once, and print directly from this browser. PNG export is also available.</p>
+    <a href="../../index.html?mode=tools">← Chisel tools</a>
+    <h1>Print a key or image</h1>
+    <p class="muted">Choose what to print, connect your printer, then press Print.</p>
   </header>
-
   <main>
-    <section class="panel">
-      <h2>Key input</h2>
-      <p class="muted warn">Private key material is handled locally in this browser page. Saving to device uses localStorage, not encryption. Treat it as convenient, not secure.</p>
-      <div class="grid">
-        <label for="currencySelect">Currency</label>
-        <select id="currencySelect"></select>
-
-        <label for="keyInput">WIF or 64-hex private key</label>
-        <textarea id="keyInput" spellcheck="false" placeholder="Paste WIF or 64 hex characters here"></textarea>
-
-        <label for="recordLabel">Record label</label>
-        <input id="recordLabel" placeholder="Example: paper wallet / event key 03" />
-
-        <label for="paperWidth">Printer width (dots)</label>
-        <input id="paperWidth" inputmode="numeric" value="384" readonly />
+    <section id="contentSection" class="panel step-panel current-step" aria-labelledby="contentHeading">
+      <div class="step-heading"><span class="step-number" aria-hidden="true">1</span><h2 id="contentHeading">Choose what to print</h2></div>
+      <div class="content-choices" role="group" aria-label="Content type">
+        <button id="keyChoice" class="content-choice" type="button" aria-pressed="true" aria-controls="keyFields">Key receipt</button>
+        <button id="imageChoice" class="content-choice" type="button" aria-pressed="false" aria-controls="imageFields">Image or photo</button>
       </div>
-      <div class="checks">
-        <label><input id="includePrivate" type="checkbox" checked /> include private WIF QR/text</label>
-        <label><input id="includePrivateHex" type="checkbox" checked /> include raw private hex</label>
-        <label><input id="includePublic" type="checkbox" checked /> include address/public key</label>
-        <label><input id="includeManifest" type="checkbox" checked /> include JSON manifest</label>
+      <div id="keyFields" class="content-fields">
+        <div class="fields">
+          <div class="field"><label for="currencySelect">Currency</label><select id="currencySelect"></select></div>
+          <div class="field"><label for="recordLabel">Label (optional)</label><input id="recordLabel" placeholder="Example: paper wallet / event key 03" /></div>
+        </div>
+        <div class="field">
+          <label for="keyInput">Private key (WIF or 64 hex characters)</label>
+          <textarea id="keyInput" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste your private key here"></textarea>
+        </div>
+        <p class="muted warn">The receipt can include private keys. Keep the printed receipt covered.</p>
+        <details>
+          <summary>Receipt options</summary>
+          <div class="checks">
+            <label><input id="includePrivate" type="checkbox" checked /> Private WIF: QR code and text</label>
+            <label><input id="includePrivateHex" type="checkbox" checked /> Private key in hex</label>
+            <label><input id="includePublic" type="checkbox" checked /> Address and public key</label>
+            <label><input id="includeManifest" type="checkbox" checked /> Public JSON manifest</label>
+          </div>
+        </details>
+        <div class="actions">
+          <button id="deriveButton" class="primary next-action" type="button">Continue</button>
+          <button id="clearInputButton" class="secondary" type="button">Clear</button>
+        </div>
       </div>
-      <div class="actions">
-        <button id="deriveButton" type="button">Derive and preview</button>
-        <button id="printButton" type="button">Create key preview</button>
-        <button id="saveButton" type="button">Save packet to this device</button>
-        <button id="clearInputButton" type="button">Clear input</button>
+      <div id="imageFields" class="content-fields hidden">
+        <label for="imageFile">Choose an image from this device</label>
+        <input id="imageFile" type="file" accept="image/*" />
+        <p class="muted">The image will be fitted to the paper and converted to black and white.</p>
       </div>
-      <pre id="status"></pre>
+      <p id="status" role="status" aria-live="polite"></p>
     </section>
-
-    <section class="panel">
-      <h2>Derived packet</h2>
+    <section id="printerSection" class="panel step-panel" aria-labelledby="printerHeading">
+      <div class="step-heading"><span class="step-number" aria-hidden="true">2</span><h2 id="printerHeading">Connect your printer</h2></div>
+      <p id="printerConnection" class="connection" role="status">Printer not connected.</p>
+      <div class="actions">
+        <button id="connectBleButton" class="primary" type="button">Connect printer</button>
+        <button id="connectSerialButton" class="primary hidden" type="button">Connect via Serial</button>
+        <button id="disconnectPrinterButton" class="secondary hidden" type="button" disabled>Disconnect</button>
+      </div>
+      <p id="connectionHelp" class="muted">Choose Teal Printer from the Bluetooth list. You only need to connect once.</p>
+      <p id="connectionError" class="bad" role="alert"></p>
+      <details>
+        <summary>Printer settings and help</summary>
+        <div class="content-fields">
+          <div class="field">
+            <label for="printMode">Print speed</label>
+            <select id="printMode">
+              <option value="fast">Fast (recommended)</option>
+              <option value="acknowledged">Acknowledged writes</option>
+              <option value="compatibility">Compatibility</option>
+            </select>
+          </div>
+          <p id="printDetails" class="muted">CTP500 · 384 dots wide.</p>
+          <p class="muted">Close InstaPrint and disconnect Bluetooth Internals before connecting. For Serial on a Chromebook, pair the printer in system Bluetooth settings first.</p>
+          <p><a href="../../ctp500-test.html?v=20261016-ble3">Printer diagnostics</a></p>
+        </div>
+      </details>
+    </section>
+    <section id="printSection" class="panel step-panel" aria-labelledby="printHeading">
+      <div class="step-heading"><span class="step-number" aria-hidden="true">3</span><h2 id="printHeading">Print</h2></div>
+      <div class="print-layout">
+        <div>
+          <div id="emptySheet" class="empty-sheet">Your receipt or image will appear here.</div>
+          <div id="previewWrap" class="hidden"><img id="previewImage" alt="Receipt or image to print" /></div>
+        </div>
+        <div class="print-controls">
+          <p id="previewSummary">Prepare a key receipt or choose an image in step 1.</p>
+          <button id="directPrintButton" class="primary wide" type="button" disabled>Print</button>
+          <p id="nextStep" class="muted" aria-live="polite">Complete step 1 to continue.</p>
+          <progress id="printProgress" class="hidden" max="100" value="0" aria-label="Print transfer progress"></progress>
+          <p id="printerStatus" role="status" aria-live="polite"></p>
+          <div class="actions export-actions">
+            <a id="downloadLink" class="button secondary hidden" download="chisel-key-print.png">Save image</a>
+            <a id="openLink" class="button secondary hidden" target="_blank" rel="noopener">Open image</a>
+          </div>
+          <a id="returnToScanner" class="hidden">Back to scanned keys</a>
+        </div>
+      </div>
+    </section>
+    <details class="panel support-details">
+      <summary>Key details and saving</summary>
+      <p class="muted warn">Saved keys are not encrypted. Only save them on a device you trust.</p>
+      <div class="actions"><button id="saveButton" class="secondary" type="button">Save key on this device</button></div>
       <pre id="packetOutput"></pre>
-    </section>
-
-    <section class="panel">
-      <h2 id="printPreview">Print preview</h2>
-      <label for="imageFile">Or choose an image file</label>
-      <input id="imageFile" type="file" accept="image/*" />
-      <p class="muted">The preview is the black-and-white image that will print at 384 dots wide.</p>
-      <div class="actions">
-        <button id="connectBleButton" type="button">Connect Bluetooth printer</button>
-        <button id="connectSerialButton" type="button">Choose Serial (Chromebook)</button>
-        <button id="disconnectPrinterButton" type="button" disabled>Disconnect</button>
-      </div>
-      <p id="printerConnection" class="muted" role="status">Printer disconnected.</p>
-      <label for="printMode">Transfer</label>
-      <select id="printMode">
-        <option value="fast">Faster — verified BLE setting</option>
-        <option value="acknowledged">Acknowledged writes</option>
-        <option value="compatibility">Original pacing and raster feed</option>
-      </select>
-      <p id="previewSummary" class="muted">Choose Derive and preview, Create key preview, or an image file to prepare a print.</p>
-      <div class="actions">
-        <button id="directPrintButton" type="button" disabled>Print preview</button>
-      </div>
-      <pre id="printerStatus" role="status" aria-live="polite"></pre>
-      <p class="muted">Select Teal Printer. Close InstaPrint and disconnect Bluetooth Internals first. Keep this page visible while printing. The connection stays available for further prints on this page.</p>
-      <div class="actions">
-        <a id="downloadLink" class="button hidden" download="chisel-key-print.png">Download PNG</a>
-        <a id="openLink" class="button hidden" target="_blank" rel="noopener">Open image</a>
-        <a id="returnToScanner" class="button hidden">RETURN TO SCANNED KEYS</a>
-      </div>
-      <div id="previewWrap" class="hidden"><img id="previewImage" alt="Black-and-white printer preview" /></div>
-    </section>
-
-    <section class="panel">
-      <h2>Device-stored packets</h2>
-      <p class="muted">These records live under <code>localStorage.chisel.keyPrint.records.v1</code> for this browser origin. They are useful for repeated printing, not for strong custody.</p>
+    </details>
+    <details class="panel support-details">
+      <summary>Saved keys on this device</summary>
       <div id="storedList"></div>
       <div class="actions">
-        <button id="refreshStoredButton" type="button">Refresh stored list</button>
-        <button id="clearStoredButton" type="button">Clear all stored packets</button>
+        <button id="refreshStoredButton" class="secondary" type="button">Refresh list</button>
+        <button id="clearStoredButton" class="secondary" type="button">Clear saved keys</button>
       </div>
-    </section>
+    </details>
   </main>
-
   <div id="qrScratch" class="hidden"></div>
-
   <script src="../../vendor/qrcode.min.js"></script>
   <script src="../../chisel.js?2.6.4"></script>
   <script src="../../chisel.unspendable.js?2.5.2f"></script>
@@ -197,8 +200,6 @@
   <script src="../../chisel.ravencoin.js?2.5.2d"></script>
   <script src="../../chisel.digibyte.js?2.5.2d"></script>
   <script src="../../chisel.litecoin.js?2.5.2j"></script>
-
-  <script type="module" src="./key-print.js?v=20261016-print2"></script>
-
+  <script type="module" src="./key-print.js?v=20261016-print3"></script>
 </body>
 </html>
