@@ -56,8 +56,8 @@
     input[type="file"] { padding: 10px; }
     input[type="file"]::file-selector-button { border: 0; border-radius: 7px; padding: 12px 16px; margin-right: 12px; background: #90c7ff; color: #071b31; font: inherit; font-weight: 650; cursor: pointer; }
     .print-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 24px; align-items: start; }
-    #previewWrap { max-height: 430px; overflow: auto; padding: 16px; border-radius: 10px; background: #283344; text-align: center; }
-    #previewImage { display: block; width: 384px; max-width: 100%; height: auto; margin: 0 auto; background: white; image-rendering: pixelated; }
+    #previewWrap { overflow: auto; padding: 16px; border-radius: 10px; background: #283344; text-align: center; }
+    #previewImage { display: block; width: 100%; max-width: 1280px; height: auto; margin: 0 auto; background: white; image-rendering: pixelated; }
     .empty-sheet { display: grid; place-items: center; min-height: 180px; padding: 24px; border: 1px dashed #46576c; border-radius: 10px; text-align: center; color: #a5b5c8; }
     .print-controls { align-content: start; }
     #printerStatus, #status { overflow-wrap: anywhere; font-size: 14px; }
@@ -77,7 +77,7 @@
       .panel { padding: 18px; }
       .fields, .print-layout { grid-template-columns: 1fr; }
       .print-layout { gap: 16px; }
-      #previewWrap { max-height: 280px; padding: 12px; }
+      #previewWrap { padding: 12px; }
       .content-choice { padding: 14px; font-size: 16px; }
       .storedRow { grid-template-columns: 1fr auto; }
       .storedRow > div { grid-column: 1 / -1; }
@@ -153,6 +153,7 @@
       <div class="print-layout">
         <div>
           <div id="emptySheet" class="empty-sheet">Your receipt or image will appear here.</div>
+          <div id="previewActions" class="actions hidden"><button id="rotatePreview" class="secondary" type="button">Rotate preview 90°</button></div>
           <div id="previewWrap" class="hidden"><img id="previewImage" alt="Receipt or image to print" /></div>
         </div>
         <div class="print-controls">
@@ -191,6 +192,6 @@
   <script src="../../chisel.ravencoin.js?2.5.2d"></script>
   <script src="../../chisel.digibyte.js?2.5.2d"></script>
   <script src="../../chisel.litecoin.js?2.5.2j"></script>
-  <script type="module" src="./key-print.js?v=20261016-print4"></script>
+  <script type="module" src="./key-print.js?v=20261017-menu1"></script>
 </body>
 </html>

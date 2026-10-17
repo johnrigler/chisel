@@ -1,6 +1,6 @@
 # Chisel key and image printer
 
-Open https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261016-print4
+Open https://johnrigler.github.io/chisel/tools/keyPrint/index.html?v=20261017-menu1
 or choose **Tools → Key and image printer** in Chisel.
 
 This merges the former Key InstaPrint PNG tool with the CTP500 BLE transport
@@ -17,8 +17,10 @@ hosting. No printing server, package install, or native app is required.
 
 The next action and its numbered step are highlighted. Continue moves to
 connection, or directly to Print if the printer is already connected. Only the
-final Print button sends data to the printer. The receipt image sits in a bounded
-scroll area so a long receipt does not push the Print button far down the page.
+final Print button sends data to the printer. The full receipt is visible on the page. Folded key receipts start in a readable
+sideways view. **Rotate preview 90°** turns the displayed copy; **Open image**
+opens the current view at full size. Saving and printing use the original
+384-dot paper-feed layout.
 
 **Save image** exports the same black-and-white, 384-dot PNG. Key saving and printer settings are expandable. Unsupported
 browsers can still save images. Normal prints contain only the displayed image

@@ -1,3 +1,4 @@
+import { createPrintPreview } from '../../ctp500-preview.js?v=20261017-menu1';
 import { ctp500ConnectPrinter, ctp500PreparePrint, ctp500BeginPrintSession } from '../../ctp500-print.js?v=20261016-print4';
 import { createKeyReceipt } from './key-receipt.js?v=20261016-print4';
 
@@ -17,6 +18,7 @@ import { createKeyReceipt } from './key-receipt.js?v=20261016-print4';
   const qrScratch = document.getElementById("qrScratch");
 
   let currentPacket = null;
+  let previewTurns = 0;
   let scannerReturn = null;
   let printer = null, preparedJob = null, previewSource = null, busy = false;
   const connectBleButton = document.getElementById("connectBleButton");
@@ -118,7 +120,8 @@ import { createKeyReceipt } from './key-receipt.js?v=20261016-print4';
   }
 
   function clearPreview() {
-    preparedJob = null; previewSource = null;
+    preparedJob = null; previewSource = null; previewTurns = 0;
+    document.getElementById("previewActions").classList.add("hidden");
     previewWrap.classList.add("hidden");
     emptySheet.classList.remove("hidden");
     previewImage.removeAttribute("src");
@@ -132,10 +135,13 @@ import { createKeyReceipt } from './key-receipt.js?v=20261016-print4';
   }
 
   function showPreview(canvas, source) {
+    if (!preparedJob) previewTurns = source === "key" ? 3 : 0;
     const job = ctp500PreparePrint(canvas, { mode: printMode.value });
     const dataUrl = job.canvas.toDataURL("image/png");
     preparedJob = job; previewSource = source;
-    previewImage.src = dataUrl; downloadLink.href = dataUrl; openLink.href = dataUrl;
+    downloadLink.href = dataUrl;
+    renderPreview();
+    document.getElementById("previewActions").classList.remove("hidden");
     previewWrap.classList.remove("hidden");
     emptySheet.classList.add("hidden");
     downloadLink.download = source === "key" ? "chisel-key-print.png" : "chisel-image-print.png";
@@ -146,6 +152,18 @@ import { createKeyReceipt } from './key-receipt.js?v=20261016-print4';
     printerStatus.textContent = "";
     updatePrinterControls();
   }
+
+  function renderPreview() {
+    if (!preparedJob) return;
+    const src = createPrintPreview(preparedJob.canvas, previewTurns).toDataURL("image/png");
+    previewImage.src = src;
+    openLink.href = src;
+  }
+  document.getElementById("rotatePreview").addEventListener("click", () => {
+    if (busy || !preparedJob) return;
+    previewTurns = (previewTurns + 1) % 4;
+    renderPreview();
+  });
 
   async function connectPrinter(transport) {
     connectionError.textContent = "";
