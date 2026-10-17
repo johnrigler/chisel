@@ -144,7 +144,7 @@
       USES_THIRD_PARTY_PROVIDERS: true,
       HERO_TITLE: config.displayName + " provider send-back + broadcast",
       HERO_TEXT: "Paste one " + config.displayName + " WIF, optionally add OP_RETURN data, and broadcast a local P2PKH transaction through public providers. The WIF is decoded and signed locally.",
-      HELP_TEXT: "Provider list is comma-separated. Default: " + config.defaultProviders + ". This first GUI bridge is legacy P2PKH only.",
+      HELP_TEXT: "Providers are tried in order; failures and timeouts fall through automatically. Default: " + config.defaultProviders + ". This first GUI bridge is legacy P2PKH only.",
       coinToUnits: coinToUnits,
       unitsToCoin: unitsToCoin,
       getRequiredFeeUnits: getRequiredFeeUnits,

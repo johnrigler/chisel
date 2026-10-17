@@ -862,63 +862,84 @@
       };
     }
 
-    async function getAddressUtxoReports(address, options) {
+    async function attemptProvider(providerName, method, value, options) {
       const opts = options || {};
-      const providerNames = getProviderNames(opts);
-      const timeoutMs = Math.max(1000, Number(opts.providerTimeoutMs) || 10000);
-
-      // Query providers concurrently. A stalled endpoint must not block
-      // fallback providers or leave the Send screen waiting indefinitely.
-      return Promise.all(providerNames.map(async function queryProvider(providerName) {
-        let provider;
-        try {
-          provider = getProvider(providerName, opts);
-        } catch (error) {
-          return { provider: providerName, ok: false, error: error.message || String(error) };
-        }
-
-        if (typeof provider.getAddressUtxos !== "function") {
-          return { provider: provider.NAME, ok: false, error: "Provider has no getAddressUtxos()." };
-        }
-
-        let timer;
-        const started = Date.now();
-        try {
-          const result = await Promise.race([
-            Promise.resolve().then(function startProviderRequest() {
-              return provider.getAddressUtxos(address, opts);
-            }),
-            new Promise(function timeoutProvider(resolve, reject) {
-              timer = setTimeout(function reportTimeout() {
-                reject(new Error("Provider timed out after " + timeoutMs + "ms"));
-              }, timeoutMs);
-            })
-          ]);
-          return {
-            provider: provider.NAME,
-            ok: true,
-            url: provider.lastUrl || "",
-            elapsedMs: Date.now() - started,
-            result: result
+      const broadcasting = method === "broadcastRawTransaction";
+      const configuredTimeout = Number(broadcasting ? opts.broadcastTimeoutMs : opts.providerTimeoutMs);
+      const timeoutMs = Math.max(1000, Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? configuredTimeout : (broadcasting ? 12000 : 10000));
+      const started = Date.now();
+      let provider, timer, cancel;
+      let timedOut = false, cancelled = false;
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timedOptions = Object.assign({}, opts, controller ? { signal: controller.signal } : {});
+      try {
+        provider = getProvider(providerName, opts);
+        if (typeof provider[method] !== "function") throw new Error("Provider has no " + method + "().");
+        const cancellation = new Promise(function watchCancellation(resolve, reject) {
+          cancel = function () {
+            cancelled = true;
+            reject(new Error("Provider request cancelled."));
+            if (controller) controller.abort();
           };
-        } catch (error) {
-          return {
-            provider: provider.NAME,
-            ok: false,
-            url: provider.lastUrl || "",
-            elapsedMs: Date.now() - started,
-            error: error.message || String(error)
-          };
-        } finally {
-          clearTimeout(timer);
-        }
+          if (opts.signal) {
+            if (opts.signal.aborted) cancel();
+            else opts.signal.addEventListener("abort", cancel, { once: true });
+          }
+        });
+        const result = await Promise.race([
+          cancellation,
+          new Promise(function timeoutProvider(resolve, reject) {
+            timer = setTimeout(function reportTimeout() {
+              timedOut = true;
+              reject(new Error("Provider timed out after " + timeoutMs + "ms"));
+              if (controller) controller.abort();
+            }, timeoutMs);
+          }),
+          Promise.resolve().then(function startProviderRequest() {
+            if (cancelled) throw new Error("Provider request cancelled.");
+            return provider[method](value, timedOptions);
+          })
+        ]);
+        if (method === "getAddressUtxos" && !Array.isArray(result)) throw new Error("Provider returned an invalid UTXO list.");
+        if (result === null || result === undefined || result === "") throw new Error("Provider returned an empty response.");
+        return { provider: provider.NAME, ok: true, url: provider.lastUrl || "", elapsedMs: Date.now() - started, result: result };
+      } catch (error) {
+        return { provider: provider ? provider.NAME : providerName, ok: false,
+          url: provider && provider.lastUrl || "", elapsedMs: Date.now() - started,
+          error: error.message || String(error), timedOut: timedOut, cancelled: cancelled,
+          outcomeUnknown: broadcasting && (timedOut || error.name === "AbortError" || error.name === "TypeError") };
+      } finally {
+        clearTimeout(timer);
+        if (opts.signal && cancel) opts.signal.removeEventListener("abort", cancel);
+      }
+    }
+
+    async function firstProviderResult(method, value, options) {
+      const opts = options || {}, names = getProviderNames(opts), reports = [];
+      for (let i = 0; i < names.length; i += 1) {
+        const report = await attemptProvider(names[i], method, value, opts);
+        reports.push(report);
+        if (report.ok) return CHISEL.firstSuccessfulProviderResult(reports);
+        if (report.cancelled) break;
+      }
+      try { return CHISEL.firstSuccessfulProviderResult(reports); }
+      catch (error) {
+        error.attemptedProviders = CHISEL.providerAttemptSummary(reports);
+        if (reports.some(function unknown(report) { return report.outcomeUnknown; })) error.broadcastOutcomeUnknown = true;
+        throw error;
+      }
+    }
+
+    async function getAddressUtxoReports(address, options) {
+      // Cross-checks intentionally query every provider; normal reads stop at the first success.
+      return Promise.all(getProviderNames(options).map(function queryProvider(name) {
+        return attemptProvider(name, "getAddressUtxos", address, options);
       }));
     }
 
     async function getAddressUtxosWithReport(address, options) {
-      const reports = await getAddressUtxoReports(address, options);
-
-      return CHISEL.firstSuccessfulProviderResult(reports);
+      return firstProviderResult("getAddressUtxos", address, options);
     }
 
     async function compareAddressUtxos(address, options) {
@@ -940,28 +961,7 @@
     }
 
     async function getTransactionWithReport(txid, options) {
-      const opts = options || {};
-      const providerNames = getProviderNames(opts);
-      const reports = [];
-
-      for (let i = 0; i < providerNames.length; i += 1) {
-        const provider = getProvider(providerNames[i], opts);
-
-        if (typeof provider.getTransaction !== "function") {
-          reports.push({ provider: provider.NAME, ok: false, error: "Provider has no getTransaction()." });
-          continue;
-        }
-
-        try {
-          const result = await provider.getTransaction(txid, opts);
-
-          reports.push({ provider: provider.NAME, ok: true, result: result });
-        } catch (error) {
-          reports.push({ provider: provider.NAME, ok: false, error: error.message || String(error) });
-        }
-      }
-
-      return CHISEL.firstSuccessfulProviderResult(reports);
+      return firstProviderResult("getTransaction", txid, options);
     }
 
     async function getTransaction(txid, options) {
@@ -971,60 +971,9 @@
     }
 
     async function broadcastRawTransactionWithReport(rawHex, options) {
-      const opts = options || {};
-      const providerNames = getProviderNames(opts);
-      const timeoutMs = Math.max(1000, Number(opts.broadcastTimeoutMs) || 12000);
-      const reports = [];
-
-      // Unlike UTXO reads, broadcasting has side effects. A timeout gives
-      // an UNKNOWN result: do not automatically submit to another provider.
-      for (let i = 0; i < providerNames.length; i += 1) {
-        const name = providerNames[i];
-        let provider;
-        try {
-          provider = getProvider(name, opts);
-        } catch (error) {
-          reports.push({ provider: name, ok: false, error: error.message || String(error) });
-          continue;
-        }
-        if (typeof provider.broadcastRawTransaction !== "function") {
-          reports.push({ provider: provider.NAME, ok: false, error: "Provider has no broadcastRawTransaction()." });
-          continue;
-        }
-        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-        let timeoutId;
-        const timedOptions = Object.assign({}, opts, controller ? { signal: controller.signal } : {});
-        try {
-          const result = await Promise.race([
-            Promise.resolve().then(function submit() {
-              return provider.broadcastRawTransaction(rawHex, timedOptions);
-            }),
-            new Promise(function timeout(resolve, reject) {
-              timeoutId = setTimeout(function timedOut() {
-                if (controller) controller.abort();
-                const error = new Error("Broadcast outcome UNKNOWN: " + provider.NAME +
-                  " did not respond within " + timeoutMs +
-                  "ms. Check the address or transaction in an explorer before attempting another send.");
-                error.broadcastOutcomeUnknown = true;
-                reject(error);
-              }, timeoutMs);
-            })
-          ]);
-          reports.push({ provider: provider.NAME, ok: true, result: result });
-          return CHISEL.firstSuccessfulProviderResult(reports);
-        } catch (error) {
-          reports.push({ provider: provider.NAME, ok: false, error: error.message || String(error) });
-          if (error.broadcastOutcomeUnknown || (error.name === "AbortError")) {
-            const uncertain = new Error(error.message || "Broadcast outcome UNKNOWN; inspect the network before retrying.");
-            uncertain.broadcastOutcomeUnknown = true;
-            uncertain.attemptedProviders = CHISEL.providerAttemptSummary(reports);
-            throw uncertain;
-          }
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      }
-      return CHISEL.firstSuccessfulProviderResult(reports);
+      // Re-submit these identical signed bytes on failure/timeout. Do not rebuild
+      // or sign a replacement transaction while advancing through the provider list.
+      return firstProviderResult("broadcastRawTransaction", rawHex, options);
     }
 
     async function broadcastRawTransaction(rawHex, options) {
@@ -1360,9 +1309,9 @@
     network: "mainnet",
     baseUrl: "https://litecoinspace.org/api",
     explorerTxUrl: "https://litecoinspace.org/tx/",
-    getAddressUtxos: async function getAddressUtxos(address) {
+    getAddressUtxos: async function getAddressUtxos(address, options) {
       this.lastUrl = this.baseUrl + "/address/" + encodeURIComponent(address) + "/utxo";
-      const json = await CHISEL.fetchJson(this.lastUrl);
+      const json = await CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal });
 
       if (!Array.isArray(json)) {
         throw new Error("Litecoinspace returned an unexpected UTXO payload.");
@@ -1380,20 +1329,21 @@
         };
       });
     },
-    getTransaction: async function getTransaction(txid) {
+    getTransaction: async function getTransaction(txid, options) {
       this.lastUrl = this.baseUrl + "/tx/" + encodeURIComponent(txid);
-      return CHISEL.fetchJson(this.lastUrl);
+      return CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal });
     },
-    broadcastRawTransaction: async function broadcastRawTransaction(rawHex) {
+    broadcastRawTransaction: async function broadcastRawTransaction(rawHex, options) {
       this.lastUrl = this.baseUrl + "/tx";
       return CHISEL.fetchText(this.lastUrl, {
         method: "POST",
+        signal: options && options.signal,
         headers: { "Content-Type": "text/plain" },
         body: String(rawHex || "").trim()
       });
     },
-    getTip: async function getTip() {
-      return CHISEL.fetchJson(this.baseUrl + "/blocks/tip/height");
+    getTip: async function getTip(options) {
+      return CHISEL.fetchJson(this.baseUrl + "/blocks/tip/height", { signal: options && options.signal });
     },
     healthCheck: async function healthCheck() {
       return {
@@ -1423,9 +1373,9 @@
     network: "mainnet",
     baseUrl: "https://api.blockcypher.com/v1/ltc/main",
     explorerTxUrl: "https://live.blockcypher.com/ltc/tx/",
-    getAddressUtxos: async function getAddressUtxos(address) {
+    getAddressUtxos: async function getAddressUtxos(address, options) {
       this.lastUrl = this.baseUrl + "/addrs/" + encodeURIComponent(address) + "?unspentOnly=true&includeScript=true";
-      const json = await CHISEL.fetchJson(this.lastUrl);
+      const json = await CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal });
       const txrefs = (json.txrefs || []).concat(json.unconfirmed_txrefs || []);
 
       return txrefs.map(function normalize(utxo) {
@@ -1440,20 +1390,21 @@
         };
       });
     },
-    getTransaction: async function getTransaction(txid) {
+    getTransaction: async function getTransaction(txid, options) {
       this.lastUrl = this.baseUrl + "/txs/" + encodeURIComponent(txid);
-      return CHISEL.fetchJson(this.lastUrl);
+      return CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal });
     },
-    broadcastRawTransaction: async function broadcastRawTransaction(rawHex) {
+    broadcastRawTransaction: async function broadcastRawTransaction(rawHex, options) {
       this.lastUrl = this.baseUrl + "/txs/push";
       return CHISEL.fetchJson(this.lastUrl, {
         method: "POST",
+        signal: options && options.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tx: String(rawHex || "").trim() })
       });
     },
-    getTip: async function getTip() {
-      return CHISEL.fetchJson(this.baseUrl);
+    getTip: async function getTip(options) {
+      return CHISEL.fetchJson(this.baseUrl, { signal: options && options.signal });
     },
     healthCheck: async function healthCheck() {
       const status = await this.getTip();
@@ -1473,12 +1424,39 @@
     network: "mainnet",
     baseUrl: "https://api.blockchair.com/litecoin",
     explorerTxUrl: "https://blockchair.com/litecoin/transaction/",
-    getTransaction: async function getTransaction(txid) {
-      this.lastUrl = this.baseUrl + "/dashboards/transaction/" + encodeURIComponent(txid);
-      return CHISEL.fetchJson(this.lastUrl);
+    getAddressUtxos: async function getAddressUtxos(address, options) {
+      this.lastUrl = this.baseUrl + "/dashboards/address/" + encodeURIComponent(address) + "?limit=0,10000";
+      const json = await CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal });
+      const entry = json && json.data && json.data[address];
+      if (!entry || !entry.address || !Array.isArray(entry.utxo) || json.context && json.context.code !== 200) {
+        throw new Error("Blockchair returned an unexpected UTXO payload.");
+      }
+      if (Number(entry.address.unspent_output_count) > entry.utxo.length) throw new Error("Blockchair returned a truncated UTXO list.");
+      return entry.utxo.map(function normalize(utxo) {
+        return { txid: utxo.transaction_hash, vout: Number(utxo.index), satoshis: Number(utxo.value),
+          scriptPubKey: entry.address.script_hex || "", confirmed: Number(utxo.block_id) >= 0,
+          blockHeight: Number(utxo.block_id) >= 0 ? Number(utxo.block_id) : undefined };
+      });
     },
-    getTip: async function getTip() {
-      return CHISEL.fetchJson(this.baseUrl + "/stats");
+    broadcastRawTransaction: async function broadcastRawTransaction(rawHex, options) {
+      this.lastUrl = this.baseUrl + "/push/transaction";
+      const json = await CHISEL.fetchJson(this.lastUrl, {
+        method: "POST", signal: options && options.signal,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "data=" + encodeURIComponent(String(rawHex || "").trim())
+      });
+      const txid = json && json.data && json.data.transaction_hash;
+      if (!/^[0-9a-f]{64}$/i.test(String(txid || "")) || json.context && json.context.code !== 200) {
+        throw new Error("Blockchair did not return an accepted transaction hash.");
+      }
+      return txid;
+    },
+    getTransaction: async function getTransaction(txid, options) {
+      this.lastUrl = this.baseUrl + "/dashboards/transaction/" + encodeURIComponent(txid);
+      return CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal });
+    },
+    getTip: async function getTip(options) {
+      return CHISEL.fetchJson(this.baseUrl + "/stats", { signal: options && options.signal });
     },
     healthCheck: async function healthCheck() {
       const stats = await this.getTip();

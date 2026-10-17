@@ -222,6 +222,27 @@ renders the test and measured diagnostic footer locally, sends both to the print
 and lets you save the receipt as a PNG.
 See [printer setup, confirmed tests, and transfer timing](ctp500.md).
 
+## Litecoin provider failover
+
+The Send provider list is tried in its configured order. Errors, unsupported
+methods, invalid responses, and timeouts advance to the next provider; the first
+success stops the operation. A read has a 10-second per-provider limit and a
+broadcast has a 12-second limit. Stalled requests are aborted. Explicitly
+cancelled operations stop instead of trying another provider.
+
+Every broadcast attempt uses the same signed transaction bytes. Failover does
+not rebuild, re-sign, or change the fee. If every provider fails, the error retains
+the attempts and identifies a potentially unknown broadcast outcome. An empty,
+valid UTXO list is a successful read; it is not treated as an endpoint failure.
+Explicit provider cross-checks still query every listed provider.
+
+The mainnet defaults are `litecoinspace,blockcypherLitecoin,blockchairLitecoin`.
+Blockchair now supplies UTXOs and broadcasts as well as transaction lookups.
+Existing custom lists remain unchanged. `tests/provider-failover.test.mjs` covers
+ordered fallback, network mismatches, missing methods, timeouts/cancellation,
+identical broadcast bytes, complete failure, and the native adapters with mock
+HTTP responses. It is included in the regression workflow and never broadcasts.
+
 ## Native eCash notes in Zorkmid
 
 The [Zorkmid Chisel view](https://johnrigler.github.io/lantern/world.html#view=etch)
