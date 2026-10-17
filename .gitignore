@@ -11,3 +11,5 @@ tools/m64Artifact/dist/
 tools/m64Artifact/.standalone-artifacts/
 tools/m64Artifact/ignition/deployments/
 tools/m64Artifact/.env
+
+tools/secp256k1Migration/node_modules/

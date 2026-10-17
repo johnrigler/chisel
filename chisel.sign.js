@@ -424,37 +424,10 @@
   };
 
   CHISEL.parseRawTransaction = function parseRawTransaction(rawTxHex) {
-    const normalized = CHISEL.normalizeHex(rawTxHex);
-    const version = normalized.slice(0, 8);
-    const vinCount = parseInt(normalized.slice(8, 10), 16);
-
-    let cursor = 10;
-    const vins = [];
-
-    for (let i = 0; i < vinCount; i++) {
-      const txidLE = normalized.slice(cursor, cursor + 64);
-      const vout = normalized.slice(cursor + 64, cursor + 72);
-      const scriptLen = parseInt(normalized.slice(cursor + 72, cursor + 74), 16);
-      const scriptStart = cursor + 74;
-      const scriptEnd = scriptStart + scriptLen * 2;
-      const seq = normalized.slice(scriptEnd, scriptEnd + 8);
-
-      vins.push({
-        txidLE: txidLE,
-        vout: vout,
-        seq: seq,
-        scriptSig: ""
-      });
-
-      cursor = scriptEnd + 8;
-    }
-
-    return {
-      version: version,
-      vinCount: vinCount,
-      vins: vins,
-      outputsAndLock: normalized.slice(cursor)
-    };
+    const parsed = CHISEL.parseRawTransactionDetailed(rawTxHex);
+    if (parsed.segwit) throw new Error("This signer supports legacy P2PKH inputs, not witness inputs.");
+    return { version: parsed.versionHex, vinCount: parsed.vinCount, outputsAndLock: parsed.outputsAndLock,
+      vins: parsed.vin.map(function input(vin) { return { txidLE: vin.txidLE, vout: CHISEL.uint32LEHex(vin.vout), seq: vin.sequence, scriptSig: "" }; }) };
   };
 
   CHISEL.buildP2pkhLockScript = async function buildP2pkhLockScript(privateKeyHex, compressed) {

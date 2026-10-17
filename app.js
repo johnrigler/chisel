@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8";
+  const APP_VERSION = "2.8.1";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -435,11 +435,9 @@ function parseRecipients() {
         throw new Error("Recipient " + rowNumber + " is missing an amount.");
       }
 
-      const amountNumber = Number(rowValues.amountText);
-
-      if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
-        throw new Error("Recipient " + rowNumber + " amount must be greater than zero.");
-      }
+      const amountUnits = coin.coinToUnits(rowValues.amountText);
+      if (amountUnits <= 0) throw new Error("Recipient " + rowNumber + " amount must be greater than zero.");
+      const amountNumber = coin.unitsToCoin(amountUnits);
 
       if (seenAddresses[rowValues.address]) {
         throw new Error("Duplicate recipient address: " + rowValues.address);
@@ -450,7 +448,7 @@ function parseRecipients() {
       return {
         address: rowValues.address,
         amount: amountNumber,
-        amountUnits: coin.coinToUnits(rowValues.amountText),
+        amountUnits: amountUnits,
         outputType: rowValues.outputType,
         note: rowValues.note
       };
@@ -459,36 +457,25 @@ function parseRecipients() {
 
 function getLooseRecipientTotalUnits() {
   const coin = getCoin();
-
-  return getRecipientRowValues().reduce(function reduceRecipientTotal(total, rowValues) {
-    const amountNumber = Number(rowValues.amountText);
-
-    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
-      return total;
-    }
-
-    return total + coin.coinToUnits(rowValues.amountText);
-  }, 0);
+  return CHISEL.transactionSafety.sum(getRecipientRowValues().map(function (row) {
+    return row.amountText ? coin.coinToUnits(row.amountText) : 0;
+  }));
 }
 
 function sumRecipientUnits(recipients) {
-  return recipients.reduce(function reduceRecipientUnits(total, recipient) {
-    return total + Number(recipient.amountUnits);
-  }, 0);
+  return CHISEL.transactionSafety.sum(recipients.map(function (recipient) { return recipient.amountUnits; }));
 }
 
 function updateRecipientCostPreview() {
   const coin = getCoin();
-  const recipientTotalUnits = getLooseRecipientTotalUnits();
-  const feeUnits = coin.coinToUnits(elems.feeRvn.value || "0");
-  const estimatedCostUnits = recipientTotalUnits + feeUnits;
-
-  if (elems.recipientTotalRvn) {
-    elems.recipientTotalRvn.value = coin.unitsToCoin(recipientTotalUnits).toFixed(8);
-  }
-
-  if (elems.estimatedCostRvn) {
-    elems.estimatedCostRvn.value = coin.unitsToCoin(estimatedCostUnits).toFixed(8);
+  try {
+    const total = getLooseRecipientTotalUnits();
+    const fee = coin.coinToUnits(elems.feeRvn.value || "0");
+    if (elems.recipientTotalRvn) elems.recipientTotalRvn.value = coin.unitsToCoin(total).toFixed(8);
+    if (elems.estimatedCostRvn) elems.estimatedCostRvn.value = coin.unitsToCoin(CHISEL.transactionSafety.sum([total, fee])).toFixed(8);
+  } catch (error) {
+    if (elems.recipientTotalRvn) elems.recipientTotalRvn.value = "Invalid decimal amount";
+    if (elems.estimatedCostRvn) elems.estimatedCostRvn.value = "Check amounts / fee";
   }
 }
 
@@ -1660,17 +1647,6 @@ function clearOutputs() {
   //
 //
 
-function extractSuggestedFeeFromErrorMessage(message) {
-  const normalizedMessage = String(message || "");
-  const match = normalizedMessage.match(/min relay fee not met,\s*(\d+)\s*<\s*(\d+)/i);
-
-  if (!match) {
-    return null;
-  }
-
-  return Number(match[2]);
-}
-
 function setFeeValue(feeValue) {
   elems.feeRvn.value = feeValue;
   elems.feeRvn.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1702,7 +1678,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
 
     const client = await makeClientForValues(coin, values);
     const minimumRequiredFeeUnits = getMinimumRequiredFeeUnits(coin, values);
-    const requiredFeeUnits = Math.max(values.feeUnits, minimumRequiredFeeUnits);
+    let requiredFeeUnits = Math.max(values.feeUnits, minimumRequiredFeeUnits);
 
     setStatusMessage("Deriving " + coin.TICKER + " account from WIF...", false);
     const account = await coin.wifToAccount(values.senderWif);
@@ -1721,7 +1697,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
     setStatusMessage("Fetching UTXOs for " + account.address + (coin.USES_THIRD_PARTY_PROVIDERS ? " via providers..." : "..."), false);
     logSafeSendStage("utxo-request", "info");
     const rawUtxos = await coin.getAddressUtxos(client, values, account.address);
-    const utxos = rawUtxos.map(CHISEL.normalizeUTXO);
+    let utxos = rawUtxos.map(CHISEL.normalizeUTXO);
     setUtxoData(utxos);
     rejectRecipientsUsingChangeAddress(values.recipients, account.address);
 
@@ -1729,16 +1705,24 @@ function getMinimumRequiredFeeUnits(coin, values) {
       throw new Error("No UTXOs found for the derived address.");
     }
 
+    const loadRaw = makePreviousTransactionLoader(coin, client, values);
+    const expectedScript = await CHISEL.buildP2pkhLockScript(account.privateKeyHex, account.compressed);
+    const baseFee = coin.coinToUnits(coin.DEFAULT_FEE);
+    setStatusMessage("Verifying input values against previous transaction bytes...", false);
+    const selection = await CHISEL.transactionSafety.selectInputs(utxos, {
+      loadRaw: loadRaw, expectedScript: expectedScript, recipientUnits: sumRecipientUnits(values.recipients),
+      feeForInputs: function (count) { return Math.max(values.feeUnits, getMinimumRequiredFeeUnits(coin, Object.assign({}, values, { inputCount: count }))); },
+      limitForFee: function (fee, count) { return CHISEL.transactionSafety.feeLimit(baseFee, getMinimumRequiredFeeUnits(coin, Object.assign({}, values, { inputCount: count }))); }
+    });
+    utxos = selection.utxos;
+    requiredFeeUnits = selection.feeUnits;
+    values.inputCount = utxos.length;
+    setUtxoData(utxos);
     const vin = CHISEL.buildVin(utxos);
     setVinData(vin);
-
-    const totalUnits = CHISEL.sumUtxoSatoshis(utxos);
+    const totalUnits = selection.totalUnits;
     const recipientTotalUnits = sumRecipientUnits(values.recipients);
     const changeUnits = totalUnits - recipientTotalUnits - requiredFeeUnits;
-
-    if (changeUnits <= 0) {
-      throw new Error("Not enough balance to pay the fee.");
-    }
 
     setChangeData(changeUnits);
 
@@ -1768,6 +1752,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
       vin: vin,
       vout: vout,
       requiredFeeUnits: requiredFeeUnits,
+      loadRaw: loadRaw,
       rawHex: null,
       signedHex: null
     };
@@ -1793,7 +1778,67 @@ function getMinimumRequiredFeeUnits(coin, values) {
     return context;
   }
 
+  function makePreviousTransactionLoader(coin, client, values) {
+    const cache = new Map();
+    return function loadRaw(txid) {
+      if (typeof coin.getRawTransaction !== "function") throw new Error("This coin has no previous-transaction verification adapter.");
+      if (!cache.has(txid)) cache.set(txid, coin.getRawTransaction(client, values, txid));
+      return cache.get(txid);
+    };
+  }
+
+  async function auditTransactionContext(context, rawHex, manual) {
+    const coin = context.coin;
+    const decoded = CHISEL.parseRawTransactionDetailed(rawHex);
+    const values = Object.assign({}, context.values, { inputCount: decoded.vinCount });
+    const minimum = getMinimumRequiredFeeUnits(coin, values);
+    if (!context.loadRaw) context.loadRaw = makePreviousTransactionLoader(coin, context.client, context.values);
+    return CHISEL.transactionSafety.audit(rawHex, {
+      coin: coin, loadRaw: context.loadRaw,
+      expectedScript: context.account ? await CHISEL.buildP2pkhLockScript(context.account.privateKeyHex, context.account.compressed) : null,
+      vin: manual ? null : context.vin, vout: manual ? null : context.vout,
+      expectedFee: manual ? undefined : context.requiredFeeUnits,
+      feeLimit: CHISEL.transactionSafety.feeLimit(coin.coinToUnits(coin.DEFAULT_FEE), minimum)
+    });
+  }
+
+  async function reviewTransactionContext(context, rawHex, manual, action) {
+    const review = await auditTransactionContext(context, rawHex, manual);
+    const coin = context.coin, amount = function (units) { return coin.unitsToCoin(units).toFixed(8) + " " + coin.TICKER; };
+    const lines = [coin.DISPLAY_NAME + " • " + (context.account ? context.account.network : "selected network"),
+      review.inputCount + " verified input(s): " + amount(review.inputUnits), "", "Outputs:"];
+    for (const output of review.outputs) {
+      let destination = output.address;
+      if (!destination && output.type === "p2pkh") destination = await CHISEL.base58CheckEncode(CHISEL.concatBytes(new Uint8Array([coin.P2PKH_PREFIX]), CHISEL.hexToUint8Array(output.script.slice(6, 46))));
+      lines.push(amount(output.valueUnits) + " → " + (destination || output.type + " " + output.script));
+      if (context.account && destination === context.account.address) lines.push("  Return to your address");
+    }
+    lines.push("", "Network fee: " + amount(review.feeUnits), "Input values and fee verified from previous transaction bytes.");
+    if (!await confirmTransactionReview(lines.join("\n"), action)) throw new Error("Transaction cancelled. Nothing was signed or broadcast by this step.");
+    context.review = review;
+    return review;
+  }
+
+  function confirmTransactionReview(text, action) {
+    const dialog = document.createElement("dialog");
+    if (typeof dialog.showModal !== "function") return Promise.resolve(window.confirm(text + "\n\n" + action + "?"));
+    const title = document.createElement("h2"), details = document.createElement("pre"), cancel = document.createElement("button"), accept = document.createElement("button");
+    title.textContent = "Review transaction"; details.textContent = text;
+    details.style.whiteSpace = "pre-wrap"; details.style.overflowWrap = "anywhere";
+    dialog.style.maxWidth = "min(44rem, 90vw)"; dialog.style.maxHeight = "85vh";
+    cancel.textContent = "Cancel"; accept.textContent = action;
+    cancel.type = accept.type = "button";
+    dialog.append(title, details, cancel, accept); document.body.appendChild(dialog);
+    return new Promise(function (resolve) {
+      function finish(accepted) { dialog.close(); dialog.remove(); resolve(accepted); }
+      cancel.onclick = function () { finish(false); }; accept.onclick = function () { finish(true); };
+      dialog.addEventListener("cancel", function (event) { event.preventDefault(); finish(false); }, { once: true });
+      dialog.showModal(); cancel.focus();
+    });
+  }
+
   async function signTransactionContext(context) {
+    if (!context.review) await reviewTransactionContext(context, context.rawHex, Boolean(context.manual), "Sign transaction");
     const signingInputs = context.vin.map(function mapSigningInput() {
       return {
         privateKeyHex: context.account.privateKeyHex,
@@ -1806,6 +1851,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
     setSignedHexData(signedHex);
 
     setStatusMessage(context.coin.USES_THIRD_PARTY_PROVIDERS ? "Decoding signed raw transaction locally..." : "Decoding signed raw transaction...", false);
+    await auditTransactionContext(context, signedHex, Boolean(context.manual));
     const decodedSigned = await context.coin.decodeRawTransaction(context.client, context.values, signedHex);
     setDecodedSignedData(decodedSigned);
 
@@ -1821,6 +1867,8 @@ function getMinimumRequiredFeeUnits(coin, values) {
   }
 
   async function sendTransactionContext(context) {
+    if (!context.review) await reviewTransactionContext(context, context.signedHex, Boolean(context.manual), "Broadcast signed transaction");
+    await auditTransactionContext(context, context.signedHex, Boolean(context.manual));
     setStatusMessage(context.coin.USES_THIRD_PARTY_PROVIDERS ? "Broadcasting signed transaction through providers..." : "Broadcasting signed transaction...", false);
     logSafeSendStage("broadcast-start", "info");
     let sendResult;
@@ -1839,6 +1887,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
   async function runBuildSignDecodeSend() {
     if (window.chiselActivity) window.chiselActivity("Send", "Building transaction");
     const context = await buildTransactionContext();
+    await reviewTransactionContext(context, context.rawHex, false, "Sign & broadcast");
     if (window.chiselActivity) window.chiselActivity("Send", "Signing locally");
     await signTransactionContext(context);
     if (window.chiselActivity) window.chiselActivity("Send", "Broadcasting signed transaction");
@@ -1971,6 +2020,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
     });
 
     const context = {
+      manual: true,
       coin: coin,
       values: values,
       client: client,
@@ -2005,10 +2055,11 @@ function getMinimumRequiredFeeUnits(coin, values) {
     const signedHex = getManualHex(elems.manualSignedHex, "Signed raw transaction hex");
     const client = await makeClientForValues(coin, values);
     const context = {
+      manual: true,
       coin: coin,
       values: values,
       client: client,
-      account: state.account,
+      account: null,
       utxos: state.utxos,
       vin: state.vin,
       vout: state.vout,
@@ -2023,6 +2074,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
       source: "manual-signed-hex-editor",
       params: [signedHex]
     });
+    await reviewTransactionContext(context, signedHex, true, "Broadcast signed transaction");
     await sendTransactionContext(context);
     state.manualContext = context;
     exportRpcCommandsToManualBox();
@@ -2055,28 +2107,11 @@ async function onClickSendButton() {
     await runBuildSignDecodeSend();
   } catch (error) {
     const errorMessage = error && error.message ? error.message : String(error);
-    const requiredFeeUnits = extractSuggestedFeeFromErrorMessage(errorMessage);
-
-    if (requiredFeeUnits !== null) {
-      try {
-        setFeeUnitsValue(requiredFeeUnits);
-        setStatusMessage(
-          "Retrying with updated fee: " + getCoin().unitsToCoin(requiredFeeUnits).toFixed(8),
-          false
-        );
-
-        clearOutputs();
-        await runBuildSignDecodeSend();
-        return;
-      } catch (retryError) {
-        console.error(retryError);
-        setStatusMessage(retryError.message || String(retryError), true);
-        return;
-      }
+    // Provider error text is untrusted. Never change a fee, rebuild, or re-sign here.
+    if (/min relay fee|insufficient fee/i.test(errorMessage)) {
+      setStatusMessage("Provider rejected the fee. Review and change it yourself before starting a new transaction. " + errorMessage, true);
+      return;
     }
-
-	  //// 
-	  //
 
 if (isTooLongMempoolChainError(errorMessage)) {
   setStatusMessage(

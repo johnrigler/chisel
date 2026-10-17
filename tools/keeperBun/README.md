@@ -20,7 +20,7 @@ keeperd.js              long-running Bun daemon; starts locked
 keeper-init.js          SSH forced-command relay; HELO / CHALLENGE / INIT
 login-litecoin.js       local client; signs INIT with Litecoin WIF
 keeper-common.js        protocol, hashing, base58, cache helpers
-keeper-crypto.js        secp256k1 signing / verification via bundled elliptic
+keeper-crypto.js        secp256k1 signing / verification via pinned local Noble; strict DER codec shared with Chisel
 sample-init-payload.json
 chisel-ssh-entry.example
 start-keeperd.example.sh

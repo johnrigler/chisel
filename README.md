@@ -12,6 +12,10 @@
 
 Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts. **Portal** is the primary public reader; **Send**, **Review**, **Examples**, and **Tools** expose other workflows. It is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
 
+## W42 review fixes
+
+Send now verifies input amounts from previous transaction bytes, checks a bounded fee, and asks you to review the actual outputs before signing. Normal wallet and identity signing uses locally bundled Noble. See the [technical review response](docs/SECURITY_REVIEW_2026_W42.md) for the fixes, tests and trust limits.
+
 ## What it does
 
 A transaction output can be more than a payment. An address can carry readable structure. An amount can carry a small code. An OP_RETURN can carry text. A transaction can become a public note, breadcrumb, receipt, ritual, or searchable index.

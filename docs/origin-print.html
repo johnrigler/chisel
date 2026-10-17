@@ -84,7 +84,7 @@ pre { white-space: pre-wrap; font-size: 9pt; line-height: 1.25; background: #f2f
 <div class="note">Use MacDougall in new writing. Older source files may contain MacDougal. Do not make the spelling drift worse.</div>
 <table>
 <thead><tr><th>White paper concept</th><th>Chisel term</th><th>Current implementation / location</th><th>Interpretation</th></tr></thead><tbody>
-<tr><td>Browser-local signing feasibility</td><td>elliptic signing path</td><td>vendor/elliptic-6-6-1.js, chisel.sign.js</td><td>The browser can hold the signing act locally instead of sending secrets to a hosted service.</td></tr>
+<tr><td>Browser-local signing feasibility</td><td>elliptic signing path</td><td>vendor/elliptic-6-6-1.min.js, chisel.sign.js</td><td>The browser can hold the signing act locally instead of sending secrets to a hosted service.</td></tr>
 <tr><td>Static browser interface</td><td>Vanilla JS application shell</td><td>index.html, app.js, chisel.js</td><td>No bundler or Node build step is required for the main reader/authoring path.</td></tr>
 <tr><td>Physical usability layer</td><td>QR labels and stickers</td><td>tools/qrField, tools/keyPrint, scan pages</td><td>Keys, txids, addresses, and route labels can be moved through ordinary printed objects.</td></tr>
 <tr><td>Base58-Hash currency family</td><td>Multi-chain UTXO target</td><td>DigiByte, Ravencoin, Litecoin, Dogecoin modules</td><td>The common substrate is UTXO transaction construction, not a single chain brand.</td></tr>

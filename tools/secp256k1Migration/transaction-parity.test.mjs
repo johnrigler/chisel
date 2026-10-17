@@ -67,8 +67,8 @@ test('Noble reproduces the exact legacy signed raw transaction', async () => {
   assert.equal(nobleHex, legacyHex);
   assert.deepEqual(C.lastSignerParity, {
     backend: 'noble',
-    compared: true,
-    ok: true,
+    compared: false,
+    ok: null,
     signedBytes: nobleHex.length / 2,
   });
 

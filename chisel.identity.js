@@ -5,19 +5,19 @@
     throw new Error("CHISEL must be loaded before chisel.identity.js.");
   }
 
-  if (!window.elliptic || !window.elliptic.ec) {
-    throw new Error("elliptic dependency is required.");
+  if (!CHISEL.secp256k1 || typeof CHISEL.secp256k1.signDigest !== "function") {
+    throw new Error("Load the Chisel secp256k1 backend before identity signing.");
   }
 
   const IDENTITY_PREFIX = "chisel:v1:";
   const FORMAT = "chisel-signed-v1";
   const ALGORITHM = "secp256k1-sha256";
   const DOMAIN = "CHISEL-SIGNED-V1";
-  const ec = new window.elliptic.ec("secp256k1");
+  const ORDER = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
 
   function normalizePrivateKey(privateKeyHex) {
     const value = CHISEL.normalizeHex(String(privateKeyHex || ""));
-    if (!/^[0-9a-f]{64}$/.test(value)) {
+    if (!/^[0-9a-f]{64}$/.test(value) || BigInt("0x" + value) === 0n || BigInt("0x" + value) >= ORDER) {
       throw new Error("Expected a 32-byte private key.");
     }
     return value;
@@ -44,7 +44,7 @@
     return key.slice(0, 8) + "…" + key.slice(-8);
   };
 
-  function canonicalValue(value) {
+  function canonicalValue(value, ancestors) {
     if (value === null) return "null";
     if (typeof value === "string") return JSON.stringify(value);
     if (typeof value === "boolean") return value ? "true" : "false";
@@ -52,29 +52,34 @@
       if (!Number.isFinite(value)) throw new Error("Signed payload cannot contain non-finite numbers.");
       return JSON.stringify(value);
     }
-    if (Array.isArray(value)) {
-      return "[" + value.map(function (item) {
-        if (typeof item === "undefined" || typeof item === "function" || typeof item === "symbol") {
-          throw new Error("Signed payload cannot contain undefined, functions, or symbols.");
+    if (typeof value !== "object") throw new Error("Signed payload must contain only plain JSON values.");
+    if (ancestors.has(value)) throw new Error("Signed payload cannot contain cycles.");
+    if (ancestors.size > 100) throw new Error("Signed payload is nested too deeply.");
+    const array = Array.isArray(value), proto = Object.getPrototypeOf(value);
+    // Cross-realm ordinary objects are allowed; class instances and built-ins are not.
+    const constructor = proto && Object.getOwnPropertyDescriptor(proto, "constructor");
+    const plain = proto === null || (Object.getPrototypeOf(proto) === null && constructor && typeof constructor.value === "function" && Function.prototype.toString.call(constructor.value) === Function.prototype.toString.call(Object));
+    if (!array && !plain) throw new Error("Signed payload must contain only plain objects and arrays.");
+    const descriptors = Object.getOwnPropertyDescriptors(value), keys = Reflect.ownKeys(descriptors);
+    if (keys.some(function (key) { return typeof key === "symbol" || descriptors[key].get || descriptors[key].set; })) throw new Error("Signed payload cannot contain symbols or accessors.");
+    ancestors.add(value);
+    try {
+      if (array) {
+        if (keys.length !== value.length + 1) throw new Error("Signed arrays must be dense and have no extra properties.");
+        const parts = [];
+        for (let i = 0; i < value.length; i++) {
+          if (!Object.prototype.hasOwnProperty.call(descriptors, i)) throw new Error("Signed arrays must be dense.");
+          parts.push(canonicalValue(descriptors[i].value, ancestors));
         }
-        return canonicalValue(item);
-      }).join(",") + "]";
-    }
-    if (typeof value === "object") {
-      const keys = Object.keys(value).sort();
-      return "{" + keys.map(function (key) {
-        const item = value[key];
-        if (typeof item === "undefined" || typeof item === "function" || typeof item === "symbol") {
-          throw new Error("Signed payload cannot contain undefined, functions, or symbols.");
-        }
-        return JSON.stringify(key) + ":" + canonicalValue(item);
-      }).join(",") + "}";
-    }
-    throw new Error("Unsupported value in signed payload.");
+        return "[" + parts.join(",") + "]";
+      }
+      if (keys.some(function (key) { return !descriptors[key].enumerable; })) throw new Error("Signed objects cannot contain hidden properties.");
+      return "{" + keys.sort().map(function (key) { return JSON.stringify(key) + ":" + canonicalValue(descriptors[key].value, ancestors); }).join(",") + "}";
+    } finally { ancestors.delete(value); }
   }
 
   CHISEL.canonicalize = function canonicalize(value) {
-    return canonicalValue(value);
+    return canonicalValue(value, new Set());
   };
 
   CHISEL.artifactSigningText = function artifactSigningText(type, payload) {
@@ -93,7 +98,7 @@
     return digestText(CHISEL.artifactSigningText(type, payload));
   };
 
-  CHISEL.signDigest = function signDigest(options) {
+  CHISEL.signDigest = async function signDigest(options) {
     const opts = options || {};
     const privateKeyHex = normalizePrivateKey(opts.privateKeyHex);
     const digest = String(opts.digest || "").trim().toLowerCase();
@@ -101,12 +106,12 @@
       throw new Error("Expected a 32-byte digest.");
     }
 
-    const signature = ec.keyFromPrivate(privateKeyHex).sign(digest, { canonical: true });
+    const signature = await CHISEL.secp256k1.signDigest(CHISEL.hexToUint8Array(digest), CHISEL.hexToUint8Array(privateKeyHex));
     return {
       identity: CHISEL.identityFromPrivateKey(privateKeyHex),
       algorithm: ALGORITHM,
       digest: digest,
-      signature: signature.r.toString(16, 64) + signature.s.toString(16, 64)
+      signature: CHISEL.bytesToHex(signature)
     };
   };
 
@@ -126,10 +131,9 @@
     }
 
     try {
-      return ec.keyFromPublic(publicKeyHex, "hex").verify(digest, {
-        r: signatureHex.slice(0, 64),
-        s: signatureHex.slice(64)
-      });
+      const r = BigInt("0x" + signatureHex.slice(0, 64)), scalarS = BigInt("0x" + signatureHex.slice(64));
+      if (r <= 0n || r >= ORDER || scalarS <= 0n || scalarS > ORDER / 2n) return false;
+      return CHISEL.secp256k1.verifyDigest(CHISEL.hexToUint8Array(digest), CHISEL.hexToUint8Array(signatureHex), CHISEL.hexToUint8Array(publicKeyHex));
     } catch (error) {
       return false;
     }
@@ -139,8 +143,9 @@
     const opts = options || {};
     const privateKeyHex = normalizePrivateKey(opts.privateKeyHex);
     const type = String(opts.type || "").trim();
-    const payload = opts.payload;
-    const proof = CHISEL.signDigest({
+    CHISEL.canonicalize(opts.payload); // Reject non-JSON values before taking the snapshot.
+    const payload = JSON.parse(JSON.stringify(opts.payload));
+    const proof = await CHISEL.signDigest({
       privateKeyHex: privateKeyHex,
       digest: await CHISEL.artifactDigest(type, payload)
     });

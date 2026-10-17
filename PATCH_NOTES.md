@@ -1,3 +1,11 @@
+# 2.8.1 — W42 technical review
+
+- Verified previous outputs, bounded fees and a review before normal/manual signing; removed provider-driven fee rebuilding.
+- Strict CompactSize and decimal amount parsing, bounded input selection, HTTP(S) link rendering and plain-JSON/low-S signed artifacts.
+- Local Noble is the production default for transactions, identity and Keeper; offline fixture parity remains.
+- Added vendor/driver integrity checks, main-page CSP and broader pinned CI.
+- Full details: [W42 review response](docs/SECURITY_REVIEW_2026_W42.md).
+
 ## v2.7.4
 
 - Portal now preloads a bundled/static dataset before any fileProxy or live ledger work.
@@ -139,7 +147,7 @@ First Litecoin GUI bridge.
 
 - Embedded elliptic 6.6.1 browser minified build directly into `chisel.js`.
 - Removed the separate `vendor/elliptic-6-6-1.min.js` script dependency from `index.html` and `qrScan.html`.
-- Preserved `vendor/elliptic-6-6-1.min.js` and `vendor/elliptic-6-6-1.js` as audit/source artifacts, not runtime dependencies for the main pages.
+- Preserved `vendor/elliptic-6-6-1.min.js` as audit/source artifacts, not runtime dependencies for the main pages.
 - Preserved the MIT license notice in `THIRD_PARTY_LICENSES/elliptic.txt` and added an embedded-source banner in `chisel.js`.
 - Bumped the `chisel.js` cache token in `index.html` to `2.6.0`.
 

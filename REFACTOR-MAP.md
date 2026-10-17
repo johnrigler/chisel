@@ -41,7 +41,7 @@ The dependency columns describe *direct* dependencies in the file (not what a lo
 | `chisel.litecoin.js` | provider/API adapter | - | F | - | - | G | A | Litecoin/Testnet adapters over the `CHISEL.litecoin` resource, including broadcast. |
 | `chisel.thunderwords.js` | provider/API adapter | - | F | - | - | G | A | Chain/index URL and address/transaction fetch adapter used by Portal. |
 | `dist/chisel-driver.js` | compatibility/legacy | - | F | - | E | G | A | Generated public consolidation artifact; includes core/signer/chain code. Do not edit as a first extraction. |
-| `vendor/elliptic-6-6-1.js` | compatibility/legacy | - | - | - | E | G | - | Auditable third-party elliptic source. |
+| `vendor/elliptic-6-6-1.min.js` | compatibility/legacy | - | - | - | E | G | - | Legacy elliptic browser bundle; offline compatibility tests only for signing. |
 | `vendor/elliptic-6-6-1.min.js` | compatibility/legacy | - | - | - | E | G | - | Third-party minified elliptic distribution, dynamically imported by keeperBun. |
 | `vendor/ethers-6.6.0.umd.min.js` | compatibility/legacy | - | - | - | - | G | - | Third-party EVM library. |
 | `vendor/html5-qrcode.min.js` | compatibility/legacy | D | - | - | - | G | - | Third-party camera/QR reader. |

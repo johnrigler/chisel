@@ -16,7 +16,7 @@
   const FEE_RATE_UNITS_PER_BYTE = 40;
 
   function coinToUnits(value) {
-    return Math.round(Number(value || 0) * BASE_UNITS);
+    return CHISEL.parseAmountUnits(value, 8);
   }
 
   function unitsToCoin(value) {
@@ -61,7 +61,7 @@
     const opReturnFeeUnits = opReturnBytes ? (OP_RETURN_OUTPUT_OVERHEAD_BYTES + opReturnBytes) * FEE_RATE_UNITS_PER_BYTE : 0;
     const recipientFeeUnits = recipientCount * P2PKH_OUTPUT_BYTES * FEE_RATE_UNITS_PER_BYTE;
 
-    return Math.ceil(baseFeeUnits + opReturnFeeUnits + recipientFeeUnits);
+    return Math.ceil(baseFeeUnits + opReturnFeeUnits + recipientFeeUnits + Math.max(0, Number(values && values.inputCount || 1) - 1) * 148 * FEE_RATE_UNITS_PER_BYTE);
   }
 
   function buildOutputHex(valueUnits, scriptHex) {
@@ -126,6 +126,7 @@
       TICKER: config.ticker,
       ORDER: config.order,
       BASE_UNITS: BASE_UNITS,
+      P2PKH_PREFIX: network === "testnet" ? 111 : 48,
       DEFAULT_RPC_URL: config.defaultProviders,
       DEFAULT_EXPLORER_URL: config.explorerUrl,
       DEFAULT_FEE: "0.00010000",
@@ -153,6 +154,9 @@
       },
       getAddressUtxos: function getAddressUtxos(client, values, address) {
         return CHISEL.litecoin.getAddressUtxos(address, getOptions(values, network));
+      },
+      getRawTransaction: function getRawTransaction(client, values, txid) {
+        return CHISEL.litecoin.getRawTransaction(txid, getOptions(values, network));
       },
       createRawTransaction: function createRawTransaction(client, values, vin, vout) {
         return buildRawTransaction(network, vin, vout);

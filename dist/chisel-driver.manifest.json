@@ -1,37 +1,67 @@
 {
   "name": "chisel-driver",
-  "version": "2.6.4",
-  "description": "Browser driver assembled from Chisel core, signing, unspendable, and coin extension modules. Elliptic and RIPEMD160 are embedded; no external runtime scripts are required in v2.6.4.",
+  "version": "2.8.1",
+  "description": "Static Chisel driver with local Noble signing, strict transaction parsing, verified input amounts, and bounded fees.",
   "sourceFiles": [
     {
       "path": "chisel.js",
-      "sha256": "b7600708633ca6c4a724abd8843b3602a8fac5f3e8c91cfdc22e5515a1df0d8d",
-      "bytes": 182601
+      "sha256": "3e1aac8c74c45f243980e701c4ae66f89589ab4d88adec4c85b74b8f093f2715",
+      "bytes": 190791
     },
     {
       "path": "chisel.unspendable.js",
-      "sha256": "5d1adae57a57fdc79bc89cdc2efe5ce2f3e366a5d39e08755dbd7cf14f931d32",
-      "bytes": 16654
+      "sha256": "c5359a3552addfafae21b23bacab6b0cd86b941c2627eb16fd755b750652969f",
+      "bytes": 21749
     },
     {
       "path": "chisel.sign.js",
-      "sha256": "af2e8998acd87242637f3101cfec0af9f0aead3bf421c5d02befb841cdef2fe4",
-      "bytes": 14916
+      "sha256": "0286ce31c1c499567465be7b3bb4c7c811490fc77d937804403f3538dc21a7d9",
+      "bytes": 14461
+    },
+    {
+      "path": "vendor/noble-secp256k1-3.2.0.browser.js",
+      "sha256": "1a07a1b5143e83b8f2c9612ecd8504ca11af440fe93f0fba9137a40265bd7740",
+      "bytes": 29346
+    },
+    {
+      "path": "chisel.secp256k1.js",
+      "sha256": "d81db7ff0e17df5ffbbc6284e0e54326d7bdcbc502bc7c403285c7d51bb58d7d",
+      "bytes": 5790
+    },
+    {
+      "path": "chisel.secp256k1.noble.js",
+      "sha256": "bb02404bb70ff8027514c760cb45f539568210f617ec38955421f8014a4b8704",
+      "bytes": 1942
+    },
+    {
+      "path": "chisel.sign.backend.js",
+      "sha256": "530eeddd546aaead662965d29a6e68d3582dd8999b18d46fc9f046fa3771cd8b",
+      "bytes": 6410
+    },
+    {
+      "path": "chisel.safety.js",
+      "sha256": "39d14289aa659858b0779e67e6158fd0007c810106b5ea4b26bfe69e403d5b31",
+      "bytes": 6511
+    },
+    {
+      "path": "chisel.identity.js",
+      "sha256": "746f67d39989f15c58c4a988cff756d9692f74d196a124372038b6c2c065fbd4",
+      "bytes": 8250
     },
     {
       "path": "chisel.ravencoin.js",
-      "sha256": "9f62c5dc3da823ee611412807479d8fe3efeed1ae9f4a3a103e38627eae309cb",
-      "bytes": 7202
+      "sha256": "d06627341765ff648a3073c5861568dd52129627b54f112981125aa7063a411f",
+      "bytes": 7666
     },
     {
       "path": "chisel.digibyte.js",
-      "sha256": "61b13b5b8b39101677098fffcbb3988df38d9cbab31e3ec1c301c6eecbab51a4",
-      "bytes": 8654
+      "sha256": "667ab95ce3fb40b63890521883edb1b3d25131423a92d990cb2e42b4549d7d9b",
+      "bytes": 9118
     },
     {
       "path": "chisel.litecoin.js",
-      "sha256": "7c0769bcfc6eb4ec0d42da357a3999b2cea217912a416db74568d1538fcc0a24",
-      "bytes": 7355
+      "sha256": "5b11f491cc0352172353ea6366ba41784d51de42844d56af6c607ce08f392557",
+      "bytes": 8204
     }
   ],
   "excludes": [
@@ -58,7 +88,7 @@
     "public-provider": "Driver uses one or more public provider APIs for UTXOs, transaction lookup, and broadcast."
   },
   "keyPrintTool": "tools/keyPrint/index.html",
-  "sha256": "8199bd487c24963045826652224dafcb969569cb0e8b39a4068c71453f17055d",
-  "bytes": 240773,
+  "sha256": "928ece33aa5fb09728cce7479427a552cf687da424bebd4982994bdc61e9184d",
+  "bytes": 311733,
   "externalRuntimeDependencies": []
 }

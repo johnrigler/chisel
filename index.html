@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-XSTLPiOcoRG7+Iaie9J5xRmgRKL8tTbnd6toTvgWF2I=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2597,18 +2598,21 @@
   <script src="chisel.debug.js?rev=20261012S"></script>
   <script src="vendor/qrcode.min.js?rev=20261012S"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20261012S"></script>
-  <script src="chisel.js?rev=20261017-failover1"></script>
+  <script src="chisel.js?rev=20261017-security1"></script>
   <script src="chisel.unspendable.js?rev=20261012S"></script>
-  <script src="chisel.image.js?rev=20261012S"></script>
-  <script src="chisel.sign.js?rev=20261012S"></script>
-  <script src="chisel.identity.js?rev=20261012S"></script>
-  <script src="chisel.ravencoin.js?rev=20261012S"></script>
-  <script src="chisel.digibyte.js?rev=20261012S"></script>
-  <script src="chisel.litecoin.js?rev=20261017-failover1"></script>
+  <script src="chisel.sign.js?rev=20261017-security1"></script>
+<script src="vendor/noble-secp256k1-3.2.0.browser.js?20261017-security1"></script>
+<script src="chisel.secp256k1.js?20261017-security1"></script>
+<script src="chisel.secp256k1.noble.js?20261017-security1"></script>
+<script src="chisel.sign.backend.js?20261017-security1"></script>
+  <script src="chisel.identity.js?rev=20261017-security1"></script>
+  <script src="chisel.ravencoin.js?rev=20261017-security1"></script>
+  <script src="chisel.digibyte.js?rev=20261017-security1"></script>
+  <script src="chisel.litecoin.js?rev=20261017-security1"></script>
   <script src="chisel.thunderwords.js?rev=20261012S"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261012S"></script>
+  <script src="chisel.portal.js?rev=20261017-security1"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
@@ -2618,7 +2622,8 @@
   };
 </script>
 
-  <script src="app.js?rev=20261012S"></script>
+  <script src="chisel.safety.js?20261017-security1"></script>
+<script src="app.js?rev=20261017-security1"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
 </body>
 </html>

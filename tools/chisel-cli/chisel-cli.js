@@ -21,6 +21,11 @@ const REQUIRED_MODULES = Object.freeze([
   "chisel.js",
   "chisel.unspendable.js",
   "chisel.sign.js",
+  "vendor/noble-secp256k1-3.2.0.browser.js",
+  "chisel.secp256k1.js",
+  "chisel.secp256k1.noble.js",
+  "chisel.sign.backend.js",
+  "chisel.safety.js",
   "chisel.ravencoin.js",
   "chisel.digibyte.js",
   "chisel.litecoin.js"

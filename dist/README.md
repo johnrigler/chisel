@@ -9,21 +9,9 @@ Current load order:
 <script src="dist/chisel-driver.js"></script>
 ```
 
-There are no required external runtime scripts in v2.6.4. `elliptic` 6.6.1 is embedded in `chisel.js`, and RIPEMD160 is now implemented inside `chisel.sign.js`.
+The 2.8.1 driver is self-contained, including pinned Noble 3.2.0, the signing boundary, strict parsing, identity and transaction safety. Elliptic remains embedded for explicit offline legacy comparisons; ordinary signing uses Noble. The UI-specific receipt loader is excluded.
 
-This exposes:
-
-- `window.CHISEL`, the core Chisel object.
-- `window.CHISEL_DRIVER`, a small driver metadata object.
-
-Included source modules:
-
-1. `chisel.js`, including embedded `elliptic` 6.6.1.
-2. `chisel.unspendable.js`.
-3. `chisel.sign.js`, including internal RIPEMD160.
-4. `chisel.ravencoin.js`.
-5. `chisel.digibyte.js`.
-6. `chisel.litecoin.js`.
+Regenerate after editing source modules with `node tools/build-driver.mjs`; CI verifies it with `--check`. The manifest records every included module and its hash.
 
 Excluded on purpose:
 
@@ -69,7 +57,7 @@ typeof CHISEL.signRawTransaction
 
 Expected:
 
-- `CHISEL_DRIVER.VERSION` is `2.6.4`.
+- `CHISEL_DRIVER.VERSION` is `2.8.1`.
 - `CHISEL.ripemd160Hex("616263")` is `8eb208f7e05d987a9b044a8e98c6b087f15a0bfc`.
 - `typeof window.CryptoJS` is `undefined`.
 - `CHISEL.signRawTransaction` is a function.

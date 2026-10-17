@@ -529,181 +529,122 @@
 
 
 
+  function requireHexBytes(hex, cursor, bytes) {
+    if (!Number.isSafeInteger(cursor) || cursor < 0 || cursor % 2 || !Number.isSafeInteger(bytes) || bytes < 0 || cursor + bytes * 2 > hex.length) {
+      throw new Error("Truncated transaction at byte " + (cursor / 2) + ".");
+    }
+    const part = hex.slice(cursor, cursor + bytes * 2);
+    if (!/^[0-9a-f]*$/i.test(part)) throw new Error("Invalid transaction hex.");
+    return part;
+  }
+
   CHISEL.readVarInt = function readVarInt(hex, cursor) {
-    const normalized = String(hex || "").toLowerCase();
-    const first = parseInt(normalized.slice(cursor, cursor + 2), 16);
-
-    if (!Number.isFinite(first)) {
-      throw new Error("Could not read varInt at cursor " + cursor + ".");
-    }
-
-    if (first < 253) {
-      return { value: first, cursor: cursor + 2 };
-    }
-
-    if (first === 253) {
-      return {
-        value: parseInt(normalized.slice(cursor + 4, cursor + 6) + normalized.slice(cursor + 2, cursor + 4), 16),
-        cursor: cursor + 6
-      };
-    }
-
-    if (first === 254) {
-      return {
-        value: parseInt(
-          normalized.slice(cursor + 8, cursor + 10) +
-          normalized.slice(cursor + 6, cursor + 8) +
-          normalized.slice(cursor + 4, cursor + 6) +
-          normalized.slice(cursor + 2, cursor + 4),
-          16
-        ),
-        cursor: cursor + 10
-      };
-    }
-
-    throw new Error("64-bit varInt parsing is intentionally not supported yet.");
+    const first = parseInt(requireHexBytes(hex, cursor, 1), 16);
+    const bytes = first < 253 ? 0 : first === 253 ? 2 : first === 254 ? 4 : 8;
+    if (!bytes) return { value: first, cursor: cursor + 2 };
+    const part = requireHexBytes(hex, cursor + 2, bytes);
+    let value = 0n;
+    for (let i = bytes - 1; i >= 0; i--) value = (value << 8n) + BigInt(parseInt(part.slice(i * 2, i * 2 + 2), 16));
+    if (value < (bytes === 2 ? 253n : bytes === 4 ? 65536n : 4294967296n)) throw new Error("Non-minimal CompactSize integer.");
+    if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("CompactSize integer exceeds safe range.");
+    return { value: Number(value), cursor: cursor + 2 + bytes * 2 };
   };
 
   CHISEL.readUInt32LE = function readUInt32LE(hex, cursor) {
-    const normalized = String(hex || "").toLowerCase();
-
-    return parseInt(
-      normalized.slice(cursor + 6, cursor + 8) +
-      normalized.slice(cursor + 4, cursor + 6) +
-      normalized.slice(cursor + 2, cursor + 4) +
-      normalized.slice(cursor, cursor + 2),
-      16
-    );
+    const part = requireHexBytes(hex, cursor, 4);
+    return parseInt(part.match(/../g).reverse().join(""), 16);
   };
-
   CHISEL.readUInt64LE = function readUInt64LE(hex, cursor) {
-    const normalized = String(hex || "").toLowerCase();
-    let value = 0n;
-
-    for (let i = 7; i >= 0; i -= 1) {
-      value = (value << 8n) + BigInt(parseInt(normalized.slice(cursor + i * 2, cursor + i * 2 + 2), 16));
-    }
-
-    return value;
+    const part = requireHexBytes(hex, cursor, 8);
+    return BigInt("0x" + part.match(/../g).reverse().join(""));
   };
 
   CHISEL.parseRawTransactionDetailed = function parseRawTransactionDetailed(rawTxHex) {
     const hex = String(rawTxHex || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
-
-    if (!hex || hex.length % 2 !== 0 || !/^[0-9a-f]+$/.test(hex)) {
-      throw new Error("Raw transaction must be even-length hex.");
-    }
-
+    if (!hex || hex.length % 2 || !/^[0-9a-f]+$/.test(hex) || hex.length > 8000000) throw new Error("Raw transaction must be bounded, even-length hex.");
     let cursor = 0;
-    const version = CHISEL.readUInt32LE(hex, cursor);
-    cursor += 8;
-
-    const marker = hex.slice(cursor, cursor + 2);
+    function take(bytes) { const part = requireHexBytes(hex, cursor, bytes); cursor += bytes * 2; return part; }
+    function count() { const item = CHISEL.readVarInt(hex, cursor); cursor = item.cursor; return item.value; }
+    const versionHex = take(4), version = CHISEL.readUInt32LE(versionHex, 0);
     let segwit = false;
-
-    if (marker === "00" && hex.slice(cursor + 2, cursor + 4) !== "00") {
+    if (hex.slice(cursor, cursor + 2) === "00") {
+      if (take(2) !== "0001") throw new Error("Invalid witness marker/flag or zero inputs.");
       segwit = true;
-      throw new Error("SegWit transaction parsing is not supported in this Chisel path yet.");
     }
-
-    const vinVarInt = CHISEL.readVarInt(hex, cursor);
-    const vinCount = vinVarInt.value;
-    cursor = vinVarInt.cursor;
-
-    const vin = [];
-
-    for (let i = 0; i < vinCount; i += 1) {
-      const txidLE = hex.slice(cursor, cursor + 64);
-      cursor += 64;
-
-      const vout = CHISEL.readUInt32LE(hex, cursor);
-      cursor += 8;
-
-      const scriptLenVarInt = CHISEL.readVarInt(hex, cursor);
-      const scriptLen = scriptLenVarInt.value;
-      cursor = scriptLenVarInt.cursor;
-
-      const scriptSig = hex.slice(cursor, cursor + scriptLen * 2);
-      cursor += scriptLen * 2;
-
-      const sequence = hex.slice(cursor, cursor + 8);
-      cursor += 8;
-
-      vin.push({
-        txid: CHISEL.reverseHex(txidLE),
-        txidLE: txidLE,
-        vout: vout,
-        scriptSig: scriptSig,
-        scriptSigBytes: scriptLen,
-        sequence: sequence
+    const inputStart = cursor, vinCount = count(), vin = [], outpoints = new Set();
+    if (!vinCount || vinCount > Math.floor((hex.length - cursor) / 82)) throw new Error("Invalid input count.");
+    for (let i = 0; i < vinCount; i++) {
+      const txidLE = take(32), vout = CHISEL.readUInt32LE(take(4), 0), scriptLen = count();
+      const scriptSig = take(scriptLen), sequence = take(4), txid = CHISEL.reverseHex(txidLE), point = txid + ":" + vout;
+      if (outpoints.has(point)) throw new Error("Duplicate transaction input.");
+      outpoints.add(point);
+      vin.push({ txid: txid, txidLE: txidLE, vout: vout, scriptSig: scriptSig, scriptSigBytes: scriptLen, sequence: sequence });
+    }
+    const outputStart = cursor, voutCount = count(), vout = [];
+    if (!voutCount || voutCount > Math.floor((hex.length - cursor) / 18)) throw new Error("Invalid output count.");
+    for (let i = 0; i < voutCount; i++) {
+      const value = CHISEL.readUInt64LE(take(8), 0), length = count(), script = take(length);
+      if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("Output amount exceeds safe integer range.");
+      const p2pkh = /^76a914[0-9a-f]{40}88ac$/.test(script), opReturn = script.slice(0, 2) === "6a";
+      vout.push({ n: i, valueSats: Number(value), valueSatsBig: value.toString(), scriptPubKey: script, scriptPubKeyBytes: length,
+        type: p2pkh ? "p2pkh" : opReturn ? "op_return" : "unknown", hash160: p2pkh ? script.slice(6, 46) : "",
+        opReturnHex: opReturn ? CHISEL.readOpReturnPushHex(script) : "" });
+    }
+    const outputEnd = cursor;
+    if (segwit) {
+      let hasWitness = false;
+      vin.forEach(function readWitness(input) {
+        const items = count();
+        if (items > (hex.length - cursor) / 2) throw new Error("Invalid witness count.");
+        input.witness = [];
+        for (let j = 0; j < items; j++) input.witness.push(take(count()));
+        if (items) hasWitness = true;
       });
+      if (!hasWitness) throw new Error("Superfluous witness encoding.");
     }
+    const locktimeHex = take(4), locktime = CHISEL.readUInt32LE(locktimeHex, 0);
+    if (cursor !== hex.length) throw new Error("Transaction has trailing bytes.");
+    return { version: version, versionHex: versionHex, segwit: segwit, vinCount: vinCount, vin: vin,
+      voutCount: voutCount, vout: vout, locktime: locktime, locktimeHex: locktimeHex, bytes: hex.length / 2, hex: hex,
+      strippedHex: versionHex + hex.slice(inputStart, outputEnd) + locktimeHex,
+      outputsAndLock: hex.slice(outputStart, outputEnd) + locktimeHex };
+  };
 
-    const voutVarInt = CHISEL.readVarInt(hex, cursor);
-    const voutCount = voutVarInt.value;
-    cursor = voutVarInt.cursor;
+  CHISEL.transactionId = async function transactionId(rawHex) {
+    return CHISEL.reverseHex(await CHISEL.doubleSha256Hex(CHISEL.parseRawTransactionDetailed(rawHex).strippedHex));
+  };
 
-    const vout = [];
+  CHISEL.parseAmountUnits = function parseAmountUnits(value, decimals) {
+    const places = decimals === undefined ? 8 : decimals;
+    if (!Number.isInteger(places) || places < 0 || places > 8) throw new Error("Unsupported amount precision.");
+    let text;
+    if (typeof value === "number") {
+      if (!Number.isFinite(value) || value < 0) throw new Error("Amount must be a non-negative decimal.");
+      text = value.toFixed(places);
+      if (Number(text) !== value) throw new Error("Amount has too many decimal places.");
+    } else if (typeof value === "string") text = value.trim();
+    else throw new Error("Amount must be a decimal string or number.");
+    const pattern = places ? new RegExp("^\\d+(?:\\.\\d{1," + places + "})?$") : /^\d+$/;
+    if (!pattern.test(text)) throw new Error("Use a decimal amount with at most " + places + " decimal places.");
+    const parts = text.split("."), units = BigInt(parts[0]) * 10n ** BigInt(places) + BigInt((parts[1] || "").padEnd(places, "0") || "0");
+    if (units > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("Amount exceeds safe integer range.");
+    return Number(units);
+  };
 
-    for (let n = 0; n < voutCount; n += 1) {
-      const valueSatsBig = CHISEL.readUInt64LE(hex, cursor);
-      cursor += 16;
-
-      const scriptLenVarInt = CHISEL.readVarInt(hex, cursor);
-      const scriptLen = scriptLenVarInt.value;
-      cursor = scriptLenVarInt.cursor;
-
-      const scriptPubKey = hex.slice(cursor, cursor + scriptLen * 2);
-      cursor += scriptLen * 2;
-
-      let type = "unknown";
-      let hash160 = "";
-      let opReturnHex = "";
-
-      if (/^76a914[0-9a-f]{40}88ac$/.test(scriptPubKey)) {
-        type = "p2pkh";
-        hash160 = scriptPubKey.slice(6, 46);
-      } else if (scriptPubKey.slice(0, 2) === "6a") {
-        type = "op_return";
-        opReturnHex = CHISEL.readOpReturnPushHex(scriptPubKey);
-      }
-
-      vout.push({
-        n: n,
-        valueSats: Number(valueSatsBig),
-        valueSatsBig: valueSatsBig.toString(),
-        scriptPubKey: scriptPubKey,
-        scriptPubKeyBytes: scriptLen,
-        type: type,
-        hash160: hash160,
-        opReturnHex: opReturnHex
-      });
-    }
-
-    const locktime = CHISEL.readUInt32LE(hex, cursor);
-    cursor += 8;
-
-    if (cursor !== hex.length) {
-      throw new Error("Raw transaction parser stopped before the end. Cursor " + cursor + " of " + hex.length + ".");
-    }
-
-    return {
-      version: version,
-      segwit: segwit,
-      vinCount: vinCount,
-      vin: vin,
-      voutCount: voutCount,
-      vout: vout,
-      locktime: locktime,
-      bytes: hex.length / 2,
-      hex: hex
-    };
+  CHISEL.safeWebUrl = function safeWebUrl(value, base) {
+    const text = String(value || "").trim();
+    if (!text || /[\u0000-\u001f\u007f]/.test(text)) return "";
+    try {
+      const url = new URL(text, base || (typeof location !== "undefined" ? location.href : "https://chisel.invalid/"));
+      if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) return "";
+      return url.href;
+    } catch (error) { return ""; }
   };
 
   CHISEL.about = function about() {
     return {
       name: "chisel",
-      core: "2.4.3c",
+      core: "2.8.1",
       coins: CHISEL.getCoins().map(function mapCoin(coin) {
         return coin.NAME;
       }),
@@ -786,7 +727,7 @@
     }
 
     function coinToUnits(value) {
-      return Math.round(Number(value) * BASE_UNITS);
+      return CHISEL.parseAmountUnits(value, 8);
     }
 
     function unitsToCoin(value) {
@@ -901,6 +842,7 @@
             return provider[method](value, timedOptions);
           })
         ]);
+        if (method === "getRawTransaction" && await CHISEL.transactionId(result) !== String(value).toLowerCase()) throw new Error("Provider returned a different previous transaction.");
         if (method === "getAddressUtxos" && !Array.isArray(result)) throw new Error("Provider returned an invalid UTXO list.");
         if (result === null || result === undefined || result === "") throw new Error("Provider returned an empty response.");
         return { provider: provider.NAME, ok: true, url: provider.lastUrl || "", elapsedMs: Date.now() - started, result: result };
@@ -970,6 +912,15 @@
       return report.result;
     }
 
+    async function getRawTransactionWithReport(txid, options) {
+      if (!/^[0-9a-f]{64}$/i.test(String(txid))) throw new Error("Invalid transaction id.");
+      return firstProviderResult("getRawTransaction", txid, options);
+    }
+
+    async function getRawTransaction(txid, options) {
+      return (await getRawTransactionWithReport(txid, options)).result;
+    }
+
     async function broadcastRawTransactionWithReport(rawHex, options) {
       // Re-submit these identical signed bytes on failure/timeout. Do not rebuild
       // or sign a replacement transaction while advancing through the provider list.
@@ -1015,14 +966,16 @@
         throw new Error("No usable UTXOs found for " + account.address + ".");
       }
 
-      const selectedUtxo = utxos[0];
+      if (!CHISEL.transactionSafety) throw new Error("Load chisel.safety.js before building a transaction plan.");
+      CHISEL.transactionSafety.checkFee(feeUnits, CHISEL.transactionSafety.feeLimit(DEFAULT_FEE_UNITS, DEFAULT_FEE_UNITS));
+      const outputScript = await addressToP2pkhScript(account.address, { network: networkName });
+      const selectedUtxo = await CHISEL.transactionSafety.inputVerifier(function (txid) { return getRawTransaction(txid, opts); }, outputScript)(utxos[0]);
       const sendBackUnits = Number(selectedUtxo.satoshis) - feeUnits;
 
       if (sendBackUnits <= 546) {
         throw new Error("Selected UTXO is too small after fee.");
       }
 
-      const outputScript = await addressToP2pkhScript(account.address, { network: networkName });
       const outputChunks = [
         CHISEL.uint64LEHex(sendBackUnits) +
         CHISEL.varInt(outputScript.length / 2) +
@@ -1103,6 +1056,11 @@
         throw new Error("Plan has no signedHex.");
       }
 
+      if (!CHISEL.transactionSafety) throw new Error("Load chisel.safety.js before verifying a transaction plan.");
+      const audit = await CHISEL.transactionSafety.audit(plan.signedHex, {
+        loadRaw: function (txid) { return getRawTransaction(txid, Object.assign({}, opts, { network: networkName })); },
+        feeLimit: CHISEL.transactionSafety.feeLimit(DEFAULT_FEE_UNITS, DEFAULT_FEE_UNITS), expectedFee: plan.feeUnits
+      });
       const decoded = CHISEL.parseRawTransactionDetailed(plan.signedHex);
       const outputScript = await addressToP2pkhScript(plan.address, { network: networkName });
       const matchingOutputs = decoded.vout.filter(function filterOutput(output) {
@@ -1113,7 +1071,7 @@
       }, 0);
       const expectedSendBackUnits = Number(plan.sendBackUnits);
       const expectedFeeUnits = Number(plan.feeUnits);
-      const expectedInputUnits = Number(plan.inputUnits);
+      const expectedInputUnits = audit.inputUnits;
       const warnings = [];
 
       if (decoded.vinCount !== 1) {
@@ -1285,6 +1243,8 @@
       getAddressUtxosWithReport: getAddressUtxosWithReport,
       compareAddressUtxos: compareAddressUtxos,
       getAddressUtxos: getAddressUtxos,
+      getRawTransactionWithReport: getRawTransactionWithReport,
+      getRawTransaction: getRawTransaction,
       getTransactionWithReport: getTransactionWithReport,
       getTransaction: getTransaction,
       broadcastRawTransactionWithReport: broadcastRawTransactionWithReport,
@@ -1329,6 +1289,10 @@
         };
       });
     },
+    getRawTransaction: async function getRawTransaction(txid, options) {
+      this.lastUrl = this.baseUrl + "/tx/" + encodeURIComponent(txid) + "/hex";
+      return CHISEL.fetchText(this.lastUrl, { signal: options && options.signal });
+    },
     getTransaction: async function getTransaction(txid, options) {
       this.lastUrl = this.baseUrl + "/tx/" + encodeURIComponent(txid);
       return CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal });
@@ -1361,6 +1325,7 @@
     explorerTxUrl: "https://litecoinspace.org/testnet/tx/",
     getAddressUtxos: CHISEL.getProvider("litecoinspace").getAddressUtxos,
     getTransaction: CHISEL.getProvider("litecoinspace").getTransaction,
+    getRawTransaction: CHISEL.getProvider("litecoinspace").getRawTransaction,
     broadcastRawTransaction: CHISEL.getProvider("litecoinspace").broadcastRawTransaction,
     getTip: CHISEL.getProvider("litecoinspace").getTip,
     healthCheck: CHISEL.getProvider("litecoinspace").healthCheck
@@ -1389,6 +1354,10 @@
           confirmations: utxo.confirmations
         };
       });
+    },
+    getRawTransaction: async function getRawTransaction(txid, options) {
+      this.lastUrl = this.baseUrl + "/txs/" + encodeURIComponent(txid) + "?includeHex=true";
+      return (await CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal })).hex;
     },
     getTransaction: async function getTransaction(txid, options) {
       this.lastUrl = this.baseUrl + "/txs/" + encodeURIComponent(txid);
@@ -1450,6 +1419,11 @@
         throw new Error("Blockchair did not return an accepted transaction hash.");
       }
       return txid;
+    },
+    getRawTransaction: async function getRawTransaction(txid, options) {
+      this.lastUrl = this.baseUrl + "/raw/transaction/" + encodeURIComponent(txid);
+      const json = await CHISEL.fetchJson(this.lastUrl, { signal: options && options.signal });
+      return json && json.data && json.data[txid] && json.data[txid].raw_transaction;
     },
     getTransaction: async function getTransaction(txid, options) {
       this.lastUrl = this.baseUrl + "/dashboards/transaction/" + encodeURIComponent(txid);

@@ -6,24 +6,9 @@ import {
     sha256HexText
 } from "./keeper-common.js";
 
-let ellipticModulePromise = null;
-
-async function getElliptic() {
-    if (!ellipticModulePromise) {
-        ellipticModulePromise = (async function loadElliptic() {
-            const mod = await import("../../vendor/elliptic-6-6-1.min.js");
-            const elliptic = globalThis.elliptic || mod.default || mod;
-
-            if (!elliptic || !elliptic.ec) {
-                throw new Error("elliptic did not load");
-            }
-
-            return elliptic;
-        })();
-    }
-
-    return await ellipticModulePromise;
-}
+import * as noble from "../../vendor/noble-secp256k1-3.2.0.js";
+import "../../chisel.secp256k1.js";
+const der = globalThis.ChiselSecp256k1;
 
 export async function privateKeyFromLitecoinWif(wif) {
     const payload = base58CheckDecode(wif);
@@ -53,31 +38,19 @@ export async function privateKeyFromLitecoinWif(wif) {
 }
 
 export async function publicKeyHexFromPrivateKeyHex(privateKeyHex, compressed = true) {
-    const elliptic = await getElliptic();
-    const ec = new elliptic.ec("secp256k1");
-    const key = ec.keyFromPrivate(privateKeyHex);
-    return key.getPublic().encode("hex", Boolean(compressed));
+    return bytesToHex(noble.getPublicKey(hexToBytes(privateKeyHex), Boolean(compressed)));
 }
 
 export async function signTextWithPrivateKeyHex(text, privateKeyHex) {
-    const elliptic = await getElliptic();
-    const ec = new elliptic.ec("secp256k1");
-    const key = ec.keyFromPrivate(privateKeyHex);
     const digestHex = sha256HexText(text);
-    const signature = key.sign(digestHex, { canonical: true });
-
-    return {
-        digestHex,
-        signatureHex: signature.toDER("hex")
-    };
+    const signature = await noble.signAsync(hexToBytes(digestHex), hexToBytes(privateKeyHex), { prehash: false, lowS: true, format: "compact" });
+    return { digestHex, signatureHex: bytesToHex(der.compactToDer(signature)) };
 }
 
 export async function verifyTextSignature(text, publicKeyHex, signatureHex) {
-    const elliptic = await getElliptic();
-    const ec = new elliptic.ec("secp256k1");
-    const key = ec.keyFromPublic(publicKeyHex, "hex");
-    const digestHex = sha256HexText(text);
-    return key.verify(digestHex, signatureHex);
+    try {
+        return noble.verify(der.derToCompact(hexToBytes(signatureHex)), hexToBytes(sha256HexText(text)), hexToBytes(publicKeyHex), { prehash: false, lowS: true, format: "compact" });
+    } catch (error) { return false; }
 }
 
 export async function signChallengeWithLitecoinWif(challenge, payloadHash, wif) {

@@ -28,7 +28,7 @@
   // Helpers
   //
   function coinToUnits(value) {
-    return Math.round(Number(value) * BASE_UNITS);
+    return CHISEL.parseAmountUnits(value, 8);
   }
 
   function unitsToCoin(value) {
@@ -116,7 +116,7 @@ function getRequiredFeeUnits(feeUnits, values) {
   const opReturnFeeUnits = getOpReturnFeeUnits(values && values.opReturnHex);
   const recipientOutputFeeUnits = getRecipientOutputFeeUnits(values);
 
-  return baseFeeUnits + opReturnFeeUnits + recipientOutputFeeUnits;
+  return baseFeeUnits + opReturnFeeUnits + recipientOutputFeeUnits + Math.max(0, Number(values && values.inputCount || 1) - 1) * 148 * FEE_RATE_UNITS_PER_BYTE;
 }
 
   function buildExplorerAddressTxsUrl(baseUrl, address) {
@@ -209,6 +209,13 @@ function getRequiredFeeUnits(feeUnits, values) {
     return deriveAddressUtxosFromTransactions(transactions, address);
   }
 
+  async function getRawTransaction(client, values, txid) {
+    const result = client.tx && client.tx.getrawtransaction
+      ? await client.tx.getrawtransaction(txid, false)
+      : await client.call("getrawtransaction", [txid, false]);
+    return typeof result === "string" ? result : result.hex;
+  }
+
   async function createRawTransaction(client, values, vin, vout) {
     return client.call("createrawtransaction", [vin, vout]);
   }
@@ -234,6 +241,7 @@ function getRequiredFeeUnits(feeUnits, values) {
     TICKER: TICKER,
     ORDER: ORDER,
     BASE_UNITS: BASE_UNITS,
+    P2PKH_PREFIX: P2PKH_PREFIX,
     DEFAULT_RPC_URL: DEFAULT_RPC_URL,
     DEFAULT_EXPLORER_URL: DEFAULT_EXPLORER_URL,
     DEFAULT_FEE: DEFAULT_FEE,
@@ -262,6 +270,7 @@ function getRequiredFeeUnits(feeUnits, values) {
     buildExplorerAddressTxsUrl: buildExplorerAddressTxsUrl,
     deriveAddressUtxosFromTransactions: deriveAddressUtxosFromTransactions,
     getAddressUtxos: getAddressUtxos,
+    getRawTransaction: getRawTransaction,
     createRawTransaction: createRawTransaction,
     decodeRawTransaction: decodeRawTransaction,
     sendRawTransaction: sendRawTransaction,

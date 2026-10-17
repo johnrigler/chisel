@@ -1,0 +1,30 @@
+{
+  "ecash-sdk-4.14.4.js": {
+    "sha256": "f055d64515e73aa21a31a22cb053cd02a1ba7229d68d4547e71e806c09ea8fc1",
+    "bytes": 1967138
+  },
+  "elliptic-6-6-1.min.js": {
+    "sha256": "e8ddf337e838c19af137969f620dd7ddcfdf238de797293034169d8a9a63fcae",
+    "bytes": 135045
+  },
+  "ethers-6.6.0.umd.min.js": {
+    "sha256": "c1392f9e4fbbd562c1f5408b28a9966e4211e807220848516404d76a634f2d4e",
+    "bytes": 473133
+  },
+  "html5-qrcode.min.js": {
+    "sha256": "660b12437b1d747e3e68b8be0685c08cb728140110ad213f167b14b66f8b1d8e",
+    "bytes": 375364
+  },
+  "noble-secp256k1-3.2.0.browser.js": {
+    "sha256": "1a07a1b5143e83b8f2c9612ecd8504ca11af440fe93f0fba9137a40265bd7740",
+    "bytes": 29346
+  },
+  "noble-secp256k1-3.2.0.js": {
+    "sha256": "ba5aadb469e9208f2da1c9878ab6bb93d2c894f84e6c7ebf9dbf9462741b9fb7",
+    "bytes": 58573
+  },
+  "qrcode.min.js": {
+    "sha256": "c541ef06327885a8415bca8df6071e14189b4855336def4f36db54bde8484f36",
+    "bytes": 19927
+  }
+}

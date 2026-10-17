@@ -13,7 +13,7 @@
   const TOOLS = root.ChiselSecp256k1;
   const LEGACY_PUBLIC_KEY = CHISEL.privateKeyHexToPublicKeyHex;
   const LEGACY_SIGN_RAW = CHISEL.signRawTransaction;
-  let selectedBackend = 'elliptic';
+  let selectedBackend = 'noble'; // Missing vendor/backend must fail closed.
 
   if (typeof LEGACY_PUBLIC_KEY !== 'function' || typeof LEGACY_SIGN_RAW !== 'function') {
     throw new Error('Load chisel.sign.js before chisel.sign.backend.js.');
@@ -88,14 +88,7 @@
       return LEGACY_PUBLIC_KEY(privateKeyHex, compressed);
     }
 
-    const nobleHex = noblePublicKeyHex(privateKeyHex, compressed);
-    const legacyHex = LEGACY_PUBLIC_KEY(privateKeyHex, compressed).toLowerCase();
-
-    if (nobleHex.toLowerCase() !== legacyHex) {
-      throw new Error('Noble/elliptic public-key parity mismatch.');
-    }
-
-    return nobleHex;
+    return noblePublicKeyHex(privateKeyHex, compressed);
   };
 
   async function signRawTransactionWithNoble(rawTxHex, signingInputs) {
@@ -180,22 +173,16 @@
     }
 
     const nobleHex = await signRawTransactionWithNoble(rawTxHex, signingInputs);
-    const legacyHex = await LEGACY_SIGN_RAW(rawTxHex, signingInputs);
-    const parityOk = nobleHex === legacyHex;
-
-    CHISEL.lastSignerParity = {
-      backend: 'noble',
-      compared: true,
-      ok: parityOk,
-      signedBytes: nobleHex.length / 2
-    };
-
-    if (!parityOk) {
-      throw new Error('Noble/elliptic signed-transaction parity mismatch. Refusing to return the Noble transaction.');
-    }
-
+    // Legacy parity belongs in the offline test harness. Never produce a second
+    // signature with an affected dependency while signing a user's transaction.
+    CHISEL.lastSignerParity = { backend: 'noble', compared: false, ok: null, signedBytes: nobleHex.length / 2 };
     return nobleHex;
   };
+
+  if (root.ChiselNoble && root.ChiselNobleSecp256k1) {
+    root.ChiselNobleSecp256k1.install(root.ChiselNoble, CHISEL);
+    CHISEL.setSigningBackend('noble');
+  }
 
   CHISEL.prototype.signRawTransaction = async function signRawTransaction(rawTxHex, signingInputs) {
     return CHISEL.signRawTransaction(rawTxHex, signingInputs);

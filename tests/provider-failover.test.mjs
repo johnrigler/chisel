@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const source = await readFile(new URL('../chisel.js', import.meta.url), 'utf8');
+const signing = await readFile(new URL('../chisel.sign.js', import.meta.url), 'utf8');
 const driver = await readFile(new URL('../chisel.litecoin.js', import.meta.url), 'utf8');
 const names = ['litecoinspace', 'blockcypherLitecoin', 'blockchairLitecoin'];
 const txid = '0123456789abcdef'.repeat(4), raw = '01000000deadbeef'; // Inert fixtures; fetch is always mocked.
@@ -18,7 +19,7 @@ function fixture(fetcher) {
     setTimeout: (fn, ms) => { const id = ++nextTimer; timers.set(id, { fn, ms }); return id; },
     clearTimeout: id => timers.delete(id),
   };
-  context.window = context; vm.createContext(context); vm.runInContext(source, context);
+  context.window = context; vm.createContext(context); vm.runInContext(source, context); vm.runInContext(signing, context);
   const chisel = context.CHISEL;
   function install(name, methods) { chisel.installProvider(name, { NAME: name, coin: 'litecoin', network: 'mainnet', ...methods }); }
   return { context, chisel, resource: chisel.litecoin, calls, timers, install,
@@ -147,4 +148,31 @@ test('Blockchair truncation and malformed acceptance responses are failures, not
     : json({ data: null, context: { code: 400, error: 'Invalid transaction' } }));
   await assert.rejects(f.resource.getAddressUtxosWithReport('Lfixture', { providers: [names[2]] }), /truncated/);
   await assert.rejects(f.resource.broadcastRawTransactionWithReport(raw, { providers: [names[2]] }), /accepted transaction hash/);
+});
+
+test('raw previous-transaction lookups reject wrong hashes and fall through to verified bytes', async () => {
+  const { webcrypto } = await import('node:crypto');
+  const known = JSON.parse(await readFile(new URL('./fixtures/security-known-values.json', import.meta.url), 'utf8')).vectors[0].unsignedHex;
+  const f = fixture(); f.context.crypto = webcrypto;
+  const id = await f.chisel.transactionId(known), called = [];
+  f.install('wrongRaw', { getRawTransaction: async () => { called.push('wrongRaw'); return 'deadbeef'; } });
+  f.install('correctRaw', { getRawTransaction: async value => { called.push('correctRaw'); assert.equal(value, id); return known; } });
+  f.install('unusedRaw', { getRawTransaction: () => assert.fail('must stop at verified result') });
+  const result = await f.resource.getRawTransactionWithReport(id, { providers: ['wrongRaw', 'correctRaw', 'unusedRaw'] });
+  assert.equal(result.result, known); assert.equal(result.selectedProvider, 'correctRaw'); assert.deepEqual(called, ['wrongRaw', 'correctRaw']);
+  assert.equal(f.timers.size, 0);
+});
+
+test('BlockCypher and Blockchair raw adapters preserve the configured provider order', async () => {
+  const { webcrypto } = await import('node:crypto');
+  const known = JSON.parse(await readFile(new URL('./fixtures/security-known-values.json', import.meta.url), 'utf8')).vectors[0].unsignedHex;
+  let id;
+  const f = fixture(url => {
+    if (url.includes('litecoinspace.org')) return new Response('Unavailable', { status: 503 });
+    if (url.includes('blockcypher.com')) { assert.match(url, /includeHex=true/); return json({ hex: known }); }
+    return json({ data: { [id]: { raw_transaction: known } } });
+  });
+  f.context.crypto = webcrypto; id = await f.chisel.transactionId(known);
+  assert.equal(await f.resource.getRawTransaction(id, { providers: names }), known); assert.equal(f.calls.length, 2);
+  assert.equal(await f.resource.getRawTransaction(id, { providers: [names[2]] }), known); assert.equal(f.calls.length, 3);
 });

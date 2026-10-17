@@ -898,7 +898,7 @@
     const label = title || (url ? url : "No transaction selected");
     if (url) {
       const a = document.createElement("a");
-      a.href = url;
+      setSafeHref(a, url);
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = label;
@@ -1057,8 +1057,16 @@
     return match ? secondsFromYoutubeTime(match[1]) : "";
   }
 
+  function setSafeHref(element, value) {
+    const safe = CHISEL.safeWebUrl(value, window.location.href);
+    if (safe) element.href = safe;
+    else element.removeAttribute("href");
+    return safe;
+  }
+
   function normalizeMediaUrl(url) {
     let u = decodeHtmlEntities(String(url || "")).trim().replace(/[),.;]+$/g, "");
+    u = CHISEL.safeWebUrl(u, window.location.href);
     if (!u) return "";
     const vid = youtubeIdFromUrl(u);
     if (vid) return mediaUrlFromYoutubeId(vid, youtubeStartFromUrl(u));
@@ -1179,12 +1187,14 @@
     function add(card) {
       if (!card || typeof card !== "object") return;
       const normalizedUrl = normalizeMediaUrl(card.url || card.sourceUrl || "");
-      const url = normalizedUrl || String(card.url || card.sourceUrl || "").trim();
+      const url = normalizedUrl;
       const thumb = String(card.thumbnailUrl || "").trim();
       const title = String(card.title || "").trim();
       if (!url && !thumb && !title) return;
       const copy = Object.assign({}, card);
-      if (normalizedUrl) copy.url = normalizedUrl;
+      copy.url = normalizedUrl;
+      copy.sourceUrl = CHISEL.safeWebUrl(copy.sourceUrl, window.location.href);
+      copy.thumbnailUrl = CHISEL.safeWebUrl(copy.thumbnailUrl, window.location.href);
       if (!copy.kind && url) copy.kind = mediaKindForUrl(url);
       const vid = copy.videoId || youtubeIdFromUrl(copy.sourceUrl || copy.url || url);
       if (vid) {
@@ -1333,7 +1343,7 @@
 
       const a = document.createElement("a");
       a.className = "secondaryButton";
-      a.href = record.url;
+      setSafeHref(a, record.url);
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = record.url.indexOf("spotify.com") >= 0 ? "open Spotify" : (record.url.indexOf("youtu") >= 0 ? "open YouTube" : "open URL");
@@ -1352,14 +1362,14 @@
 
       const a = document.createElement("a");
       a.className = "secondaryButton";
-      a.href = record.ipfsUrl;
+      setSafeHref(a, record.ipfsUrl);
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = "IPFS gateway";
 
       const local = document.createElement("a");
       local.className = "secondaryButton";
-      local.href = record.localIpfsUrl;
+      setSafeHref(local, record.localIpfsUrl);
       local.target = "_blank";
       local.rel = "noopener noreferrer";
       local.textContent = "local gateway";
@@ -1752,7 +1762,7 @@
       return;
     }
     el.style.display = "inline-flex";
-    el.href = href;
+    setSafeHref(el, href);
     el.target = "_blank";
     el.rel = "noopener noreferrer";
     el.textContent = label || href;
@@ -2083,7 +2093,7 @@
     if (!url) return document.createTextNode("");
     const a = document.createElement("a");
     a.className = "secondaryButton";
-    a.href = url;
+    setSafeHref(a, url);
     a.target = "_blank";
     a.rel = "noopener noreferrer";
     a.textContent = "explorer";
@@ -3097,7 +3107,7 @@
 
       const a = document.createElement("a");
       a.className = "secondaryButton";
-      a.href = record.url;
+      setSafeHref(a, record.url);
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = record.url.indexOf("spotify.com") >= 0 ? "open Spotify" : (record.url.indexOf("youtu") >= 0 ? "open YouTube" : "open URL");
@@ -3116,14 +3126,14 @@
 
       const a = document.createElement("a");
       a.className = "secondaryButton";
-      a.href = record.ipfsUrl;
+      setSafeHref(a, record.ipfsUrl);
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = "IPFS gateway";
 
       const local = document.createElement("a");
       local.className = "secondaryButton";
-      local.href = record.localIpfsUrl;
+      setSafeHref(local, record.localIpfsUrl);
       local.target = "_blank";
       local.rel = "noopener noreferrer";
       local.textContent = "local gateway";
@@ -3281,7 +3291,7 @@
   function makeRecordLink(url, text) {
     const a = document.createElement("a");
     a.className = "secondaryButton";
-    a.href = url;
+    setSafeHref(a, url);
     a.target = "_blank";
     a.rel = "noopener noreferrer";
     a.textContent = text || "open record target";
@@ -3312,13 +3322,13 @@
     grid.className = "portalEvmMediaGrid";
 
     cards.forEach(function (card) {
-      const url = String(card.url || card.sourceUrl || "").trim();
+      const url = normalizeMediaUrl(card.url || card.sourceUrl || "");
       const media = document.createElement(url ? "a" : "div");
       media.className = "portalEvmMediaCard";
       if (card.videoId || String(card.kind || "").toLowerCase() === "youtube") media.classList.add("isYoutube");
       if (String(card.kind || "").toLowerCase() === "tiktok") media.classList.add("isTikTok");
       if (url) {
-        media.href = url;
+        setSafeHref(media, url);
         media.target = "_blank";
         media.rel = "noopener noreferrer";
       }
@@ -3747,7 +3757,7 @@
     if (primaryTarget) {
       const primary = document.createElement("a");
       primary.className = "secondaryButton";
-      primary.href = primaryTarget;
+      setSafeHref(primary, primaryTarget);
       primary.target = "_blank";
       primary.rel = "noopener noreferrer";
       primary.textContent = "open record target";
@@ -3758,7 +3768,7 @@
     if (verifyUrl) {
       const verify = document.createElement("a");
       verify.className = "secondaryButton";
-      verify.href = verifyUrl;
+      setSafeHref(verify, verifyUrl);
       verify.target = "_blank";
       verify.rel = "noopener noreferrer";
       verify.textContent = "verify tx";
@@ -4013,7 +4023,7 @@
     if (thumbnailTarget && !thumb.classList.contains("isEmpty")) {
       const thumbnailLink = document.createElement("a");
       thumbnailLink.className = thumb.className + " isLinked";
-      thumbnailLink.href = thumbnailTarget;
+      setSafeHref(thumbnailLink, thumbnailTarget);
       thumbnailLink.target = "_blank";
       thumbnailLink.rel = "noopener noreferrer";
       thumbnailLink.title = "open media";
@@ -4036,7 +4046,7 @@
     titleWrap.title = titleText;
     if (primaryUrl) {
       const titleLink = document.createElement("a");
-      titleLink.href = primaryUrl;
+      setSafeHref(titleLink, primaryUrl);
       titleLink.target = "_blank";
       titleLink.rel = "noopener noreferrer";
       titleLink.textContent = titleText;
@@ -4052,7 +4062,7 @@
       verify = document.createElement("span");
       const a = document.createElement("a");
       a.className = "portalStreamVerify";
-      a.href = url;
+      setSafeHref(a, url);
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = "verify";
@@ -5444,7 +5454,7 @@ function getPortalFirstCharacter() {
     if (explorer) {
       const href = getThunderwords() && entry ? getThunderwords().getAddressUrl(entry,clean.address) : "";
       if (href) {
-        explorer.href = href;
+        setSafeHref(explorer, href);
         explorer.target = "_blank";
         explorer.rel = "noopener noreferrer";
         explorer.style.display = "inline-flex";
