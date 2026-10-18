@@ -23,7 +23,7 @@ A local PNG, JPEG or WebP can fill the bottom panel, or sit beside its message. 
 
 ## Adjust a cue with your thumbs
 
-Tap an existing cue in the cue sheet to select it and pause the preview. The **Earlier** and **Later** pads below the player move that cue by one source frame. Hold either pad to repeat slowly; releasing or sliding off the pad stops it. The selected cue stays selected, and its time and frame number appear between the pads. The first cue stays at zero; other cues cannot cross their neighbors or the end of the source. Save the project JSON to keep your adjustments.
+Tap an existing cue in the cue sheet to select it and pause the preview. Each tap of **Earlier** or **Later** moves that cue by one source frame. Holding a pad begins repeating after 300 ms, at one frame every 80 ms; after one second held, it accelerates to one frame every 30 ms. Releasing or sliding off the pad stops it. The pads suppress the browser's long-press menu, text selection and touch callout. The selected cue stays selected, and its time and frame number appear between the pads. The first cue stays at zero; other cues cannot cross their neighbors or the end of the source. Save the project JSON to keep your adjustments.
 
 For ordinary MP4 files, the tool reads presentation timestamps from the local video index, including reordered H.264 frames and variable frame timing. It reads the timing index without loading the whole video into memory. For other formats or unsupported MP4 edits, choose the actual source FPS in **Frame timing**; fractional rates such as 30000/1001 are supported and remembered in the project. Saved cue timestamps retain their full precision. New cues snap to the containing source frame when frame timing is available.
 

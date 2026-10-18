@@ -79,7 +79,7 @@
     } else $('nudgeFrame').textContent = state.timingPending ? 'Reading source frames…' : timing ? 'No cue selected' : 'Choose source FPS';
     $('cueEarlier').disabled = !ready || !T.move(state.project.cues, state.selected, -1, timing, video.duration);
     $('cueLater').disabled = !ready || !T.move(state.project.cues, state.selected, 1, timing, video.duration);
-    $('nudgeHint').textContent = state.selected === 0 ? 'The first cue stays at 0. Select another cue to adjust it.' : !state.loaded ? 'Choose the source video, then tap a saved cue.' : !timing ? (state.timingPending ? 'Reading MP4 frame timestamps…' : 'Select the source frame rate to enable stepping.') : 'Tap one frame. Hold to step slowly. Save project JSON to keep changes.';
+    $('nudgeHint').textContent = state.selected === 0 ? 'The first cue stays at 0. Select another cue to adjust it.' : !state.loaded ? 'Choose the source video, then tap a saved cue.' : !timing ? (state.timingPending ? 'Reading MP4 frame timestamps…' : 'Select the source frame rate to enable stepping.') : 'Tap one frame. Hold to move faster. Save project JSON to keep changes.';
   }
   function selectCue(index) {
     stopNudge(); state.selected = index; state.pinned = true; state.active = index;
@@ -109,14 +109,18 @@
   }
   function bindNudge(id, direction) {
     const button = $(id);
+    // Keep a thumb hold in the control instead of opening mobile selection/search UI.
+    button.addEventListener('touchstart', event => event.preventDefault(), { passive: false });
+    for (const name of ['contextmenu', 'selectstart', 'dragstart']) button.addEventListener(name, event => event.preventDefault());
     button.addEventListener('pointerdown', event => {
       if (event.button !== 0 || button.disabled) return;
       event.preventDefault(); stopNudge(); nudgePointer = event.pointerId; lastPointer = performance.now();
       if (typeof button.setPointerCapture === 'function') { try { button.setPointerCapture(event.pointerId); } catch (_) {} }
       button.focus({ preventScroll: true });
       if (!nudgeCue(direction)) { stopNudge(); return; }
-      const repeat = () => { if (nudgePointer === null || !nudgeCue(direction)) { stopNudge(); return; } nudgeTimer = setTimeout(repeat, 180); };
-      nudgeTimer = setTimeout(repeat, 450);
+      const started = performance.now();
+      const repeat = () => { if (nudgePointer === null || !nudgeCue(direction)) { stopNudge(); return; } nudgeTimer = setTimeout(repeat, performance.now() - started < 1000 ? 80 : 30); };
+      nudgeTimer = setTimeout(repeat, 300);
     });
     for (const name of ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave']) button.addEventListener(name, stopNudge);
     button.addEventListener('click', event => { if (event.detail === 0 && performance.now() - lastPointer > 400) nudgeCue(direction); });

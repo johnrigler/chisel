@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Mogwai · Recast</title>
-  <link rel="stylesheet" href="style.css?v=20261017-frames1">
+  <link rel="stylesheet" href="style.css?v=20261017-hold2">
   <script defer src="core.js?v=20261017-frames1"></script>
   <script defer src="timing.js?v=20261017-frames1"></script>
   <script defer src="render-source.js?v=20261017-frames1"></script>
-  <script defer src="recast.js?v=20261017-frames1"></script>
+  <script defer src="recast.js?v=20261017-hold2"></script>
 </head>
 <body>
 <header><a class="brand" href="https://github.com/johnrigler/mogwai">MOGWAI <span>/ RECAST</span></a><span class="local">Local video · continuous audio</span></header>
@@ -32,7 +32,7 @@
     <section class="cueNudge" aria-label="Move the selected cue by source frames">
       <div class="nudgeTop"><div><h2>Adjust selected cue</h2><p id="nudgeSelection">Tap a cue in the cue sheet.</p></div><label>Frame timing<select id="frameRate"><option value="auto">Source frames (MP4)</option><option value="24000/1001">23.976 fps</option><option value="24">24 fps</option><option value="25">25 fps</option><option value="30000/1001">29.97 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60000/1001">59.94 fps</option><option value="60">60 fps</option></select></label></div>
       <div class="nudgePads"><button id="cueEarlier" class="thumbPad" type="button" aria-label="Move selected cue one frame earlier" disabled><span class="padArrow" aria-hidden="true">◀</span><span>Earlier</span><small>−1 frame</small></button><div class="nudgeReadout"><output id="nudgeTime" aria-live="polite">—</output><span id="nudgeFrame">No cue selected</span></div><button id="cueLater" class="thumbPad" type="button" aria-label="Move selected cue one frame later" disabled><span class="padArrow" aria-hidden="true">▶</span><span>Later</span><small>+1 frame</small></button></div>
-      <p id="nudgeHint" class="muted">Tap one frame. Hold to step slowly.</p>
+      <p id="nudgeHint" class="muted">Tap one frame. Hold to move faster.</p>
     </section>
   </section>
   <aside class="editor" aria-label="Cue editor">
