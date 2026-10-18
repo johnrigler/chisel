@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mogwai · Recast</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="core.js"></script>
+  <script defer src="render-source.js"></script>
+  <script defer src="recast.js"></script>
+</head>
+<body>
+<header><a class="brand" href="https://github.com/johnrigler/mogwai">MOGWAI <span>/ RECAST</span></a><span class="local">Local video · continuous audio</span></header>
+<main>
+  <section class="workspace" aria-label="Recast preview">
+    <div class="topline"><div><h1>One timeline. Different frames.</h1><p>Choose a video. Switch its frame, add notes, and save the changes as timed cues.</p></div><button id="fullscreen" title="Show the whole composition fullscreen">Full screen ↗</button></div>
+    <div id="stage" class="stage" tabindex="0" aria-label="Video and overlay composition">
+      <video id="video" playsinline preload="metadata"></video>
+      <canvas id="overlay" width="1280" height="720" aria-label="Text and image overlay"></canvas>
+      <div id="empty" class="empty"><strong>Choose the original video</strong><span>The file stays on this device.</span><label class="button accent" for="source">Choose video</label></div>
+    </div>
+    <div class="transport"><button id="play" disabled>Play</button><input id="seek" type="range" min="0" max="1" step="0.01" value="0" aria-label="Playback position" disabled><output id="clock">0:00.00 / 0:00.00</output></div>
+    <div class="layouts" aria-label="Video layouts">
+      <button data-layout="full" aria-pressed="true"><kbd>1</kbd><span>Full picture</span><i class="mini full"></i></button>
+      <button data-layout="side" aria-pressed="false"><kbd>2</kbd><span>Side notes</span><i class="mini side"></i></button>
+      <button data-layout="desk" aria-pressed="false"><kbd>3</kbd><span>Notes + bottom</span><i class="mini desk"></i></button>
+      <button data-layout="right" aria-pressed="false"><kbd>4</kbd><span>Video on right</span><i class="mini right"></i></button>
+    </div>
+    <div class="cuebar"><label><input id="record" type="checkbox" checked> Record layout switches</label><label><input id="follow" type="checkbox" checked> Follow saved cues</label><span>Space: play/pause · 1–4: layout</span></div>
+    <p id="status" role="status">Ready. Choose a video to begin.</p>
+    <details class="instructions"><summary>How this works</summary><p>The same video element plays throughout. Layout switches change its position and size; they do not restart playback. Use “Save cue here” after editing a panel. Saved cues replay when “Follow saved cues” is on.</p><p>FFmpeg does not render HTML. The export contains transparent PNG panels, a cue sheet, and a small Python renderer. Unzip it and run <code>python3 render.py original.mp4 recast.mp4</code> with FFmpeg and ffprobe installed. Audio is stream-copied unchanged. The source video is not included in the ZIP.</p><p>This version supports plain-text and image cards. Arbitrary HTML/CSS overlays would need a browser capture step. The source image is fitted without stretching or cropping.</p></details>
+  </section>
+  <aside class="editor" aria-label="Cue editor">
+    <section><h2>Source</h2><input id="source" type="file" accept="video/*"><p id="sourceInfo" class="muted">No video selected.</p><label>Output size<select id="size"><option value="1280x720">1280 × 720</option><option value="1920x1080">1920 × 1080</option><option value="960x540">960 × 540</option></select></label></section>
+    <section><div class="sectiontitle"><h2>Panels</h2><span id="mode">Full picture</span></div><label>Right-hand instructions<textarea id="rightText" rows="7" placeholder="Your instructions, notes, or running commentary…"></textarea></label><label>Bottom message<textarea id="bottomText" rows="3" placeholder="A message below the picture…"></textarea></label><label>Bottom image<input id="image" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="removeImage" class="quiet" hidden>Remove image</button><p class="muted">Panels appear in layouts 2–4. The bottom panel appears in 3 and 4.</p><button id="saveCue" class="accent">Save cue here</button></section>
+    <section><div class="sectiontitle"><h2>Cue sheet</h2><button id="demo" class="quiet">Layout demo</button></div><div id="cues" class="cues"></div><p class="muted">Click a cue to seek. Delete it with ×. The first cue stays at 0.</p></section>
+    <section class="exports"><h2>Keep / render</h2><button id="saveProject">Save project JSON</button><label class="button" for="openProject">Open project JSON</label><input id="openProject" type="file" accept=".json,application/json" hidden><button id="export" class="accent">Export FFmpeg ZIP</button><p class="muted">Keep the project JSON with your Daisy source record. No media is uploaded.</p></section>
+  </aside>
+</main>
+<footer><a href="README.md">Source and usage</a><span>Static HTML + vanilla JavaScript · works from a local folder or IPFS</span></footer>
+</body>
+</html>

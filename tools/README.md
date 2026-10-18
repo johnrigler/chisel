@@ -221,3 +221,7 @@ Chisel should remain focused on generic, reusable UTXO transaction capabilities.
 Everything else can orbit it.
 ```
 
+
+## Recast video
+
+[Recast](recast/) is the static Mogwai composition tool: one playing video, switchable layouts, timed text/image panels, and FFmpeg export with unchanged source audio. [Usage and source](recast/README.md). The distribution record is `recast/SOURCE.json`.
