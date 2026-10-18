@@ -21,6 +21,14 @@ A local PNG, JPEG or WebP can fill the bottom panel, or sit beside its message. 
 
 **Save project JSON** keeps the cue sheet and embedded images, without the source video. Keep it beside the original in Daisy; reopening the project asks you to choose that video separately. The **Layout demo** supplies editable timing/layout placeholders, not a transcript or editorial claims about the source.
 
+## Adjust a cue with your thumbs
+
+Tap an existing cue in the cue sheet to select it and pause the preview. The **Earlier** and **Later** pads below the player move that cue by one source frame. Hold either pad to repeat slowly; releasing or sliding off the pad stops it. The selected cue stays selected, and its time and frame number appear between the pads. The first cue stays at zero; other cues cannot cross their neighbors or the end of the source. Save the project JSON to keep your adjustments.
+
+For ordinary MP4 files, the tool reads presentation timestamps from the local video index, including reordered H.264 frames and variable frame timing. It reads the timing index without loading the whole video into memory. For other formats or unsupported MP4 edits, choose the actual source FPS in **Frame timing**; fractional rates such as 30000/1001 are supported and remembered in the project. Saved cue timestamps retain their full precision. New cues snap to the containing source frame when frame timing is available.
+
+The preview seeks into the selected frame. Native browser video seeking is best effort; see [video frame callback guidance](https://web.dev/articles/requestvideoframecallback-rvfc). The FFmpeg renderer retains fractional cue precision; its output uses the source average frame rate, so variable-rate sources may repeat or drop frames in the export.
+
 ## FFmpeg export
 
 **Export FFmpeg ZIP** contains:
@@ -47,11 +55,11 @@ FFmpeg does not interpret HTML. The browser rasterizes the same Canvas panel lay
 The reusable tool belongs to Mogwai; the source media and its cue projects belong to Daisy. The hosted Chisel copy is a static distribution of this folder. Private Daisy media is never copied into the public tool.
 
 ```bash
-node --test tests/recast.test.mjs
+node --test tests/*.test.mjs
 python3 -m unittest discover -s tests -p 'test_recast.py' -v
 ```
 
-Optional DOM integration testing uses jsdom 26.1.0 from `RECAST_TEST_DEPS`, with no runtime dependency added to the tool. It checks uninterrupted playback across layout changes, cue replay, safe text, portrait full-screen geometry, and offline ZIP generation. FFmpeg integration checks rendered pixels in every layout and exact equality of the encoded audio payload.
+Optional DOM integration testing uses jsdom 26.1.0 from `RECAST_TEST_DEPS`, with no runtime dependency added to the tool. It checks uninterrupted playback across layout changes, cue replay, thumb taps/holds/releases, cue limits, safe text, portrait full-screen geometry, and offline ZIP generation. Timing-index tests compare constant- and variable-rate MP4 presentation timestamps with ffprobe. FFmpeg integration checks rendered pixels in every layout, exact fractional-frame cue boundaries, and equality of the encoded audio payload.
 
 `render-source.js` is the browser-downloadable text of `render.py`, so export also works from `file://` without fetching another local file. Regenerate it after changing the renderer:
 

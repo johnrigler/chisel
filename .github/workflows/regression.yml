@@ -45,6 +45,10 @@ jobs:
           node --check chisel.portal.static-data.js
           node --check chisel.thunderwords.js
           node --check chisel.portal.js
+          node --check tools/recast/core.js
+          node --check tools/recast/timing.js
+          node --check tools/recast/recast.js
+          node --check tools/recast/render-source.js
           node --check app.js
           node --input-type=module --check < ctp500.js
           node --input-type=module --check < ctp500-ble.js

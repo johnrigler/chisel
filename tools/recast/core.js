@@ -22,11 +22,18 @@
       const right = cue.right ?? '', bottom = cue.bottom ?? '', image = cue.image ?? '';
       if (typeof right !== 'string' || typeof bottom !== 'string' || right.length > 12000 || bottom.length > 12000) throw new Error('Panel text must be plain text, at most 12000 characters.');
       if (typeof image !== 'string' || image.length > 15000000 || image && !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image)) throw new Error('Use an embedded PNG, JPEG or WebP image.');
-      return { at: Math.round(cue.at * 1000) / 1000, layout: cue.layout, right, bottom, image };
+      return { at: cue.at, layout: cue.layout, right, bottom, image };
     }).sort((a, b) => a.at - b.at);
     if (cues[0].at !== 0 || cues.some((cue, i) => i && cue.at === cues[i - 1].at)) throw new Error('Start with a cue at 0; cue times must be unique.');
     const name = String(project.source?.name || '').split(/[\\/]/).pop().slice(0, 240);
-    return { format: FORMAT, width, height, source: { name }, cues };
+    const source = { name }, rate = project.source?.frameRate;
+    if (rate && rate !== 'auto') {
+      if (typeof rate !== 'string' || !/^\d+(?:\/\d+|\.\d+)?$/.test(rate)) throw new Error('Invalid source frame rate.');
+      const parts = rate.split('/').map(Number), fps = parts[0] / (parts[1] ?? 1);
+      if (!Number.isFinite(fps) || fps <= 0 || fps > 240) throw new Error('Invalid source frame rate.');
+      source.frameRate = rate;
+    }
+    return { format: FORMAT, width, height, source, cues };
   }
   function cueAt(cues, seconds) {
     let index = 0;
@@ -35,7 +42,7 @@
   }
   function upsert(cues, cue) {
     const copy = cues.map(row => ({ ...row }));
-    const index = copy.findIndex(row => Math.abs(row.at - cue.at) < 0.05);
+    const index = copy.findIndex(row => Math.abs(row.at - cue.at) < 1e-7);
     if (index >= 0) copy[index] = { ...cue, at: copy[index].at };
     else copy.push({ ...cue });
     return copy.sort((a, b) => a.at - b.at);
@@ -43,6 +50,10 @@
   function time(seconds) {
     const value = Math.max(0, Number(seconds) || 0), minutes = Math.floor(value / 60);
     return minutes + ':' + (value % 60).toFixed(2).padStart(5, '0');
+  }
+  function preciseTime(seconds) {
+    const ms = Math.round(Math.max(0, Number(seconds) || 0) * 1000);
+    return Math.floor(ms / 60000) + ':' + ((ms % 60000) / 1000).toFixed(3).padStart(6, '0');
   }
   function lines(context, text, width) {
     const out = [];
@@ -112,5 +123,5 @@
     end.view.setUint32(0, 0x06054b50, true); end.view.setUint16(8, files.length, true); end.view.setUint16(10, files.length, true); end.view.setUint32(12, size, true); end.view.setUint32(16, offset, true);
     return new Blob([...locals, ...directory, end.bytes], { type: 'application/zip' });
   }
-  root.MogwaiRecast = Object.freeze({ FORMAT, layouts, emptyCue, geometry, validate, cueAt, upsert, time, render, zip, crc32 });
+  root.MogwaiRecast = Object.freeze({ FORMAT, layouts, emptyCue, geometry, validate, cueAt, upsert, time, preciseTime, render, zip, crc32 });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

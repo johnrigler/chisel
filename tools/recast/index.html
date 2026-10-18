@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Mogwai · Recast</title>
-  <link rel="stylesheet" href="style.css">
-  <script defer src="core.js"></script>
-  <script defer src="render-source.js"></script>
-  <script defer src="recast.js"></script>
+  <link rel="stylesheet" href="style.css?v=20261017-frames1">
+  <script defer src="core.js?v=20261017-frames1"></script>
+  <script defer src="timing.js?v=20261017-frames1"></script>
+  <script defer src="render-source.js?v=20261017-frames1"></script>
+  <script defer src="recast.js?v=20261017-frames1"></script>
 </head>
 <body>
 <header><a class="brand" href="https://github.com/johnrigler/mogwai">MOGWAI <span>/ RECAST</span></a><span class="local">Local video · continuous audio</span></header>
@@ -28,12 +29,16 @@
     </div>
     <div class="cuebar"><label><input id="record" type="checkbox" checked> Record layout switches</label><label><input id="follow" type="checkbox" checked> Follow saved cues</label><span>Space: play/pause · 1–4: layout</span></div>
     <p id="status" role="status">Ready. Choose a video to begin.</p>
-    <details class="instructions"><summary>How this works</summary><p>The same video element plays throughout. Layout switches change its position and size; they do not restart playback. Use “Save cue here” after editing a panel. Saved cues replay when “Follow saved cues” is on.</p><p>FFmpeg does not render HTML. The export contains transparent PNG panels, a cue sheet, and a small Python renderer. Unzip it and run <code>python3 render.py original.mp4 recast.mp4</code> with FFmpeg and ffprobe installed. Audio is stream-copied unchanged. The source video is not included in the ZIP.</p><p>This version supports plain-text and image cards. Arbitrary HTML/CSS overlays would need a browser capture step. The source image is fitted without stretching or cropping.</p></details>
+    <section class="cueNudge" aria-label="Move the selected cue by source frames">
+      <div class="nudgeTop"><div><h2>Adjust selected cue</h2><p id="nudgeSelection">Tap a cue in the cue sheet.</p></div><label>Frame timing<select id="frameRate"><option value="auto">Source frames (MP4)</option><option value="24000/1001">23.976 fps</option><option value="24">24 fps</option><option value="25">25 fps</option><option value="30000/1001">29.97 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60000/1001">59.94 fps</option><option value="60">60 fps</option></select></label></div>
+      <div class="nudgePads"><button id="cueEarlier" class="thumbPad" type="button" aria-label="Move selected cue one frame earlier" disabled><span class="padArrow" aria-hidden="true">◀</span><span>Earlier</span><small>−1 frame</small></button><div class="nudgeReadout"><output id="nudgeTime" aria-live="polite">—</output><span id="nudgeFrame">No cue selected</span></div><button id="cueLater" class="thumbPad" type="button" aria-label="Move selected cue one frame later" disabled><span class="padArrow" aria-hidden="true">▶</span><span>Later</span><small>+1 frame</small></button></div>
+      <p id="nudgeHint" class="muted">Tap one frame. Hold to step slowly.</p>
+    </section>
   </section>
   <aside class="editor" aria-label="Cue editor">
     <section><h2>Source</h2><input id="source" type="file" accept="video/*"><p id="sourceInfo" class="muted">No video selected.</p><label>Output size<select id="size"><option value="1280x720">1280 × 720</option><option value="1920x1080">1920 × 1080</option><option value="960x540">960 × 540</option></select></label></section>
     <section><div class="sectiontitle"><h2>Panels</h2><span id="mode">Full picture</span></div><label>Right-hand instructions<textarea id="rightText" rows="7" placeholder="Your instructions, notes, or running commentary…"></textarea></label><label>Bottom message<textarea id="bottomText" rows="3" placeholder="A message below the picture…"></textarea></label><label>Bottom image<input id="image" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="removeImage" class="quiet" hidden>Remove image</button><p class="muted">Panels appear in layouts 2–4. The bottom panel appears in 3 and 4.</p><button id="saveCue" class="accent">Save cue here</button></section>
-    <section><div class="sectiontitle"><h2>Cue sheet</h2><button id="demo" class="quiet">Layout demo</button></div><div id="cues" class="cues"></div><p class="muted">Click a cue to seek. Delete it with ×. The first cue stays at 0.</p></section>
+    <section><div class="sectiontitle"><h2>Cue sheet</h2><button id="demo" class="quiet">Layout demo</button></div><div id="cues" class="cues"></div><p class="muted">Tap a cue to pause and select it. Use the thumb pads to adjust its time. The first cue stays at 0.</p></section>
     <section class="exports"><h2>Keep / render</h2><button id="saveProject">Save project JSON</button><label class="button" for="openProject">Open project JSON</label><input id="openProject" type="file" accept=".json,application/json" hidden><button id="export" class="accent">Export FFmpeg ZIP</button><p class="muted">Keep the project JSON with your Daisy source record. No media is uploaded.</p></section>
   </aside>
 </main>

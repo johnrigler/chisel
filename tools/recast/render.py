@@ -44,7 +44,7 @@ def geometry(layout, width, height):
 def expression(cues, values):
     result = str(values[0])
     for cue, value in zip(cues[1:], values[1:]):
-        result = f"if(gte(t,{cue['at']:.3f}),{value},{result})"
+        result = f"if(gte(t,{max(0, cue['at'] - 1e-7):.9f}),{value},{result})"
     return result
 
 
@@ -61,7 +61,7 @@ def graph(project, duration, rate):
     for i, cue in enumerate(cues):
         end = cues[i + 1]["at"] if i + 1 < len(cues) else duration + 1
         target = f"panel{i}"
-        filters.append(f"[{current}][{i+1}:v:0]overlay=0:0:enable='gte(t,{cue['at']:.3f})*lt(t,{end:.3f})':shortest=1[{target}]")
+        filters.append(f"[{current}][{i+1}:v:0]overlay=0:0:enable='gte(t,{max(0, cue['at'] - 1e-7):.9f})*lt(t,{max(0, end - 1e-7):.9f})':shortest=1[{target}]")
         current = target
     return ";\n".join(filters), current
 
