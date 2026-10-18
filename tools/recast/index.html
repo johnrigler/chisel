@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Mogwai · Recast</title>
-  <link rel="stylesheet" href="style.css?v=20261017-hold2">
+  <link rel="stylesheet" href="style.css?v=20261017-work3">
   <script defer src="core.js?v=20261017-frames1"></script>
   <script defer src="timing.js?v=20261017-frames1"></script>
+  <script defer src="storage.js?v=20261017-work3"></script>
   <script defer src="render-source.js?v=20261017-frames1"></script>
-  <script defer src="recast.js?v=20261017-hold2"></script>
+  <script defer src="recast.js?v=20261017-work3"></script>
 </head>
 <body>
 <header><a class="brand" href="https://github.com/johnrigler/mogwai">MOGWAI <span>/ RECAST</span></a><span class="local">Local video · continuous audio</span></header>
@@ -39,7 +40,20 @@
     <section><h2>Source</h2><input id="source" type="file" accept="video/*"><p id="sourceInfo" class="muted">No video selected.</p><label>Output size<select id="size"><option value="1280x720">1280 × 720</option><option value="1920x1080">1920 × 1080</option><option value="960x540">960 × 540</option></select></label></section>
     <section><div class="sectiontitle"><h2>Panels</h2><span id="mode">Full picture</span></div><label>Right-hand instructions<textarea id="rightText" rows="7" placeholder="Your instructions, notes, or running commentary…"></textarea></label><label>Bottom message<textarea id="bottomText" rows="3" placeholder="A message below the picture…"></textarea></label><label>Bottom image<input id="image" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="removeImage" class="quiet" hidden>Remove image</button><p class="muted">Panels appear in layouts 2–4. The bottom panel appears in 3 and 4.</p><button id="saveCue" class="accent">Save cue here</button></section>
     <section><div class="sectiontitle"><h2>Cue sheet</h2><button id="demo" class="quiet">Layout demo</button></div><div id="cues" class="cues"></div><p class="muted">Tap a cue to pause and select it. Use the thumb pads to adjust its time. The first cue stays at 0.</p></section>
-    <section class="exports"><h2>Keep / render</h2><button id="saveProject">Save project JSON</button><label class="button" for="openProject">Open project JSON</label><input id="openProject" type="file" accept=".json,application/json" hidden><button id="export" class="accent">Export FFmpeg ZIP</button><p class="muted">Keep the project JSON with your Daisy source record. No media is uploaded.</p></section>
+    <section class="exports"><h2>Keep / render</h2>
+      <details class="workFolder"><summary>Working directory: <span id="workTarget">Browser downloads</span></summary>
+        <p id="workHelp" class="muted"></p><button id="chooseWorkDir">Choose working folder</button>
+        <p id="folderSupport" class="muted" hidden>This browser has no writable folder picker. Use FileProxy for a shell or Termux directory.</p>
+        <details><summary>Use FileProxy / shell directory</summary>
+          <label>FileProxy URL<input id="proxyUrl" type="url" value="http://127.0.0.1:7799" spellcheck="false"></label>
+          <label>Registered root<input id="proxyRoot" type="text" spellcheck="false"></label>
+          <label>Week folder (blank for root)<input id="proxyFolder" type="text" spellcheck="false"></label>
+          <label>Local write token<input id="proxyToken" type="password" autocomplete="off"></label>
+          <button id="connectWorkDir">Use FileProxy folder</button><p class="muted">The root must already be registered from your shell. The token stays in memory while this page is open.</p>
+        </details><button id="useDownloads" class="quiet" hidden>Use browser downloads</button>
+      </details>
+      <button id="saveProject">Save project JSON</button><label class="button" for="openProject">Open project JSON</label><input id="openProject" type="file" accept=".json,application/json" hidden><button id="export" class="accent">Export FFmpeg ZIP</button><p class="muted">The original video stays where you selected it. Folder exports contain the project, PNG panels and renderer.</p>
+    </section>
   </aside>
 </main>
 <footer><a href="README.md">Source and usage</a><span>Static HTML + vanilla JavaScript · works from a local folder or IPFS</span></footer>

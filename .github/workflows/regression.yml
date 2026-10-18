@@ -47,6 +47,7 @@ jobs:
           node --check chisel.portal.js
           node --check tools/recast/core.js
           node --check tools/recast/timing.js
+          node --check tools/recast/storage.js
           node --check tools/recast/recast.js
           node --check tools/recast/render-source.js
           node --check app.js

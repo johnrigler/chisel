@@ -12,9 +12,10 @@ test('hosted Recast files match the recorded Mogwai distribution', async () => {
 test('Recast runtime assets are self-contained and the tool is linked from Chisel', async () => {
   const html = await readFile(new URL('index.html', root),'utf8');
   const refs = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css)(?:\?[^\"]*)?)"/g)].map(m=>m[1]);
-  assert.equal(refs.length,5);
+  assert.equal(refs.length,6);
   for(const file of refs){assert(!file.includes('://'));const url=new URL(file,root);url.search='';assert((await readFile(url)).length>0);}
   assert(refs.some(file=>file.startsWith('timing.js?')));
+  assert(refs.some(file=>file.startsWith('storage.js?')));
   const index=await readFile(new URL('../index.html',import.meta.url),'utf8');
   assert(index.includes('href="tools/recast/"'));
 });

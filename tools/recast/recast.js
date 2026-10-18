@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  const C = window.MogwaiRecast, T = window.MogwaiFrameTiming, $ = id => document.getElementById(id);
+  const C = window.MogwaiRecast, T = window.MogwaiFrameTiming, S = window.MogwaiRecastStorage, $ = id => document.getElementById(id);
   const video = $('video'), canvas = $('overlay');
   const state = { project: C.validate({ format: C.FORMAT, width: 1280, height: 720, source: { name: '' }, cues: [C.emptyCue()] }), draft: C.emptyCue(), active: -1, selected: null, pinned: false, sourceTiming: null, timingPending: false, sourceVersion: 0, url: '', loaded: false, images: new Map(), renderVersion: 0 };
   function status(text, error) { $('status').textContent = text; $('status').classList.toggle('error', Boolean(error)); }
@@ -128,6 +128,22 @@
   function download(blob, name) {
     const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
+  let workTarget = null;
+  function setWorkTarget(target) {
+    workTarget = target;
+    $('workTarget').textContent = target ? target.label : 'Browser downloads';
+    $('useDownloads').hidden = !target;
+    $('export').textContent = target ? 'Save FFmpeg render folder' : 'Export FFmpeg ZIP';
+    $('workHelp').textContent = target ? 'Project snapshots and render files go here. Existing files are kept.' : 'Choose daisy_' + S.defaults().year + ' to use this week’s folder, or choose an exact working folder.';
+  }
+  async function saveProject() {
+    const target = workTarget, text = JSON.stringify(C.validate(state.project), null, 2) + '\n';
+    if (!target) { download(new Blob([text], { type: 'application/json' }), 'recast-project.json'); status('Project JSON downloaded.'); return; }
+    const name = S.snapshot(state.project.source.name) + '.json';
+    $('saveProject').disabled = true;
+    try { await target.write(name, text); status('Project saved: ' + target.label + '/' + name); }
+    finally { $('saveProject').disabled = false; }
+  }
   async function loadProject(project) {
     const clean = C.validate(project);
     // Decode embedded images before replacing the current project.
@@ -141,7 +157,7 @@
     $('size').value = size; $('follow').checked = true; editors(state.draft); updateClock(); renderCues(); await paint();
     status('Project opened. Choose ' + (clean.source.name || 'the source video') + ' separately.');
   }
-  async function exportPackage() {
+  async function exportFiles() {
     const project = C.validate(state.project);
     if (!state.loaded || !video.videoWidth) throw new Error('Choose a video source before exporting.');
     const files = [{ name: 'project.json', data: JSON.stringify(project, null, 2) + '\n' }, { name: 'render.py', data: window.RecastRenderPython }];
@@ -152,8 +168,9 @@
       files.push({ name: 'overlays/' + String(i).padStart(3, '0') + '.png', data: new Uint8Array(await blob.arrayBuffer()) });
     }
     files.push({ name: 'README.txt', data: 'Mogwai Recast\n\nThe original video is not included. Keep it separately.\n\nInstall Python 3, FFmpeg and ffprobe. In this folder run:\n\npython3 render.py "path/to/original.mp4" "recast.mp4"\n\nVideo is recomposed; audio is copied from the original as a single stream.\nThe output container must support the original audio codec (AAC works in MP4).\nExisting output files are not overwritten.\n\nProject JSON is editable and can be reopened in the static HTML tool.\nPanels are exported as transparent PNGs so FFmpeg needs no HTML renderer.\nThe original source file and embedded images stay private unless you share them.\n' });
-    return C.zip(files);
+    return files;
   }
+  async function exportPackage() { return C.zip(await exportFiles()); }
   $('source').addEventListener('change', () => run(async () => {
     const file = $('source').files[0]; if (!file) return;
     stopNudge(); state.sourceTiming = null; state.timingPending = true; state.pinned = false; const version = ++state.sourceVersion;
@@ -197,9 +214,32 @@
   $('saveCue').addEventListener('click', () => run(saveCue));
   $('follow').addEventListener('change', () => { state.pinned = false; state.active = -1; updateClock(); });
   $('size').addEventListener('change', () => run(async () => { const [width, height] = $('size').value.split('x').map(Number); state.project = C.validate({ ...state.project, width, height }); await paint(); }));
-  $('saveProject').addEventListener('click', () => run(() => download(new Blob([JSON.stringify(C.validate(state.project), null, 2) + '\n'], { type: 'application/json' }), 'recast-project.json')));
+  $('chooseWorkDir').disabled = typeof window.showDirectoryPicker !== 'function';
+  $('folderSupport').hidden = !$('chooseWorkDir').disabled;
+  const workDefaults = S.defaults(); $('proxyRoot').value = workDefaults.root; $('proxyFolder').value = workDefaults.folder;
+  $('chooseWorkDir').addEventListener('click', () => run(async () => {
+    try { const handle = await window.showDirectoryPicker({ id: 'mogwai-recast-work', mode: 'readwrite' }); setWorkTarget(await S.directory(handle)); status('Working directory: ' + workTarget.label); }
+    catch (error) { if (error.name !== 'AbortError') throw error; }
+  }));
+  $('connectWorkDir').addEventListener('click', () => run(async () => {
+    $('connectWorkDir').disabled = true;
+    try {
+      const target = await S.proxy({ url: $('proxyUrl').value, root: $('proxyRoot').value.trim(), folder: $('proxyFolder').value.trim(), token: $('proxyToken').value });
+      setWorkTarget(target); $('proxyToken').value = ''; status('Working directory: ' + target.label + '. Missing folders are created on save.');
+    } finally { $('connectWorkDir').disabled = false; }
+  }));
+  $('useDownloads').addEventListener('click', () => { setWorkTarget(null); status('Save target: browser downloads.'); });
+  $('saveProject').addEventListener('click', () => run(saveProject));
   $('openProject').addEventListener('change', () => run(async () => { const file = $('openProject').files[0]; if (!file) return; if (file.size > 30000000) throw new Error('Project file is too large.'); await loadProject(JSON.parse(await file.text())); $('openProject').value = ''; }));
-  $('export').addEventListener('click', () => run(async () => { $('export').disabled = true; status('Rasterizing panels and building the ZIP…'); try { download(await exportPackage(), 'recast-ffmpeg.zip'); status('ZIP ready. Unzip it and run python3 render.py original.mp4 recast.mp4.'); } finally { $('export').disabled = false; } }));
+  $('export').addEventListener('click', () => run(async () => {
+    const target = workTarget, folder = S.snapshot(state.project.source.name);
+    $('export').disabled = true; status(target ? 'Saving the project, panels and renderer…' : 'Rasterizing panels and building the ZIP…');
+    try {
+      const files = await exportFiles();
+      if (target) status('Render folder saved: ' + await S.bundle(target, folder, files) + '. Run render.py with the original video.');
+      else { download(C.zip(files), 'recast-ffmpeg.zip'); status('ZIP ready. Unzip it and run python3 render.py original.mp4 recast.mp4.'); }
+    } finally { $('export').disabled = false; }
+  }));
   $('demo').addEventListener('click', () => run(async () => {
     if (!window.confirm('Replace the current cue sheet with an editable layout demonstration?')) return;
     const right = 'YOUR NOTES\n\nAdd a sequence of instructions here.\n\nEach cue can change this panel while the source audio continues.';
@@ -215,6 +255,6 @@
     if (layout) { event.preventDefault(); run(() => chooseLayout(layout)); }
     else if (event.code === 'Space' && !event.target.closest('button')) { event.preventDefault(); run(togglePlay); }
   });
-  window.MOGWAI_RECAST = { state, loadProject, chooseLayout, saveCue, exportPackage, selectCue, nudgeCue };
-  renderCues(); run(paint);
+  window.MOGWAI_RECAST = { state, loadProject, chooseLayout, saveCue, exportPackage, exportFiles, selectCue, nudgeCue };
+  setWorkTarget(null); renderCues(); run(paint);
 })();
