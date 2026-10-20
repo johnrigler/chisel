@@ -15,11 +15,11 @@ small { color:#555; } label { display:block; margin-top:.6rem; }
 </head>
 <body>
 <h1>CTP500 diagnostic receipt</h1>
-<p><a href="tools/ctp500-folded-letter/?v=20261020-receipt2">Open sample receipts and folded letters</a></p>
-<p>Connect to <strong>Teal Printer</strong> on the phone. Close InstaPrint and disconnect Bluetooth Internals first.</p>
+<p><a href="tools/ctp500-folded-letter/?v=20261020-receipt3">Open sample receipts and folded letters</a></p>
+<p>Android Chrome 138+ and Chromebook: pair the printer in system Bluetooth settings, then choose <strong>Bluetooth Serial</strong>. Close other printer connections first. BLE currently has an unresolved paper-feed issue; use the linked receipt tool for a feed-only test.</p>
 <div>
-<button id="choose-ble">1. Connect BLE (phone)</button>
-<button id="choose">Choose Serial (Chromebook)</button>
+<button id="choose">1. Connect Bluetooth Serial (Android / Chromebook)</button>
+<button id="choose-ble">Connect BLE (experimental)</button>
 <button id="print" disabled>2. Print diagnostic receipt</button>
 <button id="disconnect" disabled>Disconnect BLE</button>
 <button id="save" disabled>Save receipt PNG</button>

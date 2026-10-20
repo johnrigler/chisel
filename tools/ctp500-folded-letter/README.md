@@ -12,7 +12,7 @@ Keep this directory together when serving it or adding it to IPFS.
 
 ## Receipts
 
-Edit the sample, **Build receipt**, connect BLE or Serial, then **Print strip**.
+Edit the sample, **Build receipt**, connect Bluetooth Serial, then **Print strip**.
 Preview and PNG show the black/white raster actually encoded for the printer.
 The 32-column sample includes a demo header, order, item modifiers, aligned
 prices, subtotal, tax, total, closing and QR. It uses the photographed totals
@@ -26,13 +26,39 @@ Receipt text wraps instead of clipping and uses only the rows it needs. Clear
 the receipt QR field to omit the code. The demo QR points to this repository,
 not a stored transaction. No order storage or payment processing is implemented.
 
+## Connection: Android and Chromebook
+
+Use **Connect Bluetooth Serial (recommended)**. First pair the printer in
+system Bluetooth settings and disconnect the Chromebook while testing the
+phone. Chrome on Android supports Bluetooth RFCOMM from version 138:
+https://developer.chrome.com/release-notes/138#web_serial_over_bluetooth_on_android
+The supplied screenshot reports Chrome 155 and `Serial: true`.
+
+The Serial chooser filters for standard SPP service
+`00001101-0000-1000-8000-00805f9b34fb`. It reuses the Chromebook's full-width
+encoder and Serial writer; a chooser selection alone does not open the port.
+The port opens for a test/print, closes afterward and is reused without another
+chooser. Physical Android Serial printing still needs a user test.
+
+After restarting the printer, **Feed paper test (no printing)** sends only
+`ESC @` plus eight `LF` commands: 10 bytes, no text or raster. This probes
+ESC/POS feed handling; acceptance by the CTP500 on either route is not inferred
+from an API success. If paper advances, try **Print connection test**, then
+the receipt. If it stays stationary, stop image tests and record the route.
+
+BLE is explicitly experimental after the user's report of printing repeatedly
+onto stationary paper. A browser write acknowledgment does not confirm that
+printer-side feeding occurred. The earlier claim of phone BLE confirmation
+is disputed by the current physical report and must not be treated as evidence
+of successful Android printing. Prefer the route that worked on the Chromebook.
+
 ## Printing reliability and measurements
 
-**Reliable / original pacing** is the default. All modes now send one full-width
+**Original pacing** is the default BLE preset. All modes now send one full-width
 384-dot raster plus 160 explicit white feed rows, followed by the original
 ending commands. The connection test uses the same framing and default pacing,
 prints two short lines and advances them to the tear bar. Connect the printer,
-then select **Print connection test** before sending a full receipt.
+then select **Feed paper test**, followed by **Print connection test**, before a full receipt.
 
 On 2026-10-20 the user reported only a tiny fragment printing before stopping.
 The initial default had combined variable-width 8-row bands, LF-only trailing
@@ -41,7 +67,7 @@ firmware acceptance or buffer capacity. Those framing changes have been
 removed from this tool's print path; the exact cause is not yet established.
 The earlier 53% / 71% byte reductions do not apply to this version.
 
-Reliable mode uses acknowledged 20-byte writes plus a 20 ms pause when the
+Original pacing uses acknowledged 20-byte writes plus a 20 ms pause when the
 characteristic supports acknowledgments. Acknowledged mode removes the extra
 pause. Fast uses writes without responses when supported and the earlier
 25 ms minimum start interval; it is explicitly experimental for this receipt.
@@ -65,7 +91,7 @@ keep the tab visible.
 3. **Build letter** previews pages in reading order. Overflow blocks printing;
    increase page length, reduce text size, or shorten the letter to fit.
 4. **Connect BLE (phone)**, select the printer, then **Print strip**. Serial
-   is also available. Use the default Reliable mode first.
+   is also available. Use the default Original pacing first.
 5. Leave the page open until all bytes have been sent and printing completes.
    Tear off the extra blank feed. If transmission fails, restart the printer
    before sending a new raster; the tool does not retry interrupted jobs.

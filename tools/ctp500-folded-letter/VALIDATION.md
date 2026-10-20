@@ -1,3 +1,27 @@
+# Android Serial route · 2026-10-20 · receipt3
+
+User observations now establish the transport boundary: Chromebook printing
+advanced paper; Android BLE writes continued but paper stayed stationary,
+producing a black band. Screenshot run `200715Z-1` on the older diagnostic page
+submitted 26,293 bytes in 133.9 s; that is browser submission, not a successful
+physical print. The receipt2 screenshot shows an active transfer at 38%.
+
+Chrome's official 138 release notes establish Android RFCOMM support; the
+phone screenshot reports Chrome 155 and `Serial: true`. Bluetooth Serial is
+now the recommended route on both devices, with a standard SPP chooser filter.
+BLE remains experimental. No claim of an Android hardware fix is made.
+
+A 10-byte feed-only test sends ESC @ and eight LF bytes without any raster
+or text. Tests verify the picker service UUID, Serial as the API default,
+exact probe bytes, ordered transfer and port cleanup. A DOM harness checks
+the feed button and short image over mocked Serial, connection reuse and UI
+status. Ten transport/raster tests pass. Native browser launch was unavailable
+for this revision; Android hardware tests remain open.
+
+Reference: https://developer.chrome.com/release-notes/138#web_serial_over_bluetooth_on_android
+
+---
+
 # Reliability correction · 2026-10-20 · receipt2
 
 Physical user report: the initial test activated the printer, printed only a

@@ -1,8 +1,8 @@
 /* Reusable browser-only CTP500 image printing. No backend or native app. */
-import { ctp500Encode } from './ctp500.js?v=20261020-receipt2';
-import { ctp500ConnectBLE } from './ctp500-ble.js?v=20261020-receipt2';
+import { ctp500Encode } from './ctp500.js?v=20261020-receipt3';
+import { ctp500ConnectBLE } from './ctp500-ble.js?v=20261020-receipt3';
 
-export const CTP500_PRINT_VERSION = '20261020-receipt2';
+export const CTP500_PRINT_VERSION = '20261020-receipt3';
 
 // This keeps a visible page awake; it is not a background print service.
 export function ctp500BeginPrintSession(env = globalThis) {
@@ -64,9 +64,16 @@ export function ctp500PreparePrint(source, { mode = 'compatibility', threshold =
   return { canvas, bytes, mode };
 }
 
+// Feed-only probe. No image data or text. Restart after a partial raster
+// before probing; CTP500 acceptance of these ESC/POS feed commands is a
+// hardware test, not a result inferred from completed browser writes.
+export function ctp500FeedTestBytes() {
+  return Uint8Array.from([0x1b, 0x40, ...Array(8).fill(0x0a)]);
+}
+
 // Call this directly from a Connect button: browsers require a user gesture.
 // The connection is reused until disconnect; printing never opens a chooser.
-export async function ctp500ConnectPrinter({ transport = 'ble' } = {}) {
+export async function ctp500ConnectPrinter({ transport = 'serial' } = {}) {
   if (transport === 'ble') {
     const ble = await ctp500ConnectBLE();
     return {
@@ -79,10 +86,12 @@ export async function ctp500ConnectPrinter({ transport = 'ble' } = {}) {
   }
   if (transport !== 'serial') throw new RangeError('Unknown printer connection.');
   if (!globalThis.isSecureContext || !navigator.serial) throw new Error('Web Serial requires a supported browser on HTTPS or localhost.');
-  const port = await navigator.serial.requestPort();
+  const port = await navigator.serial.requestPort({
+    filters: [{ bluetoothServiceClassId: '00001101-0000-1000-8000-00805f9b34fb' }],
+  });
   let selected = true, writing = false;
   return {
-    transport, label: 'Web Serial printer',
+    transport, label: 'Bluetooth Serial / RFCOMM',
     get connected() { return selected; },
     describe: () => ({ writeMode: 'serial', chunkBytes: 512, delayMs: 20, pacing: 'after-write' }),
     async disconnect() {
