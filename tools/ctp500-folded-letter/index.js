@@ -1,6 +1,6 @@
-import { buildLetter, makeQR } from './layout.js?v=20261020-receipt1';
-import { buildReceipt, SAMPLE_RECEIPT } from './receipt.js?v=20261020-receipt1';
-import { ctp500PreparePrint, ctp500ConnectPrinter, ctp500BeginPrintSession } from './ctp500-print.js?v=20261020-receipt1';
+import { buildLetter, makeQR } from './layout.js?v=20261020-receipt2';
+import { buildReceipt, SAMPLE_RECEIPT } from './receipt.js?v=20261020-receipt2';
+import { ctp500PreparePrint, ctp500ConnectPrinter, ctp500BeginPrintSession } from './ctp500-print.js?v=20261020-receipt2';
 
 const $ = id => document.getElementById(id);
 let image = null, prepared = null, printer = null, busy = false, revision = 0;
@@ -11,6 +11,7 @@ function buttons() {
   $('connect-ble').disabled = busy || !window.isSecureContext || !navigator.bluetooth;
   $('connect-serial').disabled = busy || !window.isSecureContext || !navigator.serial;
   $('print').disabled = busy || !prepared || !printer?.connected;
+  $('connection-test').disabled = busy || !printer?.connected;
   $('save').disabled = busy || !prepared;
   $('disconnect').disabled = busy || !printer;
   for (const id of controls) $(id).disabled = busy;
@@ -47,9 +48,7 @@ function build(calibration = false) {
     });
     const strip = $('strip'); strip.width = job.canvas.width; strip.height = job.canvas.height;
     strip.getContext('2d').drawImage(job.canvas, 0, 0);
-    const originalBytes = 15 + 8 + (strip.height + 160) * 48 + 6;
-    const saved = Math.round((1 - job.bytes.length / originalBytes) * 100);
-    status(`${receipt ? 'Receipt' : calibration ? 'Fold test' : 'Letter'} ready: 384 × ${strip.height} dots; ${job.bytes.length.toLocaleString()} bytes (${saved}% smaller than original output). ${mode === 'compatibility' ? 'Original blank feed.' : 'Compact feed; use Original fallback if paper does not reach the tear bar.'}`);
+    status(`${receipt ? 'Receipt' : calibration ? 'Fold test' : 'Letter'} ready: 384 × ${strip.height} dots; ${job.bytes.length.toLocaleString()} bytes. Full-width raster with paper feed. ${mode === 'compatibility' ? 'Reliable pacing.' : 'Faster transfer selected.'}`);
   } catch (error) { prepared = null; status(error.message); }
   buttons();
 }
@@ -67,14 +66,24 @@ async function connect(transport) {
   } catch (error) { status('Connection: ' + error.message); }
   finally { busy = false; buttons(); }
 }
-async function print() {
-  if (busy || !prepared || !printer?.connected) return;
-  const job = prepared, connection = printer;
+function connectionTestCanvas() {
+  const canvas = document.createElement('canvas'); canvas.width = 384; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 384, 64);
+  ctx.fillStyle = '#000'; ctx.font = 'bold 22px monospace';
+  ctx.fillText('CTP500 CONNECTION TEST', 12, 25);
+  ctx.font = '18px monospace'; ctx.fillText('Readable text + paper feed', 12, 51);
+  return canvas;
+}
+async function print(testOnly = false) {
+  if (busy || (!testOnly && !prepared) || !printer?.connected) return;
+  const job = testOnly ? ctp500PreparePrint(connectionTestCanvas()) : prepared;
+  const connection = printer;
   busy = true; buttons();
   const finish = ctp500BeginPrintSession();
   const started = performance.now();
   try {
-    status('Sending… keep this page open.');
+    status(testOnly ? 'Sending connection test… keep this page open.' : 'Sending… keep this page open.');
     let previous = -1;
     const stats = await connection.write(job.bytes, (sent, total) => {
       const percentage = Math.floor(sent / total * 100);
@@ -82,7 +91,10 @@ async function print() {
     }, { mode: job.mode });
     const seconds = (performance.now() - started) / 1000;
     status(`Sent ${job.bytes.length.toLocaleString()} bytes in ${seconds.toFixed(1)} s (${Math.round(job.bytes.length / Math.max(seconds, .001)).toLocaleString()} B/s; ${stats.writeMode}). Wait for paper to finish.`);
-  } catch (error) { status('Print interrupted: ' + error.message + ' Restart the printer before sending a fresh job.'); }
+  } catch (error) {
+    const sent = error.transferStats?.bytes ?? 0;
+    status(`Print interrupted after ${sent.toLocaleString()} / ${job.bytes.length.toLocaleString()} bytes: ${error.message}. Restart the printer before sending a fresh job.`);
+  }
   finally { await finish(); busy = false; buttons(); }
 }
 for (const id of ['title', 'letter', 'length', 'font-size', 'qr-text', 'receipt-text', 'receipt-qr']) $(id).addEventListener('input', invalidate);
@@ -115,7 +127,8 @@ $('disconnect').addEventListener('click', async () => {
   catch (error) { status(error.message); }
   finally { busy = false; buttons(); }
 });
-$('print').addEventListener('click', print);
+$('print').addEventListener('click', () => print());
+$('connection-test').addEventListener('click', () => print(true));
 $('save').addEventListener('click', () => {
   if (!prepared) return;
   const name = prepared.receipt ? 'ctp500-receipt.png' : prepared.calibration ? 'ctp500-fold-test.png' : 'ctp500-folded-letter.png';

@@ -1,8 +1,8 @@
 /* Reusable browser-only CTP500 image printing. No backend or native app. */
-import { ctp500Encode, ctp500EncodeBands } from './ctp500.js?v=20261020-receipt1';
-import { ctp500ConnectBLE } from './ctp500-ble.js?v=20261020-receipt1';
+import { ctp500Encode } from './ctp500.js?v=20261020-receipt2';
+import { ctp500ConnectBLE } from './ctp500-ble.js?v=20261020-receipt2';
 
-export const CTP500_PRINT_VERSION = '20261020-receipt1';
+export const CTP500_PRINT_VERSION = '20261020-receipt2';
 
 // This keeps a visible page awake; it is not a background print service.
 export function ctp500BeginPrintSession(env = globalThis) {
@@ -37,7 +37,7 @@ export function ctp500BeginPrintSession(env = globalThis) {
 }
 
 // The returned canvas is the black/white, 384-dot image sent to the printer.
-export function ctp500PreparePrint(source, { mode = 'fast', threshold = 128 } = {}) {
+export function ctp500PreparePrint(source, { mode = 'compatibility', threshold = 128 } = {}) {
   if (!['fast', 'acknowledged', 'compatibility'].includes(mode)) throw new RangeError('Unknown print mode.');
   if (!source?.width || !source?.height) throw new TypeError('Choose a nonempty image first.');
   if (!Number.isFinite(threshold) || threshold < 0 || threshold > 255) throw new RangeError('Invalid image threshold.');
@@ -56,15 +56,11 @@ export function ctp500PreparePrint(source, { mode = 'fast', threshold = 128 } = 
     image.data[i + 3] = 255;
   }
   ctx.putImageData(image, 0, 0);
-  const original = mode === 'compatibility';
-  const encode = mode === 'fast' ? ctp500EncodeBands : ctp500Encode;
-  let bytes = encode(canvas, { threshold, feedRows: original ? 160 : 0, feedLines: original ? 3 : 8, cut: original });
-  // Dense sideways artwork can make band headers cost more than they save.
-  // Use whichever representation is smaller; both preserve every raster row.
-  if (mode === 'fast') {
-    const whole = ctp500Encode(canvas, { threshold, feedRows: 0, feedLines: 8, cut: false, trimRight: true });
-    if (whole.length < bytes.length) bytes = whole;
-  }
+  // Retain the single 384-dot raster and explicit feed used by the original
+  // working test. Byte equivalence in software did not establish acceptance of
+  // variable-width bands or LF-only feed on the physical printer.
+  // Transfer modes now change pacing only, never printer framing.
+  const bytes = ctp500Encode(canvas, { threshold, feedRows: 160 });
   return { canvas, bytes, mode };
 }
 

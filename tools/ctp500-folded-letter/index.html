@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CTP500 receipts &amp; folded letters</title>
-  <link rel="stylesheet" href="style.css?v=20261020-receipt1">
+  <link rel="stylesheet" href="style.css?v=20261020-receipt2">
   <script defer src="vendor/qrcode.min.js"></script>
-  <script type="module" src="index.js?v=20261020-receipt1"></script>
+  <script type="module" src="index.js?v=20261020-receipt2"></script>
 </head>
 <body>
   <header><h1>CTP500 receipts &amp; folded letters</h1><p>384-dot receipt printing, or a four-page folded letter.</p></header>
@@ -40,10 +40,11 @@ An image or QR code can be included on the back page. Staple near the spine if y
       </div>
       <div class="actions"><button id="build">Build letter</button><button id="calibrate">Numbered fold test</button><button id="save" disabled>Save strip PNG</button></div>
       <div class="actions"><button id="connect-ble">Connect BLE (phone)</button><button id="connect-serial">Choose Serial</button><button id="disconnect" disabled>Disconnect</button></div>
-      <label>Transfer mode <select id="transfer"><option value="fast">Fast (default)</option><option value="acknowledged">Acknowledged</option><option value="compatibility">Original / slower fallback</option></select></label>
-      <button id="print" disabled>Print strip</button>
+      <label>Transfer mode <select id="transfer"><option value="compatibility">Reliable / original pacing (default)</option><option value="acknowledged">Acknowledged / no extra pause</option><option value="fast">Fast / without responses (experimental)</option></select></label>
+      <div class="actions"><button id="connection-test" disabled>Print connection test</button><button id="print" disabled>Print strip</button></div>
+      <p class="hint">Connection test prints two short lines with paper feed, using Reliable mode.</p>
       <p id="status" role="status" aria-live="polite">Loading…</p>
-      <p class="hint">Use HTTPS or localhost for Bluetooth. Keep this page open until transmission finishes. Version 20261020-receipt1.</p>
+      <p class="hint">Use HTTPS or localhost for Bluetooth. Keep this page open until transmission finishes. Version 20261020-receipt2.</p>
     </section>
     <section aria-label="Print preview">
       <h2 id="preview-title">Receipt preview</h2><div id="pages"></div>

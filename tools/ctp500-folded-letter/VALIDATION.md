@@ -1,3 +1,24 @@
+# Reliability correction · 2026-10-20 · receipt2
+
+Physical user report: the initial test activated the printer, printed only a
+tiny unreadable fragment, then stopped. This supersedes the earlier software
+checks as evidence of hardware compatibility. Cause remains unconfirmed.
+
+The print wrapper now defaults to Reliable mode and uses the original single
+full-width raster plus 160 explicit white feed rows for every transfer mode.
+Variable-width bands and compact LF-only feed are no longer selected by the
+UI. Prior byte-reduction figures are historical, not current benefits.
+A separate 384 × 64-dot connection test prints two readable lines plus feed
+using Reliable pacing regardless of the selected receipt transfer mode.
+
+Regression checks compare each mode byte-for-byte with the original encoder
+and verify full raster width, pixel positions and all 160 trailing feed rows.
+Browser checks cover default selection, both layouts, the dedicated test's
+bytes, acknowledged write method, progress, and error byte counts. Hardware
+retest is still required; publishing this correction does not establish success.
+
+---
+
 # Receipt and speed validation · 2026-10-20
 
 Passed in headless Chromium with the actual modules, native Canvas and

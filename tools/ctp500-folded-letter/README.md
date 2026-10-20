@@ -26,32 +26,36 @@ Receipt text wraps instead of clipping and uses only the rows it needs. Clear
 the receipt QR field to omit the code. The demo QR points to this repository,
 not a stored transaction. No order storage or payment processing is implemented.
 
-## Speed and transfer measurements
+## Printing reliability and measurements
 
-Fast is the default for both layouts. The encoder and transport are ported from
-Chisel's working CTP500 path (inspected 2026-10-20). Fast mode uses 20-byte
-writes without responses when supported, with at least 25 ms between starts.
-It awaits each write and does not add another delay to an already slow call.
-Acknowledged mode remains available; Original also restores slower pacing,
-full-width raster and 160 white feed rows if the compact feed is insufficient.
+**Reliable / original pacing** is the default. All modes now send one full-width
+384-dot raster plus 160 explicit white feed rows, followed by the original
+ending commands. The connection test uses the same framing and default pacing,
+prints two short lines and advances them to the tear bar. Connect the printer,
+then select **Print connection test** before sending a full receipt.
 
-Fast encoding trims unused right columns per 8-row band. White bands retain
-height; content is never removed or stretched. A single trimmed raster is
-used when band headers would cost more. Eight LF bytes replace thousands of
-blank trailing raster bytes. Actual feed length remains device-dependent.
-There is no unverified native-text printer mode or increased BLE packet size.
+On 2026-10-20 the user reported only a tiny fragment printing before stopping.
+The initial default had combined variable-width 8-row bands, LF-only trailing
+feed and faster writes. Software pixel equivalence did not establish printer
+firmware acceptance or buffer capacity. Those framing changes have been
+removed from this tool's print path; the exact cause is not yet established.
+The earlier 53% / 71% byte reductions do not apply to this version.
 
-The ready message reports byte count and reduction relative to the original
-full raster plus 160 feed rows. Sending reports progress, elapsed time, B/s,
-and the write method. This measures submission to the browser transport,
-not mechanical completion. Screen wake lock is best-effort while sending.
-Leave the tab visible. No automatic retries follow partial output.
+Reliable mode uses acknowledged 20-byte writes plus a 20 ms pause when the
+characteristic supports acknowledgments. Acknowledged mode removes the extra
+pause. Fast uses writes without responses when supported and the earlier
+25 ms minimum start interval; it is explicitly experimental for this receipt.
+Changing transfer mode changes pacing only. No banded raster or LF-only feed
+is selected by this page. The reusable band encoder remains exported for other
+callers but is unused here.
 
-A 90-degree layout can change paper length and where ink falls across each
-printer row, which changes raster transfer cost. Rotation alone is not a
-measurement of printer speed. The previous Mogwai tool also still had the
-older encoder/transport. Compare the same content and transfer mode using
-the displayed byte counts and elapsed time.
+The ready message reports byte count. Sending reports progress, elapsed time,
+B/s and the write method. Errors include accepted byte count. These measure
+submission to the browser transport, not successful printing. If paper stops,
+retain the final status message to distinguish a failed/stalled transfer from
+printer rejection after submission. Restart the printer before retrying a
+partial job. There are no automatic retries. Screen wake lock is best-effort;
+keep the tab visible.
 
 ## Folded-letter use
 
@@ -61,7 +65,7 @@ the displayed byte counts and elapsed time.
 3. **Build letter** previews pages in reading order. Overflow blocks printing;
    increase page length, reduce text size, or shorten the letter to fit.
 4. **Connect BLE (phone)**, select the printer, then **Print strip**. Serial
-   is also available. Choose Original / slower fallback if the output is incomplete.
+   is also available. Use the default Reliable mode first.
 5. Leave the page open until all bytes have been sent and printing completes.
    Tear off the extra blank feed. If transmission fails, restart the printer
    before sending a new raster; the tool does not retry interrupted jobs.
@@ -74,7 +78,7 @@ The default page length is 800 dots; it can be 640–1600. Body type is
 
 Pages are placed in strip order **4, 1, 2, 3**, each rotated clockwise by 90°.
 Dashed fold lines lie between panels. The printer canvas is 384 dots wide and
-four page lengths long. Fast mode adds compact feed commands; Original adds 160 white feed rows.
+four page lengths long. Every mode adds 160 white feed rows.
 
 Fold at the central line with the blank backs together, pairing page 2 behind
 page 1 and page 3 behind page 4. Then fold at the remaining page boundary to
