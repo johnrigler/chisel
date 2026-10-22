@@ -7,3 +7,7 @@ Start here:
 3. `refactor-phases.md` defines the safe refactor order while the project has little automated testing.
 
 The working rule is simple: Chisel artifacts are ledger-native. Tools such as fileProxy, bunOven, keeperBun, scanners, and label printers are satellites around that artifact model.
+
+## Proposed chain extension
+
+- [BSV support direction](BSV-SUPPORT-DIRECTION.md): proposed read/publish work and a DNS-like naming research lead; not an implemented chain adapter.

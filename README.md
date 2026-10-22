@@ -82,6 +82,14 @@ Do not treat general cleanup as the main project. Put a small fixture-driven reg
 
 The intended order is documented in `docs/NEXT_DEVELOPMENT.md`. In particular, avoid broad changes to signing, serialization, fee selection, UTXO selection, or broadcast behavior until known-value fixtures cover those paths.
 
+## Proposed BSV extension
+
+[BSV support direction](docs/BSV-SUPPORT-DIRECTION.md) records the proposed
+Bitcoin SV read/publish extension and an unverified DNS-like naming research
+lead. This is Chisel work, separate from the current Commons narrative.
+The inspected main branch does not establish working BSV support; the first
+task is a raw-transaction read-path feasibility check.
+
 ## v2.7.15c Base57 image capture
 
 The V1 image workflow is available from Etch’s `BASE57 IMAGE` button and from `tools/imageEncoder/`.
