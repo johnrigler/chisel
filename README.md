@@ -213,6 +213,13 @@ See [the project-specific ETHDenver / Zorkmid notes](docs/ethdenver-zorkmid-inte
 
 ## CertLedger / Daisy evidence checkpoints
 
+The [CertLedger hash review](tools/certLedger/index.html) accepts a full SHA-256
+or the hash-only draft from Commons artifact intake. It prepares `sha256:` plus
+the 64-digit digest in ASCII (71 bytes), with the explicit LMx/CertLedger tag,
+then passes the reviewed plan into the existing Send artifact loader.
+Source PDFs and correspondence are not required by Chisel. Loading a plan does
+not sign or broadcast it. [Handoff contract](tools/certLedger/README.md).
+
 Project Jupiter and other CertLedger-style investigations now primarily
 hold evolving source records in yearly Daisy repositories. Chisel remains
 an **optional** ledger-anchoring tool for selected, frozen and reviewed
