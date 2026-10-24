@@ -32,3 +32,16 @@ test('the existing Send artifact loader accepts the CertLedger plan, replaces re
  assert.match(calls.status,/review output order before signing/);
  // No signing, funding, network or broadcast methods exist in the fixture.
 });
+
+test('CertLedger review refreshes a changed URL fragment instead of retaining an earlier digest',async()=>{
+ const ids=new Map(['sha256','load-send','payload','tag-amount','cost','status','draft-file'].map(id=>[id,{value:'',textContent:'',listeners:{},addEventListener(event,fn){this.listeners[event]=fn;}}]));
+ ids.get('tag-amount').value='0.00001000';const events={};
+ const location={hash:'#sha256='+hash};
+ const ctx=vm.createContext({ChiselCertLedger:C,document:{getElementById:id=>ids.get(id)},location,URLSearchParams,window:{addEventListener(name,fn){events[name]=fn;}}});
+ vm.runInContext(await readFile(new URL('../tools/certLedger/app.js',import.meta.url),'utf8'),ctx);
+ assert.equal(ids.get('sha256').value,hash);
+ const second='f'.repeat(64);location.hash='#sha256='+second;events.hashchange();
+ assert.equal(ids.get('sha256').value,second);assert.equal(ids.get('payload').textContent,'sha256:'+second);
+ location.hash='#sha256=invalid';events.hashchange();assert.equal(ids.get('load-send').disabled,true);
+ location.hash='';events.hashchange();assert.equal(ids.get('sha256').value,'');assert.equal(ids.get('load-send').disabled,true);
+});

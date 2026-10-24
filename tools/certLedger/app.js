@@ -27,7 +27,11 @@
             location.href='../../index.html?mode=send';
         } catch(error){$('status').textContent='Could not open Send: '+error.message;}
     });
-    const query=new URLSearchParams(location.hash.slice(1));
-    if(query.has('sha256'))$('sha256').value=query.get('sha256');
-    review();
+    function readFragment(){
+        const query=new URLSearchParams(location.hash.slice(1));
+        $('sha256').value=query.get('sha256') || '';
+        review();
+    }
+    window.addEventListener('hashchange',readFragment);
+    readFragment();
 })();
