@@ -4166,7 +4166,9 @@
     const titleWrap = document.createElement("span");
     titleWrap.className = "portalStreamTitle";
     const titleText = displayTitleForRow(row);
-    titleWrap.title = titleText;
+    const compactGeneric = !primaryUrl && /^transaction\s+[0-9a-f]{6,}/i.test(titleText);
+    if (compactGeneric) item.classList.add("isCompactGeneric");
+    titleWrap.title = compactGeneric ? "Expand for transaction details" : titleText;
     if (primaryUrl) {
       const titleLink = document.createElement("a");
       setSafeHref(titleLink, primaryUrl);
@@ -4176,7 +4178,7 @@
       titleLink.className = "isDirectLink";
       titleWrap.appendChild(titleLink);
     } else {
-      titleWrap.textContent = titleText;
+      titleWrap.textContent = compactGeneric ? "Transaction" : titleText;
     }
 
     let verify = null;
