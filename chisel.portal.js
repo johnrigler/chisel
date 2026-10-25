@@ -3392,18 +3392,20 @@
       }
 
       const thumb = String((saved && saved.image) || card.thumbnailUrl || "").trim();
-      if (thumb) {
+      const fallback = document.createElement("div");
+      fallback.className = "portalEvmMediaThumb portalEvmMediaThumbFallback";
+      fallback.textContent = url || (netflix ? "NETFLIX" : String(card.kind || "link").toUpperCase());
+      fallback.style.overflowWrap = "anywhere";
+      if (thumb && /^https:\/\//i.test(thumb)) {
         const img = document.createElement("img");
         img.className = "portalEvmMediaThumb";
         img.alt = card.title || card.kind || "media thumbnail";
         img.loading = "lazy";
         img.referrerPolicy = "no-referrer";
+        img.onerror = function () { img.replaceWith(fallback); };
         img.src = thumb;
         media.appendChild(img);
       } else {
-        const fallback = document.createElement("div");
-        fallback.className = "portalEvmMediaThumb portalEvmMediaThumbFallback";
-        fallback.textContent = netflix ? "NETFLIX" : String(card.kind || "link").toUpperCase();
         media.appendChild(fallback);
       }
 
