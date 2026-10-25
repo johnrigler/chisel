@@ -3310,8 +3310,8 @@
     if (chips.childNodes.length) container.appendChild(chips);
   }
 
-  function netflixMetadataKey(url) {
-    return "chisel.portal.netflixMetadata.v1:" + encodeURIComponent(url);
+  function pageMetadataKey(url) {
+    return "chisel.portal.pageMetadata.v1:" + encodeURIComponent(url);
   }
 
   function isNetflixLink(url) {
@@ -3321,19 +3321,46 @@
     } catch (error) { return false; }
   }
 
-  function readNetflixMetadata(url) {
-    try { return JSON.parse(localStorage.getItem(netflixMetadataKey(url)) || "null"); }
+  function readPageMetadata(url) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(pageMetadataKey(url)) || "null");
+      if (saved && saved.schema === "chisel-page-metadata-v1") return saved;
+      // Migrate the earlier Netflix-specific local annotations transparently.
+      if (isNetflixLink(url)) {
+        const legacy = JSON.parse(localStorage.getItem("chisel.portal.netflixMetadata.v1:" + encodeURIComponent(url)) || "null");
+        if (legacy) return {schema:"chisel-page-metadata-v1",url:url,title:legacy.title || "",description:"",image:legacy.artwork || "",capturedAt:""};
+      }
+    } catch (error) {}
+    return null;
+  }
+
+  function savePageMetadata(url, fields, previous) {
+    const image = String(fields.image || "").trim();
+    const safeImage = image ? CHISEL.safeWebUrl(image, window.location.href) : "";
+    const metadata = {
+      schema:"chisel-page-metadata-v1",
+      url:url,
+      title:String(fields.title || "").trim().slice(0,200),
+      description:String(fields.description || "").trim().slice(0,1200),
+      image:safeImage && /^https:\/\//i.test(safeImage) ? safeImage : "",
+      capturedAt:previous && previous.capturedAt || new Date().toISOString(),
+      updatedAt:new Date().toISOString(),
+      captureMethod:"manual"
+    };
+    try { localStorage.setItem(pageMetadataKey(url), JSON.stringify(metadata)); return metadata; }
     catch (error) { return null; }
   }
 
-  function saveNetflixMetadata(url, data) {
-    try {
-      localStorage.setItem(netflixMetadataKey(url), JSON.stringify({
-        title:String(data.title || "").slice(0,180),
-        artwork:String(data.artwork || "").slice(0,2048)
-      }));
-      return true;
-    } catch (error) { return false; }
+  function downloadPageMetadata(metadata) {
+    const blob = new Blob([JSON.stringify(metadata,null,2) + "\n"], {type:"application/json"});
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = "chisel-page-" + new Date().toISOString().slice(0,10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
   }
 
   function appendPortalEvmMediaCards(container, row) {
@@ -3350,7 +3377,7 @@
     cards.forEach(function (card) {
       const url = normalizeMediaUrl(card.url || card.sourceUrl || "");
       const netflix = isNetflixLink(url);
-      const saved = netflix ? readNetflixMetadata(url) : null;
+      const saved = url ? readPageMetadata(url) : null;
       const media = document.createElement(url ? "a" : "div");
       media.className = "portalEvmMediaCard";
       if (card.videoId || String(card.kind || "").toLowerCase() === "youtube") media.classList.add("isYoutube");
@@ -3361,7 +3388,7 @@
         media.rel = "noopener noreferrer";
       }
 
-      const thumb = String((saved && saved.artwork) || card.thumbnailUrl || "").trim();
+      const thumb = String((saved && saved.image) || card.thumbnailUrl || "").trim();
       if (thumb) {
         const img = document.createElement("img");
         img.className = "portalEvmMediaThumb";
@@ -3385,7 +3412,7 @@
       h.textContent = cardTitle && !isLikelyUrl(cardTitle) && !isRawHtmlTitle(cardTitle) ? cardTitle : (humanUrlTitle(url) || "media");
       body.appendChild(h);
 
-      const text = cleanHtmlishText(card.text || "");
+      const text = cleanHtmlishText((saved && saved.description) || card.text || "");
       if (text && text !== cardTitle) {
         const p = document.createElement("p");
         p.textContent = text.length > 180 ? text.slice(0, 177) + "…" : text;
@@ -3393,31 +3420,36 @@
       }
 
       media.appendChild(body);
-      if (netflix) {
+      grid.appendChild(media);
+      if (url) {
+        const controls = document.createElement("div");
+        controls.className = "portalEvmMediaBody";
         const edit = document.createElement("button");
         edit.type = "button";
         edit.className = "secondaryButton";
-        edit.textContent = saved && saved.title ? "Edit Netflix details" : "Save Netflix details";
+        edit.textContent = saved ? "Edit page metadata" : "Capture page metadata";
         edit.onclick = function () {
-          const title = window.prompt("Netflix title (saved locally for this URL):", saved && saved.title || "");
+          const title = window.prompt("Page title:", saved && saved.title || card.title || "");
           if (title === null) return;
-          const artwork = window.prompt("Optional public poster image URL (HTTPS):", saved && saved.artwork || "");
-          if (artwork === null) return;
-          const safeArt = CHISEL.safeWebUrl(artwork.trim(), window.location.href);
-          const approvedArt = safeArt && /^https:\/\//i.test(safeArt) ? safeArt : "";
-          if (!saveNetflixMetadata(url, {title:title.trim(),artwork:approvedArt})) {
-            setStatus("Unable to save Netflix metadata in this browser.",true);
-            return;
-          }
+          const description = window.prompt("Page description:", saved && saved.description || "");
+          if (description === null) return;
+          const image = window.prompt("Public HTTPS preview image URL (optional):", saved && saved.image || card.thumbnailUrl || "");
+          if (image === null) return;
+          const metadata = savePageMetadata(url,{title:title,description:description,image:image},saved);
+          if (!metadata) { setStatus("Page metadata could not be saved to this browser.",true); return; }
           requestPortalRender();
+          setStatus("Page metadata captured locally. Export JSON to publish through your preferred IPFS/FileProxy workflow.",false);
         };
-        const actions = document.createElement("div");
-        actions.className = "portalEvmMediaBody";
-        actions.appendChild(edit);
-        grid.appendChild(media);
-        grid.appendChild(actions);
-      } else {
-        grid.appendChild(media);
+        controls.appendChild(edit);
+        if (saved) {
+          const exportButton = document.createElement("button");
+          exportButton.type = "button";
+          exportButton.className = "secondaryButton";
+          exportButton.textContent = "Export metadata JSON";
+          exportButton.onclick = function () { downloadPageMetadata(saved); };
+          controls.appendChild(exportButton);
+        }
+        grid.appendChild(controls);
       }
     });
 
