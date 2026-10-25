@@ -16,6 +16,7 @@
       !current || typeof originalActivity !== "function") return;
 
   let lastPulseAt = 0;
+  let lastStatusAt = 0;
   let pulseTimer = null;
 
   function tick() {
@@ -25,6 +26,7 @@
   }
 
   function state(value) {
+    if (value !== "idle") lastStatusAt = Date.now();
     monitor.dataset.state = value;
     badge.textContent = value === "error" ? "ERROR" :
       value === "busy" ? "LOADING" :
@@ -90,6 +92,9 @@
           current.dataset.level = "info";
         }
         pulse();
+      } else if (/status changed/i.test(msg)) {
+        state("ok");
+        pulse();
       } else if (/loading/i.test(msg)) {
         state("busy");
         if (document.body.dataset.mode === "portal" && current.dataset.latched !== "error") {
@@ -128,9 +133,13 @@
   setInterval(() => {
     tick();
     // A ticking clock alone must not imply an active network connection.
-    if (lastPulseAt && Date.now() - lastPulseAt > 12000 &&
+    if (lastStatusAt && Date.now() - lastStatusAt > 12000 &&
         (monitor.dataset.state === "ok" || monitor.dataset.state === "busy")) {
       state("idle");
+      if (document.body.dataset.mode === "portal" && current.dataset.latched !== "error") {
+        current.textContent = "Portal: no recent status updates";
+        current.dataset.level = "info";
+      }
     }
   }, 1000);
 })();
