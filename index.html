@@ -857,6 +857,11 @@
       visibility: hidden;
       height: 0;
     }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalExpandButton { grid-column: 1; }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamThumb { grid-column: 2; display: block; }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamTime { grid-column: 3; }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamCoin { grid-column: 4; }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamTitle { grid-column: 5; }
     .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamTitle::before {
       display: none;
     }
@@ -2660,7 +2665,7 @@
   <script src="chisel.thunderwords.js?rev=20261024-ltc-failover"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261024-preflight-compact"></script>
+  <script src="chisel.portal.js?rev=20261024-progressive-compact-v3"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
