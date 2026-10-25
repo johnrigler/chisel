@@ -210,7 +210,7 @@
         const response = await fetch(url, { cache:"no-store", signal:controller.signal });
         if (!response.ok) throw new Error("HTTP " + response.status);
         const json = await response.json();
-        if (!Array.isArray(json) && !(json && (Array.isArray(json.txs) || Array.isArray(json.transactions) || Array.isArray(json.data)))) {
+        if (/address transaction fetch/.test(label || "") && !Array.isArray(json) && !(json && (Array.isArray(json.txs) || Array.isArray(json.transactions) || Array.isArray(json.data)))) {
           throw new Error("unexpected transaction response");
         }
         health[host] = { lastOk:Date.now(), failedUntil:0 };
