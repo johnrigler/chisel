@@ -2463,24 +2463,27 @@
       const addr = address && address.textContent.trim();
       const display = label && label.textContent.trim();
       const accountCoin = coin && coin.textContent.trim() || "";
-      const sendCoin = headerCurrency && headerCurrency.selectedOptions[0] && headerCurrency.selectedOptions[0].textContent || "";
-      const selectedKey = headerCurrency && headerCurrency.value || "";
+      // The Portal header always represents the loaded public identity.
+      // Send currency is independent and must not hide an LTC account.
       const normalizedAccount = accountCoin.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const aliases = {digibyte:["dgb","digibyte"],litecoin:["ltc","litecoin"],ravencoin:["rvn","ravencoin"],litecoinTestnet:["tltc","litecointestnet"]};
-      const match = !!(aliases[selectedKey] && aliases[selectedKey].some(alias => normalizedAccount === alias || normalizedAccount.startsWith(alias+"account")));
-      const signature = [selectedKey, accountCoin, addr, match].join("|");
+      const coinKey = normalizedAccount.startsWith("ltc") ? "litecoin"
+        : normalizedAccount.startsWith("dgb") ? "digibyte"
+        : normalizedAccount.startsWith("rvn") ? "ravencoin"
+        : normalizedAccount.startsWith("tltc") ? "litecoinTestnet"
+        : normalizedAccount.startsWith("litecoin") ? "litecoin"
+        : normalizedAccount.startsWith("digibyte") ? "digibyte"
+        : normalizedAccount.startsWith("ravencoin") ? "ravencoin"
+        : "";
+      const signature = [coinKey, accountCoin, addr].join("|");
       if (updateHeaderIdentity.lastState === signature) return;
       updateHeaderIdentity.lastState = signature;
       const requestId = updateHeaderIdentity.requestId = (updateHeaderIdentity.requestId || 0) + 1;
-      window.CHISEL_DIAGNOSTICS?.record("identity.sync", "currency="+selectedKey+" accountCoin="+accountCoin+" matched="+match);
-      if (!accountCoin || !match) {
-        identityName.textContent = "No " + sendCoin + " account selected";
-        identityName.title = accountCoin ? accountCoin + " account available; switch currency to use it" : "No account loaded";
+      if (!accountCoin || !coinKey || !addr) {
+        identityName.textContent = display || "Public viewer";
         identityBalance.textContent = "Balance: unavailable";
-        window.CHISEL_DIAGNOSTICS?.record("balance.state", "unavailable: currency/account mismatch");
         return;
       }
-      identityName.textContent = addr ? addr.slice(0,6) + "…" + addr.slice(-4) : display || "Identity";
+      identityName.textContent = accountCoin + " · " + (addr ? addr.slice(0,6) + "…" + addr.slice(-4) : display || "Identity");
       identityName.title = addr || display || "";
       identityBalance.textContent = "Balance: loading";
       const lookup = window.CHISEL_LOOKUP_BALANCE;
@@ -2490,19 +2493,19 @@
         return;
       }
       const started = performance.now();
-      window.CHISEL_DIAGNOSTICS?.record("balance.start", "currency="+selectedKey);
+      window.CHISEL_DIAGNOSTICS?.record("balance.start", "currency="+coinKey);
       Promise.race([
-        lookup(selectedKey,addr),
+        lookup(coinKey,addr),
         new Promise((_,reject)=>setTimeout(()=>reject(new Error("Balance request timeout")),12000))
       ]).then(result=>{
         if (updateHeaderIdentity.requestId !== requestId) return;
         identityBalance.textContent = result.amount+" "+result.ticker;
-        window.CHISEL_DIAGNOSTICS?.record("balance.success", "currency="+selectedKey+" utxos="+result.utxoCount+" ms="+Math.round(performance.now()-started));
+        window.CHISEL_DIAGNOSTICS?.record("balance.success", "currency="+coinKey+" utxos="+result.utxoCount+" ms="+Math.round(performance.now()-started));
       }).catch(error=>{
         if (updateHeaderIdentity.requestId !== requestId) return;
         identityBalance.textContent = "Balance: unavailable";
         const reason = /timeout/i.test(error?.message||"") ? "timeout" : (error?.name||"lookup-error");
-        window.CHISEL_DIAGNOSTICS?.record("balance.failure", "currency="+selectedKey+" reason="+reason+" ms="+Math.round(performance.now()-started));
+        window.CHISEL_DIAGNOSTICS?.record("balance.failure", "currency="+coinKey+" reason="+reason+" ms="+Math.round(performance.now()-started));
       });
     };
     if (account) new MutationObserver(updateHeaderIdentity).observe(account,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden"]});
@@ -2617,7 +2620,7 @@
   <script src="chisel.thunderwords.js?rev=20261012S"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261017-security1"></script>
+  <script src="chisel.portal.js?rev=20261024-v282"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
@@ -2628,7 +2631,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261017-security1"></script>
+<script src="app.js?rev=20261024-v282"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
 </body>
 </html>
