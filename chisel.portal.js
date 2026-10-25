@@ -4166,7 +4166,7 @@
     const titleWrap = document.createElement("span");
     titleWrap.className = "portalStreamTitle";
     const titleText = displayTitleForRow(row);
-    const compactGeneric = !primaryUrl && /^(?:transaction(?:\\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
+    const compactGeneric = !primaryUrl && /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
     if (compactGeneric) item.classList.add("isCompactGeneric");
     titleWrap.title = compactGeneric ? "Expand for transaction details" : titleText;
     if (primaryUrl) {
