@@ -1854,7 +1854,8 @@
     const saved = await fileProxyPostJson("/main-stream", mainThunderwordPayload(stream, txids));
     stream.localPath = saved.path || stream.localPath || "";
     stream.savedTransactions = Number(saved.transactions || stream.savedTransactions || 0);
-    state.mainThunderwordReindexPending = true;
+    // A stream manifest is the canonical address history, not a transaction
+    // cache change. Reindex only after an actual transaction JSON write.
     return saved;
   }
 
