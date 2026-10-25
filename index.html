@@ -1684,7 +1684,46 @@
     #fileProxyMenuMount .portalIndexBar, #fileProxyMenuMount .portalControls { display:grid; grid-template-columns:1fr; min-width:0; }
     #fileProxyMenuMount input { max-width:100%; }
     @media (max-width:600px) { header .shell { padding:12px 16px; } .appMenuContents { right:-4px; } }
-  </style>
+      /* Centered pulse is informational only: transactions stay interactive. */
+    #portalBusyOverlay[hidden] { display: none !important; }
+    #portalBusyOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 85;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+    .portalBusyCard {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      width: min(320px, 78vw);
+      padding: 30px 25px;
+      border: 1px solid #697b98;
+      border-radius: 22px;
+      background: rgba(16, 25, 39, .86);
+      box-shadow: 0 15px 50px rgba(0,0,0,.42);
+      color: #f5f3ff;
+      text-align: center;
+      backdrop-filter: blur(9px);
+    }
+    .portalBusyDial {
+      height: 82px;
+      width: 82px;
+      border-radius: 50%;
+      border: 7px solid rgba(224, 211, 255, .25);
+      border-top-color: #c2abff;
+      border-right-color: #8ecbff;
+      animation: portalBusySpin .85s linear infinite;
+    }
+    #portalBusyLabel { font-size: 15px; font-weight: 700; }
+    @keyframes portalBusySpin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .portalBusyDial { animation: none; border-top-color: #c2abff; }
+    }
+</style>
   <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261012S" />
 </head>
 <body data-mode="portal">
@@ -2665,7 +2704,7 @@
   <script src="chisel.thunderwords.js?rev=20261024-ltc-failover"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261024-cache-first-v1"></script>
+  <script src="chisel.portal.js?rev=20261024-busy-overlay"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
@@ -2678,5 +2717,11 @@
   <script src="chisel.safety.js?20261017-security1"></script>
 <script src="app.js?rev=20261024-v282"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
+  <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
+    <div class="portalBusyCard">
+      <div class="portalBusyDial" aria-hidden="true"></div>
+      <div id="portalBusyLabel">Loading ledger…</div>
+    </div>
+  </div>
 </body>
 </html>
