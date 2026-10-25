@@ -4765,6 +4765,7 @@
     setStatus("Searching " + (activeEntry.ticker || activeEntry.coin || activeEntry.name) + " ledger/address stream; matching rows will be merged into the existing Portal feed...", false);
     const result = await api.fetchAddressTransactions(activeEntry, address);
     renderThunderwordTxs(result);
+    if (state.personalAccount && state.personalAccount.address === address) cachePersonalTxs(state.personalAccount, result);
     if (mainThunderword) rememberMainThunderwordTransactions(mainThunderword, result.transactions);
     setText("#portalThunderwordRaw", pretty({ source: result.url, transactions: result.transactions }));
     setStatus("Ledger search discovered " + result.transactions.length + " txid(s). New rows were merged; existing preloaded rows stayed in place.", false);
@@ -5467,9 +5468,49 @@ function getPortalFirstCharacter() {
     return { account:clean, entry:entry };
   }
 
+  function restorePersonalTxCache(account, entry) {
+    try {
+      const key = "chisel.portal.accountTxs.v1:" + account.coin + ":" + account.address;
+      const rows = JSON.parse(window.localStorage.getItem(key) || "[]");
+      if (!Array.isArray(rows)) return;
+      beginPortalBatch();
+      try {
+        rows.slice(0, 300).forEach(function (tx) {
+          if (!tx || !TXID_RE.test(String(tx.txid || ""))) return;
+          upsertPortalRow({
+            index:entry, coin:account.coin, txid:tx.txid,
+            summary:tx.summary || makeBasicSummary(tx.txid, tx, entry),
+            blockTime:Number(tx.blockTime) || 0,
+            streamLabel:account.label + " " + account.address,
+            discoverySource:"personal-cache"
+          }, { silent:true });
+        });
+      } finally { endPortalBatch(); }
+    } catch (error) { console.warn("Personal transaction cache could not load:",error); }
+  }
+
+  function cachePersonalTxs(account, result) {
+    if (!result || !Array.isArray(result.transactions)) return;
+    try {
+      const key = "chisel.portal.accountTxs.v1:" + account.coin + ":" + account.address;
+      const rows = result.transactions.slice(0, 300).filter(function (tx) {
+        return tx && TXID_RE.test(String(tx.txid || ""));
+      }).map(function (tx) {
+        const raw = tx.raw && tx.raw.vout ? tx.raw : null;
+        return {
+          txid:tx.txid,
+          blockTime:Number(tx.blockTime) || 0,
+          summary:raw ? extractSummary(raw, result.index) : makeBasicSummary(tx.txid, tx, result.index)
+        };
+      });
+      if (rows.length) window.localStorage.setItem(key, JSON.stringify(rows));
+    } catch (error) { console.warn("Personal transaction cache could not save:",error); }
+  }
+
   function loadPersonalAccountStream(account, opts) {
     const prepared = populatePersonalAccountFields(account);
     if (!prepared) return Promise.resolve(null);
+    restorePersonalTxCache(prepared.account, prepared.entry);
     const options = opts || {};
     if (options.captureReturnView !== false && !state.personalStreamReturnView) {
       state.personalStreamReturnView = capturePortalView();
