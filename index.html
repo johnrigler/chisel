@@ -844,25 +844,37 @@
       font: inherit;
     }
 
-    /* Anonymous transactions get a half-height summary, but expand normally. */
+    /* Anonymous entries have only an expand arrow, aligned date and coin.
+       The hidden thumbnail retains its column so dates never shift sideways. */
     .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamRow {
-      min-height: 36px;
-      padding-top: 2px;
-      padding-bottom: 2px;
+      grid-template-columns: 40px 112px 128px 70px minmax(0, 1fr) auto;
+      min-height: 30px;
+      padding-top: 1px;
+      padding-bottom: 1px;
+      gap: 8px;
     }
     .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamThumb {
+      visibility: hidden;
+      height: 0;
+    }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamTitle::before {
       display: none;
     }
-    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamRow {
-      grid-template-columns: 40px 128px 70px minmax(0, 1fr);
-    }
     .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalExpandButton {
-      width: 26px;
-      height: 26px;
+      width: 24px;
+      height: 24px;
     }
     @media (max-width: 600px) {
       .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamRow {
-        grid-template-columns: 34px minmax(0, 1fr) auto;
+        grid-template-columns: 34px 0 minmax(115px, 1fr) 0 0;
+        gap: 4px;
+      }
+      .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamTime {
+        display: block;
+        white-space: nowrap;
+      }
+      .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamCoin {
+        display: none;
       }
     }
 
@@ -2648,7 +2660,7 @@
   <script src="chisel.thunderwords.js?rev=20261024-ltc-failover"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261024-compact-generic"></script>
+  <script src="chisel.portal.js?rev=20261024-preflight-compact"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
