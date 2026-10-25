@@ -4541,7 +4541,7 @@
 
     if (configBool("preferLocalIndex", true)) {
       try {
-        json = await fileProxyJson("/tx-index", { coin: coin, force: "1" });
+        json = await fileProxyJson("/tx-index", { coin: coin });
         rows = json.transactions || [];
         usedIndex = true;
       } catch (error) {
