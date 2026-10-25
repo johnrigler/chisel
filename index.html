@@ -728,6 +728,12 @@
       background: #eeeaff;
     }
 
+    /* Two soft, non-white stripes for collapsed personal transactions.
+       Expanded content retains its existing white detail panels. */
+    .portalStreamItem.isPersonal:nth-child(even) .portalStreamRow {
+      background: #e3eaf1;
+    }
+
     .portalStreamItem.isPersonal .portalStreamTitle::before {
       content: "YOU";
       display: inline-block;
