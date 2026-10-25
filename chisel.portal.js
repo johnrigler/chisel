@@ -5277,6 +5277,15 @@ function getPortalFirstCharacter() {
         }
         continue;
       }
+      // A resolved cached summary is enough for the collapsed table.
+      // Defer full JSON until expansion rather than refetching it on every boot.
+      const cachedTitle = String(row.summary && row.summary.title || "").trim();
+      if (!row.raw && row.discoverySource === "personal-cache" &&
+          cachedTitle && !/^transaction(?:\\s|$)/i.test(cachedTitle) &&
+          !state.expandedRowKeys[key]) {
+        if ((i + 1) % 4 === 0) await yieldPortalThread();
+        continue;
+      }
       const previousRawCacheSave = row.rawCacheSavedAt || 0;
       const previousRawCacheError = row.rawCacheError || "";
       const hydrated = await hydratePortalRow(key, Object.assign({
