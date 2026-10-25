@@ -1643,6 +1643,93 @@
         display: none;
       }
     }
+
+    /* Event-driven activity instrument, independent of the signing pipeline. */
+    .chiselActivityMonitor {
+      --activity-accent: #95a8b9;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      width: calc(100% - 24px);
+      max-width: 1080px;
+      margin: 0 auto 4px;
+      padding: 10px 14px;
+      display: grid;
+      gap: 5px;
+      background: #0d141c;
+      border: 1px solid #354657;
+      border-top: 0;
+      border-radius: 0 0 12px 12px;
+      box-shadow: 0 8px 22px #0008;
+      font-size: 12px;
+      line-height: 1.35;
+      min-width: 0;
+    }
+    .chiselActivityMonitor[data-state="busy"] { --activity-accent: #79bfff; border-color: #396b97; }
+    .chiselActivityMonitor[data-state="ok"] { --activity-accent: #71dfa8; border-color: #306f50; }
+    .chiselActivityMonitor[data-state="error"] { --activity-accent: #ff8686; border-color: #934b50; }
+    .activityMonitorTop, .activityMonitorDetail, .activityMonitorMeta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+    }
+    .activityMonitorTop strong { font-size: 11px; letter-spacing: .1em; color: #b3c8db; }
+    #activityClock {
+      font-variant-numeric: tabular-nums;
+      color: #d9e5f1;
+      border-radius: 4px;
+      padding: 2px 5px;
+      border: 1px solid transparent;
+      flex: 0 0 auto;
+    }
+    #activityClock.activityClockPulse { animation: activityClockFlash .65s ease-out; }
+    @keyframes activityClockFlash {
+      0%, 40% { background: var(--activity-accent); color: #061014; border-color: var(--activity-accent); }
+      100% { background: transparent; color: #d9e5f1; border-color: transparent; }
+    }
+    #activityStream { color: #9ec9ef; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #activityPulse {
+      flex: 0 0 auto;
+      color: var(--activity-accent);
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+    .chiselActivityMonitor .chiselStatusLine {
+      position: static;
+      z-index: auto;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--activity-accent);
+      font-size: 12px;
+      min-height: 16px;
+      box-shadow: none;
+    }
+    #activityCurrent { color: var(--activity-accent); }
+    #activityCurrent[data-level="error"] { color: #ff8686; }
+    .activityMonitorMeta {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 5px 16px;
+      color: #91a4b7;
+      font-size: 11px;
+    }
+    .activityMonitorMeta span { overflow-wrap: anywhere; }
+    @media (max-width: 600px) {
+      .chiselActivityMonitor { width: calc(100% - 12px); padding: 8px 10px; gap: 4px; }
+      .activityMonitorMeta { font-size: 10px; gap: 4px 10px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #activityClock.activityClockPulse { animation: none; border-color: var(--activity-accent); }
+    }
+
     .chiselStatusLine { position:sticky; top:0; z-index:20; border:1px solid #344150; border-radius:10px; background:#080c10; color:#c5f467; padding:10px 12px; font-size:13px; overflow-wrap:anywhere; }
     .chiselStatusLine[data-level="error"] { color:#ff7b7b; border-color:#b34444; }
     .chiselStatusLine[data-level="busy"] { color:#ffd166; }
@@ -1772,6 +1859,22 @@
     </div>
   </header>
 
+  <section id="chiselActivityMonitor" class="chiselActivityMonitor" data-state="idle" aria-label="Chisel activity">
+    <div class="activityMonitorTop">
+      <strong>CHISEL / ACTIVITY</strong>
+      <time id="activityClock" aria-label="Local clock">--:--:--</time>
+    </div>
+    <div class="activityMonitorDetail">
+      <span id="activityStream">Waiting for stream</span>
+      <span id="activityPulse">IDLE</span>
+    </div>
+    <div id="activityCurrent" class="chiselStatusLine" role="status" aria-live="polite">Chisel: Starting…</div>
+    <div class="activityMonitorMeta">
+      <span id="activityRecords">Records: pending</span>
+      <span id="activityProxyState">FileProxy: untested</span>
+    </div>
+  </section>
+
   <main>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
@@ -1779,7 +1882,6 @@
         <button class="modeButton" type="button" data-mode-target="send">Send</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
       </div>
-      <div id="activityCurrent" class="chiselStatusLine" role="status" aria-live="polite">Chisel: Starting…</div>
       <div class="compactHint" id="modeHint">Portal is the default entry point. Scan one public page sticker to open a page; scan the four private stickers only when you want to act as its owner.</div>
     </section>
 
@@ -2687,6 +2789,7 @@
     });
   })();
   </script>
+  <script src="chisel.activity-monitor.js?rev=20261025-a"></script>
   <script src="chisel.debug.js?rev=20261012S"></script>
   <script src="vendor/qrcode.min.js?rev=20261012S"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20261012S"></script>
