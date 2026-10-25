@@ -844,6 +844,28 @@
       font: inherit;
     }
 
+    /* Anonymous transactions get a half-height summary, but expand normally. */
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamRow {
+      min-height: 36px;
+      padding-top: 2px;
+      padding-bottom: 2px;
+    }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamThumb {
+      display: none;
+    }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamRow {
+      grid-template-columns: 40px 112px 128px 70px minmax(0, 1fr) auto;
+    }
+    .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalExpandButton {
+      width: 26px;
+      height: 26px;
+    }
+    @media (max-width: 600px) {
+      .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamRow {
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+      }
+    }
+
     .portalStreamRow.isSelected {
       outline: 2px solid var(--accent);
       outline-offset: -2px;
@@ -2626,7 +2648,7 @@
   <script src="chisel.thunderwords.js?rev=20261024-ltc-failover"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261024-netflix-public-artwork"></script>
+  <script src="chisel.portal.js?rev=20261024-compact-generic"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
