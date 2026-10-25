@@ -199,6 +199,10 @@
       const score = function (x) {
         return (x.lastOk ? 10 : 0) - (x.failedUntil && x.failedUntil > Date.now() ? 100 : 0);
       };
+      // Never promote LitecoinSpace over another configured provider.
+      const aSpace = new URL(a).hostname === "litecoinspace.org";
+      const bSpace = new URL(b).hostname === "litecoinspace.org";
+      if (aSpace !== bSpace) return aSpace ? 1 : -1;
       return score(bb) - score(aa);
     });
     const errors = [];
@@ -276,7 +280,8 @@
     // It returns {txs:[{hash,...}]}, supported by uniqueTxs().
     const coin = String(entry.coin || entry.ticker || "").toLowerCase();
     if (coin === "litecoin" || coin === "ltc") {
-      urls.push("https://api.blockcypher.com/v1/ltc/main/addrs/" + encode(address) + "/full?limit=50");
+      // LitecoinSpace is a last-resort provider, even if it succeeded previously.
+      urls.unshift("https://api.blockcypher.com/v1/ltc/main/addrs/" + encode(address) + "/full?limit=50");
     }
     assert(urls.length, "No address transaction URL template configured for " + entry.name + ".");
 
