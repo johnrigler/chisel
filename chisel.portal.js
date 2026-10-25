@@ -5563,7 +5563,7 @@ function getPortalFirstCharacter() {
   async function checkFileProxyHealth() {
     const element = $("#portalFileProxyHealth");
     if (!element) return;
-    const base = getFileProxyUrl().replace(/\\/+$/, "");
+    const base = getFileProxyUrl().replace(new RegExp("/+$"), "");
     element.textContent = "FileProxy: checking rigler.org…";
     const controller = new AbortController();
     const timeout = window.setTimeout(function () { controller.abort(); }, 6000);
