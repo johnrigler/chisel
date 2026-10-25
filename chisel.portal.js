@@ -5372,7 +5372,7 @@ function getPortalFirstCharacter() {
   }
 
   function shouldAutoLoadConversationStreams() {
-    if (state.urlMainThunderwordRequest || state.mainThunderword) return false;
+    if (state.urlMainThunderwordRequest || state.mainThunderword || state.personalAccount) return false;
     if (!configBool("autoLoadConversationStreams", true)) return false;
     try {
       const urlMode = new URL(window.location.href).searchParams.get("mode") || "";
@@ -5560,6 +5560,29 @@ function getPortalFirstCharacter() {
     });
   }
 
+  async function checkFileProxyHealth() {
+    const element = $("#portalFileProxyHealth");
+    if (!element) return;
+    const base = getFileProxyUrl().replace(/\\/+$/, "");
+    element.textContent = "FileProxy: checking rigler.org…";
+    const controller = new AbortController();
+    const timeout = window.setTimeout(function () { controller.abort(); }, 6000);
+    try {
+      const response = await fetch(base + "/txids?coin=", {
+        method:"GET", cache:"no-store", signal:controller.signal
+      });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      await response.json();
+      element.textContent = "FileProxy: connected";
+      element.style.color = "#a2d889";
+    } catch (error) {
+      element.textContent = "FileProxy: UNREACHABLE (" + (error.name === "AbortError" ? "timeout" : error.message || "network error") + "). Live explorer reads may still work.";
+      element.style.color = "#ffb39f";
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
   function bind() {
     const loadTx = $("#portalLoadTxButton");
     const redraw = $("#portalRedrawButton");
@@ -5600,7 +5623,7 @@ function getPortalFirstCharacter() {
         setStatus(error.message || String(error), true);
       });
     });
-    renderEmptyTransactionList("Loading bundled static dataset; live ledger searches can add newer records after first paint.");
+    renderEmptyTransactionList(state.personalAccount ? "Restoring your account stream…" : "Loading bundled static dataset; live ledger searches can add newer records after first paint.");
     loadEmbeddedStaticDataset();
 
     if (loadTx) loadTx.onclick = async function () {
@@ -5778,6 +5801,17 @@ function getPortalFirstCharacter() {
     loadPortalConfig().then(function (config) {
       applyPortalConfig(config);
       applyEvmProfileConfig();
+      // A saved public identity is the homepage. The generic indexes remain
+      // available through explicit navigation, never as an automatic takeover.
+      if (state.personalAccount && !state.urlMainThunderwordRequest) {
+        loadPersonalAccountStream(state.personalAccount, {
+          filterResults:true, noReloadIfCurrent:false,
+          captureReturnView:false, source:"remembered", updateUrl:false
+        }).catch(function (error) {
+          setStatus("Your account could not refresh: " + (error.message || String(error)) + ". Public identity remains saved.",true);
+        });
+      }
+      checkFileProxyHealth();
       if (state.urlMainThunderwordRequest) {
         loadMainThunderwordFromUrl().catch(function (error) {
           setStatus("Main thunderword URL could not load: " + (error.message || String(error)), true);
