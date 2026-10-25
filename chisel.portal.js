@@ -4039,6 +4039,24 @@
       }, 300);
     }
   }
+  // Any direct interaction dismisses the activity overlay immediately.
+  // Ongoing work may show it again after a short quiet interval.
+  let portalBusyQuietUntil = 0;
+  function dismissPortalBusy() {
+    portalBusyQuietUntil = Date.now() + 650;
+    const overlay = $("#portalBusyOverlay");
+    if (overlay) overlay.hidden = true;
+    if (portalBusyShowTimer) { window.clearTimeout(portalBusyShowTimer); portalBusyShowTimer = null; }
+    if (portalBusyCount) {
+      portalBusyShowTimer = window.setTimeout(function () {
+        portalBusyShowTimer = null;
+        if (portalBusyCount > 0 && Date.now() >= portalBusyQuietUntil && overlay) overlay.hidden = false;
+      }, 660);
+    }
+  }
+  ["pointerdown","keydown","wheel","touchstart"].forEach(function (type) {
+    window.addEventListener(type,dismissPortalBusy,{passive:true,capture:true});
+  });
   function portalBusyEnd() {
     portalBusyCount = Math.max(0,portalBusyCount - 1);
     if (portalBusyCount) return;
@@ -5729,6 +5747,36 @@ function getPortalFirstCharacter() {
     },1200);
   }
 
+  // Optional fast path for a future FileProxy /account-index endpoint.
+  // Failures and unsupported servers never delay local cache or explorer loading.
+  async function mergePersonalAccountIndex(account, entry) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(function () { controller.abort(); }, 2500);
+    try {
+      const endpoint = getFileProxyUrl() + "/account-index?coin=" +
+        encodeURIComponent(account.coin) + "&address=" + encodeURIComponent(account.address);
+      const response = await fetch(endpoint,{cache:"no-store",signal:controller.signal});
+      if (!response.ok) return;
+      const payload = await response.json();
+      const txs = Array.isArray(payload.transactions) ? payload.transactions :
+        (payload.data && Array.isArray(payload.data.transactions) ? payload.data.transactions : []);
+      if (!txs.length) return;
+      const result = {
+        index:entry,
+        transactions:txs.filter(function (tx) { return tx && TXID_RE.test(String(tx.txid || "")); }).map(function (tx) {
+          return {txid:tx.txid,blockTime:Number(tx.blockTime)||0,summary:tx.summary || {
+            title:String(tx.title || ""),blockTime:Number(tx.blockTime)||0
+          }};
+        })
+      };
+      if (!result.transactions.length) return;
+      cachePersonalTxs(account,result);
+      restorePersonalTxCache(account,entry);
+    } catch (error) {
+      // The current FileProxy may not expose this endpoint yet.
+    } finally { window.clearTimeout(timeout); }
+  }
+
   function loadPersonalAccountStream(account, opts) {
     const prepared = populatePersonalAccountFields(account);
     if (!prepared) return Promise.resolve(null);
@@ -5739,6 +5787,7 @@ function getPortalFirstCharacter() {
       state.portalPage = 1;
     }
     restorePersonalTxCache(prepared.account, prepared.entry);
+    mergePersonalAccountIndex(prepared.account, prepared.entry).catch(function () {});
     if (options.captureReturnView !== false && !state.personalStreamReturnView) {
       state.personalStreamReturnView = capturePortalView();
     }
