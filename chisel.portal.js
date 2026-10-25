@@ -3345,7 +3345,8 @@
       url:url,
       title:String(fields.title || "").trim().slice(0,200),
       description:String(fields.description || "").trim().slice(0,1200),
-      image:safeImage && /^https:\/\//i.test(safeImage) ? safeImage : "",
+      previewUrl:image.slice(0,2048),
+      image:safeImage && /^https:\/\//i.test(image) && /\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(image) ? safeImage : "",
       capturedAt:previous && previous.capturedAt || new Date().toISOString(),
       updatedAt:new Date().toISOString(),
       captureMethod:"manual"
@@ -3391,20 +3392,32 @@
         media.rel = "noopener noreferrer";
       }
 
-      const thumb = String((saved && saved.image) || card.thumbnailUrl || "").trim();
+      // Preview sources must be actual images. A promotional page URL is not
+      // an <img> source, and must never replace the original watch destination.
+      const previewUrl = String((saved && (saved.previewUrl || saved.image)) || "").trim();
+      const imageCandidate = String((saved && saved.image) || card.thumbnailUrl || "").trim();
+      const thumb = /^https:\/\/[^?#]+\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(imageCandidate) ? imageCandidate : "";
+
+      function makePreviewFallback() {
+        const fallback = document.createElement("div");
+        fallback.className = "portalEvmMediaThumb portalEvmMediaThumbFallback";
+        fallback.style.overflowWrap = "anywhere";
+        fallback.textContent = netflix ? "Netflix series preview" : String(card.kind || "link").toUpperCase();
+        return fallback;
+      }
       if (thumb) {
         const img = document.createElement("img");
         img.className = "portalEvmMediaThumb";
         img.alt = card.title || card.kind || "media thumbnail";
         img.loading = "lazy";
         img.referrerPolicy = "no-referrer";
+        img.onerror = function () {
+          img.replaceWith(makePreviewFallback());
+        };
         img.src = thumb;
         media.appendChild(img);
       } else {
-        const fallback = document.createElement("div");
-        fallback.className = "portalEvmMediaThumb portalEvmMediaThumbFallback";
-        fallback.textContent = netflix ? "NETFLIX" : String(card.kind || "link").toUpperCase();
-        media.appendChild(fallback);
+        media.appendChild(makePreviewFallback());
       }
 
       const body = document.createElement("div");
@@ -3425,6 +3438,22 @@
 
       media.appendChild(body);
       grid.appendChild(media);
+      if (previewUrl && previewUrl !== url) {
+        const previewInfo = document.createElement("div");
+        previewInfo.className = "portalEvmMediaBody";
+        const preview = document.createElement("a");
+        preview.textContent = "Series preview: " + previewUrl;
+        const safePreview = CHISEL.safeWebUrl(previewUrl, window.location.href);
+        if (safePreview && /^https:\/\//i.test(safePreview) && /^https:\/\//i.test(previewUrl)) {
+          setSafeHref(preview, safePreview);
+          preview.target = "_blank";
+          preview.rel = "noopener noreferrer";
+          previewInfo.appendChild(preview);
+        } else {
+          previewInfo.textContent = "Series preview reference: " + previewUrl;
+        }
+        grid.appendChild(previewInfo);
+      }
       if (url) {
         const controls = document.createElement("div");
         controls.className = "portalEvmMediaBody";
@@ -3437,7 +3466,7 @@
           if (title === null) return;
           const description = window.prompt("Page description:", saved && saved.description || "");
           if (description === null) return;
-          const image = window.prompt("Public HTTPS preview image URL (optional):", saved && saved.image || card.thumbnailUrl || "");
+          const image = window.prompt("Public series preview page URL (or direct HTTPS image URL):", saved && (saved.previewUrl || saved.image) || "");
           if (image === null) return;
           const metadata = savePageMetadata(url,{title:title,description:description,image:image},saved);
           if (!metadata) { setStatus("Page metadata could not be saved to this browser.",true); return; }
