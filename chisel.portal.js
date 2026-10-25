@@ -4178,7 +4178,7 @@
       titleLink.className = "isDirectLink";
       titleWrap.appendChild(titleLink);
     } else {
-      titleWrap.textContent = compactGeneric ? "Transaction" : titleText;
+      titleWrap.textContent = compactGeneric ? "" : titleText;
     }
 
     let verify = null;
@@ -4313,6 +4313,35 @@
     }, 0);
   }
 
+  // Wait for the first metadata pass on a page before revealing its rows.
+  // This prevents temporary TXID labels from flickering into real titles.
+  const portalPreflightAttempted = new Set();
+  let portalPreflightRunning = false;
+  let portalPreflightGeneration = -1;
+
+  async function preflightPortalPage(rows, generation) {
+    const candidates = rows.filter(function (row) {
+      return rowCanHydrate(row) && !portalPreflightAttempted.has(row.key);
+    });
+    candidates.forEach(function (row) { portalPreflightAttempted.add(row.key); });
+    if (!candidates.length) return;
+    portalPreflightRunning = true;
+    portalPreflightGeneration = generation;
+    try {
+      const concurrency = 4;
+      let cursor = 0;
+      await Promise.all(Array.from({length:Math.min(concurrency,candidates.length)},async function () {
+        while (cursor < candidates.length && generation === state.portalLoadGeneration) {
+          const row = candidates[cursor++];
+          await hydratePortalRow(row.key,{silent:true,suppressRender:true,deferSort:true});
+        }
+      }));
+    } finally {
+      portalPreflightRunning = false;
+      if (generation === state.portalLoadGeneration) requestPortalRender();
+    }
+  }
+
   function renderPortalRows() {
     cancelScheduledPortalRender();
     if (state.portalSortPending) sortPortalRows();
@@ -4342,6 +4371,23 @@
     }
 
     const pageRows = getPortalPageRows(filteredRows);
+    if (portalPreflightGeneration !== state.portalLoadGeneration) {
+      portalPreflightAttempted.clear();
+      portalPreflightGeneration = state.portalLoadGeneration;
+    }
+    if (portalPreflightRunning) {
+      list.classList.add("muted");
+      list.textContent = "◷ Resolving transaction titles and details…";
+      return;
+    }
+    if (pageRows.some(function (row) { return rowCanHydrate(row) && !portalPreflightAttempted.has(row.key); })) {
+      list.classList.add("muted");
+      list.textContent = "◷ Resolving transaction titles and details…";
+      preflightPortalPage(pageRows,state.portalLoadGeneration).catch(function (error) {
+        console.warn("Portal first pass:",error);
+      });
+      return;
+    }
     const size = getPortalPageSize();
     const page = clampPortalPage(filteredRows);
     const start = ((page - 1) * size) + 1;
