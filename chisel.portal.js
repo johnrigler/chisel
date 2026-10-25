@@ -3396,7 +3396,12 @@
       // an <img> source, and must never replace the original watch destination.
       const previewUrl = String((saved && (saved.previewUrl || saved.image)) || "").trim();
       const imageCandidate = String((saved && saved.image) || card.thumbnailUrl || "").trim();
-      const thumb = /^https:\/\/[^?#]+\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(imageCandidate) ? imageCandidate : "";
+      // Netflix's public title page exposes a promotional image for this
+      // series. Reuse that public image, not the authenticated /watch/ page.
+      const knownPublicPreview = /^(?:https:\/\/)?(?:www\.)?netflix\.com\/title\/70264888(?:[/?#]|$)/i.test(previewUrl)
+        ? "https://occ-0-3012-3997.1.nflxso.net/dnm/api/v6/MgXQGyNr1xbI8tJSYiMWv5kXg5g/AAAABWKRtnVHa-W7sbHt3OFJ6SLD4XC9XUZcPe_c4JqhKTD7IuY_NqyLuEy7jkZ-0b5jjbdR4NGbuhif_82l516ziGVXTOyDt5wOe-W0oMmKOQiuKShM-qBLVOrsjg.jpg?r=fe6" : "";
+      const thumb = /^https:\/\/[^?#]+\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(imageCandidate)
+        ? imageCandidate : knownPublicPreview;
 
       function makePreviewFallback() {
         const fallback = document.createElement("div");
