@@ -456,6 +456,9 @@
   }
 
   function displayTitleForRow(row) {
+    const target = recordTargetUrlForRow(row);
+    const captured = target ? readPageMetadata(target) : null;
+    if (captured && captured.title) return truncateText(captured.title, 96);
     const cache = portalRowCacheFor(row);
     if (cache && Object.prototype.hasOwnProperty.call(cache, "displayTitle")) return cache.displayTitle;
     const summary = row && row.summary ? row.summary : {};
@@ -3410,6 +3413,7 @@
       const h = document.createElement("strong");
       const cardTitle = printableText((saved && saved.title) || card.title || "");
       h.textContent = cardTitle && !isLikelyUrl(cardTitle) && !isRawHtmlTitle(cardTitle) ? cardTitle : (humanUrlTitle(url) || "media");
+      if (netflix && !saved) h.textContent = "Netflix reference (metadata not captured)";
       body.appendChild(h);
 
       const text = cleanHtmlishText((saved && saved.description) || card.text || "");
@@ -3845,7 +3849,7 @@
       setSafeHref(primary, primaryTarget);
       primary.target = "_blank";
       primary.rel = "noopener noreferrer";
-      primary.textContent = "open record target";
+      primary.textContent = isNetflixLink(primaryTarget) ? "original Netflix URL (may not resolve)" : "open record target";
       actions.appendChild(primary);
     }
 
