@@ -1609,6 +1609,7 @@
     .activityControls button { padding:5px 9px; font-size:11px; }
     .activityTrace { max-height:200px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:11px; line-height:1.4; color:#d7e2ee; margin:10px 0 0; }
 
+    body[data-mode="portal"] #headerCurrency { display:none; }
     .headerCurrencyLabel { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
     #headerCurrency { width:auto; min-width:56px; padding:4px 6px; font-size:12px; border:1px solid #344150; background:#1d2630; color:#fff; }
     .headerBrand { flex:0 0 auto; min-width:0; }
@@ -1657,8 +1658,7 @@
           <span class="headerIdentityName" id="headerIdentityName">Public viewer</span>
           <span class="headerIdentityBalance" id="headerIdentityBalance">Balance: —</span>
         </div>
-        <a class="headerIcon" href="tools/recorder/index.html?scanMode=artifact1&amp;currency=litecoin" aria-label="Scan public page sticker" title="Scan public page sticker">▣</a>
-        <a class="headerIcon" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin" aria-label="Load owner identity using four key stickers" title="Load identity">♙</a>
+        <a class="headerIcon" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin" aria-label="Load or switch identity using key stickers" title="Switch identity">♙</a>
         <details class="appMenu" id="appMenu">
           <summary aria-label="Open application menu" title="Menu">☰</summary>
           <div class="appMenuContents">
@@ -1679,6 +1679,7 @@
             <strong>Identity and pages</strong>
             <div id="identityMenuMount"></div>
             <strong>FileProxy</strong>
+            <div id="portalFileProxyHealth" role="status" style="font-size:12px;color:#91a4b7">FileProxy: checking…</div>
             <label class="menuCheck"><input type="checkbox" id="fileProxyDiagnostics"> Save non-sensitive Send diagnostics (opt-in)</label>
             <div id="fileProxyMenuMount"></div>
           </div>
@@ -2111,8 +2112,8 @@
           <code id="portalPersonalAccountAddress" class="portalPersonalAccountAddress"></code>
           <div id="portalPersonalAccountMeta" class="portalPersonalAccountMeta">Public address only. Private key material is not stored in Portal.</div>
           <div class="actions">
-            <button id="portalLoadPersonalAccountButton" class="secondaryButton" type="button">LOAD MY STREAM</button>
-            <button id="portalReturnDefaultStreamButton" class="secondaryButton" type="button" hidden>BACK TO THUNDERWORDS</button>
+            <button id="portalLoadPersonalAccountButton" class="secondaryButton" type="button">REFRESH MY TRANSACTIONS</button>
+            <button id="portalReturnDefaultStreamButton" class="secondaryButton" type="button" hidden>EXPLORE THUNDERWORDS</button>
             <button class="secondaryButton" type="button" data-mode-target="send">ADD RECORD</button>
             <a id="portalPersonalAccountExplorer" class="secondaryButton" href="#">VERIFY ADDRESS</a>
           </div>
