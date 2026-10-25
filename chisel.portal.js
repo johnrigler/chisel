@@ -4022,6 +4022,35 @@
     return false;
   }
 
+  // Non-blocking center indicator: only visible when work takes long enough.
+  let portalBusyCount = 0;
+  let portalBusyShowTimer = null;
+  let portalBusyHideTimer = null;
+  function portalBusyStart(message) {
+    portalBusyCount += 1;
+    const overlay = $("#portalBusyOverlay");
+    const label = $("#portalBusyLabel");
+    if (label) label.textContent = message || "Loading ledger…";
+    if (portalBusyHideTimer) { window.clearTimeout(portalBusyHideTimer); portalBusyHideTimer = null; }
+    if (overlay && !portalBusyShowTimer) {
+      portalBusyShowTimer = window.setTimeout(function () {
+        portalBusyShowTimer = null;
+        if (portalBusyCount > 0) overlay.hidden = false;
+      }, 300);
+    }
+  }
+  function portalBusyEnd() {
+    portalBusyCount = Math.max(0,portalBusyCount - 1);
+    if (portalBusyCount) return;
+    if (portalBusyShowTimer) { window.clearTimeout(portalBusyShowTimer); portalBusyShowTimer = null; }
+    if (portalBusyHideTimer) window.clearTimeout(portalBusyHideTimer);
+    portalBusyHideTimer = window.setTimeout(function () {
+      portalBusyHideTimer = null;
+      const overlay = $("#portalBusyOverlay");
+      if (overlay && !portalBusyCount) overlay.hidden = true;
+    }, 200);
+  }
+
   async function hydratePortalRow(key, opts) {
     const row = state.portalRowKeys[key];
     if (!row) return null;
@@ -4031,6 +4060,8 @@
     }
 
     state.pendingHydration[key] = true;
+    const busyTracked = !!(isVisiblePortalRow(row) || state.expandedRowKeys[key]);
+    if (busyTracked) portalBusyStart("Reading transaction details…");
     row.loadError = "";
     if (!(opts && opts.suppressRender) && !(opts && opts.silent) && (state.expandedRowKeys[key] || isVisiblePortalRow(row))) requestPortalRender();
 
@@ -4048,6 +4079,7 @@
       return row;
     } finally {
       delete state.pendingHydration[key];
+      if (busyTracked) portalBusyEnd();
       if (state.expandedRowKeys[key] || (!(opts && opts.suppressRender) && (!(opts && opts.silent) || isVisiblePortalRow(row)))) requestPortalRender();
     }
   }
@@ -4889,7 +4921,13 @@
     const generation = reset ? resetPortalRowsForNewLoad() : state.portalLoadGeneration;
     state.currentIndex = activeEntry;
     setStatus("Searching " + (activeEntry.ticker || activeEntry.coin || activeEntry.name) + " ledger/address stream; matching rows will be merged into the existing Portal feed...", false);
-    const result = await api.fetchAddressTransactions(activeEntry, address);
+    portalBusyStart("Refreshing " + (activeEntry.ticker || activeEntry.coin || "ledger") + " transactions…");
+    let result;
+    try {
+      result = await api.fetchAddressTransactions(activeEntry, address);
+    } finally {
+      portalBusyEnd();
+    }
     renderThunderwordTxs(result);
     if (state.personalAccount && state.personalAccount.address === address) cachePersonalTxs(state.personalAccount, result);
     if (mainThunderword) rememberMainThunderwordTransactions(mainThunderword, result.transactions);
