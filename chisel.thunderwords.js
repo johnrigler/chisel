@@ -190,15 +190,39 @@
   }
 
   async function fetchFirstJson(urls, label) {
+    const healthKey = "chisel.portal.providerHealth.v1";
+    let health = {};
+    try { health = JSON.parse(localStorage.getItem(healthKey) || "{}") || {}; } catch (error) {}
+    const ordered = urls.slice().sort(function (a,b) {
+      const aa = health[new URL(a).host] || {};
+      const bb = health[new URL(b).host] || {};
+      const score = function (x) {
+        return (x.lastOk ? 10 : 0) - (x.failedUntil && x.failedUntil > Date.now() ? 100 : 0);
+      };
+      return score(bb) - score(aa);
+    });
     const errors = [];
-    for (let i = 0; i < urls.length; i += 1) {
+    for (let i = 0; i < ordered.length; i += 1) {
+      const url = ordered[i], host = new URL(url).host;
+      const controller = new AbortController();
+      const timer = setTimeout(function () { controller.abort(); }, 7000);
       try {
-        return { url: urls[i], json: await fetchJson(urls[i]) };
+        const response = await fetch(url, { cache:"no-store", signal:controller.signal });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const json = await response.json();
+        if (!Array.isArray(json) && !(json && (Array.isArray(json.txs) || Array.isArray(json.transactions) || Array.isArray(json.data)))) {
+          throw new Error("unexpected transaction response");
+        }
+        health[host] = { lastOk:Date.now(), failedUntil:0 };
+        try { localStorage.setItem(healthKey,JSON.stringify(health)); } catch (error) {}
+        return {url:url,json:json};
       } catch (error) {
-        errors.push(urls[i] + " => " + (error.message || String(error)));
-      }
+        health[host] = {lastOk:0,failedUntil:Date.now()+15*60*1000};
+        try { localStorage.setItem(healthKey,JSON.stringify(health)); } catch (storageError) {}
+        errors.push(host + " => " + (error.name === "AbortError" ? "timeout" : error.message || String(error)));
+      } finally { clearTimeout(timer); }
     }
-    throw new Error((label || "request") + " failed across " + urls.length + " endpoint(s): " + errors.join(" | "));
+    throw new Error((label || "request") + " failed across " + ordered.length + " endpoint(s): " + errors.join(" | "));
   }
 
   function normalizeInsightTx(tx) {
@@ -248,6 +272,12 @@
     }
 
     const urls = addressTxsUrls(entry, address);
+    // BlockCypher's Litecoin full-address API is an independent fallback.
+    // It returns {txs:[{hash,...}]}, supported by uniqueTxs().
+    const coin = String(entry.coin || entry.ticker || "").toLowerCase();
+    if (coin === "litecoin" || coin === "ltc") {
+      urls.push("https://api.blockcypher.com/v1/ltc/main/addrs/" + encode(address) + "/full?limit=50");
+    }
     assert(urls.length, "No address transaction URL template configured for " + entry.name + ".");
 
     const fetched = await fetchFirstJson(urls, entry.label + " address transaction fetch");
