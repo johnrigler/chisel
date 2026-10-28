@@ -751,7 +751,7 @@
   function portalFinanceForRow(row) {
     if (!row || canonicalCoinForRow(row) !== "litecoin") return null;
     const selectedAddress = portalFinanceAddress(row);
-    const canonicalAddress = String(selectedAddress || "").trim().toLowerCase();
+    const canonicalAddress = String(selectedAddress || "").trim();
     if (!row.raw) {
       // The personal-account cache stores summaries rather than complete txs.
       const cached = row.summary && row.summary.ledgerFinance;
@@ -759,7 +759,7 @@
       return Object.assign({}, cached, {
         selectedAddress: selectedAddress,
         netSat: canonicalAddress &&
-          canonicalAddress === String(cached.selectedAddress || "").toLowerCase()
+          canonicalAddress === String(cached.selectedAddress || "").trim()
           ? cached.netSat : null,
         inputs: [], outputs: []
       });
@@ -769,7 +769,11 @@
     if (!Array.isArray(vout)) return null;
     const vin = Array.isArray(tx.vin) ? tx.vin : (Array.isArray(tx.inputs) ? tx.inputs : []);
     const sameAddress = function (address) {
-      return canonicalAddress && String(address || "").trim().toLowerCase() === canonicalAddress;
+      const candidate = String(address || "").trim();
+      if (!canonicalAddress || !candidate) return false;
+      return /^(ltc1|tltc1)/i.test(canonicalAddress)
+        ? candidate.toLowerCase() === canonicalAddress.toLowerCase()
+        : candidate === canonicalAddress;
     };
 
     let outputTotalSat = 0, outputComplete = true, receivedSat = 0;
@@ -964,8 +968,10 @@
           amountCell.textContent = amount + formatPortalLitecoin(value.valueSat, false);
           amountCell.title = value.valueSat.toLocaleString("en-US") + " satoshis";
         } else {
-          amountCell.textContent = "unknown";
-          amountCell.title = "Input/output value not provided";
+          amountCell.textContent = target.kind === "coinbase" ? "new coins" : "unknown";
+          amountCell.title = target.kind === "coinbase"
+            ? "Coinbase transactions have no spent inputs."
+            : "Input/output value not provided";
         }
         tr.appendChild(targetCell);
         tr.appendChild(amountCell);
@@ -2911,6 +2917,11 @@
   }
 
   function rowExplorerUrl(row) {
+    // Blockchair is a human-readable verification page, not a JSON transport.
+    // Keep Esplora and BlockCypher as independent JSON fetch providers.
+    if (canonicalCoinForRow(row) === "litecoin" && /^[0-9a-f]{64}$/i.test(String(row && row.txid || ""))) {
+      return "https://blockchair.com/litecoin/transaction/" + row.txid;
+    }
     const api = getThunderwords();
     if (row.summary && row.summary.explorerUrl) return row.summary.explorerUrl;
     if (api && row.index && row.txid) return api.getTxUrl(row.index, row.txid);
@@ -4208,8 +4219,17 @@
       setSafeHref(verify, verifyUrl);
       verify.target = "_blank";
       verify.rel = "noopener noreferrer";
-      verify.textContent = "verify tx";
+      verify.textContent = canonicalCoinForRow(row) === "litecoin" ? "Blockchair" : "verify tx";
       actions.appendChild(verify);
+    }
+    if (canonicalCoinForRow(row) === "litecoin" && /^[0-9a-f]{64}$/i.test(String(row.txid || ""))) {
+      const alternative = document.createElement("a");
+      alternative.className = "secondaryButton";
+      setSafeHref(alternative, "https://litecoinspace.org/tx/" + row.txid);
+      alternative.target = "_blank";
+      alternative.rel = "noopener noreferrer";
+      alternative.textContent = "LitecoinSpace";
+      actions.appendChild(alternative);
     }
 
     if (row.raw) {
@@ -4233,32 +4253,50 @@
     header.appendChild(tx);
     if (meta.textContent) header.appendChild(meta);
     header.appendChild(actions);
-    appendPortalTransactionQr(header, row);
     container.appendChild(header);
 
-    appendPortalInterpretedRecord(container, row);
-    appendPortalAnnotationEditor(container, row);
+    // Explorer-style transaction flow is primary; optional artifacts follow.
+    const ledgerFirst = canonicalCoinForRow(row) === "litecoin" &&
+      !!row.raw && !!portalFinanceForRow(row);
+    if (ledgerFirst) appendPortalFinanceDetails(container, row);
+
+    const supporting = ledgerFirst ? document.createElement("details") : null;
+    let supportTarget = container;
+    if (supporting) {
+      supporting.className = "portalLedgerSupporting";
+      const supportSummary = document.createElement("summary");
+      supportSummary.textContent = "Chisel artifacts, annotations and raw JSON";
+      supporting.appendChild(supportSummary);
+      const body = document.createElement("div");
+      body.className = "portalLedgerSupportingBody";
+      supporting.appendChild(body);
+      container.appendChild(supporting);
+      supportTarget = body;
+    }
+    appendPortalTransactionQr(supportTarget, row);
+    appendPortalInterpretedRecord(supportTarget, row);
+    appendPortalAnnotationEditor(supportTarget, row);
 
     const evmImages = collectEvmImageAssets(row);
     const hasEvmImages = evmImages.length > 0;
 
-    if (hasEvmImages) appendPortalEvmImages(container, row);
+    if (hasEvmImages) appendPortalEvmImages(supportTarget, row);
 
-    appendPortalEvmMediaCards(container, row);
-    appendPortalEvmDecodedBlock(container, row);
+    appendPortalEvmMediaCards(supportTarget, row);
+    appendPortalEvmDecodedBlock(supportTarget, row);
 
     if (row.loadError) {
       const error = document.createElement("p");
       error.className = "error";
       error.textContent = "Could not resolve transaction JSON: " + row.loadError;
-      container.appendChild(error);
+      supportTarget.appendChild(error);
     }
 
     if (state.pendingHydration[row.key]) {
       const loading = document.createElement("p");
       loading.className = "muted";
       loading.textContent = "Loading transaction…";
-      container.appendChild(loading);
+      supportTarget.appendChild(loading);
       return;
     }
 
@@ -4266,7 +4304,7 @@
       const pending = document.createElement("p");
       pending.className = "muted";
       pending.textContent = rowCanHydrate(row) ? "Transaction data is not loaded." : "Summary only.";
-      container.appendChild(pending);
+      supportTarget.appendChild(pending);
       return;
     }
 
@@ -4285,7 +4323,7 @@
       });
     }
 
-    let dataContainer = container;
+    let dataContainer = supportTarget;
     let appendDataContainer = false;
 
     if (hasInlineImage) {
@@ -4299,18 +4337,18 @@
       dataContainer = document.createElement("div");
       dataContainer.className = "portalInlineImageSide";
       body.appendChild(dataContainer);
-      container.appendChild(body);
+      supportTarget.appendChild(body);
     } else if (hasEvmImages) {
       dataContainer = makeInlineDrawer("record data", false);
       appendDataContainer = true;
     }
 
-    const ledgerTable = appendPortalFinanceDetails(dataContainer, row);
-    if (ledgerTable) {
+    if (ledgerFirst) {
       const vinDrawer = makeInlineDrawer("VIN address actions", false);
       if (appendPortalVinAddresses(vinDrawer, row)) dataContainer.appendChild(vinDrawer);
     } else {
-      appendPortalVinAddresses(dataContainer, row);
+      const ledgerTable = appendPortalFinanceDetails(dataContainer, row);
+      if (!ledgerTable) appendPortalVinAddresses(dataContainer, row);
     }
 
     const links = document.createElement("div");
@@ -4327,7 +4365,7 @@
     if (semantics.records.length) dataContainer.appendChild(makeInlinePre("Chisel records", pretty(semantics.records), false));
     dataContainer.appendChild(makeInlinePre("Raw transaction JSON", pretty(row.raw), false));
 
-    if (appendDataContainer) container.appendChild(dataContainer);
+    if (appendDataContainer) supportTarget.appendChild(dataContainer);
   }
 
   function isLocalPortalRow(row) {
