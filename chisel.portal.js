@@ -848,30 +848,147 @@
     };
   }
 
+  // Litecoin transaction details follow the familiar explorer structure:
+  // every spent UTXO on the left, every created output on the right.
+  // Zero-value scripts are shown, not silently dropped.
+  function portalLedgerTarget(raw, parsed, direction) {
+    if (parsed && parsed.address) return {
+      label: parsed.address, address: parsed.address, kind: "address", subtitle: ""
+    };
+    const isCoinbase = direction === "input" && raw && (
+      raw.coinbase != null || raw.is_coinbase === true ||
+      raw.output_index === -1 || raw.tx_output_n === -1);
+    if (isCoinbase) return { label: "Coinbase", address: "", kind: "coinbase", subtitle: "Newly mined coins" };
+    const asm = String(raw && (raw.scriptpubkey_asm || (raw.scriptPubKey && raw.scriptPubKey.asm)) || "");
+    const script = String(raw && (raw.script || raw.scriptpubkey ||
+      (raw.scriptPubKey && raw.scriptPubKey.hex)) || "");
+    if (direction === "output" && (/^OP_RETURN(?:\\s|$)/i.test(asm) || /^6a/i.test(script))) {
+      const hex = getOpReturnHex(raw) || (/^6a/i.test(script) ? script : "");
+      const decoded = hex ? hexToUtf8(hex) : "";
+      return { label: "OP_RETURN", address: "", kind: "data",
+        subtitle: decoded || "Data output", rawScript: script || asm };
+    }
+    return { label: script ? "Script output" : "Address unavailable", address: "",
+      kind: "script", subtitle: script ? script.slice(0, 40) + (script.length > 40 ? "…" : "") : "",
+      rawScript: script || asm };
+  }
+
   function appendPortalFinanceDetails(container, row) {
     const finance = portalFinanceForRow(row);
-    if (!finance) return;
-    const block = document.createElement("div");
-    block.className = "portalFinanceDetails";
-    const heading = document.createElement("strong");
-    heading.textContent = "Transaction satoshis";
+    if (!finance || !row.raw) return null;
+    const tx = txObject(row.raw);
+    const sources = Array.isArray(tx && tx.vin) ? tx.vin :
+      (Array.isArray(tx && tx.inputs) ? tx.inputs : []);
+    const destinations = Array.isArray(tx && tx.vout) ? tx.vout :
+      (Array.isArray(tx && tx.outputs) ? tx.outputs : []);
+
+    const block = document.createElement("section");
+    block.className = "portalFinanceDetails portalLedgerPanel";
+    const heading = document.createElement("h5");
+    heading.textContent = "Transaction flow";
     block.appendChild(heading);
+
     const overview = document.createElement("div");
     overview.className = "portalFinanceOverview";
     const values = [];
-    if (finance.netSat !== null) values.push("Address net: " + formatPortalSatoshis(finance.netSat));
-    if (finance.outputTotalSat !== null) values.push("Outputs: " + finance.outputTotalSat.toLocaleString("en-US") + " sat");
-    if (finance.inputTotalSat !== null) values.push("Inputs: " + finance.inputTotalSat.toLocaleString("en-US") + " sat");
-    if (finance.feeSat !== null) values.push("Fee: " + finance.feeSat.toLocaleString("en-US") + " sat");
-    overview.textContent = values.join(" · ") || "Values not available from this provider.";
+    if (finance.netSat !== null) values.push("Selected address: " + formatPortalLitecoin(finance.netSat, true));
+    if (finance.inputTotalSat !== null) values.push("Inputs: " + formatPortalLitecoin(finance.inputTotalSat));
+    if (finance.outputTotalSat !== null) values.push("Outputs: " + formatPortalLitecoin(finance.outputTotalSat));
+    if (finance.feeSat !== null) values.push("Fee: " + formatPortalLitecoin(finance.feeSat));
+    overview.textContent = values.join("  ·  ") || "Values are not available from this provider.";
     block.appendChild(overview);
-    block.appendChild(makeInlinePre("Input/output satoshi breakdown", pretty({
-      selectedAddress: finance.selectedAddress || null,
-      inputs: finance.inputs,
-      outputs: finance.outputs,
-      feeSat: finance.feeSat
-    }), false));
+
+    const columns = document.createElement("div");
+    columns.className = "portalLedgerSides";
+
+    function appendSide(label, entries, parsed, direction) {
+      const side = document.createElement("section");
+      side.className = "portalLedgerSide";
+      const title = document.createElement("h6");
+      title.textContent = label + " (" + entries.length + ")";
+      side.appendChild(title);
+      const table = document.createElement("table");
+      table.className = "portalLedgerTable";
+      const head = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      ["Address / script", "Amount"].forEach(function (label) {
+        const cell = document.createElement("th");
+        cell.textContent = label;
+        headRow.appendChild(cell);
+      });
+      head.appendChild(headRow);
+      table.appendChild(head);
+      const body = document.createElement("tbody");
+      entries.forEach(function (raw, index) {
+        const value = parsed[index] || {};
+        const target = portalLedgerTarget(raw, value, direction);
+        const tr = document.createElement("tr");
+        const targetCell = document.createElement("td");
+        const line = document.createElement("div");
+        line.className = "portalLedgerTarget";
+        const ordinal = document.createElement("span");
+        ordinal.className = "portalLedgerOrdinal";
+        ordinal.textContent = "#" + (typeof value.n === "number" ? value.n : index);
+        line.appendChild(ordinal);
+        const name = document.createElement(target.address ? "a" : "span");
+        name.className = "portalLedgerAddress";
+        name.textContent = target.label;
+        if (target.address) {
+          const api = getThunderwords();
+          const entry = rowIndexEntry(row);
+          const url = api && entry ? api.getAddressUrl(entry, target.address) : "";
+          if (url) {
+            setSafeHref(name, url);
+            name.target = "_blank";
+            name.rel = "noopener noreferrer";
+            name.title = "Open address in explorer: " + target.address;
+          } else {
+            name.removeAttribute("href");
+          }
+        } else if (target.rawScript) {
+          name.title = target.rawScript;
+        }
+        line.appendChild(name);
+        if (target.subtitle) {
+          const subtitle = document.createElement("small");
+          subtitle.className = "portalLedgerSubtitle";
+          subtitle.textContent = target.subtitle;
+          if (target.rawScript) subtitle.title = target.rawScript;
+          line.appendChild(subtitle);
+        }
+        targetCell.appendChild(line);
+        const amountCell = document.createElement("td");
+        amountCell.className = "portalLedgerAmount " + (direction === "input" ? "isInput" : "isOutput");
+        if (Number.isSafeInteger(value.valueSat)) {
+          const amount = direction === "input" ? "−" : "+";
+          amountCell.textContent = amount + formatPortalLitecoin(value.valueSat, false);
+          amountCell.title = value.valueSat.toLocaleString("en-US") + " satoshis";
+        } else {
+          amountCell.textContent = "unknown";
+          amountCell.title = "Input/output value not provided";
+        }
+        tr.appendChild(targetCell);
+        tr.appendChild(amountCell);
+        body.appendChild(tr);
+      });
+      if (!entries.length) {
+        const empty = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 2;
+        cell.textContent = "No " + label.toLowerCase() + " recorded.";
+        empty.appendChild(cell);
+        body.appendChild(empty);
+      }
+      table.appendChild(body);
+      side.appendChild(table);
+      columns.appendChild(side);
+    }
+
+    appendSide("Inputs", sources, finance.inputs, "input");
+    appendSide("Outputs", destinations, finance.outputs, "output");
+    block.appendChild(columns);
     container.appendChild(block);
+    return block;
   }
 
   function extractOutputs(value) {
@@ -4188,8 +4305,13 @@
       appendDataContainer = true;
     }
 
-    appendPortalVinAddresses(dataContainer, row);
-    appendPortalFinanceDetails(dataContainer, row);
+    const ledgerTable = appendPortalFinanceDetails(dataContainer, row);
+    if (ledgerTable) {
+      const vinDrawer = makeInlineDrawer("VIN address actions", false);
+      if (appendPortalVinAddresses(vinDrawer, row)) dataContainer.appendChild(vinDrawer);
+    } else {
+      appendPortalVinAddresses(dataContainer, row);
+    }
 
     const links = document.createElement("div");
     links.className = "portalInlineLinks";
