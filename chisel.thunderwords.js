@@ -342,8 +342,8 @@
         canFetchAddress: true,
         canFetchTx: true,
         electrsBaseUrl: "https://litecoinspace.org/api",
-        addressUrlTemplate: "https://litecoinspace.org/address/{address}",
-        txUrlTemplate: "https://litecoinspace.org/tx/{txid}"
+        addressUrlTemplate: "https://blockchair.com/litecoin/address/{address}",
+        txUrlTemplate: "https://blockchair.com/litecoin/transaction/{txid}"
       };
     }
 
@@ -444,8 +444,8 @@
     canFetchAddress: true,
     canFetchTx: true,
     electrsBaseUrl: "https://litecoinspace.org/api",
-    addressUrlTemplate: "https://litecoinspace.org/address/{address}",
-    txUrlTemplate: "https://litecoinspace.org/tx/{txid}",
+    addressUrlTemplate: "https://blockchair.com/litecoin/address/{address}",
+    txUrlTemplate: "https://blockchair.com/litecoin/transaction/{txid}",
     note: "Litecoin mainnet generic index generated from 28 L characters with Chisel unspendable."
   });
 
