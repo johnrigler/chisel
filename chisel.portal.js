@@ -4211,7 +4211,10 @@
     }
 
     state.pendingHydration[key] = true;
-    const busyTracked = !!(isVisiblePortalRow(row) || state.expandedRowKeys[key]);
+    // Background loaders (visible amounts, local cache, rabbit trails) are
+    // silent. Only an explicit user expansion should display the busy overlay.
+    const busyTracked = !!state.expandedRowKeys[key] &&
+      !(opts && (opts.silent || opts.suppressRender || opts.quiet));
     if (busyTracked) portalBusyStart("Reading transaction details…");
     row.loadError = "";
     if (!(opts && opts.suppressRender) && !(opts && opts.silent) && (state.expandedRowKeys[key] || isVisiblePortalRow(row))) requestPortalRender();
