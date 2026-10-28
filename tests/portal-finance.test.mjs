@@ -95,3 +95,26 @@ test('silent background hydration does not trigger the blocking transaction spin
   assert.equal(shouldTrack(expanded, 'tx1', { quiet: true }), false);
   assert.equal(shouldTrack(state, 'tx1', undefined), false);
 });
+
+test('BlockCypher outputs and previous output_value supply a visible amount', () => {
+  const tx = { coin: 'litecoin', raw: {
+    inputs: [{ addresses: ['LTEST'], output_value: 100000 }],
+    outputs: [{ addresses: ['LTEST'], value: 30000 }, { addresses: ['OTHER'], value: 69000 }],
+    fees: 1000
+  } };
+  const values = finance.portalFinanceForRow(tx);
+  assert.equal(values.outputTotalSat, 99000);
+  assert.equal(values.netSat, -70000);
+  assert.equal(values.feeSat, 1000);
+});
+
+test('Insight normalization aliases do not turn decimal LTC into satoshi integers', () => {
+  const output = { value: 0.00042, scriptPubKey: { addresses: ['LTEST'] },
+    scriptpubkey_address: 'LTEST', scriptpubkey: '76a914' };
+  assert.equal(finance.portalOutputSatoshis(output), 42000);
+});
+
+test('BlockCypher transactions are treated as full UTXO rows', () => {
+  assert.match(source, /function hasPortalUtxoOutputs\(raw\)/);
+  assert.match(source, /raw: hasPortalUtxoOutputs\(tx.raw\) \? tx.raw : null/);
+});
