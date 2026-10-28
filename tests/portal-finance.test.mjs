@@ -120,3 +120,24 @@ test('BlockCypher transactions are treated as full UTXO rows', () => {
   assert.match(source, /function hasPortalUtxoOutputs\(raw\)/);
   assert.match(source, /raw: hasPortalUtxoOutputs\(tx.raw\) \? tx.raw : null/);
 });
+
+test('expanded Litecoin view renders two transaction-flow tables while retaining raw JSON', () => {
+  assert.match(source, /function appendPortalFinanceDetails\(container, row\)/);
+  assert.match(source, /appendSide\("Inputs", sources, finance.inputs, "input"\)/);
+  assert.match(source, /appendSide\("Outputs", destinations, finance.outputs, "output"\)/);
+  assert.match(source, /makeInlinePre\("Raw transaction JSON", pretty\(row.raw\), false\)/);
+  assert.match(source, /makeInlineDrawer\("VIN address actions", false\)/);
+});
+
+test('transaction-flow output targets label zero-value scripts', () => {
+  const helperStart = source.indexOf('  function portalLedgerTarget(raw, parsed, direction)');
+  const helperEnd = source.indexOf('  function appendPortalFinanceDetails(container, row)', helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart);
+  const target = new Function('getOpReturnHex', 'hexToUtf8',
+    source.slice(helperStart, helperEnd) + '\nreturn portalLedgerTarget;')(
+      raw => raw.script || '', () => ''
+    );
+  assert.equal(target({ script: '6a00' }, { valueSat: 0 }, 'output').label, 'OP_RETURN');
+  assert.equal(target({ output_index: -1 }, { valueSat: null }, 'input').label, 'Coinbase');
+  assert.equal(target({}, { address: 'LTEST' }, 'output').label, 'LTEST');
+});
