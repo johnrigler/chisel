@@ -962,6 +962,26 @@
       background: #ffffff;
     }
 
+    .portalStreamFinance {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      column-gap: 9px;
+      text-align: right;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      color: #162d40;
+    }
+    .portalStreamFinanceFee { color: #586877; font-size: 11px; }
+    .portalFinanceDetails {
+      display: grid;
+      gap: 6px;
+      margin: 8px 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .portalFinanceOverview { font-size: 12px; overflow-wrap: anywhere; }
+
     .portalStreamTitle {
       overflow: hidden;
       white-space: nowrap;
@@ -1811,7 +1831,7 @@
       .portalBusyDial { animation: none; border-top-color: #c2abff; }
     }
 </style>
-  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261012S" />
+  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261027-ledger-amounts" />
 </head>
 <body data-mode="portal">
   <header>
@@ -2807,7 +2827,7 @@
   <script src="chisel.thunderwords.js?rev=20261024-ltc-failover"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261025-stream-no-index"></script>
+  <script src="chisel.portal.js?rev=20261027-ledger-amounts"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
