@@ -81,3 +81,17 @@ test('non-Litecoin transactions do not get LTC satoshi interpretations', () => {
     vin: [], vout: [esplo('LTEST', 100)]
   } }), null);
 });
+
+test('silent background hydration does not trigger the blocking transaction spinner', () => {
+  const match = source.match(/const busyTracked = ([\s\S]*?);\s*if \(busyTracked\) portalBusyStart/);
+  assert.ok(match, 'transaction hydration controls its busy overlay');
+  const expanded = { expandedRowKeys: { tx1: true } };
+  const state = { expandedRowKeys: {} };
+  // The helper references key, which is a variable in hydratePortalRow scope.
+  const shouldTrack = new Function('state', 'key', 'opts', 'return ' + match[1] + ';');
+  assert.equal(shouldTrack(expanded, 'tx1', undefined), true);
+  assert.equal(shouldTrack(expanded, 'tx1', { silent: true }), false);
+  assert.equal(shouldTrack(expanded, 'tx1', { suppressRender: true }), false);
+  assert.equal(shouldTrack(expanded, 'tx1', { quiet: true }), false);
+  assert.equal(shouldTrack(state, 'tx1', undefined), false);
+});
