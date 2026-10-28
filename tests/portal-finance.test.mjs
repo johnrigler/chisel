@@ -9,8 +9,10 @@ const end = source.indexOf('  function extractOutputs(value)', begin);
 assert.ok(begin >= 0 && end > begin, 'portal satoshi helpers are present');
 const firstValue = values => values.find(value => value !== undefined && value !== null && value !== '');
 const getOutputAddress = output => output?.scriptpubkey_address ||
-  output?.scriptPubKey?.address || output?.scriptPubKey?.addresses?.[0] || '';
-const getInputAddress = input => getOutputAddress(input?.prevout || input?.prevOut) || input?.address || '';
+  output?.scriptPubKey?.address || output?.scriptPubKey?.addresses?.[0] ||
+  output?.addresses?.[0] || output?.addr || '';
+const getInputAddress = input => getOutputAddress(input?.prevout || input?.prevOut) ||
+  input?.address || input?.addresses?.[0] || '';
 const testHarness = new Function('firstValue', 'txObject', 'getInputAddress',
   'getOutputAddress', 'getOutputType', 'canonicalCoinForRow', 'normalizePersonalAccount',
   'state', 'makeInlinePre', 'pretty', 'document', source.slice(begin, end) +
