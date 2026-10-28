@@ -120,6 +120,8 @@
     pendingHydration: Object.create(null),
     pendingDateLookup: Object.create(null),
     attemptedDateLookup: Object.create(null),
+    attemptedFinanceLookup: Object.create(null),
+    visibleFinanceLookupScheduled: false,
     visibleDateLookupScheduled: false,
     visibleDateLookupToken: "",
     fileProxyAvailable: null,
@@ -690,6 +692,133 @@
     const exact = extractBlockTime(value);
     if (exact) return exact;
     return estimateUtxoBlockTime(rowCoin || (value && (value.coin || value.ticker || value.chain)), extractBlockHeight(value));
+  }
+
+  // Ledger amounts are exact integer satoshis. RPC's decimal LTC values
+  // and Esplora's integer-satoshi values must never be interpreted alike.
+  function satoshiInteger(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const n = Number(value);
+    return Number.isSafeInteger(n) && n >= 0 ? n : null;
+  }
+
+  function ltcCoinsToSatoshis(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0) return null;
+    const sat = Math.round(amount * 100000000);
+    return Number.isSafeInteger(sat) && Math.abs((amount * 100000000) - sat) < 0.001 ? sat : null;
+  }
+
+  function portalOutputSatoshis(output) {
+    if (!output || typeof output !== "object") return null;
+    const sat = firstValue([output.valueSat, output.value_sat, output.satoshis]);
+    if (sat !== undefined) return satoshiInteger(sat);
+    if (output.value === undefined) return null;
+    // Esplora calls the fields scriptpubkey_*. Bitcoin Core calls them scriptPubKey.
+    const esplora = output.scriptpubkey !== undefined ||
+      output.scriptpubkey_type !== undefined || output.scriptpubkey_address !== undefined;
+    return esplora ? satoshiInteger(output.value) : ltcCoinsToSatoshis(output.value);
+  }
+
+  function portalFinanceForRow(row) {
+    if (!row || !row.raw || canonicalCoinForRow(row) !== "litecoin") return null;
+    const tx = txObject(row.raw);
+    const vout = tx && (tx.vout || tx.outputs);
+    if (!Array.isArray(vout)) return null;
+    const vin = Array.isArray(tx.vin) ? tx.vin : (Array.isArray(tx.inputs) ? tx.inputs : []);
+    const personal = normalizePersonalAccount(state.personalAccount);
+    const selectedAddress = personal && personal.coin === "litecoin" ? personal.address :
+      (row.index && row.index.address ? row.index.address : "");
+    const canonicalAddress = String(selectedAddress || "").trim().toLowerCase();
+    const sameAddress = function (address) {
+      return canonicalAddress && String(address || "").trim().toLowerCase() === canonicalAddress;
+    };
+
+    let outputTotalSat = 0, outputComplete = true, receivedSat = 0;
+    const outputs = vout.map(function (entry, i) {
+      const valueSat = portalOutputSatoshis(entry);
+      const address = getOutputAddress(entry);
+      if (valueSat === null) outputComplete = false;
+      else {
+        outputTotalSat += valueSat;
+        if (sameAddress(address)) receivedSat += valueSat;
+      }
+      return { n: typeof entry.n === "number" ? entry.n : i, address: address,
+        valueSat: valueSat, type: getOutputType(entry) };
+    });
+    if (!Number.isSafeInteger(outputTotalSat)) outputComplete = false;
+
+    let inputTotalSat = 0, inputComplete = vin.length > 0;
+    let spentSat = 0, trackedInputsComplete = true, addressesComplete = vin.length > 0;
+    const inputs = vin.map(function (entry, i) {
+      const prevout = entry.prevout || entry.prevOut || null;
+      const valueSat = portalOutputSatoshis(prevout);
+      const address = getInputAddress(entry);
+      if (valueSat === null) inputComplete = false;
+      else {
+        inputTotalSat += valueSat;
+        if (sameAddress(address)) spentSat += valueSat;
+      }
+      if (!address) addressesComplete = false;
+      if (sameAddress(address) && valueSat === null) trackedInputsComplete = false;
+      return { n: i, address: address, valueSat: valueSat };
+    });
+    if (!Number.isSafeInteger(inputTotalSat)) inputComplete = false;
+
+    const feeFromSat = firstValue([tx.feeSat, tx.fee_sat, tx.fee_sats]);
+    const esplora = vout.some(function (entry) {
+      return entry && (entry.scriptpubkey !== undefined ||
+        entry.scriptpubkey_type !== undefined || entry.scriptpubkey_address !== undefined);
+    });
+    let feeSat = feeFromSat !== undefined ? satoshiInteger(feeFromSat) : null;
+    if (feeSat === null && tx.fee !== undefined) {
+      feeSat = esplora ? satoshiInteger(tx.fee) : ltcCoinsToSatoshis(tx.fee);
+    }
+    if (feeSat === null && inputComplete && outputComplete) {
+      feeSat = satoshiInteger(inputTotalSat - outputTotalSat);
+    }
+    // A missing input address could belong to the selected identity; do not
+    // claim a net change until all input addresses and applicable values exist.
+    const netSat = canonicalAddress && addressesComplete && trackedInputsComplete &&
+      outputComplete ? receivedSat - spentSat : null;
+    return {
+      selectedAddress: selectedAddress, netSat: netSat,
+      outputTotalSat: outputComplete ? outputTotalSat : null,
+      inputTotalSat: inputComplete ? inputTotalSat : null,
+      feeSat: feeSat, inputs: inputs, outputs: outputs
+    };
+  }
+
+  function formatPortalSatoshis(value) {
+    if (!Number.isSafeInteger(value)) return "";
+    return (value > 0 ? "+" : "") + value.toLocaleString("en-US") + " sat";
+  }
+
+  function appendPortalFinanceDetails(container, row) {
+    const finance = portalFinanceForRow(row);
+    if (!finance) return;
+    const block = document.createElement("div");
+    block.className = "portalFinanceDetails";
+    const heading = document.createElement("strong");
+    heading.textContent = "Transaction satoshis";
+    block.appendChild(heading);
+    const overview = document.createElement("div");
+    overview.className = "portalFinanceOverview";
+    const values = [];
+    if (finance.netSat !== null) values.push("Address net: " + formatPortalSatoshis(finance.netSat));
+    if (finance.outputTotalSat !== null) values.push("Outputs: " + finance.outputTotalSat.toLocaleString("en-US") + " sat");
+    if (finance.inputTotalSat !== null) values.push("Inputs: " + finance.inputTotalSat.toLocaleString("en-US") + " sat");
+    if (finance.feeSat !== null) values.push("Fee: " + finance.feeSat.toLocaleString("en-US") + " sat");
+    overview.textContent = values.join(" · ") || "Values not available from this provider.";
+    block.appendChild(overview);
+    block.appendChild(makeInlinePre("Input/output satoshi breakdown", pretty({
+      selectedAddress: finance.selectedAddress || null,
+      inputs: finance.inputs,
+      outputs: finance.outputs,
+      feeSat: finance.feeSat
+    }), false));
+    container.appendChild(block);
   }
 
   function extractOutputs(value) {
@@ -2953,6 +3082,8 @@
     state.pendingHydration = Object.create(null);
     state.pendingDateLookup = Object.create(null);
     state.attemptedDateLookup = Object.create(null);
+    state.attemptedFinanceLookup = Object.create(null);
+    state.visibleFinanceLookupScheduled = false;
     state.visibleDateLookupScheduled = false;
     state.visibleDateLookupToken = "";
     state.visiblePortalRowKeys = Object.create(null);
@@ -3993,6 +4124,7 @@
     }
 
     appendPortalVinAddresses(dataContainer, row);
+    appendPortalFinanceDetails(dataContainer, row);
 
     const links = document.createElement("div");
     links.className = "portalInlineLinks";
@@ -4252,6 +4384,28 @@
     line.appendChild(time);
     line.appendChild(coin);
     line.appendChild(titleWrap);
+    const financial = portalFinanceForRow(row);
+    const finance = document.createElement("span");
+    finance.className = "portalStreamFinance";
+    if (financial) {
+      const value = document.createElement("span");
+      value.className = "portalStreamFinanceAmount";
+      if (financial.netSat !== null) {
+        value.textContent = formatPortalSatoshis(financial.netSat);
+        value.title = "Net change at " + financial.selectedAddress;
+      } else if (financial.outputTotalSat !== null) {
+        value.textContent = financial.outputTotalSat.toLocaleString("en-US") + " sat";
+        value.title = "All transaction outputs, not an address balance";
+      }
+      finance.appendChild(value);
+      if (financial.feeSat !== null) {
+        const fee = document.createElement("span");
+        fee.className = "portalStreamFinanceFee";
+        fee.textContent = "fee " + financial.feeSat.toLocaleString("en-US") + " sat";
+        finance.appendChild(fee);
+      }
+    }
+    line.appendChild(finance);
     if (verify) line.appendChild(verify);
     item.appendChild(line);
 
@@ -4365,6 +4519,47 @@
     }, 0);
   }
 
+  // Populate amounts lazily for the visible Litecoin page only. Hydration
+  // respects the existing provider fallback and FileProxy cache paths.
+  function scheduleVisiblePortalFinance(pageRows) {
+    if (!configBool("autoFetchVisibleTransactionAmounts", true) ||
+        state.visibleFinanceLookupScheduled) return;
+    const candidates = safeArray(pageRows).filter(function (row) {
+      return canonicalCoinForRow(row) === "litecoin" && !row.raw &&
+        rowCanHydrate(row) && !state.pendingHydration[row.key] &&
+        !state.pendingDateLookup[row.key] &&
+        !state.attemptedFinanceLookup[row.key];
+    }).slice(0, 6);
+    if (!candidates.length) return;
+    const generation = state.portalLoadGeneration;
+    state.visibleFinanceLookupScheduled = true;
+    window.setTimeout(function () {
+      (async function () {
+        for (let offset = 0; offset < candidates.length; offset += 2) {
+          if (generation !== state.portalLoadGeneration) return;
+          await Promise.all(candidates.slice(offset, offset + 2).map(async function (row) {
+            if (row.raw || state.pendingHydration[row.key] ||
+                state.pendingDateLookup[row.key]) return;
+            state.attemptedFinanceLookup[row.key] = true;
+            await hydratePortalRow(row.key, {
+              quiet: true, suppressRender: true, silent: true, deferSort: true
+            });
+          }));
+          if (generation !== state.portalLoadGeneration) return;
+          requestPortalRender();
+          await yieldPortalThread();
+        }
+      })().catch(function (error) {
+        console.warn("Visible transaction amount lookup failed:", error);
+      }).finally(function () {
+        if (generation === state.portalLoadGeneration) {
+          state.visibleFinanceLookupScheduled = false;
+          requestPortalRender();
+        }
+      });
+    }, 0);
+  }
+
   function renderPortalRows() {
     cancelScheduledPortalRender();
     if (state.portalSortPending) sortPortalRows();
@@ -4406,6 +4601,7 @@
       renderPortalStreamItem(list, row);
     });
     scheduleVisiblePortalDates(pageRows);
+    scheduleVisiblePortalFinance(pageRows);
   }
 
   async function selectPortalRow(key) {
