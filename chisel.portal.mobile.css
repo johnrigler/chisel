@@ -337,3 +337,31 @@
   .portalStreamPanel, .portalTransactionList, .portalStreamItem, .portalStreamRow { min-width:0; }
   .portalFilterBar { overflow-wrap:anywhere; }
 }
+
+/* Per-transaction satoshi ledger, never a page-level running balance. */
+@media (min-width: 761px) {
+  .portalStreamRow,
+  .portalStreamItem:not(.isExpanded) .portalStreamRow,
+  .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamRow,
+  .portalStreamItem.isExpanded .portalStreamRow {
+    grid-template-columns: 40px 112px 128px 70px minmax(0,1fr) minmax(135px,auto) auto;
+  }
+  .portalStreamRow > .portalStreamFinance { grid-column: 6; }
+  .portalStreamRow > .portalStreamVerify { grid-column: 7; }
+}
+@media (max-width: 760px) {
+  .portalStreamRow,
+  .portalStreamItem:not(.isExpanded) .portalStreamRow,
+  .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamRow,
+  .portalStreamItem.isExpanded .portalStreamRow {
+    grid-template-columns: 18px 76px minmax(0,1fr) auto;
+    grid-template-areas: "toggle thumb time finance" "toggle thumb title coin";
+  }
+  .portalStreamRow > .portalStreamFinance {
+    grid-area: finance; justify-self: end; font-size: 11px;
+  }
+  .portalStreamRow > .portalStreamFinanceFee { display: none; }
+  .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamCoin { display: inline-block; }
+  .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamTime { display: block; }
+  .portalStreamRow > .portalStreamVerify { display: none; }
+}
