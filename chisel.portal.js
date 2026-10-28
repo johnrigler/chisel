@@ -161,7 +161,11 @@
     shortTxid: shortTxid,
     txidRe: TXID_RE
   });
-  const staticTransport = staticData.createTransport({ fetch: fetch, crypto: window.crypto });
+  const staticTransport = staticData.createTransport({ fetch: fetch, crypto: window.crypto, onRequest: recordDataRequest });
+
+  function recordDataRequest(info) {
+    try { window.CHISEL_DATA_DIAGNOSTICS?.request(info); } catch (_) {}
+  }
 
   function $(selector) { return document.querySelector(selector); }
 
@@ -2150,11 +2154,9 @@
 
     for (let i = 0; i < directUrls.length; i += 1) {
       try {
-        const response = await fetch(directUrls[i], { cache: "no-store" });
-        if (!response.ok) continue;
-        const json = await response.json();
+        const json = await staticTransport.fetchJsonNoStore(directUrls[i]);
         if (json && json.ok && json.config) return Object.assign({}, DEFAULT_PORTAL_CONFIG, json.config);
-        if (json && !json.ok) continue;
+        if (!json || typeof json !== "object" || Array.isArray(json) || json.ok === false) continue;
         return Object.assign({}, DEFAULT_PORTAL_CONFIG, json);
       } catch (error) {}
     }
@@ -2191,42 +2193,36 @@
 
   async function fileProxyJson(path, params) {
     const query = new URLSearchParams(params || {});
-    const url = getFileProxyUrl() + path + (String(query) ? "?" + String(query) : "");
-    let response;
-    try {
-      response = await fetch(url, { cache: "no-store" });
-      state.fileProxyAvailable = true;
-    } catch (error) {
-      state.fileProxyAvailable = false;
-      throw error;
-    }
-    const json = await response.json().catch(function () { return null; });
-    if (!response.ok || !json || json.ok === false) {
-      throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
-    }
-    return json;
+    return fileProxyRequest(path + (String(query) ? "?" + String(query) : ""));
   }
 
   async function fileProxyPostJson(path, body) {
-    const url = getFileProxyUrl() + path;
-    let response;
+    return fileProxyRequest(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  }
+
+  async function fileProxyRequest(path, options) {
+    const url = getFileProxyUrl() + path, started = Date.now();
+    let response, ok = false, failure = "network";
     try {
-      response = await fetch(url, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {})
-      });
+      response = await fetch(url, Object.assign({ cache: "no-store" }, options || {}));
+      failure = response.ok ? "json" : "http";
+      const json = await response.json().catch(function () { return null; });
+      const wrongService = !!json && path.split("?")[0] === "/ping" && json.service !== "chisel-fileproxy";
+      if (!response.ok || !json || json.ok === false || wrongService) {
+        if (response.ok && (json?.ok === false || wrongService)) failure = "service";
+        throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
+      }
+      ok = true;
       state.fileProxyAvailable = true;
+      return json;
     } catch (error) {
       state.fileProxyAvailable = false;
+      if (error.name === "AbortError") failure = "timeout";
       throw error;
+    } finally {
+      recordDataRequest({ component: "fileproxy", operation: path.split("?")[0], url: url, method: options?.method,
+        status: response?.status, elapsedMs: Date.now() - started, ok: ok, reason: ok ? null : failure });
     }
-    const json = await response.json().catch(function () { return null; });
-    if (!response.ok || !json || json.ok === false) {
-      throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
-    }
-    return json;
   }
 
   async function fileProxyIsAvailable() {
@@ -2474,10 +2470,7 @@
   async function loadLocalTransactionPath(path, txid, coin) {
     const localPath = String(path || "").trim();
     if (!localPath) throw new Error("Local transaction path is missing.");
-    const response = await fetch(fileProxyRawUrl(localPath), { cache: "no-store" });
-    if (!response.ok) throw new Error(localPath + " failed with HTTP " + response.status + ".");
-    const text = await response.text();
-    const tx = tryParseJsonText(text);
+    const tx = await staticTransport.fetchJsonNoStore(fileProxyRawUrl(localPath), "fileproxy");
     if (!tx || typeof tx !== "object") throw new Error(localPath + " is not transaction JSON.");
     const requestedCoin = normalizeCoinName(coin || "");
     return {
@@ -5881,24 +5874,30 @@ function getPortalFirstCharacter() {
   async function checkFileProxyHealth() {
     const element = $("#portalFileProxyHealth");
     if (!element) return;
-    const base = getFileProxyUrl().replace(new RegExp("/+$"), "");
-    element.textContent = "FileProxy: checking rigler.org…";
+    element.textContent = "FileProxy: checking configured service…";
     const controller = new AbortController();
     const timeout = window.setTimeout(function () { controller.abort(); }, 6000);
     try {
-      const response = await fetch(base + "/txids?coin=", {
-        method:"GET", cache:"no-store", signal:controller.signal
-      });
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      await response.json();
-      element.textContent = "FileProxy: connected";
-      element.style.color = "#a2d889";
+      const result = await fileProxyRequest("/ping", { signal: controller.signal });
+      if (result.service !== "chisel-fileproxy") throw new Error("Unexpected service response");
+      applyDiagnosticsProxyHealth(getFileProxyUrl(), true, 200, result.storage);
     } catch (error) {
       element.textContent = "FileProxy: UNREACHABLE (" + (error.name === "AbortError" ? "timeout" : error.message || "network error") + "). Live explorer reads may still work.";
       element.style.color = "#ffb39f";
     } finally {
       window.clearTimeout(timeout);
     }
+  }
+
+  function applyDiagnosticsProxyHealth(base, healthy, status, storage) {
+    if (String(base).replace(/\/+$/, "") !== getFileProxyUrl()) return;
+    state.fileProxyAvailable = healthy;
+    const element = $("#portalFileProxyHealth");
+    if (!element) return;
+    const storageMissing = storage && (!storage.exists || !storage.isDirectory);
+    element.textContent = healthy ? "FileProxy: connected" + (storageMissing ? "; data root unavailable" : "") :
+      "FileProxy: UNREACHABLE" + (status ? " (HTTP " + status + ")" : "") + ". Live explorer reads may still work.";
+    element.style.color = healthy && !storageMissing ? "#a2d889" : "#ffb39f";
   }
 
   function bind() {
@@ -6173,6 +6172,12 @@ function getPortalFirstCharacter() {
   else bind();
 
   window.CHISEL_PORTAL = {
+    applyDiagnosticsProxyHealth: applyDiagnosticsProxyHealth,
+    getDiagnosticsConfig: function () {
+      return { fileProxyUrl: getFileProxyUrl(),
+        staticManifestPaths: normalizePathList(configValue("staticManifestPaths", null), [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH]),
+        staticManifestMirrors: normalizePathList(configValue("staticManifestMirrors", null), [DEFAULT_REMOTE_MANIFEST_URL]) };
+    },
     extractLines: extractLines,
     getImageLines: getImageLines,
     getPayload: getPayload,

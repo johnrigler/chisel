@@ -27,10 +27,25 @@ test('portal rejects executable links at rendering time and removes stale hrefs'
   assert.equal(f.setSafeHref(element, 'https://example.com/a'), 'https://example.com/a'); assert.equal(element.href, 'https://example.com/a');
   assert.equal(f.normalizeMediaUrl('https://open.spotify.com/embed/track/abc'), 'https://open.spotify.com/track/abc');
 });
-test('all portal anchor writes use the protocol-checked rendering helper', () => {
-  const assignments = portal.split('\n').filter(line => /\.href\s*=/.test(line));
+test('all navigable portal anchor writes use the protocol-checked rendering helper', () => {
+  // The JSON download uses a locally created Blob URL, not a navigable URL
+  // supplied by a record. Its behavior is checked separately below.
+  const assignments = portal.replace(source('downloadPageMetadata'), '').split('\n').filter(line => /\.href\s*=/.test(line));
   assert.deepEqual(assignments.map(line => line.trim()), ['if (safe) element.href = safe;']);
   assert(!portal.includes('normalizedUrl || String(card.url'));
+});
+
+test('page-metadata export downloads a local JSON Blob even when its data contains an executable URL', async () => {
+  let blob, anchor;
+  const context = { Blob, URL: { createObjectURL(value) { blob = value; return 'blob:local-json'; }, revokeObjectURL() {} },
+    document: { createElement() { return anchor = { click() {}, remove() {} }; }, body: { appendChild() {} } }, setTimeout() {} };
+  vm.createContext(context);
+  vm.runInContext(source('downloadPageMetadata'), context);
+  context.downloadPageMetadata({ url: 'javascript:alert(1)' });
+  assert.equal(anchor.href, 'blob:local-json');
+  assert.equal(blob.type, 'application/json');
+  assert.equal(JSON.parse(await blob.text()).url, 'javascript:alert(1)');
+  assert.match(anchor.download, /^chisel-page-\d{4}-\d\d-\d\d\.json$/);
 });
 test('CSP authorizes the exact inline scripts and limits script and object execution', () => {
   const policy = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(index)?.[1]; assert(policy);

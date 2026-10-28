@@ -124,10 +124,21 @@
     const cryptoApi = deps.crypto;
     if (typeof fetchFn !== "function") throw new Error("Static dataset transport requires fetch.");
 
-    async function fetchJsonNoStore(url) {
-      const response = await fetchFn(url, { cache: "no-store" });
-      if (!response.ok) throw new Error(url + " failed with HTTP " + response.status + ".");
-      return response.json();
+    async function fetchJsonNoStore(url, component) {
+      const started = Date.now();
+      let response, ok = false, reason = "network";
+      try {
+        response = await fetchFn(url, { cache: "no-store" });
+        reason = "http";
+        if (!response.ok) throw new Error(url + " failed with HTTP " + response.status + ".");
+        reason = "json";
+        const value = await response.json();
+        ok = true;
+        return value;
+      } finally {
+        try { deps.onRequest?.({ component: component || "static-data", operation: "read-json", url: url,
+          status: response?.status, elapsedMs: Date.now() - started, ok: ok, reason: ok ? null : reason }); } catch (_) {}
+      }
     }
 
     async function loadManifest(manifestUrl) {
