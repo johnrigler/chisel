@@ -866,7 +866,7 @@
     const asm = String(raw && (raw.scriptpubkey_asm || (raw.scriptPubKey && raw.scriptPubKey.asm)) || "");
     const script = String(raw && (raw.script || raw.scriptpubkey ||
       (raw.scriptPubKey && raw.scriptPubKey.hex)) || "");
-    if (direction === "output" && (/^OP_RETURN(?:\\s|$)/i.test(asm) || /^6a/i.test(script))) {
+    if (direction === "output" && (/^OP_RETURN(?:\s|$)/i.test(asm) || /^6a/i.test(script))) {
       const hex = getOpReturnHex(raw) || (/^6a/i.test(script) ? script : "");
       const decoded = hex ? hexToUtf8(hex) : "";
       return { label: "OP_RETURN", address: "", kind: "data",
