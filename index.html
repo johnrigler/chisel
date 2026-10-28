@@ -1039,7 +1039,34 @@
     @media (max-width: 850px) {
       .portalLedgerSides { grid-template-columns: minmax(0, 1fr); }
     }
-
+    .portalLedgerSupporting {
+      min-width: 0;
+      padding: 0;
+      border-top: 1px solid #cbd5df;
+      background: #f8fafc;
+    }
+    .portalLedgerSupporting > summary {
+      cursor: pointer;
+      width: fit-content;
+      padding: 9px 12px;
+      border: 1px solid #9ba9b8;
+      border-radius: 9px;
+      color: #20394a;
+      background: #fff;
+      font-weight: 700;
+    }
+    .portalLedgerSupportingBody {
+      display: grid;
+      gap: 12px;
+      padding-top: 12px;
+      min-width: 0;
+    }
+    .portalLedgerTable tbody tr:hover { background: #eaf4fc; }
+    .portalLedgerPanel .portalFinanceOverview {
+      font-variant-numeric: tabular-nums;
+      line-height: 1.5;
+      color: #405367;
+    }
 
     .portalStreamTitle {
       overflow: hidden;
@@ -1890,7 +1917,7 @@
       .portalBusyDial { animation: none; border-top-color: #c2abff; }
     }
 </style>
-  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261027-ledger-amounts" />
+  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261027-ledger-flow-v287" />
 </head>
 <body data-mode="portal">
   <header>
@@ -2883,10 +2910,10 @@
   <script src="chisel.ravencoin.js?rev=20261017-security1"></script>
   <script src="chisel.digibyte.js?rev=20261017-security1"></script>
   <script src="chisel.litecoin.js?rev=20261017-security1"></script>
-  <script src="chisel.thunderwords.js?rev=20261024-ltc-failover"></script>
+  <script src="chisel.thunderwords.js?rev=20261027-blockchair-v287"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261027-transaction-flow"></script>
+  <script src="chisel.portal.js?rev=20261027-explorer-flow-v287"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
@@ -2897,7 +2924,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261027-v286"></script>
+<script src="app.js?rev=20261027-v287"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">
