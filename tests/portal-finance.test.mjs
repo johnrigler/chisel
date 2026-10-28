@@ -15,12 +15,14 @@ const getInputAddress = input => getOutputAddress(input?.prevout || input?.prevO
   input?.address || input?.addresses?.[0] || '';
 const testHarness = new Function('firstValue', 'txObject', 'getInputAddress',
   'getOutputAddress', 'getOutputType', 'canonicalCoinForRow', 'normalizePersonalAccount',
-  'state', 'makeInlinePre', 'pretty', 'document', source.slice(begin, end) +
-  '\nreturn {portalFinanceForRow,portalOutputSatoshis};');
+  'state', 'makeInlinePre', 'pretty', 'document', 'getOpReturnHex', 'hexToUtf8',
+  source.slice(begin, end) +
+  '\nreturn {portalFinanceForRow,portalOutputSatoshis,portalLedgerTarget};');
 const state = { personalAccount: { coin: 'litecoin', address: 'LTEST' } };
 const finance = testHarness(firstValue, value => value?.tx || value, getInputAddress,
   getOutputAddress, () => 'p2pkh', row => row.coin || 'litecoin',
-  account => account?.address ? account : null, state, () => null, JSON.stringify, {});
+  account => account?.address ? account : null, state, () => null, JSON.stringify, {},
+  output => output?.scriptpubkey || '', () => '');
 const esplo = (address, value) => ({ scriptpubkey_address: address, value });
 
 test('Esplora incoming and outgoing amounts are per-address net, not all outputs', () => {
@@ -140,4 +142,35 @@ test('transaction-flow output targets label zero-value scripts', () => {
   assert.equal(target({ script: '6a00' }, { valueSat: 0 }, 'output').label, 'OP_RETURN');
   assert.equal(target({ output_index: -1 }, { valueSat: null }, 'input').label, 'Coinbase');
   assert.equal(target({}, { address: 'LTEST' }, 'output').label, 'LTEST');
+});
+
+test('base58 LTC addresses use exact case for per-address net calculations', () => {
+  const result = finance.portalFinanceForRow({ raw: {
+    vin: [{ prevout: esplo('ltest', 100000) }],
+    vout: [esplo('LTEST', 40000), esplo('OTHER', 59000)], fee: 1000
+  } });
+  assert.equal(result.netSat, 40000, 'different-case base58 addresses must not match');
+});
+
+test('coinbase and OP_RETURN rows remain visible with sensible labels', () => {
+  assert.equal(finance.portalLedgerTarget({ coinbase: '0123' }, {}, 'input').label, 'Coinbase');
+  assert.equal(finance.portalLedgerTarget({
+    scriptpubkey: '6a02abcd', scriptpubkey_asm: 'OP_RETURN abcd'
+  }, {}, 'output').label, 'OP_RETURN');
+  assert.match(source, /amountCell\.textContent = target\.kind === "coinbase" \? "new coins"/);
+});
+
+test('expanded Litecoin view shows the transaction table before optional metadata', () => {
+  assert.match(source, /if \(ledgerFirst\) appendPortalFinanceDetails\(container, row\)/);
+  assert.match(source, /Chisel artifacts, annotations and raw JSON/);
+  assert.ok(source.indexOf('if (ledgerFirst) appendPortalFinanceDetails(container, row)') <
+    source.indexOf('appendPortalInterpretedRecord(supportTarget, row)'));
+});
+
+test('Blockchair is a mainnet verification option without becoming a JSON API', async () => {
+  const thunderwords = await readFile(new URL('../chisel.thunderwords.js', import.meta.url), 'utf8');
+  assert.match(source, /blockchair\.com\/litecoin\/transaction\//);
+  assert.match(source, /litecoinspace\.org\/tx\//);
+  assert.match(thunderwords, /blockchair\.com\/litecoin\/transaction\/\{txid\}/);
+  assert.match(thunderwords, /electrsBaseUrl: "https:\/\/litecoinspace\.org\/api"/);
 });
