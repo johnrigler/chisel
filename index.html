@@ -982,6 +982,64 @@
       font-variant-numeric: tabular-nums;
     }
     .portalFinanceOverview { font-size: 12px; overflow-wrap: anywhere; }
+    /* Transaction flow: block-explorer style UTXO inputs and outputs. */
+    .portalLedgerPanel {
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #c7d0da;
+      border-radius: 10px;
+      background: #fff;
+    }
+    .portalLedgerPanel h5 { margin: 0; font-size: 15px; color: #1c3445; }
+    .portalLedgerSides {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      align-items: start;
+      min-width: 0;
+    }
+    .portalLedgerSide { min-width: 0; }
+    .portalLedgerSide h6 { margin: 4px 0 8px; font-size: 13px; }
+    .portalLedgerTable {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .portalLedgerTable th {
+      padding: 7px 6px;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px solid #cbd5df;
+      color: #405367;
+    }
+    .portalLedgerTable th:last-child { text-align: right; width: 155px; }
+    .portalLedgerTable td { padding: 9px 6px; border-bottom: 1px solid #e0e6ee; vertical-align: top; }
+    .portalLedgerTable tbody tr:nth-child(even) { background: #f3f6fa; }
+    .portalLedgerTarget { display: grid; gap: 2px; min-width: 0; }
+    .portalLedgerOrdinal { font-size: 10px; color: #657485; }
+    .portalLedgerAddress {
+      display: block;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      color: #164d73;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    .portalLedgerSubtitle { overflow-wrap: anywhere; font-size: 11px; color: #657485; }
+    .portalLedgerAmount {
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    .portalLedgerAmount.isInput { color: #95433f; }
+    .portalLedgerAmount.isOutput { color: #236744; }
+    @media (max-width: 850px) {
+      .portalLedgerSides { grid-template-columns: minmax(0, 1fr); }
+    }
+
 
     .portalStreamTitle {
       overflow: hidden;
@@ -2828,7 +2886,7 @@
   <script src="chisel.thunderwords.js?rev=20261024-ltc-failover"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261027-ledger-values"></script>
+  <script src="chisel.portal.js?rev=20261027-transaction-flow"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
@@ -2839,7 +2897,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261027-v285"></script>
+<script src="app.js?rev=20261027-v286"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">
