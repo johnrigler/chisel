@@ -43,6 +43,8 @@ jobs:
           node --check tools/m64Artifact/m64.dictionary.evm.js
           node --check tools/m64Artifact/m64.v3.js
           node --check chisel.portal.static-data.js
+          node --check chisel.debug.js
+          node --check chisel.data-diagnostics.js
           node --check chisel.thunderwords.js
           node --check chisel.portal.js
           node --check tools/recast/core.js
@@ -60,6 +62,9 @@ jobs:
 
       - name: Check fileProxy Python syntax
         run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
+
+      - name: Check read-only FileProxy storage diagnostics
+        run: python3 -m unittest discover -s tests -p 'test_fileproxy_diagnostics.py'
 
   secp256k1-migration:
     runs-on: ubuntu-latest

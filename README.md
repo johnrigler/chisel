@@ -1,5 +1,10 @@
 # Chisel
 
+Data-path and FileProxy checks are under **☰ → Diagnostics → Run data checks**.
+**Download debug JSON** runs fresh checks and includes status codes, request
+timings, and resolved storage metadata. See
+[data diagnostics and future source/validation/proxy plans](docs/data-trust-and-proxies.md).
+
 **Use Chisel in your browser:** explore public ledger artifacts, construct transactions, inspect outputs, and use the QR and identity tools. No framework installation is required to open the hosted application.
 
 <p align="center">

@@ -1,7 +1,8 @@
 /* Chisel diagnostics: public metadata only. No form values, URLs, key material, or response bodies. */
 (function () {
   "use strict";
-  const MAX=1000, KEY="chisel.debug.events.v1", RELEASE="20261009R";
+  const MAX=1000, KEY="chisel.debug.events.v1", RELEASE="20261027-diagnostics";
+  let downloading=false;
   let events=[];
   try { const saved=JSON.parse(sessionStorage.getItem(KEY)||"[]"); if(Array.isArray(saved)) events=saved.slice(-MAX); } catch (_) {}
   const sensitive=/\b(?:[KL5][1-9A-HJ-NP-Za-km-z]{48,52}|(?:0x)?[0-9a-fA-F]{64,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;
@@ -45,26 +46,33 @@
     const balance=document.getElementById("headerIdentityBalance");
     const identity=document.getElementById("headerIdentityName");
     return {
-      schema:"chisel-debug-v2",exportedAt:new Date().toISOString(),release:RELEASE,
+      schema:"chisel-debug-v3",exportedAt:new Date().toISOString(),release:RELEASE,
       version:clean(v && v.textContent),mode:clean(mode),selectedCurrency:coin?clean(coin.value):null,
       identityLabel:identity?clean(identity.textContent).replace(/\b[A-Za-z0-9]{15,}\b/g,"[account]"):null,
       balanceState:balance ? (/\d/.test(balance.textContent)?"populated":(/unavailable/i.test(balance.textContent)?"unavailable":(/not loaded/i.test(balance.textContent)?"not-loaded":"pending"))) : "unavailable",
       environment:{userAgent:navigator.userAgent,screen:{width:screen.width,height:screen.height},viewport:{width:innerWidth,height:innerHeight,devicePixelRatio:devicePixelRatio}},
       assetManifest:scripts(),viewportMeta:document.querySelector('meta[name="viewport"]')?.content||null,
       historyNote:"events may span multiple reloads in this browser tab; use boot timestamps to separate sessions",
-      layout:overflow(),events:events.slice()
+      layout:overflow(),events:events.slice(),
+      dataDiagnostics:window.CHISEL_DATA_DIAGNOSTICS?.snapshot() || null
     };
   }
-  function download() {
-    record("diagnostics","User exported debug JSON");
-    const data=JSON.stringify(snapshot(),null,2);
-    const url=URL.createObjectURL(new Blob([data],{type:"application/json"}));
-    const a=document.createElement("a");
-    a.href=url;a.download="chisel-debug-"+new Date().toISOString().replace(/[:.]/g,"-")+".json";
-    document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),30000);
+  async function download() {
+    if(downloading) return;
+    downloading=true;
+    try {
+      try { await window.CHISEL_DATA_DIAGNOSTICS?.run(); }
+      catch (_) { record("diagnostics","Data checks could not finish; exporting captured metadata"); }
+      record("diagnostics","User exported debug JSON");
+      const data=JSON.stringify(snapshot(),null,2);
+      const url=URL.createObjectURL(new Blob([data],{type:"application/json"}));
+      const a=document.createElement("a");
+      a.href=url;a.download="chisel-debug-"+new Date().toISOString().replace(/[:.]/g,"-")+".json";
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),30000);
+    } finally { downloading=false; }
   }
-  window.CHISEL_DIAGNOSTICS={record:record,snapshot:snapshot,download:download,clear:function(){events=[];try{sessionStorage.removeItem(KEY)}catch(_){}}};
+  window.CHISEL_DIAGNOSTICS={record:record,snapshot:snapshot,download:download,clear:function(){events=[];try{sessionStorage.removeItem(KEY)}catch(_){}window.CHISEL_DATA_DIAGNOSTICS?.clear();}};
   window.addEventListener("error",function(e){
     const file=e.filename?e.filename.split("/").pop().split("?")[0]:"unknown";
     record("javascript.error",file+":"+(e.lineno||0)+":"+(e.colno||0)+" "+clean(e.message||"script error"));

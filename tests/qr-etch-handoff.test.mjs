@@ -96,6 +96,8 @@ function portalFixture({ failLoad = false } = {}) {
       return { transactions: [] };
     },
     requestPortalRender: () => { calls.renders++; },
+    restorePersonalTxCache: () => {},
+    mergePersonalAccountIndex: async () => {},
     setStatus: (message, bad) => calls.statuses.push({ message, bad }),
   });
   vm.runInContext(["loadAddressStream", "loadPersonalAccountStream", "receiveMainThunderwordAccount"].map(name => functionSource(portal, name)).join("\n"), context);

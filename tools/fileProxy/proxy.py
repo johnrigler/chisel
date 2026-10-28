@@ -277,6 +277,41 @@ def active_data_root():
     return ROOT / "data"
 
 
+def data_storage_status():
+    """Inspect configured storage without creating directories or rebuilding indexes."""
+    configured = [part for part in os.environ.get("CHISEL_DATA_ROOT", "").split(os.pathsep) if part.strip()]
+    # active_data_root() resolves environment paths; retain the configured
+    # spelling here so an underscore alias remains visible in diagnostics.
+    data = Path(configured[0]).expanduser() if configured else ROOT / "data"
+    workspace = ROOT / "data"
+
+    def inspect(path):
+        try:
+            return {
+                "resolved": str(path.resolve()),
+                "exists": path.exists(),
+                "isDirectory": path.is_dir(),
+                "isSymlink": path.is_symlink(),
+            }
+        except (OSError, RuntimeError):
+            try:
+                is_symlink = path.is_symlink()
+            except OSError:
+                is_symlink = False
+            return {"resolved": "", "exists": False, "isDirectory": False, "isSymlink": is_symlink}
+
+    status = inspect(data)
+    workspace_status = inspect(workspace)
+    status.update({
+        "source": "CHISEL_DATA_ROOT" if configured else "workspace-data",
+        "configured": str(data),
+        "workspaceDataResolved": workspace_status["resolved"],
+        "workspaceDataExists": workspace_status["exists"],
+        "workspaceDataMatches": status["resolved"] == workspace_status["resolved"] if status["resolved"] and workspace_status["resolved"] else None,
+    })
+    return status
+
+
 _CHISEL_INDEXER = None
 
 
@@ -2572,6 +2607,7 @@ class Handler(BaseHTTPRequestHandler):
                     "service": "chisel-fileproxy",
                     "root": str(ROOT),
                     "data_root": str(active_data_root()),
+                    "storage": data_storage_status(),
                     "capabilities": {
                         "canonicalTransactionCache": True,
                         "batchReindex": True,
