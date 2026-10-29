@@ -55,7 +55,7 @@ jobs:
           node --input-type=module --check < ctp500-ble.js
           node --input-type=module --check < ctp500-print.js
           node --input-type=module --check < tools/keyPrint/key-print.js
-          node tests/check-inline-scripts.mjs tools/recorder/index.html
+          node tests/check-inline-scripts.mjs tools/recorder/index.html records.html
           node tests/check-inline-scripts.mjs index.html qrScan.html tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html tools/m64Artifact/packet-polygon.html
 
       - name: Check fileProxy Python syntax

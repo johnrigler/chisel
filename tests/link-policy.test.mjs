@@ -27,9 +27,13 @@ test('portal rejects executable links at rendering time and removes stale hrefs'
   assert.equal(f.setSafeHref(element, 'https://example.com/a'), 'https://example.com/a'); assert.equal(element.href, 'https://example.com/a');
   assert.equal(f.normalizeMediaUrl('https://open.spotify.com/embed/track/abc'), 'https://open.spotify.com/track/abc');
 });
-test('all portal anchor writes use the protocol-checked rendering helper', () => {
+test('portal anchor writes use checked links or a locally generated download Blob', () => {
   const assignments = portal.split('\n').filter(line => /\.href\s*=/.test(line));
-  assert.deepEqual(assignments.map(line => line.trim()), ['if (safe) element.href = safe;']);
+  assert.deepEqual(assignments.map(line => line.trim()), ['if (safe) element.href = safe;', 'a.href = objectUrl;']);
+  const download = source('downloadPageMetadata');
+  assert.match(download, /const objectUrl = URL\.createObjectURL\(blob\);/);
+  assert.match(download, /a\.href = objectUrl;/);
+  assert.match(download, /URL\.revokeObjectURL\(objectUrl\)/);
   assert(!portal.includes('normalizedUrl || String(card.url'));
 });
 test('CSP authorizes the exact inline scripts and limits script and object execution', () => {

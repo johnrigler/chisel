@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-XSTLPiOcoRG7+Iaie9J5xRmgRKL8tTbnd6toTvgWF2I=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-7blsY1On7VZEaFfiVjKVK7pFP5PZEEHsy1nCrzfQM0g=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2118,7 +2118,8 @@
         <div class="actions">
           <button id="wifScanButton" class="secondaryButton" type="button">SCAN KEY</button>
           <button id="artifactScanButton" class="secondaryButton" type="button">SCAN ARTIFACT</button>
-          <span class="help">Both use the same camera tool. SCAN KEY assembles four private-key fragments. SCAN ARTIFACT accepts one public 16-hex sticker and returns a chain-specific unspendable index output ready for Send.</span>
+          <button id="recordScanButton" class="secondaryButton" type="button">SCAN RECORD</button>
+          <span class="help">SCAN KEY assembles four key stickers. SCAN ARTIFACT searches a chain index. SCAN RECORD looks up one complete folder ID in your configured Daisy archives.</span>
         </div>
 
         <label id="feeLabel" for="feeRvn">Fee (RVN)</label>
@@ -2620,6 +2621,10 @@
 
         <h3>General tools</h3>
         <div class="toolGrid">
+          <a class="toolCard" href="records.html">
+            <strong>Physical records / Daisy catalog</strong>
+            <span>Scan or enter a folder label. Open its private catalog through your FileProxy, searching the current ISO year and then earlier years.</span>
+          </a>
           <a class="toolCard" href="tools/recast/">
             <strong>Recast video</strong>
             <span>Switch video layouts, add timed notes/images, and export to FFmpeg with original audio.</span>
@@ -2924,7 +2929,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261027-v287"></script>
+<script src="app.js?rev=20261029-v288"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">

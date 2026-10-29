@@ -240,6 +240,7 @@
     <div class="scanModeSwitch" aria-label="QR scan mode">
       <button id="key4Mode" class="active" type="button">KEY 4</button>
       <button id="artifact1Mode" type="button">ARTIFACT 1</button>
+      <button id="record1Mode" type="button">RECORD</button>
     </div>
 
     <div class="sideControls left">
@@ -394,6 +395,7 @@
     checkFragments: document.getElementById("checkFragments"),
     key4Mode: document.getElementById("key4Mode"),
     artifact1Mode: document.getElementById("artifact1Mode"),
+    record1Mode: document.getElementById("record1Mode"),
     clearFragments: document.getElementById("clearFragments"),
     deleteLast: document.getElementById("deleteLast"),
     zoomIn: document.getElementById("zoomIn"),
@@ -824,7 +826,7 @@
   }
 
   function setScanMode(mode) {
-    state.scanMode = mode === "artifact1" ? "artifact1" : "key4";
+    state.scanMode = ["artifact1","record1"].includes(mode) ? mode : "key4";
     state.fragments = [];
     state.artifactId = "";
     state.artifactAddress = "";
@@ -833,10 +835,21 @@
     state.lastQrValueAt = 0;
     els.key4Mode.classList.toggle("active",state.scanMode === "key4");
     els.artifact1Mode.classList.toggle("active",state.scanMode === "artifact1");
+    els.record1Mode.classList.toggle("active",state.scanMode === "record1");
     updateFragmentControls();
-    setStatus(state.scanMode === "artifact1"
+    setStatus(state.scanMode === "record1" ? "RECORD: scan one complete 16-hex folder label."
+      : state.scanMode === "artifact1"
       ? "ARTIFACT 1: scan one 16-hex public artifact QR."
       : "KEY 4: scan four 16-hex private-key stickers left-to-right.");
+  }
+
+  function handoffRecordResolution() {
+    if (!/^[0-9a-f]{16}$/i.test(state.artifactId)) return;
+    const target = new URL("../../records.html",window.location.href);
+    target.searchParams.set("id",state.artifactId.toUpperCase());
+    const proxy = new URL(window.location.href).searchParams.get("recordProxy");
+    if (proxy) target.searchParams.set("fileProxy",proxy);
+    window.location.href = target.href;
   }
 
   function artifactHexToMcDougall(hex) {
@@ -1102,7 +1115,7 @@
     const startX = Math.round((els.stage.width-totalWidth)/2);
     const y = Math.round(layout.camera.y + layout.camera.h - stickerSize - Math.max(18,stickerSize*.10));
 
-    if (state.scanMode === "artifact1") {
+    if (state.scanMode !== "key4") {
       const artifactSize = Math.round(Math.min(layout.camera.w*.38,layout.camera.h*.38));
       const ax = Math.round(layout.camera.x + (layout.camera.w-artifactSize)/2);
       const ay = Math.round(layout.camera.y + layout.camera.h - artifactSize - Math.max(20,artifactSize*.10));
@@ -1120,14 +1133,15 @@
         ctx.font = "bold " + Math.round(artifactSize*.10) + "px monospace";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("ARTIFACT 1",ax+artifactSize/2,ay+artifactSize/2);
+        ctx.fillText(state.scanMode === "record1" ? "RECORD" : "ARTIFACT 1",ax+artifactSize/2,ay+artifactSize/2);
         ctx.restore();
       }
 
       ctx.save();
       ctx.fillStyle = "rgba(0,0,0,.74)";
       const line1 = state.artifactId ? state.artifactId : "SCAN 16-HEX ARTIFACT ID";
-      const line2 = state.artifactAddress
+      const line2 = state.scanMode === "record1" ? "DAISY: CURRENT ISO YEAR, THEN EARLIER YEARS"
+        : state.artifactAddress
         ? state.artifactAddress
         : (state.artifactId ? "DERIVING INDEX ADDRESS…" : "SECOND MODIFIER + x + McDOUGALL HEX");
       ctx.font = Math.max(18,Math.round(els.stage.width*.020)) + "px monospace";
@@ -1279,6 +1293,14 @@
       return;
     }
 
+    if (state.scanMode === "record1") {
+      state.artifactId = fragment;
+      state.fragments = [fragment];
+      updateFragmentControls();
+      setStatus("Folder " + fragment.toUpperCase() + ". Tap OPEN RECORD.");
+      return;
+    }
+
     if (state.scanMode === "artifact1") {
       acceptArtifactId(fragment);
       return;
@@ -1305,12 +1327,14 @@
   }
 
   function updateFragmentControls() {
-    const ready = state.scanMode === "artifact1"
+    const ready = state.scanMode === "record1" ? Boolean(state.artifactId)
+      : state.scanMode === "artifact1"
       ? Boolean(state.artifactId && state.artifactAddress)
       : state.fragments.length === FRAGMENT_COUNT;
     els.checkFragments.disabled = !ready;
     els.checkFragments.classList.toggle("ready",ready);
-    els.checkFragments.textContent = state.scanMode === "artifact1" ? "OPEN ARTIFACT" : "CHECK 4";
+    els.checkFragments.textContent = state.scanMode === "record1" ? "OPEN RECORD"
+      : state.scanMode === "artifact1" ? "OPEN ARTIFACT" : "CHECK 4";
   }
 
   function clearFragments(message) {
@@ -1329,14 +1353,14 @@
     }
     const slot = state.fragments.length;
     state.fragments.pop();
-    if (state.scanMode === "artifact1") {
+    if (state.scanMode !== "key4") {
       state.artifactId = "";
       state.artifactAddress = "";
       state.artifactPrefix = "";
     }
     updateFragmentControls();
-    setStatus(state.scanMode === "artifact1"
-      ? "Artifact QR cleared."
+    setStatus(state.scanMode !== "key4"
+      ? "Label cleared."
       : "Deleted sticker " + slot + ". Next scan will refill that slot.");
   }
 
@@ -1753,7 +1777,9 @@
   els.recordButton.onclick = () => state.recording ? stopRecording() : startRecording().catch(e => setStatus("Could not record: " + e.message));
   els.faceToggle.onclick = () => toggleFaceOverlay();
   els.checkFragments.onclick = () => {
-    if (state.scanMode === "artifact1") {
+    if (state.scanMode === "record1") {
+      handoffRecordResolution();
+    } else if (state.scanMode === "artifact1") {
       handoffArtifactResolution().catch(error => setStatus("Could not resolve artifact: " + error.message));
     } else {
       checkFragments();
@@ -1761,6 +1787,7 @@
   };
   els.key4Mode.onclick = () => setScanMode("key4");
   els.artifact1Mode.onclick = () => setScanMode("artifact1");
+  els.record1Mode.onclick = () => setScanMode("record1");
   els.clearFragments.onclick = () => clearFragments("Pending fragments cleared.");
   els.deleteLast.onclick = () => deleteLastFragment();
   els.zoomIn.onclick = () => changeZoom(1);
@@ -1797,7 +1824,7 @@
   try {
     const initialUrl = new URL(window.location.href);
     const requestedScanMode = initialUrl.searchParams.get("scanMode");
-    if (requestedScanMode === "artifact1" || requestedScanMode === "key4") {
+    if (["artifact1","key4","record1"].includes(requestedScanMode)) {
       setScanMode(requestedScanMode);
       setScene("scan").catch(error => setStatus("Camera error: " + error.message));
     }

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chisel records</title>
+<style>
+:root{color-scheme:dark;font:16px/1.5 system-ui,sans-serif;background:#0b0d10;color:#e6edf3}main{max-width:700px;margin:30px auto;padding:20px}form{display:grid;gap:14px;background:#11161c;border:1px solid #293440;border-radius:12px;padding:20px}input,button,a{font:inherit}input{box-sizing:border-box;width:100%;background:#0a0f14;color:inherit;border:1px solid #465262;padding:12px;border-radius:8px}button,.button{padding:12px;border-radius:8px;background:#7867ff;color:white;border:0;text-decoration:none;text-align:center}p{color:#acbacc}#status{color:#ffd166}label{display:grid;gap:5px}
+</style>
+<main>
+<a href="index.html">Chisel</a><h1>Physical records</h1>
+<p>A complete folder label opens its catalog through your FileProxy. Daisy is searched by ISO year, current year first.</p>
+<form id="recordForm">
+<label>Folder ID<input id="recordId" maxlength="16" pattern="[0-9a-fA-F]{16}" spellcheck="false" autocomplete="off" required></label>
+<label>Your FileProxy URL<input id="proxy" type="url" placeholder="http://127.0.0.1:47799" required></label>
+<button>OPEN RECORD</button><a class="button" id="scan" href="tools/recorder/index.html?scanMode=record1">SCAN LABEL</a>
+<p id="status" role="status">Choose the FileProxy that has access to your Daisy archives.</p>
+</form>
+</main>
+<script>
+(function () {
+  "use strict";
+  const key = "chisel.records.fileProxyUrl";
+  const params = new URL(window.location.href).searchParams;
+  const id = document.getElementById("recordId"), proxy = document.getElementById("proxy");
+  const status = document.getElementById("status"), scan = document.getElementById("scan");
+  id.value = params.get("id") || "";
+  let saved = "";
+  try { saved = localStorage.getItem(key) || ""; } catch (_) {}
+  proxy.value = params.get("fileProxy") || saved;
+
+  function serviceUrl() {
+    const url = new URL(proxy.value.trim());
+    if (!["http:","https:"].includes(url.protocol) || url.username || url.password) throw Error("Enter an HTTP or HTTPS FileProxy URL without credentials.");
+    url.search = ""; url.hash = "";
+    return url.href.replace(/\/+$/, "");
+  }
+
+  function openRecord(event) {
+    if (event) event.preventDefault();
+    try {
+      if (!/^[0-9a-f]{16}$/i.test(id.value.trim())) throw Error("Enter the complete 16-hex folder ID.");
+      const base = serviceUrl();
+      try { localStorage.setItem(key,base); } catch (_) {}
+      window.location.href = base + "/record?id=" + encodeURIComponent(id.value.trim().toUpperCase());
+    } catch (error) { status.textContent = error.message; }
+  }
+
+  scan.onclick = function () {
+    try {
+      const base = serviceUrl();
+      try { localStorage.setItem(key,base); } catch (_) {}
+      scan.href = "tools/recorder/index.html?scanMode=record1&recordProxy=" + encodeURIComponent(base);
+    } catch (_) { scan.href = "tools/recorder/index.html?scanMode=record1"; }
+  };
+  document.getElementById("recordForm").onsubmit = openRecord;
+  // Only an endpoint explicitly saved by the operator is used automatically.
+  if (/^[0-9a-f]{16}$/i.test(id.value) && saved && (!params.has("fileProxy") || params.get("fileProxy") === saved)) openRecord();
+})();
+</script>
+</html>

@@ -78,6 +78,8 @@ function portalFixture({ failLoad = false } = {}) {
     state,
     $: selector => selector === "#portalEvmWordSearch" ? search : null,
     savePersonalAccount: account => { calls.saved.push(account); return account; },
+    restorePersonalTxCache: () => {},
+    mergePersonalAccountIndex: async () => {},
     populatePersonalAccountFields: account => ({ account, entry }),
     capturePortalView: () => ({ selected: "previous stream" }),
     setPersonalStreamBackVisible: () => {},

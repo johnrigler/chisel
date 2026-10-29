@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.7";
+  const APP_VERSION = "2.8.8";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -118,6 +118,7 @@
     manualScratchJson: document.querySelector("#manualScratchJson"),
     wifScanButton: document.querySelector("#wifScanButton"),
     artifactScanButton: document.querySelector("#artifactScanButton"),
+    recordScanButton: document.querySelector("#recordScanButton"),
     imageEncoderButton: document.querySelector("#imageEncoderButton"),
     payloadAnalyzerButton: document.querySelector("#payloadAnalyzerButton"),
     status: document.querySelector("#status"),
@@ -2625,6 +2626,10 @@ function onClickAddCommonAddressButton() {
     }
   }
 
+  function openRecordScanner() {
+    window.location.href = "tools/recorder/index.html?scanMode=record1";
+  }
+
   function normalizeScannedRecipientAddress(rawValue) {
     let value = String(rawValue || "").trim();
     let url;
@@ -3154,6 +3159,9 @@ function init() {
     }
     if (elems.artifactScanButton) {
       elems.artifactScanButton.onclick = openArtifactScanner;
+    }
+    if (elems.recordScanButton) {
+      elems.recordScanButton.onclick = openRecordScanner;
     }
 
     if (elems.recipientQrScanButton) {
