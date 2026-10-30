@@ -1,3 +1,9 @@
+# 2.8.11 — sticker links
+
+- Printed stickers, scanner echoes and public artifact QR codes contain `https://johnrigler.github.io/chisel/#sticker=<16-hex-ID>`. The existing eight random bytes and color rule are retained.
+- A normal camera opens a choice: use the single sticker's public artifact page, or continue a four-sticker key scan. In-app scans extract the ID from the URL; older raw-hex stickers still work.
+- Public use is remembered locally and excluded from later key scans in that browser. This is a local guard, not a global registry or cryptographic revocation. Other devices, hosts and cleared site data do not share the exclusion. Never publish a key fragment; use a separate private key to sign at a public page.
+
 # 2.8.9 — shared URL to OP_RETURN
 
 - Open `?mode=send#opreturn=<URL-encoded-text>` to fill OP_RETURN ASCII through the existing draft loader and show Send. The query parameter `opreturn` is also accepted for URL openers.

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>QR Label Sheet Example</title>
+  <title>Chisel · QR sticker sheet</title>
 
   <style>
     :root {
@@ -223,10 +223,11 @@
 </head>
 <body>
   <section class="toolbar">
-    <h1>QR Label Sheet Example</h1>
+    <h1>Chisel QR sticker sheet</h1>
     <p>
-      This page is a working example built for your older QR package interface:
-      <span class="helpCode">new QRCode(element, options)</span>.
+      Each sticker opens Chisel with its random eight-byte identifier (16 hex characters).
+      Chisel can read the same ID from the link during a four-sticker key scan.
+      Keep public page stickers separate from private-key stickers.
     </p>
     <p>
       Print on plain paper first. Then adjust
@@ -252,6 +253,7 @@
   <main class="sheet" id="sheet"></main>
 
   <script src="../../vendor/qrcode.min.js"></script>
+  <script src="../../chisel.stickers.js?rev=20261030-v2811"></script>
   <script>
     (function () {
       //
@@ -393,7 +395,7 @@
         qrSlot.innerHTML = "";
 
         new QRCode(qrSlot, {
-          text: value,
+          text: ChiselSticker.url(value),
           width: pixelSize,
           height: pixelSize,
           colorDark: "#000000",

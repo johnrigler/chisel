@@ -351,6 +351,7 @@
 <video id="faceVideo" autoplay muted playsinline></video>
 
 <script src="../../vendor/qrcode.min.js"></script>
+<script src="../../chisel.stickers.js?rev=20261030-v2811"></script>
 <script src="../../chisel.js"></script>
 <script src="../../chisel.unspendable.js"></script>
 <script src="../../chisel.sign.js"></script>
@@ -628,7 +629,7 @@
 
     const holder = document.createElement("div");
     new QRCode(holder,{
-      text:key,
+      text:/^[0-9a-f]{16}$/i.test(key) ? ChiselSticker.url(key) : key,
       width:256,
       height:256,
       colorDark:"#000000",
@@ -684,7 +685,7 @@
   function makeDomQr(container,value,level,colorDark,colorLight) {
     container.innerHTML = "";
     new QRCode(container,{
-      text:String(value || ""),
+      text:/^[0-9a-f]{16}$/i.test(value) ? ChiselSticker.url(value) : String(value || ""),
       width:256,
       height:256,
       colorDark:colorDark || "#000000",
@@ -934,6 +935,7 @@
     }
 
     const index = await deriveArtifactIndex(state.artifactId);
+    ChiselSticker.markPublic(state.artifactId);
     const target = new URL("../../index.html",window.location.href);
     target.searchParams.set("mode","portal");
     target.searchParams.set("address",index.address);
@@ -1287,9 +1289,9 @@
     state.lastQrValue = text;
     state.lastQrValueAt = now;
 
-    const fragment = normalizeHex(text);
+    const fragment = ChiselSticker.parse(text);
     if (!/^[0-9a-f]{16}$/.test(fragment)) {
-      setStatus("QR seen, but this mode expects exactly 16 hex characters.");
+      setStatus("QR seen, but this mode expects 16 hex characters or a Chisel sticker link.");
       return;
     }
 
@@ -1305,6 +1307,9 @@
       acceptArtifactId(fragment);
       return;
     }
+
+    try { ChiselSticker.assertPrivate(fragment); }
+    catch (error) { setStatus(error.message); return; }
 
     if (state.fragments.includes(fragment)) {
       setStatus("Duplicate sticker ignored. Slots stay left-to-right.");
@@ -1388,6 +1393,7 @@
     const coin = CHISEL.getCoin(els.currency.value);
 
     try {
+      ChiselSticker.assertPrivate(privateKeyHex);
       const wif = await privateKeyHexToWif(privateKeyHex,coin);
       const account = await coin.wifToAccount(wif);
       const publicKey = CHISEL.privateKeyHexToPublicKeyHex(account.privateKeyHex,true);
@@ -1821,17 +1827,28 @@
   updateFragmentControls();
   updateZoomButtons();
 
-  try {
+  (async function loadStickerLink() { try {
     const initialUrl = new URL(window.location.href);
+    const linkedSticker = ChiselSticker.parse(initialUrl.href);
+    const linkedOptions = new URLSearchParams(initialUrl.hash.slice(1));
     const requestedScanMode = initialUrl.searchParams.get("scanMode");
     if (["artifact1","key4","record1"].includes(requestedScanMode)) {
       setScanMode(requestedScanMode);
-      setScene("scan").catch(error => setStatus("Camera error: " + error.message));
+      if (!(linkedSticker && requestedScanMode === "artifact1")) {
+        setScene("scan").catch(error => setStatus("Camera error: " + error.message));
+      }
+    }
+    if (linkedSticker) {
+      history.replaceState(null,"",initialUrl.pathname + initialUrl.search);
+      if (state.scanMode === "artifact1") {
+        await acceptArtifactId(linkedSticker);
+        if (linkedOptions.get("open") === "1" && state.artifactAddress) await handoffArtifactResolution();
+      } else consumeQr(linkedSticker);
     }
     if (initialUrl.searchParams.get("view") === "keys" && state.publicResults.length) {
       showKeyLibrary();
     }
-  } catch (error) {}
+  } catch (error) { setStatus(error.message || String(error)); } })();
 })();
 </script>
 </body>

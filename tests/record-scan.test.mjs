@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const scanner = await readFile(new URL('../tools/recorder/index.html',import.meta.url),'utf8');
 const launcher = await readFile(new URL('../records.html',import.meta.url),'utf8');
+const stickers = await readFile(new URL('../chisel.stickers.js',import.meta.url),'utf8');
 function productionFunction(name) {
   const start = scanner.indexOf('  function ' + name + '(');
   assert.ok(start >= 0,name);
@@ -14,12 +15,17 @@ function productionFunction(name) {
 function scannerFixture(mode='record1') {
   const state = {scanMode:mode,fragments:[],artifactId:'',lastQrValue:'',lastQrValueAt:0};
   const events = {statuses:[],artifacts:[]};
-  const context = vm.createContext({state,Date,URL,FRAGMENT_COUNT:4,
+  const saved = new Map();
+  const context = vm.createContext({state,Date,URL,URLSearchParams,FRAGMENT_COUNT:4,
+    localStorage:{getItem:key=>saved.get(key)||null,setItem:(key,value)=>saved.set(key,value)},
     els:{checkFragments:{classList:{toggle(){}}}},
     window:{location:{href:'https://chisel.example/ipfs/cid/tools/recorder/index.html?scanMode='+mode+'&recordProxy=http%3A%2F%2Flocalhost%3A47799'}},
     setStatus:message=>events.statuses.push(message),
     acceptArtifactId:value=>events.artifacts.push(value),
   });
+  context.location=context.window.location;
+  context.window=context;
+  vm.runInContext(stickers,context);
   vm.runInContext(['normalizeHex','consumeQr','updateFragmentControls','handoffRecordResolution'].map(productionFunction).join('\n'),context);
   return {context,state,events};
 }
@@ -56,6 +62,27 @@ test('artifact mode retains its chain address derivation path',()=>{
   f.context.consumeQr('0123456789ABCDEF');
   assert.deepEqual(f.events.artifacts,['0123456789abcdef']);
   assert.equal(f.state.fragments.length,0);
+});
+
+test('all scanner modes extract the same ID from a sticker URL without navigating to its host',()=>{
+  const id='0123456789abcdef';
+  for(const mode of ['key4','artifact1','record1']) {
+    const f=scannerFixture(mode);
+    f.context.consumeQr(f.context.ChiselSticker.url(id));
+    assert.equal(mode==='artifact1'?f.events.artifacts[0]:f.state.fragments[0],id);
+    assert.ok(f.context.window.location.href.includes('/tools/recorder/'));
+  }
+});
+
+test('a sticker used publicly is rejected by the private scanner, while public lookup still works',()=>{
+  const id='0123456789abcdef',f=scannerFixture('key4');
+  f.context.ChiselSticker.markPublic(id);
+  f.context.consumeQr(f.context.ChiselSticker.url(id));
+  assert.equal(f.state.fragments.length,0);
+  assert.match(f.events.statuses.at(-1),/used publicly/);
+  f.state.scanMode='artifact1';f.state.lastQrValueAt=0;
+  f.context.consumeQr(id);
+  assert.deepEqual(f.events.artifacts,[id]);
 });
 
 function launchFixture({saved='',query=''}={}) {

@@ -156,6 +156,7 @@
   </main>
 
   <script src="chisel.js"></script>
+  <script src="chisel.stickers.js?rev=20261030-v2811"></script>
   <script src="chisel.sign.js"></script>
 <script src="vendor/noble-secp256k1-3.2.0.browser.js?20261017-security1"></script>
 <script src="chisel.secp256k1.js?20261017-security1"></script>
@@ -431,7 +432,9 @@
     var input = extractPayload(raw);
     var candidate = "";
 
-    if (input.fragment) {
+    if (ChiselSticker.parse(raw)) {
+      candidate = ChiselSticker.parse(raw);
+    } else if (input.fragment) {
       candidate = input.fragment;
     } else if (input.privateKeyHex) {
       candidate = input.privateKeyHex;
@@ -440,6 +443,7 @@
     }
 
     candidate = normalizeHex(candidate);
+    ChiselSticker.assertPrivate(candidate);
 
     if (!candidate) {
       throw new Error("No hex fragment found.");
@@ -637,6 +641,7 @@
     }
 
     account = await coin.wifToAccount(wif);
+    ChiselSticker.assertPrivate(account.privateKeyHex);
 
     return {
       currency: coin.NAME,

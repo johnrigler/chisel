@@ -1917,7 +1917,7 @@
     frame.appendChild(body);
 
     new window.QRCode(body, {
-      text: artifactId,
+      text: ChiselSticker.url(artifactId),
       width: pixels,
       height: pixels,
       colorDark: "#000000",

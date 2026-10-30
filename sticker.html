@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Chisel · Sticker</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#11151c;color:#eef1f8;font:16px/1.6 system-ui,sans-serif}main{max-width:580px;margin:8vh auto;padding:24px}a{color:#b9aeff}h1{font:clamp(22px,6vw,34px)/1.3 ui-monospace,monospace;overflow-wrap:anywhere}button{display:block;width:100%;padding:16px;margin:14px 0;border:1px solid #77718f;border-radius:8px;background:#242b38;color:inherit;font:inherit;text-align:left;cursor:pointer}button:first-of-type{background:#6551c5}button:disabled{opacity:.5;cursor:default}#swatch{width:58px;height:58px;border:7px solid #fff;border-radius:5px}p{color:#b8c1d0}#status{white-space:pre-wrap}
+  </style>
+  <script src="chisel.stickers.js?rev=20261030-v2811"></script>
+  <script defer src="sticker.js?rev=20261030-v2811"></script>
+</head>
+<body><main>
+  <a href="./">Chisel</a>
+  <h1 id="sticker-id">Sticker</h1><div id="swatch" hidden></div>
+  <p>Use this sticker as a public page identifier, or as one of four private-key stickers.</p>
+  <button id="public-page" type="button" disabled>Open public page</button>
+  <button id="private-key" type="button" disabled>Continue four-sticker key scan</button>
+  <p>Public use excludes this sticker from key scans in this browser. Keep public identifiers separate from private-key stickers. Open the public page, then load a separate key when you need to sign.</p>
+  <p id="status" role="status"></p>
+</main></body>
+</html>
