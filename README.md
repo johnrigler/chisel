@@ -12,6 +12,19 @@
 
 Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts. **Portal** is the primary public reader; **Send**, **Review**, **Examples**, and **Tools** expose other workflows. It is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
 
+## Share a video into Chisel
+
+Install the [Mogwai share widget](https://johnrigler.github.io/mogwai/app/)
+in Chrome on Android or ChromeOS. From YouTube's system share menu, choose
+Mogwai. The widget opens Chisel's Send screen with the video link already in
+OP_RETURN ASCII. The receiver and setup notes live in
+[Mogwai](https://github.com/johnrigler/mogwai/tree/main/app).
+
+The handoff is `?mode=send#opreturn=<URL-encoded-text>`; `opreturn` also works
+as a query parameter for tools such as Termux URL openers. Chisel loads only
+the supplied text through its ordinary draft loader. Chain payload limits
+and transaction review still apply.
+
 ## W42 review fixes
 
 Send now verifies input amounts from previous transaction bytes, checks a bounded fee, and asks you to review the actual outputs before signing. Normal wallet and identity signing uses locally bundled Noble. See the [technical review response](docs/SECURITY_REVIEW_2026_W42.md) for the fixes, tests and trust limits.

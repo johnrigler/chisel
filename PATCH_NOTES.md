@@ -1,3 +1,9 @@
+# 2.8.9 — shared URL to OP_RETURN
+
+- Open `?mode=send#opreturn=<URL-encoded-text>` to fill OP_RETURN ASCII through the existing draft loader and show Send. The query parameter `opreturn` is also accepted for URL openers.
+- The Mogwai installable share receiver recognizes YouTube links and supplies the short video URL. It is maintained in `johnrigler/mogwai/app/`.
+- Shared text is bounded to 4,096 UTF-8 bytes; each selected chain's existing payload checks still apply. The handoff preserves currency and recipients and requires ordinary transaction review.
+
 # 2.8.1 — W42 technical review
 
 - Verified previous outputs, bounded fees and a review before normal/manual signing; removed provider-driven fee rebuilding.

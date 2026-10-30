@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.8";
+  const APP_VERSION = "2.8.9";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -2950,6 +2950,34 @@ function onClickAddCommonAddressButton() {
     }
   }
 
+  function loadSharedOpReturnFromUrl() {
+    const url = new URL(window.location.href);
+    const fragment = new URLSearchParams(url.hash.slice(1));
+    const text = fragment.get("opreturn") ?? url.searchParams.get("opreturn");
+
+    if (text === null) return false;
+    if (!text.trim() || new TextEncoder().encode(text).byteLength > 4096) {
+      setStatusMessage("Shared OP_RETURN must contain between 1 and 4,096 bytes. The selected chain's payload limit still applies.", true);
+      return false;
+    }
+
+    // Reuse the ordinary draft loader. A share supplies text only, never keys,
+    // currency, recipients, signing options, or a broadcast instruction.
+    if (!loadArtifactPayload({ opReturnAscii: text }, "shared link")) return false;
+    try {
+      const consumed = new URL(window.location.href);
+      consumed.searchParams.delete("opreturn");
+      if (fragment.has("opreturn")) {
+        fragment.delete("opreturn");
+        consumed.hash = fragment.toString();
+      }
+      window.history.replaceState(null, "", consumed.toString());
+    } catch (error) {}
+    if (elems.opReturnAscii.focus) elems.opReturnAscii.focus();
+    if (elems.opReturnAscii.scrollIntoView) elems.opReturnAscii.scrollIntoView({ block: "center" });
+    return true;
+  }
+
   function handleArtifactAnalyzerMessage(event) {
     if (event.origin !== window.location.origin && event.origin !== "null") {
       return;
@@ -3210,6 +3238,8 @@ function init() {
     window.addEventListener("message", handleArtifactAnalyzerMessage);
     loadPendingQrPayloadFromStorage();
     loadPendingArtifactPayloadFromStorage();
+    loadSharedOpReturnFromUrl();
+    window.addEventListener("hashchange", loadSharedOpReturnFromUrl);
 
     updateRecipientCostPreview();
     render();
