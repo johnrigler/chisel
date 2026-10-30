@@ -12,12 +12,15 @@
 
 Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts. **Portal** is the primary public reader; **Send**, **Review**, **Examples**, and **Tools** expose other workflows. It is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
 
-## Share a video into Chisel
+## Share text or a link into Chisel
 
 Install the [Mogwai share widget](https://johnrigler.github.io/mogwai/app/)
-in Chrome on Android or ChromeOS. From YouTube's system share menu, choose
-Mogwai. The widget opens Chisel's Send screen with the video link already in
-OP_RETURN ASCII. The receiver and setup notes live in
+in Chrome on Android or ChromeOS. Use a system share chooser that lists
+Mogwai. YouTube's own social-network panel is a separate menu. The widget
+opens YouTube videos automatically; other links and plain text show their
+received fields for review before opening Chisel's Send screen. OP_RETURN
+ASCII uses a multiline field so incoming paragraph breaks remain visible.
+The receiver and setup notes live in
 [Mogwai](https://github.com/johnrigler/mogwai/tree/main/app).
 
 The handoff is `?mode=send#opreturn=<URL-encoded-text>`; `opreturn` also works
