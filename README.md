@@ -45,6 +45,15 @@ and metadata are external display data, not extra OP_RETURN bytes; they can
 be retrieved again from the ledger's URL when reading the transaction. Chain
 payload limits and the existing built-transaction review still apply.
 
+Mogwai bounds its outgoing text/link payload to **80 UTF-8 bytes**, retaining
+oversized receipts for editing and keeping metadata outside that byte budget.
+Closed Portal rows show media metadata and a small picture, including saved
+Netflix/page metadata. Opening the record puts the large picture first, above
+transaction details and optional drawers. Both sizes use the same artwork;
+the original media destination remains the click target. Explicit image fields
+can reference extensionless HTTP(S) IPFS gateways without treating a Netflix
+watch or title page as image bytes.
+
 After an accepted broadcast, Chisel switches to Portal and adds the locally
 decoded transaction at the top immediately, retaining the reviewed media.
 **Awaiting ledger read** uses navy text. Background reads query the selected

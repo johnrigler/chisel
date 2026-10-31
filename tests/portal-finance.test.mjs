@@ -160,7 +160,7 @@ test('coinbase and OP_RETURN rows remain visible with sensible labels', () => {
   assert.match(source, /amountCell\.textContent = target\.kind === "coinbase" \? "new coins"/);
 });
 
-test('expanded Litecoin view shows the transaction table before optional metadata', () => {
+test('expanded Litecoin view keeps ledger flow ahead of supporting artifacts after the leading media preview', () => {
   assert.match(source, /if \(ledgerFirst\) appendPortalFinanceDetails\(container, row\)/);
   assert.match(source, /Chisel artifacts, annotations and raw JSON/);
   assert.ok(source.indexOf('if (ledgerFirst) appendPortalFinanceDetails(container, row)') <

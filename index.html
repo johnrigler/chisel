@@ -1928,6 +1928,10 @@
     #draftRecordPreview h3 { margin-bottom: 6px; }
     #portalTransactionList { scroll-margin-top: 150px; }
     .portalLedgerState { display: block; font-size: 10px; font-weight: 500; margin-top: 4px; }
+    .hasMediaMetadata .portalStreamRow > .portalStreamTitle { display: block; -webkit-line-clamp: unset; white-space: normal; }
+    .portalStreamMetadata { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 11px; line-height: 1.35; font-weight: 400; margin-top: 3px; white-space: normal; overflow-wrap: anywhere; }
+    .portalMediaHero .portalEvmMediaCard { grid-template-columns: minmax(0, 1fr); }
+    .portalMediaHero img.portalEvmMediaThumb { width: 100%; height: auto; aspect-ratio: auto; max-height: 65vh; object-fit: contain; }
     .portalStreamItem:is(.isAwaitingLedger, .isLedgerSeen) .portalStreamRow > .portalStreamTitle { display: block; -webkit-line-clamp: unset; white-space: normal; }
     .portalPublicationStatus { padding: 10px 12px; border: 1px solid currentColor; border-radius: 8px; margin-bottom: 12px; }
     .portalPublicationStatus p { margin: 4px 0 8px; overflow-wrap: anywhere; }
@@ -2945,7 +2949,7 @@
   <script src="chisel.thunderwords.js?rev=20261027-blockchair-v287"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261031-publication-v2813"></script>
+  <script src="chisel.portal.js?rev=20261031-media-v2814"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261031-publication-v2813"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
@@ -2958,7 +2962,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261031-publication-v2813"></script>
+<script src="app.js?rev=20261031-media-v2814"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">

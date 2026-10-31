@@ -1,3 +1,9 @@
+# 2.8.14 — visible media in closed and expanded records
+
+- Closed Portal rows show the media title, author/provider, description and small picture using the same metadata and artwork selection as the expanded card. Saved page metadata and older Netflix annotations both work.
+- Opening a media record puts the large picture first, above transaction details, publication status and optional drawers. The media is rendered once; ledger tables and raw JSON remain below it.
+- Explicit image fields accept safe HTTP(S) image URLs without requiring a filename extension, including IPFS gateways. Netflix watch/title pages remain navigation links rather than image sources.
+
 # 2.8.13 — show sent records immediately in Portal
 
 - Successful broadcasts switch to Portal and reveal the new expandable record at the top before the first ledger read. The record comes from the sent transaction bytes and retains matching reviewed media.

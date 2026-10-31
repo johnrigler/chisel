@@ -476,6 +476,10 @@
 
     if (isLikelyUrl(title) || isPlainAddressDerivedTitle(row, title) || looksLikeEncodedPortalTitle(title)) title = "";
     if (/^untitled transaction$/i.test(title) || /^(?:evm )?transaction(?:\s+[0-9a-f]{6,}(?:…[0-9a-f]{4,})?)?$/i.test(title)) title = "";
+    if (!title) {
+      const media = collectEvmMediaCards(row).map(mediaCardPresentation).find(function (card) { return card.title; });
+      if (media) title = media.title;
+    }
     const display = title ? truncateText(title, 96) : (primaryUrl ? humanUrlTitle(primaryUrl) : "transaction " + shortTxid(row && row.txid));
     if (cache) cache.displayTitle = display;
     return display;
@@ -1550,7 +1554,8 @@
   function firstMediaThumbnailCard(row) {
     const cards = collectEvmMediaCards(row);
     for (let i = 0; i < cards.length; i += 1) {
-      if (cards[i].thumbnailUrl) return cards[i];
+      const display = mediaCardPresentation(cards[i]);
+      if (display.thumbnailUrl) return display;
     }
     return null;
   }
@@ -2029,8 +2034,8 @@
     if (mediaThumb) {
       const img = document.createElement("img");
       img.className = "portalStreamThumbImage portalStreamThumbRemote";
-      img.alt = "media thumbnail";
-      img.title = (row.summary && row.summary.title) || "media thumbnail";
+      img.alt = mediaCard.title || "media thumbnail";
+      img.title = mediaCard.title || "media thumbnail";
       img.loading = "lazy";
       img.referrerPolicy = "no-referrer";
       img.src = mediaThumb;
@@ -3721,6 +3726,49 @@
     setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
   }
 
+  function mediaImageUrl(value) {
+    const text = String(value || "").trim();
+    const safe = CHISEL.safeWebUrl(text, window.location.href);
+    if (!safe || !/^https?:\/\//i.test(text)) return "";
+    // Explicit image fields may contain extensionless IPFS/proxy URLs. A
+    // Netflix watch/title page is a navigation destination, not image bytes.
+    if (isNetflixLink(safe) && /^\/(?:watch|title)\//i.test(new URL(safe).pathname)) return "";
+    return safe;
+  }
+
+  function mediaCardPresentation(card) {
+    const url = normalizeMediaUrl(card.url || card.sourceUrl || "");
+    const netflix = isNetflixLink(url);
+    const saved = url ? readPageMetadata(url) : null;
+    const previewUrl = String(saved && (saved.previewUrl || saved.image) || "").trim();
+    const knownPublicPreview = /^(?:https:\/\/)?(?:www\.)?netflix\.com\/title\/70264888(?:[/?#]|$)/i.test(previewUrl)
+      ? "https://occ-0-3012-3997.1.nflxso.net/dnm/api/v6/MgXQGyNr1xbI8tJSYiMWv5kXg5g/AAAABWKRtnVHa-W7sbHt3OFJ6SLD4XC9XUZcPe_c4JqhKTD7IuY_NqyLuEy7jkZ-0b5jjbdR4NGbuhif_82l516ziGVXTOyDt5wOe-W0oMmKOQiuKShM-qBLVOrsjg.jpg?r=fe6" : "";
+    const thumbnailUrl = mediaImageUrl(saved && saved.image) || mediaImageUrl(card.thumbnailUrl) || knownPublicPreview;
+    const candidate = printableText(saved && saved.title || card.title || "");
+    const hasTitle = candidate && !isLikelyUrl(candidate) && !isRawHtmlTitle(candidate);
+    const title = hasTitle ? candidate : netflix ? "Netflix reference (metadata not captured)" : humanUrlTitle(url) || "media";
+    return {url: url, sourceUrl: card.sourceUrl || url, saved: saved, previewUrl: previewUrl,
+      thumbnailUrl: thumbnailUrl, title: title,
+      description: cleanHtmlishText(saved && saved.description || card.description || card.text || ""),
+      authorName: printableText(saved && saved.authorName || card.authorName || ""),
+      provider: printableText(saved && saved.provider || card.provider || (netflix ? "Netflix" : card.kind === "youtube" ? "YouTube" : card.kind && card.kind !== "link" ? card.kind : ""))};
+  }
+
+  function appendCollapsedMediaMetadata(container, row) {
+    const cards = collectEvmMediaCards(row);
+    if (!cards.length) return;
+    const display = mediaCardPresentation(cards[0]);
+    const parts = uniqueStrings([display.authorName, display.provider,
+      display.description && display.description !== display.title ? display.description : ""].filter(Boolean));
+    if (!parts.length) return;
+    const metadata = document.createElement("span");
+    metadata.className = "portalStreamMetadata";
+    metadata.textContent = parts.join(" · ");
+    metadata.title = metadata.textContent;
+    container.appendChild(metadata);
+    return true;
+  }
+
   function appendPortalEvmMediaCards(container, row) {
     const cards = collectEvmMediaCards(row);
     if (!cards.length) return null;
@@ -3733,9 +3781,10 @@
     grid.className = "portalEvmMediaGrid";
 
     cards.forEach(function (card) {
-      const url = normalizeMediaUrl(card.url || card.sourceUrl || "");
+      const display = mediaCardPresentation(card);
+      const url = display.url;
       const netflix = isNetflixLink(url);
-      const saved = url ? readPageMetadata(url) : null;
+      const saved = display.saved;
       const media = document.createElement(url ? "a" : "div");
       media.className = "portalEvmMediaCard";
       if (card.videoId || String(card.kind || "").toLowerCase() === "youtube") media.classList.add("isYoutube");
@@ -3746,16 +3795,8 @@
         media.rel = "noopener noreferrer";
       }
 
-      // Preview sources must be actual images. A promotional page URL is not
-      // an <img> source, and must never replace the original watch destination.
-      const previewUrl = String((saved && (saved.previewUrl || saved.image)) || "").trim();
-      const imageCandidate = String((saved && saved.image) || card.thumbnailUrl || "").trim();
-      // Netflix's public title page exposes a promotional image for this
-      // series. Reuse that public image, not the authenticated /watch/ page.
-      const knownPublicPreview = /^(?:https:\/\/)?(?:www\.)?netflix\.com\/title\/70264888(?:[/?#]|$)/i.test(previewUrl)
-        ? "https://occ-0-3012-3997.1.nflxso.net/dnm/api/v6/MgXQGyNr1xbI8tJSYiMWv5kXg5g/AAAABWKRtnVHa-W7sbHt3OFJ6SLD4XC9XUZcPe_c4JqhKTD7IuY_NqyLuEy7jkZ-0b5jjbdR4NGbuhif_82l516ziGVXTOyDt5wOe-W0oMmKOQiuKShM-qBLVOrsjg.jpg?r=fe6" : "";
-      const thumb = /^https:\/\/[^?#]+\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(imageCandidate)
-        ? imageCandidate : knownPublicPreview;
+      const previewUrl = display.previewUrl;
+      const thumb = display.thumbnailUrl;
 
       function makePreviewFallback() {
         const fallback = document.createElement("div");
@@ -3767,7 +3808,7 @@
       if (thumb) {
         const img = document.createElement("img");
         img.className = "portalEvmMediaThumb";
-        img.alt = card.title || card.kind || "media thumbnail";
+        img.alt = display.title || card.kind || "media thumbnail";
         img.loading = "lazy";
         img.referrerPolicy = "no-referrer";
         img.onerror = function () {
@@ -3783,19 +3824,18 @@
       body.className = "portalEvmMediaBody";
 
       const h = document.createElement("strong");
-      const cardTitle = printableText((saved && saved.title) || card.title || "");
-      h.textContent = cardTitle && !isLikelyUrl(cardTitle) && !isRawHtmlTitle(cardTitle) ? cardTitle : (humanUrlTitle(url) || "media");
-      if (netflix && !saved) h.textContent = "Netflix reference (metadata not captured)";
+      const cardTitle = display.title;
+      h.textContent = cardTitle;
       body.appendChild(h);
 
-      if (card.authorName) {
+      if (display.authorName) {
         const author = document.createElement("p");
         author.className = "muted";
-        author.textContent = card.authorName;
+        author.textContent = display.authorName;
         body.appendChild(author);
       }
 
-      const text = cleanHtmlishText((saved && saved.description) || card.text || "");
+      const text = display.description;
       if (text && text !== cardTitle) {
         const p = document.createElement("p");
         p.textContent = text.length > 180 ? text.slice(0, 177) + "…" : text;
@@ -4222,6 +4262,8 @@
       return;
     }
 
+    const mediaHero = appendPortalEvmMediaCards(container, row);
+    if (mediaHero) mediaHero.classList.add("portalMediaHero");
     if (row.publication) appendPublicationStatus(container, row);
 
     const summary = row.summary || makeBasicSummary(row.txid, row.raw || row, row.index);
@@ -4298,7 +4340,8 @@
     header.appendChild(actions);
     container.appendChild(header);
 
-    // Explorer-style transaction flow is primary; optional artifacts follow.
+    // Linked media leads the expanded record. Ledger flow and supporting
+    // interpretation remain available immediately below it.
     const ledgerFirst = canonicalCoinForRow(row) === "litecoin" &&
       !!row.raw && !!portalFinanceForRow(row);
     if (ledgerFirst) appendPortalFinanceDetails(container, row);
@@ -4325,7 +4368,6 @@
 
     if (hasEvmImages) appendPortalEvmImages(supportTarget, row);
 
-    appendPortalEvmMediaCards(supportTarget, row);
     appendPortalEvmDecodedBlock(supportTarget, row);
 
     if (row.loadError) {
@@ -4640,6 +4682,7 @@
     } else {
       titleWrap.textContent = compactGeneric ? "" : titleText;
     }
+    if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
     if (row.publication) {
       const status = document.createElement("span");
       status.className = "portalLedgerState";
@@ -4716,10 +4759,11 @@
 
   function appendPortalDraftDetails(container, row) {
     const draft = row.draftRecord;
+    const mediaHero = appendPortalEvmMediaCards(container, row);
+    if (mediaHero) mediaHero.classList.add("portalMediaHero");
     const title = document.createElement("h4");
     title.textContent = row.summary.title;
     container.appendChild(title);
-    appendPortalEvmMediaCards(container, row);
 
     const note = document.createElement("p");
     note.className = "help";

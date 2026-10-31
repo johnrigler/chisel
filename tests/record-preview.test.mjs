@@ -18,12 +18,13 @@ class Element {
   get classList() { return {contains: name => this.className.split(" ").includes(name), add: name => { this.className += " " + name; }}; }
 }
 const nodes = new Map();
+const savedMetadata = new Map();
 const context = vm.createContext({URL, URLSearchParams, TextEncoder, TextDecoder, Uint8Array, console, addEventListener() {},
   setTimeout() { return 1; }, clearTimeout() {},
   document: {readyState: "loading", addEventListener() {}, createElement: tag => new Element(tag),
     getElementById(id) { assert.notEqual(id, "senderWif", "preview must never read a key"); return nodes.get(id) || null; },
     querySelector(selector) { return nodes.get(selector) || null; }, querySelectorAll() { return []; }},
-  localStorage: {getItem() { return null; }, setItem() { assert.fail("preview wrote storage"); }},
+  localStorage: {getItem(key) { return savedMetadata.get(key) || null; }, setItem() { assert.fail("preview wrote storage"); }},
   fetch() { assert.fail("preview fetched a transaction or saved data"); }, location: {href: "https://chisel.example/"}
 });
 context.window = context;
@@ -148,4 +149,60 @@ test("a sent record leads the stream, renders pending/seen states on the same ro
   assert.equal(portal.state.portalRowKeys[row.key].publication, publication);
   assert.equal(portal.state.portalRowKeys[row.key].txid, raw.txid);
   nodes.delete("#portalEvmWordSearch");
+});
+
+test("closed Netflix rows show saved title, description and a small picture; expanded records put that picture first", () => {
+  const watch = "https://www.netflix.com/watch/00000001";
+  const image = "https://gateway.example/ipfs/bafyImageFixture";
+  const storageKey = "chisel.portal.pageMetadata.v1:" + encodeURIComponent(watch);
+  savedMetadata.set(storageKey, JSON.stringify({schema: "chisel-page-metadata-v1", url: watch,
+    title: "Plaything", description: "Synthetic Netflix episode metadata for this rendering test.", image}));
+  const row = {key: "netflix-picture", coin: "litecoin", txid: "c".repeat(64),
+    summary: {title: watch, primaryUrl: watch, mediaCards: [{kind: "link", url: watch, title: watch}]},
+    raw: {txid: "c".repeat(64), vin: [], vout: [{value: 0, scriptPubKey: {hex: "6a00", type: "op_return"}}]}};
+  try {
+    const closed = new Element("div"); portal.renderStreamItem(closed, row, {expanded: false, onToggle() {}});
+    assert.match(closed.textContent, /Plaything/); assert.match(closed.textContent, /Netflix/);
+    assert.match(closed.textContent, /Synthetic Netflix episode metadata/);
+    assert.equal(descendants(closed).filter(node => node.tagName === "img" && node.src === image).length, 1);
+    assert.ok(descendants(closed).some(node => node.tagName === "a" && node.href === watch));
+    assert.equal(descendants(closed).filter(node => node.className === "portalInlineDetails").length, 0);
+    const open = new Element("div"); portal.renderStreamItem(open, row, {expanded: true, onToggle() {}});
+    const details = descendants(open).find(node => node.className === "portalInlineDetails");
+    assert.match(details.firstChild.className, /portalMediaHero/);
+    const heroImages = descendants(details.firstChild).filter(node => node.tagName === "img");
+    assert.equal(heroImages.length, 1); assert.equal(heroImages[0].src, image);
+    assert.equal(descendants(details).filter(node => node.tagName === "img" && node.src === image).length, 1);
+    assert.ok(descendants(details).some(node => node.className === "portalFinanceDetails" || node.textContent.includes("Raw transaction JSON")), "ledger details must remain available below the picture");
+  } finally { savedMetadata.delete(storageKey); }
+});
+
+test("legacy Netflix preview metadata supplies the same picture to the closed and expanded views", () => {
+  const watch = "https://www.netflix.com/watch/00000002";
+  const storageKey = "chisel.portal.netflixMetadata.v1:" + encodeURIComponent(watch);
+  savedMetadata.set(storageKey, JSON.stringify({title: "Plaything", artwork: "https://www.netflix.com/title/70264888"}));
+  const row = {key: "legacy-netflix", coin: "evm", txid: "d".repeat(64), summary: {title: watch, primaryUrl: watch}};
+  try {
+    const closed = new Element("div"), open = new Element("div");
+    portal.renderStreamItem(closed, row, {expanded: false, onToggle() {}});
+    portal.renderStreamItem(open, row, {expanded: true, onToggle() {}});
+    const small = descendants(closed).find(node => node.tagName === "img");
+    const details = descendants(open).find(node => node.className === "portalInlineDetails");
+    const big = descendants(details.firstChild).find(node => node.tagName === "img");
+    assert.ok(small); assert.ok(big); assert.equal(small.src, big.src);
+    assert.match(small.src, /\.nflxso\.net\//); assert.notEqual(small.src, watch);
+    assert.match(closed.textContent, /Plaything/);
+  } finally { savedMetadata.delete(storageKey); }
+});
+
+test("captured media titles remain visible without a local annotation and unsafe picture sources stay inert", () => {
+  const watch = "https://www.netflix.com/watch/00000003";
+  const row = {key: "fetched-netflix", coin: "evm", txid: "e".repeat(64), summary: {title: watch, primaryUrl: watch,
+    mediaCards: [{kind: "link", url: watch, title: "Plaything", description: "Synthetic captured description", thumbnailUrl: "javascript:alert(1)"}]}};
+  const closed = new Element("div"), open = new Element("div");
+  portal.renderStreamItem(closed, row, {expanded: false, onToggle() {}});
+  portal.renderStreamItem(open, row, {expanded: true, onToggle() {}});
+  assert.match(closed.textContent, /Plaything/); assert.match(closed.textContent, /Synthetic captured description/);
+  assert.doesNotMatch(open.textContent, /Netflix reference \(metadata not captured\)/);
+  assert.equal(descendants(open).filter(node => node.tagName === "img").length, 0);
 });
