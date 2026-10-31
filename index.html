@@ -1917,9 +1917,12 @@
     @media (prefers-reduced-motion: reduce) {
       .portalBusyDial { animation: none; border-top-color: #c2abff; }
     }
-    #draftRecordPreview { margin: 18px 0 12px; min-width: 0; }
+    #draftRecordPreview { margin: 18px 0 12px; min-width: 0; scroll-margin-top: 150px; }
     #draftRecordPreview[hidden] { display: none; }
     #draftRecordPreview .portalInlineDetails { min-width: 0; }
+    #draftRecordPreview .portalInlineDetails .help { color: #526171; }
+    #draftRecordPreview .portalInlineDetails .help.error { color: #a32222; }
+    #draftRecordRows { max-height: none; overflow: visible; }
     #draftRecordPreview .portalEvmMediaCard { max-width: 100%; }
     #draftRecordPreview .draftRecordText { white-space: pre-wrap; overflow-wrap: anywhere; }
     #draftRecordPreview h3 { margin-bottom: 6px; }
