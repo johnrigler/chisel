@@ -1,3 +1,8 @@
+# 2.8.17 — actual errors and FileProxy endpoint diagnostics
+
+- Debug exports retain sanitized activity/error messages, JavaScript stacks, promise rejection reasons and failed ledger reads. FileProxy requests record the actual host, port and route, HTTP status and duration without request bodies, URL credentials, query values or key material.
+- Exports include Portal status, pending ledger-check errors and configured/entered/effective FileProxy endpoints. Explicit `7799` and `47799` URLs remain distinct; neither is silently replaced with the public reverse proxy.
+
 # 2.8.16 — one record from submission through ledger discovery
 
 - Submitted and fetched copies merge by chain/TXID into one expandable record. Later receipt updates retain the fetched transaction, timestamp, amount and index instead of replacing them with the submitted copy.

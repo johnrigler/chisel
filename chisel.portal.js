@@ -179,6 +179,7 @@
   }
 
   function setStatus(message, isError) {
+    if (isError) recordPortalError("portal.status", message);
     const el = $("#portalStatus");
     if (!el) return;
     el.textContent = message || "";
@@ -2471,6 +2472,14 @@
     return !!value;
   }
 
+  function recordPortalError(type, error, context) {
+    // Diagnostics must never change the result of a request or retry.
+    try {
+      const diagnostics = window.CHISEL_DIAGNOSTICS;
+      if (diagnostics && typeof diagnostics.error === "function") diagnostics.error(type, error, context);
+    } catch (_) {}
+  }
+
   async function loadPortalConfig() {
     const directUrls = [DEFAULT_CONFIG_PATH];
     const proxyBase = String((state.config && state.config.fileProxyUrl) || DEFAULT_FILE_PROXY_URL).replace(/\/+$/, "");
@@ -2479,12 +2488,15 @@
     for (let i = 0; i < directUrls.length; i += 1) {
       try {
         const response = await fetch(directUrls[i], { cache: "no-store" });
-        if (!response.ok) continue;
+        if (!response.ok) {
+          recordPortalError("portal.config", "HTTP " + response.status, {endpoint:directUrls[i], httpStatus:response.status, method:"GET"});
+          continue;
+        }
         const json = await response.json();
         if (json && json.ok && json.config) return Object.assign({}, DEFAULT_PORTAL_CONFIG, json.config);
         if (json && !json.ok) continue;
         return Object.assign({}, DEFAULT_PORTAL_CONFIG, json);
-      } catch (error) {}
+      } catch (error) { recordPortalError("portal.config", error, {endpoint:directUrls[i], method:"GET"}); }
     }
 
     return Object.assign({}, DEFAULT_PORTAL_CONFIG);
@@ -2493,9 +2505,6 @@
   function normalizeFileProxyUrl(value) {
     const url = String(value || "").trim().replace(/\/+$/, "");
     if (!url) return DEFAULT_FILE_PROXY_URL;
-    if (/^https?:\/\/rigler\.org:7799$/i.test(url)) return DEFAULT_FILE_PROXY_URL;
-    if (/^https?:\/\/127\.0\.0\.1:7799$/i.test(url)) return DEFAULT_FILE_PROXY_URL;
-    if (/^https?:\/\/localhost:7799$/i.test(url)) return DEFAULT_FILE_PROXY_URL;
     return url;
   }
 
@@ -2517,44 +2526,46 @@
     return normalized;
   }
 
+  async function requestFileProxyJson(url, options) {
+    const started = Date.now();
+    const method = options && options.method || "GET";
+    let response;
+    try {
+      try {
+        response = await fetch(url, options);
+        state.fileProxyAvailable = true;
+      } catch (error) {
+        state.fileProxyAvailable = false;
+        throw error;
+      }
+      let json;
+      try { json = await response.json(); }
+      catch (error) { throw new Error("FileProxy HTTP " + response.status + " returned invalid JSON: " + (error.message || String(error)), {cause:error}); }
+      if (!response.ok || !json || json.ok === false) {
+        throw new Error((json && json.error) || ("FileProxy request failed with HTTP " + response.status));
+      }
+      try {
+        if (window.CHISEL_DIAGNOSTICS) window.CHISEL_DIAGNOSTICS.record("fileproxy.response", "Response received", {
+          endpoint:url, method:method, httpStatus:response.status, durationMs:Date.now()-started});
+      } catch (_) {}
+      return json;
+    } catch (error) {
+      recordPortalError("fileproxy.request", error, {endpoint:url, method:method,
+        httpStatus:response && response.status, durationMs:Date.now()-started});
+      throw error;
+    }
+  }
+
   async function fileProxyJson(path, params) {
     const query = new URLSearchParams(params || {});
     const url = getFileProxyUrl() + path + (String(query) ? "?" + String(query) : "");
-    let response;
-    try {
-      response = await fetch(url, { cache: "no-store" });
-      state.fileProxyAvailable = true;
-    } catch (error) {
-      state.fileProxyAvailable = false;
-      throw error;
-    }
-    const json = await response.json().catch(function () { return null; });
-    if (!response.ok || !json || json.ok === false) {
-      throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
-    }
-    return json;
+    return requestFileProxyJson(url, {cache:"no-store"});
   }
 
   async function fileProxyPostJson(path, body) {
     const url = getFileProxyUrl() + path;
-    let response;
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {})
-      });
-      state.fileProxyAvailable = true;
-    } catch (error) {
-      state.fileProxyAvailable = false;
-      throw error;
-    }
-    const json = await response.json().catch(function () { return null; });
-    if (!response.ok || !json || json.ok === false) {
-      throw new Error((json && json.error) || (url + " failed with HTTP " + response.status));
-    }
-    return json;
+    return requestFileProxyJson(url, {method:"POST", cache:"no-store",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify(body || {})});
   }
 
   async function fileProxyIsAvailable() {
@@ -6580,19 +6591,19 @@ function getPortalFirstCharacter() {
     const element = $("#portalFileProxyHealth");
     if (!element) return;
     const base = getFileProxyUrl().replace(new RegExp("/+$"), "");
-    element.textContent = "FileProxy: checking rigler.org…";
+    let label = "configured endpoint";
+    try { label = new URL(base, window.location.href).host; } catch (_) {}
+    element.textContent = "FileProxy: checking " + label + "…";
     const controller = new AbortController();
     const timeout = window.setTimeout(function () { controller.abort(); }, 6000);
     try {
-      const response = await fetch(base + "/txids?coin=", {
+      await requestFileProxyJson(base + "/ping", {
         method:"GET", cache:"no-store", signal:controller.signal
       });
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      await response.json();
-      element.textContent = "FileProxy: connected";
+      element.textContent = "FileProxy: connected (" + label + ")";
       element.style.color = "#a2d889";
     } catch (error) {
-      element.textContent = "FileProxy: UNREACHABLE (" + (error.name === "AbortError" ? "timeout" : error.message || "network error") + "). Live explorer reads may still work.";
+      element.textContent = "FileProxy: " + label + " UNREACHABLE (" + (error.name === "AbortError" ? "timeout" : error.message || "network error") + "). Live explorer reads may still work.";
       element.style.color = "#ffb39f";
     } finally {
       window.clearTimeout(timeout);
@@ -6624,6 +6635,10 @@ function getPortalFirstCharacter() {
     if ($("#portalTxid")) $("#portalTxid").value = DEFAULT_DIGIBYTE_TXID;
     if ($("#portalColorPath")) $("#portalColorPath").value = DEFAULT_COLOR_PATH;
     if ($("#portalFileProxyUrl") && !$("#portalFileProxyUrl").value) $("#portalFileProxyUrl").value = DEFAULT_FILE_PROXY_URL;
+    if ($("#portalFileProxyUrl")) $("#portalFileProxyUrl").addEventListener("change", function () {
+      state.fileProxyAvailable = null;
+      checkFileProxyHealth();
+    });
     if ($("#portalScale")) $("#portalScale").value = String(DEFAULT_SCALE);
     if ($("#portalSkipPrefix")) $("#portalSkipPrefix").value = String(DEFAULT_SKIP_PREFIX);
     if ($("#portalSkipSuffix")) $("#portalSkipSuffix").value = String(DEFAULT_SKIP_SUFFIX);

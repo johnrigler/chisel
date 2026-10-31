@@ -1,18 +1,59 @@
-/* Chisel diagnostics: public metadata only. No form values, URLs, key material, or response bodies. */
+/* Local diagnostics: sanitized errors and endpoint routes, never request bodies or key material. */
 (function () {
   "use strict";
-  const MAX=1000, KEY="chisel.debug.events.v1", RELEASE="20261009R";
+  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1", RELEASE="20261031-v2817";
   let events=[];
   try { const saved=JSON.parse(sessionStorage.getItem(KEY)||"[]"); if(Array.isArray(saved)) events=saved.slice(-MAX); } catch (_) {}
-  const sensitive=/\b(?:[KL5][1-9A-HJ-NP-Za-km-z]{48,52}|(?:0x)?[0-9a-fA-F]{64,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;
-  function clean(value) {
-    return String(value == null ? "" : value).replace(sensitive,"[redacted]").replace(/(?:https?:\/\/|file:\/\/)[^\s"'<>]+/gi,"[url]").replace(/\b(?:wif|private.?key|seed|mnemonic|authorization|password|token|secret)\s*[:=]\s*[^\s,;]+/gi,"[secret]").slice(0,240);
+  const sensitive=/\b(?:(?:0x)?[0-9a-fA-F]{64,}|[1-9A-HJ-NP-Za-km-z]{51,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;
+  function redact(value) {
+    return String(value).replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9+\/_=.:-]+/gi,"[credentials]")
+      .replace(/["']?\b(?:wif|sender[ _-]?wif|private[ _-]?key|seed|mnemonic|authorization|password|api[ _-]?key|token|secret)\b["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\r\n,;}]+)/gi,"[secret]")
+      .replace(sensitive,"[redacted]");
   }
-  function record(type, detail) {
+  function endpoint(value) {
+    if (!value) return null;
+    try {
+      const url=new URL(String(value),location.href);
+      if (!/^https?:$/.test(url.protocol)) return null;
+      return {origin:url.origin,hostname:url.hostname,port:url.port || (url.protocol === "https:" ? "443" : "80"),
+        protocol:url.protocol,path:redact(url.pathname).slice(0,240)};
+    } catch (_) { return null; }
+  }
+  function clean(value, limit=2000) {
+    const text=String(value == null ? "" : value)
+      .replace(/https?:\/\/[^\s"'<>]+/gi,function (raw) {
+        const info=endpoint(raw);
+        return info ? info.origin+info.path : "[url]";
+      }).replace(/file:\/\/[^\s"'<>]+/gi,raw=>"[file]/"+raw.split("/").pop().split(/[?#]/)[0]);
+    return redact(text).slice(0,limit);
+  }
+  function errorInfo(value) {
+    return {name:clean(value && value.name || "Error",120),stack:clean(value && value.stack || "",6000),
+      cause:clean(value && value.cause && (value.cause.message || value.cause) || "")};
+  }
+  function save() {
+    try {
+      let json=JSON.stringify(events);
+      while (events.length && json.length>MAX_CHARS) { events.shift(); json=JSON.stringify(events); }
+      sessionStorage.setItem(KEY,json);
+    } catch (_) {}
+  }
+  function record(type, detail, context) {
     const entry={at:new Date().toISOString(),type:clean(type),detail:clean(detail)};
+    const info=context || {};
+    if (info.level) entry.level=clean(info.level,20);
+    if (info.method) entry.method=clean(info.method,12);
+    if (info.endpoint) entry.endpoint=endpoint(info.endpoint);
+    if (info.coin) entry.coin=clean(info.coin,40);
+    if (Number.isFinite(info.httpStatus)) entry.httpStatus=info.httpStatus;
+    if (Number.isFinite(info.durationMs)) entry.durationMs=Math.max(0,Math.round(info.durationMs));
+    if (info.error) entry.error=errorInfo(info.error);
     events.push(entry); if(events.length>MAX) events.shift();
-    try { sessionStorage.setItem(KEY,JSON.stringify(events)); } catch (_) {}
+    save();
     return entry;
+  }
+  function recordError(type, error, context) {
+    return record(type,error && error.message || String(error),Object.assign({},context,{level:"error",error:error}));
   }
   function overflow() {
     const w=document.documentElement.clientWidth;
@@ -44,11 +85,23 @@
     const v=document.getElementById("version");
     const balance=document.getElementById("headerIdentityBalance");
     const identity=document.getElementById("headerIdentityName");
+    const portal=window.CHISEL_PORTAL && window.CHISEL_PORTAL.state || {};
+    const proxy=document.getElementById("portalFileProxyUrl");
+    const configured=portal.config && portal.config.fileProxyUrl || "https://rigler.org/fileproxy";
+    const status=document.getElementById("portalStatus");
+    const health=document.getElementById("portalFileProxyHealth");
     return {
-      schema:"chisel-debug-v2",exportedAt:new Date().toISOString(),release:RELEASE,
+      schema:"chisel-debug-v3",exportedAt:new Date().toISOString(),release:RELEASE,
       version:clean(v && v.textContent),mode:clean(mode),selectedCurrency:coin?clean(coin.value):null,
       identityLabel:identity?clean(identity.textContent).replace(/\b[A-Za-z0-9]{15,}\b/g,"[account]"):null,
       balanceState:balance ? (/\d/.test(balance.textContent)?"populated":(/unavailable/i.test(balance.textContent)?"unavailable":(/not loaded/i.test(balance.textContent)?"not-loaded":"pending"))) : "unavailable",
+      fileProxy:{configured:endpoint(configured),entered:endpoint(proxy && proxy.value),
+        effective:endpoint(proxy && proxy.value || configured),available:typeof portal.fileProxyAvailable === "boolean" ? portal.fileProxyAvailable : null,
+        health:clean(health && health.textContent),pageProtocol:location.protocol || new URL(location.href).protocol},
+      portal:{status:clean(status && status.textContent),coin:clean(portal.currentIndex && portal.currentIndex.coin),
+        accountCoin:clean(portal.personalAccount && portal.personalAccount.coin),rows:Array.isArray(portal.portalRows) ? portal.portalRows.length : 0,
+        publications:(portal.portalRows || []).filter(row=>row.publication).slice(0,20).map(row=>({coin:clean(row.publication.coin),
+          ledgerState:clean(row.publication.ledgerState),error:clean(row.publication.error),seenAt:row.publication.seenAt || null}))},
       environment:{userAgent:navigator.userAgent,screen:{width:screen.width,height:screen.height},viewport:{width:innerWidth,height:innerHeight,devicePixelRatio:devicePixelRatio}},
       assetManifest:scripts(),viewportMeta:document.querySelector('meta[name="viewport"]')?.content||null,
       historyNote:"events may span multiple reloads in this browser tab; use boot timestamps to separate sessions",
@@ -64,12 +117,13 @@
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),30000);
   }
-  window.CHISEL_DIAGNOSTICS={record:record,snapshot:snapshot,download:download,clear:function(){events=[];try{sessionStorage.removeItem(KEY)}catch(_){}}};
+  window.CHISEL_DIAGNOSTICS={record:record,error:recordError,clean:clean,endpoint:endpoint,snapshot:snapshot,download:download,clear:function(){events=[];try{sessionStorage.removeItem(KEY)}catch(_){}}};
   window.addEventListener("error",function(e){
     const file=e.filename?e.filename.split("/").pop().split("?")[0]:"unknown";
-    record("javascript.error",file+":"+(e.lineno||0)+":"+(e.colno||0)+" "+clean(e.message||"script error"));
+    recordError("javascript.error",e.error || e.message || "script error",{endpoint:e.filename});
+    record("javascript.location",file+":"+(e.lineno||0)+":"+(e.colno||0));
   },true);
-  window.addEventListener("unhandledrejection",function(e){record("javascript.rejection",e.reason&&e.reason.name||"promise rejected");});
+  window.addEventListener("unhandledrejection",function(e){recordError("javascript.rejection",e.reason || "promise rejected");});
   document.addEventListener("DOMContentLoaded",function(){
     const button=document.getElementById("downloadDebugJson");
     if(button) button.addEventListener("click",download);

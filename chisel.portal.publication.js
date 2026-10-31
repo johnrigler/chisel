@@ -88,6 +88,11 @@
         return true;
       } catch (error) {
         if (entries.get(key) !== entry) return false;
+        try {
+          if (root.CHISEL_DIAGNOSTICS && typeof root.CHISEL_DIAGNOSTICS.error === "function") {
+            root.CHISEL_DIAGNOSTICS.error("ledger.read", error, {coin:entry.record.coin});
+          }
+        } catch (_) {}
         entry.record.error = String(error.message || error).slice(0, 240);
         entry.attempts++;
         emit(entry.record, false);

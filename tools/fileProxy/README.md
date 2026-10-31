@@ -59,8 +59,11 @@ The Portal configuration should use:
 "fileProxyUrl": "https://rigler.org/fileproxy"
 ```
 
-The Chisel client migrates the old `:7799`, localhost, and
-`127.0.0.1:7799` values to the reverse-proxied URL.
+The Chisel client preserves explicitly entered hostnames and ports. It does
+not substitute the public reverse proxy for a local endpoint. This script
+defaults to port `7799`; use `CHISEL_FILE_PORT=47799` when running it on `47799`
+and enter that exact URL in Portal. The debug export records configured and
+effective endpoints, request ports, HTTP statuses and sanitized errors.
 
 Apache configuration:
 

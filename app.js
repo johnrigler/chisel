@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.16";
+  const APP_VERSION = "2.8.17";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -984,8 +984,8 @@ function setCurrencyForm() {
     state.status = message;
     state.isError = Boolean(isError);
     if (window.chiselActivity) {
-      // Deliberately log a generic status here. Provider messages can contain wallet data.
-      window.chiselActivity("Send", isError ? "Operation failed (see status in Send)" :
+      // Local diagnostics sanitize actual errors; remote stage logging stays metadata-only.
+      window.chiselActivity("Send", isError ? message :
         message === STATUS_IDLE ? "Ready" :
         message === STATUS_DONE ? "Transaction sent successfully" : "State updated",
         isError ? "error" : "info");
