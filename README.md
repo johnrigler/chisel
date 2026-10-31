@@ -45,6 +45,24 @@ and metadata are external display data, not extra OP_RETURN bytes; they can
 be retrieved again from the ledger's URL when reading the transaction. Chain
 payload limits and the existing built-transaction review still apply.
 
+After an accepted broadcast, Chisel switches to Portal and adds the locally
+decoded transaction at the top immediately, retaining the reviewed media.
+**Awaiting ledger read** uses navy text. Background reads query the selected
+chain's live node/provider directly; its exact raw bytes and computed TXID
+must match the sent transaction before **Seen by ledger** turns the row black.
+Broadcast replies, local/FileProxy caches and decoded JSON do not establish
+this status. A mempool read establishes visibility, not block confirmation.
+Failed reads retain navy text and retry; the expanded row has **CHECK LEDGER
+NOW**. Normal discovery merges the same chain/TXID rather than adding a duplicate.
+
+The last 20 local public receipts are kept in this tab's session storage,
+bounded to one million JSON characters. This contains signed transaction
+bytes and display metadata, with no WIF, account object, signing context or
+transport credentials. Reload reconstructs the records and checks them again;
+it does not trust a saved status claim. This temporary history belongs to the
+tab's session (including a browser-restored session); regular Portal ledger
+discovery remains independent.
+
 ## W42 review fixes
 
 Send now verifies input amounts from previous transaction bytes, checks a bounded fee, and asks you to review the actual outputs before signing. Normal wallet and identity signing uses locally bundled Noble. See the [technical review response](docs/SECURITY_REVIEW_2026_W42.md) for the fixes, tests and trust limits.

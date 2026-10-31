@@ -19,9 +19,10 @@ class Element {
 }
 const nodes = new Map();
 const context = vm.createContext({URL, URLSearchParams, TextEncoder, TextDecoder, Uint8Array, console, addEventListener() {},
+  setTimeout() { return 1; }, clearTimeout() {},
   document: {readyState: "loading", addEventListener() {}, createElement: tag => new Element(tag),
     getElementById(id) { assert.notEqual(id, "senderWif", "preview must never read a key"); return nodes.get(id) || null; },
-    querySelector() { return null; }, querySelectorAll() { return []; }},
+    querySelector(selector) { return nodes.get(selector) || null; }, querySelectorAll() { return []; }},
   localStorage: {getItem() { return null; }, setItem() { assert.fail("preview wrote storage"); }},
   fetch() { assert.fail("preview fetched a transaction or saved data"); }, location: {href: "https://chisel.example/"}
 });
@@ -110,4 +111,41 @@ test("the actual Portal renderer shows one image and full metadata, expands inde
   assert.equal(descendants(container).filter(node => node.className === "portalInlineDetails").length, 0);
   assert.equal(JSON.stringify(portal.state.portalRows), before);
   assert.deepEqual(Object.keys(portal.state.expandedRowKeys), []);
+});
+
+test("a sent record leads the stream, renders pending/seen states on the same row, and survives a stream refresh", () => {
+  const draft = P.buildDraft(values, record);
+  const raw = {txid: "a".repeat(64), vin: [], vout: [{value: 0,
+    scriptPubKey: {hex: "6a" + (draft.ledger.bytes).toString(16).padStart(2, "0") + draft.ledger.opReturnHex, type: "op_return"}}]};
+  const publication = {coin: "litecoin", txid: raw.txid, raw,
+    index: {coin: "litecoin", name: "litecoin", ticker: "LTC", canFetchTx: false},
+    summary: draft.portal.summary, metadata: record.metadata, submittedAt: Date.now(), ledgerState: "awaiting-ledger", error: ""};
+  const search = new Element("input"); search.value = "a filter hiding the new transaction";
+  nodes.set("#portalEvmWordSearch", search);
+  const future = {...publication, txid: "b".repeat(64), raw: {txid: "b".repeat(64)},
+    summary: {title: "Existing future-dated row", blockTime: 4000000000}, ledgerState: "seen"};
+  portal.presentPublication(future, {reveal: false});
+  const row = portal.presentPublication(publication, {reveal: true});
+  assert.equal(search.value, ""); assert.equal(portal.state.portalPage, 1);
+  assert.equal(portal.state.portalRows[0], row, "awaiting record must lead even a future-dated row");
+  assert.equal(portal.state.expandedRowKeys[row.key], true);
+  const container = new Element("div");
+  portal.renderStreamItem(container, row, {expanded: true, onToggle() {}});
+  assert.match(container.firstChild.className, /isAwaitingLedger/);
+  assert.match(container.textContent, /Awaiting ledger read/);
+  assert.match(container.textContent, /Synthetic channel/);
+  assert.ok(descendants(container).some(node => node.tagName === "img" && node.src === picture));
+  publication.ledgerState = "seen";
+  const observed = portal.presentPublication(publication, {reveal: false});
+  assert.equal(observed, row); assert.equal(portal.state.portalRows.length, 2);
+  container.replaceChildren(); portal.renderStreamItem(container, row, {expanded: true, onToggle() {}});
+  assert.match(container.firstChild.className, /isLedgerSeen/);
+  assert.doesNotMatch(container.firstChild.className, /isAwaitingLedger/);
+  assert.match(container.textContent, /Seen by ledger/);
+  assert.match(container.textContent, /not a block-confirmation claim/);
+  portal.clearPortalStream("refresh");
+  assert.equal(portal.state.portalRows.length, 2);
+  assert.equal(portal.state.portalRowKeys[row.key].publication, publication);
+  assert.equal(portal.state.portalRowKeys[row.key].txid, raw.txid);
+  nodes.delete("#portalEvmWordSearch");
 });

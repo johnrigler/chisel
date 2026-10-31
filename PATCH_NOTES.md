@@ -1,3 +1,10 @@
+# 2.8.13 — show sent records immediately in Portal
+
+- Successful broadcasts switch to Portal and reveal the new expandable record at the top before the first ledger read. The record comes from the sent transaction bytes and retains matching reviewed media.
+- Navy **Awaiting ledger read** becomes black **Seen by ledger** only when a live node/provider returns the exact sent raw transaction with matching computed TXID. A mempool observation is separate from block confirmation; cached data and broadcast replies cannot complete the check.
+- Failed reads retry and offer CHECK LEDGER NOW. Repeated discovery merges by chain/TXID, stream refreshes retain local receipts, and rejected broadcasts add no row.
+- Up to 20 public receipts survive reload in bounded tab session storage. Restored statuses require a new live check; signing keys, account objects and transport credentials are excluded.
+
 # 2.8.12 — complete record preview before Send
 
 - Send accepts an optional, bounded `chisel-shared-record-v1` presentation record alongside shared OP_RETURN text. The exact text must match; imported fields cannot change keys, currency, recipients or fees.

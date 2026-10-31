@@ -122,7 +122,12 @@
     return importError;
   }
 
-  root.CHISEL_RECORD_PREVIEW = Object.freeze({parseRecord, buildDraft, receive, refresh});
+  function capture(opReturnHex) {
+    if (!current || current.ledger.opReturnHex !== opReturnHex) return null;
+    return JSON.parse(JSON.stringify({opReturnHex, summary: current.portal.summary, metadata: current.metadata}));
+  }
+
+  root.CHISEL_RECORD_PREVIEW = Object.freeze({parseRecord, buildDraft, receive, refresh, capture});
   if (typeof document === "object") {
     const form = document.getElementById("sendCredentialForm");
     if (form) ["input", "change"].forEach(type => form.addEventListener(type, refresh));

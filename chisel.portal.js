@@ -2832,6 +2832,8 @@
       ravencoin: "ravencoin",
       ltc: "litecoin",
       litecoin: "litecoin",
+      tltc: "litecoinTestnet",
+      litecointestnet: "litecoinTestnet",
       btc: "bitcoin",
       bitcoin: "bitcoin",
       doge: "dogecoin",
@@ -2853,6 +2855,7 @@
     if (coin === "digibyte") return "DGB";
     if (coin === "ravencoin") return "RVN";
     if (coin === "litecoin") return "LTC";
+    if (coin === "litecoinTestnet") return "tLTC";
     if (coin === "bitcoin") return "BTC";
     if (coin === "dogecoin") return "DOGE";
     if (coin === "ecash") return "XEC";
@@ -2910,11 +2913,14 @@
     const exact = Number(summary.blockTime || row.blockTime || extractBlockTime(row.raw) || 0) || 0;
     if (exact) return exact;
     const estimated = estimateUtxoBlockTime(canonicalCoinForRow(row), summary.blockHeight || extractBlockHeight(row.raw));
-    return Number(estimated || row.modified || 0) || 0;
+    return Number(estimated || row.modified || (row.publication && row.publication.submittedAt / 1000) || 0) || 0;
   }
 
   function formatRowTime(row) {
     if (row.draftRecord) return "draft";
+    if (row.publication && !extractBlockTime(row.raw)) {
+      return "sent " + new Date(row.publication.submittedAt).toISOString().slice(11, 16);
+    }
     const t = rowTime(row);
     if (!t) return "unknown";
     const d = new Date(t * 1000);
@@ -3174,6 +3180,10 @@
 
   function sortPortalRows() {
     state.portalRows.sort(function (a, b) {
+      const ap = a.publication && a.publication.ledgerState !== "seen" ? 1 : 0;
+      const bp = b.publication && b.publication.ledgerState !== "seen" ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      if (ap && bp && a.publication.submittedAt !== b.publication.submittedAt) return b.publication.submittedAt - a.publication.submittedAt;
       const at = rowTime(a);
       const bt = rowTime(b);
       if (at !== bt) return bt - at;
@@ -3275,6 +3285,7 @@
   }
 
   function resetPortalRowsForNewLoad() {
+    const publications = state.portalRows.filter(function (row) { return !!row.publication; });
     state.portalLoadGeneration += 1;
     state.portalRows = [];
     state.portalRowKeys = Object.create(null);
@@ -3293,6 +3304,7 @@
     state.conversationRows = [];
     state.rabbitTrails = [];
     state.portalPage = 1;
+    publications.forEach(function (row) { upsertPortalRow(row, {silent: true, deferSort: true}); });
     requestPortalRender();
     return state.portalLoadGeneration;
   }
@@ -3411,6 +3423,16 @@
       sourceId: row.sourceId || existing.sourceId,
       discoverySource: row.discoverySource || existing.discoverySource
     }) : Object.assign({}, row, { key: key });
+
+    // Locally reviewed media is display data. Retain it as normal discovery
+    // replaces this same chain/TXID row, without letting a cache mark it seen.
+    if (merged.publication) {
+      merged.raw = merged.publication.raw;
+      merged.summary = mergePortalSummary(merged.summary, merged.publication.summary);
+      ["title", "primaryUrl", "opReturnUrls", "mediaCards"].forEach(function (field) {
+        if (merged.publication.summary[field]) merged.summary[field] = merged.publication.summary[field];
+      });
+    }
 
     if (!existing) {
       state.portalRowKeys[key] = merged;
@@ -4200,6 +4222,8 @@
       return;
     }
 
+    if (row.publication) appendPublicationStatus(container, row);
+
     const summary = row.summary || makeBasicSummary(row.txid, row.raw || row, row.index);
     const header = document.createElement("div");
     header.className = "portalInlineHeader";
@@ -4335,7 +4359,7 @@
       return { raw: line, decoded: normalizeMacDougallText(line), payload: getMacPayload(line) };
     });
 
-    if (!row.discoveredLinksSaved) {
+    if (!row.discoveredLinksSaved && (!row.publication || row.publication.ledgerState === "seen")) {
       row.discoveredLinksSaved = true;
       saveDiscoveredLinksMaybe(row.txid, semantics, rowIndexEntry(row)).catch(function () {
         row.discoveredLinksSaved = false;
@@ -4547,9 +4571,11 @@
     const item = document.createElement("div");
     item.className = "portalStreamItem" +
       (expanded ? " isExpanded" : "") +
+      (row.publication ? (row.publication.ledgerState === "seen" ? " isLedgerSeen" : " isAwaitingLedger") : "") +
       (isPersonal ? " isPersonal" : "") +
       (recordBehavior ? " hasInterpretedRecord behavior-" + recordBehavior.behavior.id : "");
     item.dataset.key = row.key;
+    if (row.publication) item.dataset.ledgerState = row.publication.ledgerState;
     if (isPersonal) {
       item.dataset.personalAddress = state.personalAccount.address;
       item.title = "This transaction touches your loaded public account.";
@@ -4613,6 +4639,12 @@
       titleWrap.appendChild(titleLink);
     } else {
       titleWrap.textContent = compactGeneric ? "" : titleText;
+    }
+    if (row.publication) {
+      const status = document.createElement("span");
+      status.className = "portalLedgerState";
+      status.textContent = row.publication.ledgerState === "seen" ? "Seen by ledger" : "Awaiting ledger read";
+      titleWrap.appendChild(status);
     }
 
     let verify = null;
@@ -4722,6 +4754,59 @@
     const row = {key: "draft-record", txid: "", coin: draft.portal.coin,
       summary: draft.portal.summary, draftRecord: draft};
     renderPortalStreamItem(container, row, options || {expanded: true});
+  }
+
+  function appendPublicationStatus(container, row) {
+    const publication = row.publication;
+    const panel = document.createElement("div");
+    panel.className = "portalPublicationStatus";
+    panel.setAttribute("role", "status");
+    const text = document.createElement("p");
+    text.textContent = publication.ledgerState === "seen"
+      ? "Seen by ledger: a live node/provider returned the exact sent transaction bytes and matching TXID. This is not a block-confirmation claim."
+      : "Broadcast accepted. This local copy is awaiting a matching transaction read from a live ledger node/provider.";
+    panel.appendChild(text);
+    if (publication.error) {
+      const error = document.createElement("p");
+      error.textContent = "Ledger read pending: " + publication.error;
+      panel.appendChild(error);
+    }
+    if (publication.ledgerState !== "seen") {
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "secondaryButton";
+      retry.textContent = "CHECK LEDGER NOW";
+      retry.onclick = function () {
+        if (window.CHISEL_PUBLICATION) window.CHISEL_PUBLICATION.check(publication.coin + ":" + publication.txid);
+      };
+      panel.appendChild(retry);
+    }
+    if (publication.metadata && Object.keys(publication.metadata).length) {
+      panel.appendChild(makeInlinePre("Linked media metadata (off-chain)", pretty(publication.metadata), false));
+    }
+    container.appendChild(panel);
+  }
+
+  function presentPublication(publication, options) {
+    const row = upsertPortalRow({coin: publication.coin, txid: publication.txid,
+      index: publication.index, raw: publication.raw, summary: Object.assign({}, publication.summary),
+      publication: publication, discoverySource: "local-broadcast"}, {silent: true});
+    if (!row) return null;
+    if (options && options.reveal) {
+      const search = $("#portalEvmWordSearch");
+      if (search) search.value = "";
+      setPortalFilterValue(sourceIdForRow(row), true);
+      state.portalPage = 1;
+      state.expandedRowKeys[row.key] = true;
+      state.selectedRowKey = row.key;
+      state.selectedTxid = row.txid;
+      window.setTimeout(function () {
+        const list = $("#portalTransactionList");
+        if (list) { list.scrollTop = 0; list.scrollIntoView({block: "start"}); }
+      }, 0);
+    }
+    requestPortalRender();
+    return row;
   }
 
   function visibleDateLookupContextToken() {
@@ -6703,6 +6788,8 @@ function getPortalFirstCharacter() {
     collectEvmMediaCards: collectEvmMediaCards,
     appendPortalInlineDetails: appendPortalInlineDetails,
     renderDraftRecord: renderDraftRecord,
+    renderStreamItem: renderPortalStreamItem,
+    presentPublication: presentPublication,
     renderSemantics: renderSemantics,
     loadPortalAnnotations: loadPortalAnnotations,
     getPortalAnnotation: getPortalAnnotation,

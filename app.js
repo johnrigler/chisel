@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.12";
+  const APP_VERSION = "2.8.13";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -1872,6 +1872,8 @@ function getMinimumRequiredFeeUnits(coin, values) {
   async function sendTransactionContext(context) {
     if (!context.review) await reviewTransactionContext(context, context.signedHex, Boolean(context.manual), "Broadcast signed transaction");
     await auditTransactionContext(context, context.signedHex, Boolean(context.manual));
+    const display = window.CHISEL_RECORD_PREVIEW
+      ? window.CHISEL_RECORD_PREVIEW.capture(context.values.opReturnHex) : null;
     setStatusMessage(context.coin.USES_THIRD_PARTY_PROVIDERS ? "Broadcasting signed transaction through providers..." : "Broadcasting signed transaction...", false);
     logSafeSendStage("broadcast-start", "info");
     let sendResult;
@@ -1883,6 +1885,21 @@ function getMinimumRequiredFeeUnits(coin, values) {
       throw error;
     }
     setSendResultData(sendResult);
+
+    if (window.CHISEL_PUBLICATION) {
+      try {
+        // Bound reader receives public transport settings only. The watcher
+        // never retains the signing context or its account/private key.
+        const transport = {rpcUrl: context.values.rpcUrl, explorerUrl: context.values.explorerUrl};
+        await window.CHISEL_PUBLICATION.publish({coin: context.coin.NAME, signedHex: context.signedHex,
+          feeUnits: context.review.feeUnits, display: display},
+          context.coin.getRawTransaction.bind(context.coin, context.client, transport));
+      } catch (error) {
+        if (window.chiselActivity) window.chiselActivity("Portal", "Broadcast succeeded; local receipt could not be displayed", "error");
+        console.warn("Broadcast succeeded; Portal receipt unavailable:", error);
+      }
+    }
+    setGuiMode("portal");
 
     return context;
   }
@@ -1896,7 +1913,6 @@ function getMinimumRequiredFeeUnits(coin, values) {
     if (window.chiselActivity) window.chiselActivity("Send", "Broadcasting signed transaction");
     await sendTransactionContext(context);
     setStatusMessage(STATUS_DONE, false);
-    setGuiMode("send");
 
     return context;
   }
