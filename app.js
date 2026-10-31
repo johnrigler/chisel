@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.11";
+  const APP_VERSION = "2.8.12";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -96,6 +96,7 @@
     changeRvn: document.querySelector("#changeRvn"),
     changeLabel: document.querySelector("#changeLabel"),
     sendButton: document.querySelector("#sendButton"),
+    draftRecordPreview: document.querySelector("#draftRecordPreview"),
     prepareDraftButton: document.querySelector("#prepareDraftButton"),
     utxoToVinButton: document.querySelector("#utxoToVinButton"),
     createRawButton: document.querySelector("#createRawButton"),
@@ -478,6 +479,7 @@ function updateRecipientCostPreview() {
     if (elems.recipientTotalRvn) elems.recipientTotalRvn.value = "Invalid decimal amount";
     if (elems.estimatedCostRvn) elems.estimatedCostRvn.value = "Check amounts / fee";
   }
+  if (window.CHISEL_RECORD_PREVIEW) window.CHISEL_RECORD_PREVIEW.refresh();
 }
 
 function createRecipientRow(address, amount, options) {
@@ -2961,20 +2963,27 @@ function onClickAddCommonAddressButton() {
       return false;
     }
 
-    // Reuse the ordinary draft loader. A share supplies text only, never keys,
-    // currency, recipients, signing options, or a broadcast instruction.
+    // Imported rich fields are presentation only. The ordinary draft loader
+    // still receives text only: never keys, currency, outputs or signing options.
+    const recordError = window.CHISEL_RECORD_PREVIEW
+      ? window.CHISEL_RECORD_PREVIEW.receive(fragment.get("record") ?? url.searchParams.get("record"), text) : "";
     if (!loadArtifactPayload({ opReturnAscii: text }, "shared link")) return false;
     try {
       const consumed = new URL(window.location.href);
       consumed.searchParams.delete("opreturn");
-      if (fragment.has("opreturn")) {
+      consumed.searchParams.delete("record");
+      if (fragment.has("opreturn") || fragment.has("record")) {
         fragment.delete("opreturn");
+        fragment.delete("record");
         consumed.hash = fragment.toString();
       }
       window.history.replaceState(null, "", consumed.toString());
     } catch (error) {}
+    if (recordError) setStatusMessage(recordError + " OP_RETURN text was loaded; review the preview below.", true);
     if (elems.opReturnAscii.focus) elems.opReturnAscii.focus();
-    if (elems.opReturnAscii.scrollIntoView) elems.opReturnAscii.scrollIntoView({ block: "center" });
+    const preview = elems.draftRecordPreview;
+    if (preview && !preview.hidden) preview.scrollIntoView({block: "start"});
+    else if (elems.opReturnAscii.scrollIntoView) elems.opReturnAscii.scrollIntoView({ block: "center" });
     return true;
   }
 

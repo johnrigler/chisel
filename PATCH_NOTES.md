@@ -1,3 +1,10 @@
+# 2.8.12 — complete record preview before Send
+
+- Send accepts an optional, bounded `chisel-shared-record-v1` presentation record alongside shared OP_RETURN text. The exact text must match; imported fields cannot change keys, currency, recipients or fees.
+- The expanded preview above SEND reuses Portal's stream and media renderers for the picture, title, channel and complete metadata. Ledger bytes, current outputs, requested fee and IPFS field remain inspectable, with unknown transaction fields left null.
+- Text edits invalidate shared metadata, form changes refresh the preview, and a draft expands independently from real Portal rows. Fetched cards no longer duplicate URL-derived cards for the same media link.
+- Linked pictures/metadata stay off-chain. Normal transaction review still precedes signing and broadcast.
+
 # 2.8.11 — sticker links
 
 - Printed stickers, scanner echoes and public artifact QR codes contain `https://johnrigler.github.io/chisel/#sticker=<16-hex-ID>`. The existing eight random bytes and color rule are retained.

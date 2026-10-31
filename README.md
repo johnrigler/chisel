@@ -17,16 +17,33 @@ Chisel is a browser-first toolkit for reading and preserving small blockchain ar
 Install the [Mogwai share widget](https://johnrigler.github.io/mogwai/app/)
 in Chrome on Android or ChromeOS. Use a system share chooser that lists
 Mogwai. YouTube's own social-network panel is a separate menu. The widget
-opens YouTube videos automatically; other links and plain text show their
-received fields for review before opening Chisel's Send screen. OP_RETURN
+keeps shared links and text for review before opening Chisel's Send screen. OP_RETURN
 ASCII uses a multiline field so incoming paragraph breaks remain visible.
 The receiver and setup notes live in
 [Mogwai](https://github.com/johnrigler/mogwai/tree/main/app).
 
 The handoff is `?mode=send#opreturn=<URL-encoded-text>`; `opreturn` also works
-as a query parameter for tools such as Termux URL openers. Chisel loads only
-the supplied text through its ordinary draft loader. Chain payload limits
-and transaction review still apply.
+as a query parameter for tools such as Termux URL openers. An optional
+`record=<URL-encoded-JSON>` fragment carries `chisel-shared-record-v1`:
+`opReturnText`, `summary` (including the same `opReturnText`, title, primary
+URL and `mediaCards`), and `metadata`. The record is limited to 65,536 UTF-8
+bytes and must match the imported text exactly. Both markers are consumed
+after loading. Existing text-only senders remain compatible.
+
+Send shows an expanded **Record preview** immediately above **SEND**, using
+Portal's stream-row and media-card renderer. It includes the picture, full
+title, channel, source/retrieval details, actual OP_RETURN HEX and byte count,
+current recipients, requested fee and IPFS field. The complete received
+record is inspectable as JSON. Editing the content removes the previous
+share's metadata; changing currency, recipients or fee updates the preview.
+The preview has no fabricated TXID, inputs, change or confirmation time.
+
+Only the supplied text enters the transaction draft. Imported metadata cannot
+set keys, chain, recipients or fees, and previewing does not sign, broadcast,
+save to FileProxy or add a pending record to the Portal stream. Linked pictures
+and metadata are external display data, not extra OP_RETURN bytes; they can
+be retrieved again from the ledger's URL when reading the transaction. Chain
+payload limits and the existing built-transaction review still apply.
 
 ## W42 review fixes
 

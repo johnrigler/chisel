@@ -1917,6 +1917,12 @@
     @media (prefers-reduced-motion: reduce) {
       .portalBusyDial { animation: none; border-top-color: #c2abff; }
     }
+    #draftRecordPreview { margin: 18px 0 12px; min-width: 0; }
+    #draftRecordPreview[hidden] { display: none; }
+    #draftRecordPreview .portalInlineDetails { min-width: 0; }
+    #draftRecordPreview .portalEvmMediaCard { max-width: 100%; }
+    #draftRecordPreview .draftRecordText { white-space: pre-wrap; overflow-wrap: anywhere; }
+    #draftRecordPreview h3 { margin-bottom: 6px; }
 </style>
   <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261027-ledger-flow-v287" />
 </head>
@@ -2191,8 +2197,14 @@
         <input id="explorerUrl" class="hide" type="text" />
       </form>
 
+      <section id="draftRecordPreview" aria-labelledby="draftRecordHeading" hidden>
+        <h3 id="draftRecordHeading">Record preview</h3>
+        <p id="draftRecordStatus" class="help" role="status"></p>
+        <div id="draftRecordRows" class="portalTransactionList"></div>
+      </section>
+
       <div class="actions">
-        <button id="sendButton" type="button">RUN ALL: BUILD, SIGN, SEND</button>
+        <button id="sendButton" type="button">SEND</button>
         <div id="status">Idle</div>
         <div id="sendConfirmation" class="help" aria-live="polite" style="width:100%;overflow-wrap:anywhere"></div>
       </div>
@@ -2919,7 +2931,8 @@
   <script src="chisel.thunderwords.js?rev=20261027-blockchair-v287"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
   <script src="chisel.portal.static-data.js?rev=20261012S"></script>
-  <script src="chisel.portal.js?rev=20261030-sticker-v2811"></script>
+  <script src="chisel.portal.js?rev=20261031-record-v2812"></script>
+  <script src="chisel.record-preview.js?rev=20261031-record-v2812"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
@@ -2930,7 +2943,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261030-v2811"></script>
+<script src="app.js?rev=20261031-record-v2812"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">

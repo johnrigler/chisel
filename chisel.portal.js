@@ -1537,7 +1537,12 @@
       rawSummary.primaryUrl, rawSummary.title, rawSummary.cleanText,
       decoded.message, decoded.text, decoded.body, decoded.artifact
     ].concat(safeArray(summary.opReturnUrls), safeArray(rawSummary.opReturnUrls));
-    buildEvmMediaCardsFromValues(values, words).forEach(add);
+    buildEvmMediaCardsFromValues(values, words).forEach(function (card) {
+      // A fetched card already describes this link; do not repeat it with a
+      // URL-derived title and thumbnail in the same record.
+      const url = normalizeMediaUrl(card.url || card.sourceUrl || "");
+      if (!out.some(function (existing) { return existing.url === url; })) add(card);
+    });
     if (cache) cache.mediaCards = out;
     return out;
   }
@@ -2909,6 +2914,7 @@
   }
 
   function formatRowTime(row) {
+    if (row.draftRecord) return "draft";
     const t = rowTime(row);
     if (!t) return "unknown";
     const d = new Date(t * 1000);
@@ -2917,6 +2923,7 @@
   }
 
   function rowExplorerUrl(row) {
+    if (row.draftRecord) return "";
     // Blockchair is a human-readable verification page, not a JSON transport.
     // Keep Esplora and BlockCypher as independent JSON fetch providers.
     if (canonicalCoinForRow(row) === "litecoin" && /^[0-9a-f]{64}$/i.test(String(row && row.txid || ""))) {
@@ -3759,6 +3766,13 @@
       if (netflix && !saved) h.textContent = "Netflix reference (metadata not captured)";
       body.appendChild(h);
 
+      if (card.authorName) {
+        const author = document.createElement("p");
+        author.className = "muted";
+        author.textContent = card.authorName;
+        body.appendChild(author);
+      }
+
       const text = cleanHtmlishText((saved && saved.description) || card.text || "");
       if (text && text !== cardTitle) {
         const p = document.createElement("p");
@@ -3784,7 +3798,7 @@
         }
         grid.appendChild(previewInfo);
       }
-      if (url) {
+      if (url && !row.draftRecord) {
         const controls = document.createElement("div");
         controls.className = "portalEvmMediaBody";
         const edit = document.createElement("button");
@@ -4181,6 +4195,11 @@
   function appendPortalInlineDetails(container, row) {
     container.innerHTML = "";
 
+    if (row.draftRecord) {
+      appendPortalDraftDetails(container, row);
+      return;
+    }
+
     const summary = row.summary || makeBasicSummary(row.txid, row.raw || row, row.index);
     const header = document.createElement("div");
     header.className = "portalInlineHeader";
@@ -4519,13 +4538,15 @@
     });
   }
 
-  function renderPortalStreamItem(list, row) {
+  function renderPortalStreamItem(list, row, options) {
+    const opts = options || {};
+    const expanded = opts.expanded === undefined ? !!state.expandedRowKeys[row.key] : !!opts.expanded;
     const primaryUrl = recordTargetUrlForRow(row);
     const isPersonal = personalAccountMatchesRow(row);
     const recordBehavior = portalRecordBehaviorForRow(row);
     const item = document.createElement("div");
     item.className = "portalStreamItem" +
-      (state.expandedRowKeys[row.key] ? " isExpanded" : "") +
+      (expanded ? " isExpanded" : "") +
       (isPersonal ? " isPersonal" : "") +
       (recordBehavior ? " hasInterpretedRecord behavior-" + recordBehavior.behavior.id : "");
     item.dataset.key = row.key;
@@ -4542,13 +4563,14 @@
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "secondaryButton portalExpandButton";
-    toggle.textContent = state.expandedRowKeys[row.key] ? "⌄" : "›";
-    toggle.setAttribute("aria-expanded", state.expandedRowKeys[row.key] ? "true" : "false");
-    toggle.setAttribute("aria-label", state.expandedRowKeys[row.key] ? "Collapse transaction details" : "Expand transaction details");
-    toggle.title = state.expandedRowKeys[row.key] ? "collapse inline record" : "expand inline record";
+    toggle.textContent = expanded ? "⌄" : "›";
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    toggle.setAttribute("aria-label", expanded ? "Collapse transaction details" : "Expand transaction details");
+    toggle.title = expanded ? "collapse inline record" : "expand inline record";
     toggle.onclick = function (event) {
       event.preventDefault();
       event.stopPropagation();
+      if (opts.onToggle) { opts.onToggle(); return; }
       togglePortalRowDetails(row.key).catch(function (error) { setStatus(error.message || String(error), true); });
     };
 
@@ -4595,7 +4617,7 @@
 
     let verify = null;
     const url = rowExplorerUrl(row);
-    if (state.expandedRowKeys[row.key] && url) {
+    if (expanded && url) {
       verify = document.createElement("span");
       const a = document.createElement("a");
       a.className = "portalStreamVerify";
@@ -4612,7 +4634,7 @@
     line.appendChild(time);
     line.appendChild(coin);
     line.appendChild(titleWrap);
-    const financial = portalFinanceForRow(row);
+    const financial = row.draftRecord ? null : portalFinanceForRow(row);
     const finance = document.createElement("span");
     finance.className = "portalStreamFinance";
     if (financial) {
@@ -4636,7 +4658,7 @@
         fee.textContent = "fee " + financial.feeSat.toLocaleString("en-US") + " sat";
         finance.appendChild(fee);
       }
-    } else if (canonicalCoinForRow(row) === "litecoin") {
+    } else if (!row.draftRecord && canonicalCoinForRow(row) === "litecoin") {
       const value = document.createElement("span");
       value.className = "portalStreamFinanceAmount isPending";
       value.textContent = state.pendingHydration[row.key] || state.pendingDateLookup[row.key]
@@ -4650,7 +4672,7 @@
     if (verify) line.appendChild(verify);
     item.appendChild(line);
 
-    if (state.expandedRowKeys[row.key]) {
+    if (expanded) {
       const detail = document.createElement("div");
       detail.className = "portalInlineDetails";
       appendPortalInlineDetails(detail, row);
@@ -4658,6 +4680,48 @@
     }
 
     list.appendChild(item);
+  }
+
+  function appendPortalDraftDetails(container, row) {
+    const draft = row.draftRecord;
+    const title = document.createElement("h4");
+    title.textContent = row.summary.title;
+    container.appendChild(title);
+    appendPortalEvmMediaCards(container, row);
+
+    const note = document.createElement("p");
+    note.className = "help";
+    note.textContent = "OP_RETURN and the configured outputs are sent to the ledger. Linked pictures and metadata are displayed from their sources; they are not embedded in OP_RETURN. TXID, inputs and change become available when the transaction is built.";
+    container.appendChild(note);
+
+    const text = document.createElement("pre");
+    text.className = "json draftRecordText";
+    text.textContent = draft.ledger.opReturnText || (draft.ledger.opReturnHex ? "Binary OP_RETURN — see HEX below." : "No OP_RETURN");
+    container.appendChild(text);
+
+    const facts = document.createElement("p");
+    facts.className = "help";
+    facts.textContent = draft.ledger.bytes + " OP_RETURN bytes · Requested fee: " + (draft.ledger.requestedFee || "0") + " " + coinLabelForRow(row);
+    container.appendChild(facts);
+    if (draft.metadata && Object.keys(draft.metadata).length) {
+      const metadata = document.createElement("p");
+      metadata.className = "help";
+      metadata.textContent = [draft.metadata.authorName, draft.metadata.provider,
+        draft.metadata.metadataSource ? "Metadata source: " + draft.metadata.metadataSource : "",
+        draft.metadata.fetchedAt ? "Fetched: " + draft.metadata.fetchedAt : ""].filter(Boolean).join(" · ");
+      container.appendChild(metadata);
+    }
+    container.appendChild(makeInlinePre("Ledger payload, outputs and requested fee", pretty(draft.ledger), true));
+    container.appendChild(makeInlinePre("Complete preview record", pretty(draft), false));
+  }
+
+  function renderDraftRecord(container, draft, options) {
+    // An isolated presentation: no insertion, hydration, cache writes, or fake
+    // transaction identity in the live Portal stream.
+    container.replaceChildren();
+    const row = {key: "draft-record", txid: "", coin: draft.portal.coin,
+      summary: draft.portal.summary, draftRecord: draft};
+    renderPortalStreamItem(container, row, options || {expanded: true});
   }
 
   function visibleDateLookupContextToken() {
@@ -6638,6 +6702,7 @@ function getPortalFirstCharacter() {
     buildEvmMediaCardsFromValues: buildEvmMediaCardsFromValues,
     collectEvmMediaCards: collectEvmMediaCards,
     appendPortalInlineDetails: appendPortalInlineDetails,
+    renderDraftRecord: renderDraftRecord,
     renderSemantics: renderSemantics,
     loadPortalAnnotations: loadPortalAnnotations,
     getPortalAnnotation: getPortalAnnotation,

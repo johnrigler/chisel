@@ -45,6 +45,7 @@ jobs:
           node --check chisel.portal.static-data.js
           node --check chisel.thunderwords.js
           node --check chisel.portal.js
+          node --check chisel.record-preview.js
           node --check tools/recast/core.js
           node --check tools/recast/timing.js
           node --check tools/recast/storage.js
