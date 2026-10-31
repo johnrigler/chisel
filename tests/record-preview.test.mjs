@@ -114,7 +114,7 @@ test("the actual Portal renderer shows one image and full metadata, expands inde
   assert.deepEqual(Object.keys(portal.state.expandedRowKeys), []);
 });
 
-test("a sent record leads the stream, renders pending/seen states on the same row, and survives a stream refresh", () => {
+test("a sent record changes ledger color without changing visible content or layout, and survives refresh", () => {
   const draft = P.buildDraft(values, record);
   const raw = {txid: "a".repeat(64), vin: [], vout: [{value: 0,
     scriptPubKey: {hex: "6a" + (draft.ledger.bytes).toString(16).padStart(2, "0") + draft.ledger.opReturnHex, type: "op_return"}}]};
@@ -133,22 +133,102 @@ test("a sent record leads the stream, renders pending/seen states on the same ro
   const container = new Element("div");
   portal.renderStreamItem(container, row, {expanded: true, onToggle() {}});
   assert.match(container.firstChild.className, /isAwaitingLedger/);
-  assert.match(container.textContent, /Awaiting ledger read/);
+  assert.equal(container.firstChild.attributes["aria-label"], "Transaction awaiting ledger read");
+  assert.doesNotMatch(container.textContent, /Awaiting ledger read|Seen by ledger|Broadcast accepted|CHECK LEDGER NOW/);
   assert.match(container.textContent, /Synthetic channel/);
   assert.ok(descendants(container).some(node => node.tagName === "img" && node.src === picture));
+  const pendingText = container.textContent;
+  const shape = node => [node.tagName, node.className.replace(/isAwaitingLedger|isLedgerSeen/g, ""), node.children.map(shape)];
+  const pendingShape = shape(container);
+  const pendingTime = descendants(container).find(node => node.className === "portalStreamTime").textContent;
+  assert.match(pendingTime, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   publication.ledgerState = "seen";
   const observed = portal.presentPublication(publication, {reveal: false});
   assert.equal(observed, row); assert.equal(portal.state.portalRows.length, 2);
   container.replaceChildren(); portal.renderStreamItem(container, row, {expanded: true, onToggle() {}});
   assert.match(container.firstChild.className, /isLedgerSeen/);
   assert.doesNotMatch(container.firstChild.className, /isAwaitingLedger/);
-  assert.match(container.textContent, /Seen by ledger/);
-  assert.match(container.textContent, /not a block-confirmation claim/);
+  assert.equal(container.firstChild.attributes["aria-label"], "Transaction observed by ledger");
+  assert.equal(container.textContent, pendingText);
+  assert.deepEqual(shape(container), pendingShape);
   portal.clearPortalStream("refresh");
   assert.equal(portal.state.portalRows.length, 2);
   assert.equal(portal.state.portalRowKeys[row.key].publication, publication);
   assert.equal(portal.state.portalRowKeys[row.key].txid, raw.txid);
   nodes.delete("#portalEvmWordSearch");
+});
+
+test("a fetched ledger result replaces the submitted data in the same row and later receipt updates retain it", async () => {
+  const txid = "d".repeat(64);
+  const draft = P.buildDraft(values, record);
+  const publication = {coin: "litecoin", txid, raw: {txid, vin: [], vout: []},
+    index: {coin: "litecoin", name: "local-receipt", ticker: "LTC", canFetchTx: false},
+    summary: draft.portal.summary, metadata: record.metadata, submittedAt: 1793450000000, ledgerState: "awaiting-ledger", error: ""};
+  const row = portal.presentPublication(publication, {reveal: false});
+  const ledgerRaw = {txid, status: {block_time: 1793451000, block_height: 3200000}, fee: 1000,
+    vin: [{prevout: {scriptpubkey_address: "LTEST", value: 50000}}],
+    vout: [{scriptpubkey_address: "LTEST", value: 49000}, {value: 0, scriptpubkey: "6a00"}]};
+  const entry = {coin: "litecoin", name: "litecoinGeneral", ticker: "LTC", label: "live Litecoin", canFetchAddress: true, canFetchTx: true};
+  context.CHISEL_THUNDERWORDS = {listIndexes: () => [entry], getTxUrl: () => "https://explorer.example/tx/" + txid,
+    async fetchAddressTransactions(index) { return {index, transactions: [{txid, raw: ledgerRaw}]}; }};
+  portal.state.personalAccount = null;
+  try {
+    const size = portal.state.portalRows.length;
+    await portal.loadAddressIndex(entry, "LTEST");
+    portal.state.personalAccount = {coin: "litecoin", address: "LTEST"};
+    assert.equal(portal.state.portalRows.length, size);
+    assert.equal(portal.state.portalRowKeys[row.key], row);
+    assert.equal(row.raw, ledgerRaw);
+    assert.equal(row.summary.blockTime, 1793451000);
+    assert.equal(row.summary.blockHeight, 3200000);
+    assert.equal(row.index.name, "litecoinGeneral");
+    assert.equal(row.publication.ledgerState, "awaiting-ledger", "discovery does not bypass the independent byte check");
+    publication.ledgerState = "seen";
+    assert.equal(portal.presentPublication(publication, {reveal: false}), row);
+    assert.equal(row.raw, ledgerRaw, "seen notification must not restore the local raw copy");
+    assert.equal(row.summary.blockTime, 1793451000);
+    assert.equal(row.index.name, "litecoinGeneral");
+    assert.equal(row.discoverySource, "live-search");
+    assert.equal(row.summary.title, record.summary.title);
+    const container = new Element("div");
+    portal.renderStreamItem(container, row, {expanded: false});
+    assert.match(container.firstChild.className, /isLedgerSeen/);
+    assert.match(container.textContent, /-0\.00001000 LTC/);
+    assert.match(container.textContent, /fee 1,000 sat/);
+    assert.doesNotMatch(container.textContent, /outputs |Seen by ledger|sent /);
+    assert.ok(descendants(container).some(node => node.tagName === "img" && node.src === picture));
+    portal.clearPortalStream("refresh");
+    assert.equal(portal.state.portalRowKeys[row.key].raw, ledgerRaw);
+  } finally {
+    delete context.CHISEL_THUNDERWORDS;
+    portal.state.personalAccount = null;
+  }
+});
+
+test("cached and submitted UTXO copies share chain/TXID identity while mainnet and testnet stay distinct", () => {
+  const txid = "e".repeat(64);
+  const raw = {txid, vin: [], vout: [], blocktime: 1793451000};
+  context.CHISEL_PORTAL_STARTER_DATA = {transactions: [{coin: "litecoin", txid: txid.toUpperCase(),
+    sourceId: "saved-address-index", raw, summary: {title: "Saved transaction", blockTime: raw.blocktime}}]};
+  portal.state.staticDatasetLoaded = false;
+  try {
+    portal.loadEmbeddedStaticDataset();
+    const cached = portal.state.portalRowKeys["litecoin:" + txid];
+    assert.ok(cached);
+    const publication = {coin: "litecoin", txid, raw: {txid, vin: [], vout: []},
+      summary: {title: "Reviewed title"}, index: {coin: "litecoin"}, metadata: {},
+      submittedAt: 1793450000000, ledgerState: "awaiting-ledger", error: ""};
+    const size = portal.state.portalRows.length;
+    assert.equal(portal.presentPublication(publication, {reveal: false}), cached);
+    assert.equal(portal.state.portalRows.length, size);
+    assert.equal(cached.raw, raw, "a restored receipt retains an already loaded transaction");
+    assert.equal(cached.publication.ledgerState, "awaiting-ledger", "a cache cannot mark the receipt observed");
+    const testnet = portal.presentPublication({...publication, coin: "litecoinTestnet", index: {coin: "litecoinTestnet"}}, {reveal: false});
+    assert.notEqual(testnet.key, cached.key);
+    assert.equal(portal.state.portalRows.length, size + 1);
+  } finally {
+    delete context.CHISEL_PORTAL_STARTER_DATA;
+  }
 });
 
 test("closed Netflix rows show saved title, description and a small picture; expanded records put that picture first", () => {

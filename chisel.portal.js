@@ -2916,7 +2916,11 @@
   }
 
   function rowKey(row) {
-    return sourceIdForRow(row) + ":" + String(row && row.txid || "").toLowerCase();
+    const coin = canonicalCoinForRow(row);
+    // UTXO identity belongs to the chain and TXID, regardless of which
+    // index, cache or live provider discovered it. Keep EVM source views.
+    const chain = tickerForCoin(coin) && coin !== "evm" ? coin : sourceIdForRow(row);
+    return chain + ":" + String(row && row.txid || "").toLowerCase();
   }
 
   function rowTime(row) {
@@ -2929,9 +2933,6 @@
 
   function formatRowTime(row) {
     if (row.draftRecord) return "draft";
-    if (row.publication && !extractBlockTime(row.raw)) {
-      return "sent " + new Date(row.publication.submittedAt).toISOString().slice(11, 16);
-    }
     const t = rowTime(row);
     if (!t) return "unknown";
     const d = new Date(t * 1000);
@@ -3420,15 +3421,16 @@
     if (!row || !TXID_RE.test(String(row.txid || ""))) return null;
     const key = rowKey(row);
     const existing = state.portalRowKeys[key];
+    const publicationUpdate = !!(opts && opts.publicationUpdate);
     const previousRowTime = existing ? extractBlockTime(existing) : 0;
     const incomingRowTime = extractBlockTime(row);
     const merged = existing ? Object.assign(existing, row, {
-      summary: mergePortalSummary(existing.summary, row.summary),
+      summary: publicationUpdate ? mergePortalSummary(row.summary, existing.summary) : mergePortalSummary(existing.summary, row.summary),
       blockTime: incomingRowTime || previousRowTime || 0,
       confirmed: typeof row.confirmed === "boolean" ? row.confirmed : existing.confirmed,
       receivedTime: row.receivedTime || existing.receivedTime,
-      raw: row.raw || existing.raw,
-      index: row.index || existing.index,
+      raw: publicationUpdate ? existing.raw || row.raw : row.raw || existing.raw,
+      index: publicationUpdate ? existing.index || row.index : row.index || existing.index,
       coin: canonicalCoinForRow(row) || row.coin || existing.coin,
       localPath: row.localPath || existing.localPath,
       staticRawPath: row.staticRawPath || existing.staticRawPath,
@@ -3437,17 +3439,12 @@
       staticRemoteBaseUrls: row.staticRemoteBaseUrls || existing.staticRemoteBaseUrls,
       staticSource: row.staticSource || existing.staticSource,
       sourceId: row.sourceId || existing.sourceId,
-      discoverySource: row.discoverySource || existing.discoverySource
+      discoverySource: publicationUpdate ? existing.discoverySource || row.discoverySource : row.discoverySource || existing.discoverySource
     }) : Object.assign({}, row, { key: key });
 
     // Locally reviewed media is display data. Retain it as normal discovery
     // replaces this same chain/TXID row, without letting a cache mark it seen.
     if (merged.publication) {
-      // A later ledger response supplies block time, confirmations and inputs.
-      // Keep the independently checked publication state and reviewed display
-      // fields without replacing those fresh ledger fields with sent bytes.
-      merged.raw = row.raw || merged.raw || merged.publication.raw;
-      merged.summary = mergePortalSummary(merged.summary, merged.publication.summary);
       ["title", "primaryUrl", "opReturnUrls", "mediaCards"].forEach(function (field) {
         if (merged.publication.summary[field]) merged.summary[field] = merged.publication.summary[field];
       });
@@ -4278,7 +4275,9 @@
 
     const mediaHero = appendPortalEvmMediaCards(container, row);
     if (mediaHero) mediaHero.classList.add("portalMediaHero");
-    if (row.publication) appendPublicationStatus(container, row);
+    if (row.publication && row.publication.metadata && Object.keys(row.publication.metadata).length) {
+      container.appendChild(makeInlinePre("Linked media metadata (off-chain)", pretty(row.publication.metadata), false));
+    }
 
     const summary = row.summary || makeBasicSummary(row.txid, row.raw || row, row.index);
     const header = document.createElement("div");
@@ -4631,7 +4630,11 @@
       (isPersonal ? " isPersonal" : "") +
       (recordBehavior ? " hasInterpretedRecord behavior-" + recordBehavior.behavior.id : "");
     item.dataset.key = row.key;
-    if (row.publication) item.dataset.ledgerState = row.publication.ledgerState;
+    if (row.publication) {
+      item.dataset.ledgerState = row.publication.ledgerState;
+      item.setAttribute("aria-label", row.publication.ledgerState === "seen"
+        ? "Transaction observed by ledger" : "Transaction awaiting ledger read");
+    }
     if (isPersonal) {
       item.dataset.personalAddress = state.personalAccount.address;
       item.title = "This transaction touches your loaded public account.";
@@ -4697,12 +4700,6 @@
       titleWrap.textContent = compactGeneric ? "" : titleText;
     }
     if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
-    if (row.publication) {
-      const status = document.createElement("span");
-      status.className = "portalLedgerState";
-      status.textContent = row.publication.ledgerState === "seen" ? "Seen by ledger" : "Awaiting ledger read";
-      titleWrap.appendChild(status);
-    }
 
     let verify = null;
     const url = rowExplorerUrl(row);
@@ -4814,42 +4811,10 @@
     renderPortalStreamItem(container, row, options || {expanded: true});
   }
 
-  function appendPublicationStatus(container, row) {
-    const publication = row.publication;
-    const panel = document.createElement("div");
-    panel.className = "portalPublicationStatus";
-    panel.setAttribute("role", "status");
-    const text = document.createElement("p");
-    text.textContent = publication.ledgerState === "seen"
-      ? "Seen by ledger: a live node/provider returned the exact sent transaction bytes and matching TXID. This is not a block-confirmation claim."
-      : "Broadcast accepted. This local copy is awaiting a matching transaction read from a live ledger node/provider.";
-    panel.appendChild(text);
-    if (publication.error) {
-      const error = document.createElement("p");
-      error.textContent = "Ledger read pending: " + publication.error;
-      panel.appendChild(error);
-    }
-    if (publication.ledgerState !== "seen") {
-      const retry = document.createElement("button");
-      retry.type = "button";
-      retry.className = "secondaryButton";
-      retry.textContent = "CHECK LEDGER NOW";
-      retry.onclick = function () {
-        if (window.CHISEL_PUBLICATION) window.CHISEL_PUBLICATION.check(publication.coin + ":" + publication.txid);
-      };
-      panel.appendChild(retry);
-    }
-    if (publication.metadata && Object.keys(publication.metadata).length) {
-      panel.appendChild(makeInlinePre("Linked media metadata (off-chain)", pretty(publication.metadata), false));
-    }
-    container.appendChild(panel);
-  }
-
   function presentPublication(publication, options) {
-    const existing = state.portalRowKeys[rowKey({coin: publication.coin, txid: publication.txid})];
     const row = upsertPortalRow({coin: publication.coin, txid: publication.txid,
-      index: existing && existing.index || publication.index, raw: existing && existing.raw || publication.raw, summary: Object.assign({}, publication.summary),
-      publication: publication, discoverySource: "local-broadcast"}, {silent: true});
+      index: publication.index, raw: publication.raw, summary: Object.assign({}, publication.summary),
+      publication: publication, discoverySource: "local-broadcast"}, {silent: true, publicationUpdate: true});
     if (!row) return null;
     if (options && options.reveal) {
       const search = $("#portalEvmWordSearch");

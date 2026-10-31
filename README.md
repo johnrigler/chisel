@@ -56,13 +56,15 @@ watch or title page as image bytes.
 
 After an accepted broadcast, Chisel switches to Portal and adds the locally
 decoded transaction at the top immediately, retaining the reviewed media.
-**Awaiting ledger read** uses navy text. Background reads query the selected
+Until the ledger observes it, the record uses navy text. Background reads query the selected
 chain's live node/provider directly; its exact raw bytes and computed TXID
-must match the sent transaction before **Seen by ledger** turns the row black.
+must match the sent transaction before the same row turns black.
 Broadcast replies, local/FileProxy caches and decoded JSON do not establish
 this status. A mempool read establishes visibility, not block confirmation.
-Failed reads retain navy text and retry; the expanded row has **CHECK LEDGER
-NOW**. Normal discovery merges the same chain/TXID rather than adding a duplicate.
+Failed reads retain navy text and retry. Submitted and observed records use
+the same layout, without awaiting/seen labels or status panels. Discovery
+merges by chain/TXID, retaining fetched amounts and timestamps alongside the
+reviewed media when a later receipt check updates the row.
 
 Portal 2.8.15 restores the public account's cached history immediately, then
 queries its live address history. Pending sends lead the feed, followed by
@@ -79,7 +81,7 @@ Refreshes merge rows without resetting the open record or page. Public account
 summaries use localStorage rather than cookies; a browser quota error preserves
 the previous snapshot. Full transaction JSON and address-stream manifests use
 the configured FileProxy's existing cache paths when it is available. Neither
-cache establishes the independent **Seen by ledger** receipt status.
+cache establishes independent ledger observation for a submitted receipt.
 
 Pagination follows the providers' documented cursors:
 [BlockCypher full address](https://github.com/blockcypher/docs/blob/master/source/includes/_address.md)

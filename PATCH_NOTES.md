@@ -1,3 +1,9 @@
+# 2.8.16 — one record from submission through ledger discovery
+
+- Submitted and fetched copies merge by chain/TXID into one expandable record. Later receipt updates retain the fetched transaction, timestamp, amount and index instead of replacing them with the submitted copy.
+- Pending and observed records use the same layout and date format. Navy text turns black after the independent live ledger check succeeds; separate awaiting/seen labels and status panels are removed. Automatic retries and accessible status text remain.
+- Reviewed media and complete linked metadata stay attached to the merged record. Cached discovery alone cannot complete the ledger check.
+
 # 2.8.14 — visible media in closed and expanded records
 
 - Closed Portal rows show the media title, author/provider, description and small picture using the same metadata and artwork selection as the expanded card. Saved page metadata and older Netflix annotations both work.
