@@ -64,6 +64,27 @@ this status. A mempool read establishes visibility, not block confirmation.
 Failed reads retain navy text and retry; the expanded row has **CHECK LEDGER
 NOW**. Normal discovery merges the same chain/TXID rather than adding a duplicate.
 
+Portal 2.8.15 restores the public account's cached history immediately, then
+queries its live address history. Pending sends lead the feed, followed by
+transactions in newest-first order. Confirmation timestamps from BlockCypher
+and Esplora are read directly. Address-history pagination continues past the
+first 50/25 transactions; the UI's page size is not a history limit. Recent
+pages remain visible if an older request fails, and later refreshes retry it.
+After a complete pass, refreshes can stop at a known confirmed transaction.
+
+While Portal is visible, live history refreshes every two minutes. Returning
+to Portal or focusing it refreshes when the last check is over a minute old.
+These intervals use the existing `liveLedgerRefresh*` configuration fields.
+Refreshes merge rows without resetting the open record or page. Public account
+summaries use localStorage rather than cookies; a browser quota error preserves
+the previous snapshot. Full transaction JSON and address-stream manifests use
+the configured FileProxy's existing cache paths when it is available. Neither
+cache establishes the independent **Seen by ledger** receipt status.
+
+Pagination follows the providers' documented cursors:
+[BlockCypher full address](https://github.com/blockcypher/docs/blob/master/source/includes/_address.md)
+and [Esplora address history](https://github.com/Blockstream/esplora/blob/master/API.md#addresses).
+
 The last 20 local public receipts are kept in this tab's session storage,
 bounded to one million JSON characters. This contains signed transaction
 bytes and display metadata, with no WIF, account object, signing context or

@@ -28,6 +28,10 @@
     autoLoadLocalTransactions: false,
     autoHydrateLocalTransactions: false,
     pollLocalTransactionsMs: 0,
+    liveLedgerRefresh: true,
+    liveLedgerRefreshMs: 120000,
+    liveLedgerRefreshOnFocus: true,
+    liveLedgerRefreshFocusStaleMs: 60000,
     autoSelectNewest: false,
     autoLoadConversationStreams: true,
     autoLoadStaticDataset: false,
@@ -136,6 +140,8 @@
     conversationAutoLoaded: false,
     config: Object.assign({}, DEFAULT_PORTAL_CONFIG),
     localPollTimer: null,
+    liveLedgerTimer: null,
+    liveLedgerHistories: Object.create(null),
     mainThunderword: null,
     mainThunderwordReindexTimer: null,
     mainThunderwordReindexPending: false,
@@ -643,7 +649,7 @@
       summary.blockTime, summary.timeStamp, summary.timestamp,
       status.block_time, status.blockTime, status.time, status.timestamp,
       tx && tx.block_time, tx && tx.blockTime, tx && tx.blocktime, tx && tx.time, tx && tx.timestamp, tx && tx.received_time,
-      tx && tx.timeStamp
+      tx && tx.timeStamp, tx && typeof tx.confirmed === "string" ? tx.confirmed : undefined
     ]));
   }
 
@@ -2918,7 +2924,7 @@
     const exact = Number(summary.blockTime || row.blockTime || extractBlockTime(row.raw) || 0) || 0;
     if (exact) return exact;
     const estimated = estimateUtxoBlockTime(canonicalCoinForRow(row), summary.blockHeight || extractBlockHeight(row.raw));
-    return Number(estimated || row.modified || (row.publication && row.publication.submittedAt / 1000) || 0) || 0;
+    return Number(row.receivedTime || estimated || row.modified || (row.publication && row.publication.submittedAt / 1000) || 0) || 0;
   }
 
   function formatRowTime(row) {
@@ -3189,6 +3195,8 @@
       const bp = b.publication && b.publication.ledgerState !== "seen" ? 1 : 0;
       if (ap !== bp) return bp - ap;
       if (ap && bp && a.publication.submittedAt !== b.publication.submittedAt) return b.publication.submittedAt - a.publication.submittedAt;
+      const am = a.confirmed === false ? 1 : 0, bm = b.confirmed === false ? 1 : 0;
+      if (am !== bm) return bm - am;
       const at = rowTime(a);
       const bt = rowTime(b);
       if (at !== bt) return bt - at;
@@ -3292,6 +3300,7 @@
   function resetPortalRowsForNewLoad() {
     const publications = state.portalRows.filter(function (row) { return !!row.publication; });
     state.portalLoadGeneration += 1;
+    state.liveLedgerHistories = Object.create(null);
     state.portalRows = [];
     state.portalRowKeys = Object.create(null);
     state.expandedRowKeys = Object.create(null);
@@ -3416,6 +3425,8 @@
     const merged = existing ? Object.assign(existing, row, {
       summary: mergePortalSummary(existing.summary, row.summary),
       blockTime: incomingRowTime || previousRowTime || 0,
+      confirmed: typeof row.confirmed === "boolean" ? row.confirmed : existing.confirmed,
+      receivedTime: row.receivedTime || existing.receivedTime,
       raw: row.raw || existing.raw,
       index: row.index || existing.index,
       coin: canonicalCoinForRow(row) || row.coin || existing.coin,
@@ -3432,7 +3443,10 @@
     // Locally reviewed media is display data. Retain it as normal discovery
     // replaces this same chain/TXID row, without letting a cache mark it seen.
     if (merged.publication) {
-      merged.raw = merged.publication.raw;
+      // A later ledger response supplies block time, confirmations and inputs.
+      // Keep the independently checked publication state and reviewed display
+      // fields without replacing those fresh ledger fields with sent bytes.
+      merged.raw = row.raw || merged.raw || merged.publication.raw;
       merged.summary = mergePortalSummary(merged.summary, merged.publication.summary);
       ["title", "primaryUrl", "opReturnUrls", "mediaCards"].forEach(function (field) {
         if (merged.publication.summary[field]) merged.summary[field] = merged.publication.summary[field];
@@ -4832,8 +4846,9 @@
   }
 
   function presentPublication(publication, options) {
+    const existing = state.portalRowKeys[rowKey({coin: publication.coin, txid: publication.txid})];
     const row = upsertPortalRow({coin: publication.coin, txid: publication.txid,
-      index: publication.index, raw: publication.raw, summary: Object.assign({}, publication.summary),
+      index: existing && existing.index || publication.index, raw: existing && existing.raw || publication.raw, summary: Object.assign({}, publication.summary),
       publication: publication, discoverySource: "local-broadcast"}, {silent: true});
     if (!row) return null;
     if (options && options.reveal) {
@@ -4845,6 +4860,7 @@
       state.selectedRowKey = row.key;
       state.selectedTxid = row.txid;
       window.setTimeout(function () {
+        refreshLiveLedger({force: true}).catch(function () {});
         const list = $("#portalTransactionList");
         if (list) { list.scrollTop = 0; list.scrollIntoView({block: "start"}); }
       }, 0);
@@ -5359,6 +5375,39 @@
     }, ms);
   }
 
+  function liveLedgerTarget() {
+    const account = normalizePersonalAccount(state.personalAccount);
+    const entry = account ? indexEntryForCoin(account.coin, state.currentIndex) : state.currentIndex;
+    const address = account ? account.address : (state.mainThunderword && state.mainThunderword.address || entry && entry.address);
+    if (!entry || !address || !indexCanFetch(entry)) return null;
+    return cloneIndexForAddress(entry, address, account ? account.label : entry.label);
+  }
+
+  async function refreshLiveLedger(opts) {
+    const options = opts || {};
+    if (!configBool("liveLedgerRefresh", true) || document.hidden) return null;
+    if (document.body && document.body.dataset.mode && document.body.dataset.mode !== "portal") return null;
+    const entry = liveLedgerTarget();
+    if (!entry) return null;
+    const history = state.liveLedgerHistories[mainThunderwordKey(entry, entry.address)];
+    const staleMs = Math.max(1000, Number(configValue("liveLedgerRefreshFocusStaleMs", 60000)) || 60000);
+    if (history && (history.promise || !options.force && Date.now() - history.checkedAt < staleMs)) return null;
+    try {
+      return await loadAddressIndex(entry, entry.address, {background: true});
+    } catch (error) {
+      setStatus("Ledger refresh will retry; cached transactions remain available. " + (error.message || String(error)), true);
+      return null;
+    }
+  }
+
+  function startLiveLedgerPolling() {
+    if (state.liveLedgerTimer) window.clearInterval(state.liveLedgerTimer);
+    state.liveLedgerTimer = null;
+    if (!configBool("liveLedgerRefresh", true)) return;
+    const ms = Math.max(15000, Number(configValue("liveLedgerRefreshMs", 120000)) || 120000);
+    state.liveLedgerTimer = window.setInterval(function () { refreshLiveLedger({force: true}); }, ms);
+  }
+
   async function discoverLocalAssets(txid, semantics) {
     const box = $("#portalLocalAssets");
     if (!box) return;
@@ -5524,9 +5573,11 @@
     }
   }
 
-  function renderThunderwordTxs(result) {
-    state.currentIndex = result.index;
-    state.currentTransactions = result.transactions || [];
+  function renderThunderwordTxs(result, opts) {
+    if (!(opts && opts.preserveContext)) {
+      state.currentIndex = result.index;
+      state.currentTransactions = result.transactions || [];
+    }
 
     if (!result || !result.transactions || !result.transactions.length) {
       renderEmptyTransactionList("◷ No ledger rows here yet. Loading other ThunderWords…");
@@ -5546,6 +5597,8 @@
           raw: rawTx,
           summary: summary,
           blockTime: tx.blockTime,
+          confirmed: tx.confirmed,
+          receivedTime: tx.receivedTime,
           streamLabel: result.index.label || result.index.address,
           discoverySource: "live-search"
         }, { silent: true });
@@ -5558,6 +5611,7 @@
 
   async function loadAddressIndex(entryOverride, addressOverride, opts) {
     const api = getThunderwords();
+    const options = opts || {};
     const entry = entryOverride || getSelectedIndex();
     const address = normalizeAddressForEntry(
       addressOverride || ($("#portalThunderwordAddress") ? $("#portalThunderwordAddress").value.trim() : entry.address) || "",
@@ -5565,23 +5619,61 @@
     );
     if ($("#portalThunderwordAddress")) $("#portalThunderwordAddress").value = address;
     const activeEntry = cloneIndexForAddress(entry, address, entry.label || entry.address || address);
-    const mainThunderword = (opts && opts.mainThunderword) || mainThunderwordForEntry(activeEntry);
+    const mainThunderword = options.mainThunderword || mainThunderwordForEntry(activeEntry);
+    const historyKey = mainThunderwordKey(activeEntry, address);
+    const history = state.liveLedgerHistories[historyKey] || (state.liveLedgerHistories[historyKey] = {txids: new Set(), complete: false, checkedAt: 0});
+    if (history.promise) return history.promise;
     const reset = false;
     const generation = reset ? resetPortalRowsForNewLoad() : state.portalLoadGeneration;
-    state.currentIndex = activeEntry;
-    setStatus("Searching " + (activeEntry.ticker || activeEntry.coin || activeEntry.name) + " ledger/address stream; matching rows will be merged into the existing Portal feed...", false);
-    portalBusyStart("Refreshing " + (activeEntry.ticker || activeEntry.coin || "ledger") + " transactions…");
+    if (!options.background) state.currentIndex = activeEntry;
+    const account = normalizePersonalAccount(state.personalAccount);
+    const personal = account && account.coin === normalizeCoinName(activeEntry.coin) && account.address === canonicalMainThunderwordAddress(address) ? account : null;
+    if (!options.background) {
+      setStatus("Refreshing " + (activeEntry.ticker || activeEntry.coin || "ledger") + " address history…", false);
+      portalBusyStart("Refreshing " + (activeEntry.ticker || activeEntry.coin || "ledger") + " transactions…");
+    }
+    // Merge and cache each page immediately. An unavailable older page must
+    // never hide the newest transactions that were successfully read.
+    history.promise = Promise.resolve().then(function () {
+      return api.fetchAddressTransactions(activeEntry, address, {
+        stopAtTxids: history.complete ? Array.from(history.txids) : [],
+        resumeUrl: history.resumeUrl || "",
+        resumeAtTxids: history.resumeUrl ? Array.from(history.txids) : [],
+        onPage: function (page) {
+          if (generation !== state.portalLoadGeneration) return;
+          renderThunderwordTxs(page, {preserveContext: true});
+          if (personal) cachePersonalTxs(personal, page);
+          if (mainThunderword) rememberMainThunderwordTransactions(mainThunderword, page.transactions);
+        }
+      });
+    });
     let result;
     try {
-      result = await api.fetchAddressTransactions(activeEntry, address);
+      result = await history.promise;
+      history.checkedAt = Date.now();
+      history.error = result.error || "";
+      history.resumeUrl = result.resumeUrl || "";
+      if (result.complete === true) history.complete = true;
+      result.transactions.forEach(function (tx) {
+        if (tx.confirmed === true || Number(tx.blockHeight) > 0) history.txids.add(tx.txid);
+      });
+    } catch (error) {
+      history.checkedAt = Date.now();
+      history.error = error.message || String(error);
+      throw error;
     } finally {
-      portalBusyEnd();
+      history.promise = null;
+      if (!options.background) portalBusyEnd();
     }
-    renderThunderwordTxs(result);
-    if (state.personalAccount && state.personalAccount.address === address) cachePersonalTxs(state.personalAccount, result);
+    if (generation !== state.portalLoadGeneration) return result;
+    renderThunderwordTxs(result, {preserveContext: options.background || state.currentIndex !== activeEntry});
+    if (personal) cachePersonalTxs(personal, result);
     if (mainThunderword) rememberMainThunderwordTransactions(mainThunderword, result.transactions);
     setText("#portalThunderwordRaw", pretty({ source: result.url, transactions: result.transactions }));
-    setStatus("Ledger search discovered " + result.transactions.length + " txid(s). New rows were merged; existing preloaded rows stayed in place.", false);
+    setStatus(result.error ? "Recent ledger transactions loaded; older history will retry: " + result.error :
+      "Ledger history updated. " + result.transactions.length + " transaction(s) checked.", !!result.error);
+    if (personal) setText("#portalPersonalAccountMeta", "Ledger checked " + new Date(history.checkedAt).toLocaleTimeString() +
+      (result.error ? "; older history will retry." : ". Transactions are remembered in this browser."));
 
     const rows = result.transactions.map(function (tx) {
       return state.portalRowKeys[rowKey({ index: activeEntry, coin: activeEntry.coin || activeEntry.ticker || activeEntry.name, txid: tx.txid })];
@@ -6290,7 +6382,6 @@ function getPortalFirstCharacter() {
     return { account:clean, entry:entry };
   }
 
-  const PERSONAL_CACHE_LIMIT = 1000;
   let personalCacheSaveTimer = null;
 
   function personalCacheKey(account) {
@@ -6309,12 +6400,17 @@ function getPortalFirstCharacter() {
     if (!rows.length) return;
     beginPortalBatch();
     try {
-      rows.slice(0, PERSONAL_CACHE_LIMIT).forEach(function (tx) {
+      rows.forEach(function (tx) {
         if (!tx || !TXID_RE.test(String(tx.txid || ""))) return;
+        const index = cloneIndexForAddress(entry, account.address, account.label);
+        if (state.portalRowKeys[rowKey({coin: account.coin, index: index, txid: tx.txid})]) return;
         upsertPortalRow({
-          index:entry, coin:account.coin, txid:tx.txid,
+          index:index, coin:account.coin, txid:tx.txid,
           summary:tx.summary || makeBasicSummary(tx.txid, tx, entry),
           blockTime:Number(tx.blockTime) || 0,
+          confirmed:tx.confirmed,
+          receivedTime:Number(tx.receivedTime) || 0,
+          cachedSummaryReady:true,
           streamLabel:account.label + " " + account.address,
           discoverySource:"personal-cache"
         }, { silent:true });
@@ -6337,7 +6433,9 @@ function getPortalFirstCharacter() {
       byId.set(tx.txid, {
         txid:tx.txid,
         blockTime:Number(tx.blockTime) || old.blockTime || 0,
-        summary:mergePortalSummary(old.summary, raw ? extractSummary(raw,entry) : makeBasicSummary(tx.txid,tx,entry))
+        confirmed:typeof tx.confirmed === "boolean" ? tx.confirmed : old.confirmed,
+        receivedTime:Number(tx.receivedTime) || old.receivedTime || 0,
+        summary:mergePortalSummary(old.summary, tx.summary || (raw ? extractSummary(raw,entry) : makeBasicSummary(tx.txid,tx,entry)))
       });
     });
     writePersonalCache(account,Array.from(byId.values()));
@@ -6346,7 +6444,10 @@ function getPortalFirstCharacter() {
   function writePersonalCache(account, rows) {
     const sorted = rows.filter(function (tx) {
       return tx && TXID_RE.test(String(tx.txid || ""));
-    }).sort(function (a,b) { return (Number(b.blockTime)||0)-(Number(a.blockTime)||0); }).slice(0,PERSONAL_CACHE_LIMIT);
+    }).sort(function (a,b) {
+      return (b.confirmed === false ? 1 : 0) - (a.confirmed === false ? 1 : 0) ||
+        (Number(b.blockTime || b.receivedTime)||0)-(Number(a.blockTime || a.receivedTime)||0);
+    });
     // Storage quotas differ across browsers. Keep older cached data intact
     // if this snapshot cannot be saved.
     try { window.localStorage.setItem(personalCacheKey(account),JSON.stringify(sorted)); }
@@ -6371,6 +6472,8 @@ function getPortalFirstCharacter() {
         const old = byId.get(row.txid) || {};
         byId.set(row.txid,{
           txid:row.txid,blockTime:Number(row.blockTime)||old.blockTime||0,
+          confirmed:row.confirmed,
+          receivedTime:Number(row.receivedTime)||old.receivedTime||0,
           summary:mergePortalSummary(old.summary,row.summary)
         });
       });
@@ -6738,8 +6841,18 @@ function getPortalFirstCharacter() {
       window.setTimeout(function () {
         const account = state.personalAccount || loadPersonalAccount();
         if (account) populatePersonalAccountFields(account);
+        refreshLiveLedger();
         maybeAutoLoadConversationStreams();
       },0);
+    });
+    window.addEventListener("focus", function () {
+      if (configBool("liveLedgerRefreshOnFocus", true)) refreshLiveLedger();
+    });
+    window.addEventListener("chisel:mode", function (event) {
+      if (event.detail && event.detail.mode === "portal") refreshLiveLedger();
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden && configBool("liveLedgerRefreshOnFocus", true)) refreshLiveLedger();
     });
 
     loadColorMap(DEFAULT_COLOR_PATH).catch(function (error) {
@@ -6786,6 +6899,7 @@ function getPortalFirstCharacter() {
         });
       }
       startLocalTransactionPolling();
+      startLiveLedgerPolling();
     }).catch(function (error) {
       applyPortalConfig(DEFAULT_PORTAL_CONFIG);
       applyEvmProfileConfig();
@@ -6796,6 +6910,10 @@ function getPortalFirstCharacter() {
         });
       }
       if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
+      if (state.personalAccount && !state.urlMainThunderwordRequest) {
+        loadPersonalAccountStream(state.personalAccount, {filterResults:true, noReloadIfCurrent:false, captureReturnView:false}).catch(function () {});
+      }
+      startLiveLedgerPolling();
     });
   }
 
@@ -6814,6 +6932,8 @@ function getPortalFirstCharacter() {
     loadThunderwordIndex: loadThunderwordIndex,
     loadAddressIndex: loadAddressIndex,
     loadAddressStream: loadAddressStream,
+    loadPersonalAccountStream: loadPersonalAccountStream,
+    refreshLiveLedger: refreshLiveLedger,
     loadMainThunderwordFromUrl: loadMainThunderwordFromUrl,
     promoteMainThunderword: promoteMainThunderword,
     mainThunderwordRequestFromUrl: mainThunderwordRequestFromUrl,

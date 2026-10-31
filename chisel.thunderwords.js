@@ -94,16 +94,18 @@
     const out = [];
 
     normalizeAddressTxs(items).forEach(function (item) {
-      const txid = normalizeTxid(item);
+      const txid = String(normalizeTxid(item)).toLowerCase();
       if (!TXID_RE.test(txid) || seen.has(txid)) return;
       seen.add(txid);
       const status = item && item.status && typeof item.status === "object" ? item.status : {};
       out.push({
         txid: txid,
         raw: item,
-        confirmed: item && item.status ? Boolean(item.status.confirmed) : undefined,
+        confirmed: typeof status.confirmed === "boolean" ? status.confirmed :
+          (item && typeof item.confirmations === "number" ? item.confirmations > 0 : undefined),
         blockHeight: firstValue([status.block_height, status.blockHeight, item && item.block_height, item && item.blockHeight, item && item.blockheight, item && item.height]),
-        blockTime: normalizeUnixTime(firstValue([status.block_time, status.blockTime, status.time, status.timestamp, item && item.block_time, item && item.blockTime, item && item.blocktime, item && item.time, item && item.timestamp]))
+        blockTime: normalizeUnixTime(firstValue([status.block_time, status.blockTime, status.time, status.timestamp, item && item.block_time, item && item.blockTime, item && item.blocktime, item && item.time, item && item.timestamp, item && typeof item.confirmed === "string" ? item.confirmed : undefined])),
+        receivedTime: normalizeUnixTime(item && item.received)
       });
     });
 
@@ -231,9 +233,7 @@
 
   function normalizeInsightTx(tx) {
     if (!tx || typeof tx !== "object") return tx;
-    if (!Array.isArray(tx.vout)) return tx;
-
-    tx.vout.forEach(function (out) {
+    (Array.isArray(tx.vout) ? tx.vout : []).forEach(function (out) {
       if (!out || !out.scriptPubKey) return;
       if (!out.scriptpubkey_address && Array.isArray(out.scriptPubKey.addresses) && out.scriptPubKey.addresses.length) {
         out.scriptpubkey_address = out.scriptPubKey.addresses[0];
@@ -243,16 +243,17 @@
       if (!out.scriptpubkey_type && out.scriptPubKey.type) out.scriptpubkey_type = out.scriptPubKey.type;
     });
 
-    if (!tx.block_time && (tx.blocktime || tx.time || tx.timestamp)) {
-      tx.block_time = normalizeUnixTime(firstValue([tx.blocktime, tx.time, tx.timestamp]));
+    if (!tx.block_time && (tx.blocktime || tx.time || tx.timestamp || typeof tx.confirmed === "string")) {
+      tx.block_time = normalizeUnixTime(firstValue([tx.blocktime, tx.time, tx.timestamp, tx.confirmed]));
     }
     if (!tx.block_height && !tx.blockHeight && tx.height) tx.block_height = tx.height;
 
     return tx;
   }
 
-  async function fetchAddressTransactions(nameOrEntry, addressOverride) {
+  async function fetchAddressTransactions(nameOrEntry, addressOverride, opts) {
     const entry = typeof nameOrEntry === "string" ? getIndex(nameOrEntry) : nameOrEntry;
+    const options = opts || {};
     const address = String(addressOverride || entry.address || "").trim();
     assert(address, "Index address is required.");
 
@@ -285,21 +286,86 @@
     }
     assert(urls.length, "No address transaction URL template configured for " + entry.name + ".");
 
-    const fetched = await fetchFirstJson(urls, entry.label + " address transaction fetch");
-    const json = fetched.json;
-    const txs = uniqueTxs(json).map(function (tx) {
-      if (tx.raw && typeof tx.raw === "object") tx.raw = normalizeInsightTx(tx.raw);
-      return tx;
+    let fetched = await fetchFirstJson(urls, entry.label + " address transaction fetch");
+    const index = Object.assign({}, entry, { address: address, lastAddressTxsUrl: fetched.url });
+    const result = {index: index, url: fetched.url, raw: fetched.json, transactions: [], complete: false, error: "", resumeUrl: ""};
+    const byId = new Map(), cursors = new Set();
+    // Only a previously completed history may supply this boundary. A cached
+    // first page alone must never prevent discovery of older transactions.
+    const known = new Set(options.stopAtTxids || []);
+    const covered = new Set(options.resumeAtTxids || []);
+    let firstPage = true;
+    let resumed = false;
+    while (true) {
+      const page = uniqueTxs(fetched.json).map(function (tx) {
+        if (tx.raw && typeof tx.raw === "object") tx.raw = normalizeInsightTx(tx.raw);
+        return tx;
+      });
+      let added = 0;
+      page.forEach(function (tx) { if (!byId.has(tx.txid)) added++; byId.set(tx.txid, tx); });
+      result.transactions = Array.from(byId.values());
+      if (typeof options.onPage === "function") {
+        await options.onPage({index: index, url: fetched.url, transactions: page, loaded: byId.size});
+      }
+      const overlap = page.some(function (tx) { return tx.confirmed !== false && known.has(tx.txid); });
+      let next = "";
+      const url = new URL(fetched.url);
+      if (url.hostname === "api.blockcypher.com" && /\/full$/.test(url.pathname)) {
+        // BlockCypher includes the whole boundary block, even when that makes
+        // a page larger than limit=50. Its before cursor is exclusive.
+        if (fetched.json.hasMore === true || fetched.json.hasMore === undefined && Number(fetched.json.n_tx) > byId.size) {
+          const heights = page.map(function (tx) { return Number(tx.blockHeight); }).filter(function (h) { return h > 0; });
+          const height = heights.length ? Math.min.apply(null, heights) : 0;
+          if (height && (!url.searchParams.has("before") || height < Number(url.searchParams.get("before")))) {
+            url.searchParams.set("before", String(height));
+            next = url.toString();
+          } else result.error = "Address history cursor did not advance.";
+        }
+      } else if (/\/address\/[^/]+\/txs(?:\/chain\/[0-9a-f]{64})?$/.test(url.pathname) && Array.isArray(fetched.json)) {
+        const confirmed = page.filter(function (tx) { return tx.confirmed === true || Number(tx.blockHeight) > 0; });
+        if (confirmed.length >= 25) {
+          url.pathname = url.pathname.replace(/\/txs.*$/, "/txs/chain/" + confirmed[confirmed.length - 1].txid);
+          next = url.toString();
+        }
+      }
+      if (overlap) { result.complete = true; break; }
+      // Retry a failed older page after fetching the current head. This keeps
+      // recent activity fresh without repeatedly downloading the same prefix.
+      if (!resumed && options.resumeUrl && page.some(function (tx) { return covered.has(tx.txid); })) {
+        const resume = new URL(options.resumeUrl);
+        const root = fetched.url.split("?")[0].replace(/\/chain\/[0-9a-f]{64}$/, "");
+        if (resume.origin === url.origin && resume.href.indexOf(root) === 0) {
+          next = resume.toString();
+          resumed = true;
+        }
+      }
+      if (!firstPage && !added && page.length) result.error = "Address history returned a repeated page.";
+      if (result.error) break;
+      if (!next) { result.complete = true; break; }
+      if (cursors.has(next)) { result.error = "Address history returned a repeated cursor."; break; }
+      cursors.add(next);
+      firstPage = false;
+      // Public address endpoints have rate limits. Space history pages while
+      // the already rendered newest rows remain usable.
+      await new Promise(function (resolve) { setTimeout(resolve, 400); });
+      try {
+        fetched = await fetchFirstJson([next], entry.label + " address transaction fetch");
+      } catch (error) {
+        // Keep and display recent pages when an older page is rate limited.
+        // The caller can retry; it must not mark this history complete.
+        result.error = error.message || String(error);
+        result.resumeUrl = next;
+        break;
+      }
+    }
+    result.transactions.sort(function (a, b) {
+      const ap = a.confirmed === false ? 1 : 0, bp = b.confirmed === false ? 1 : 0;
+      return bp - ap || (b.blockTime || b.receivedTime || 0) - (a.blockTime || a.receivedTime || 0) ||
+        (Number(b.blockHeight) || 0) - (Number(a.blockHeight) || 0) || b.txid.localeCompare(a.txid);
     });
-    state.lastIndex = Object.assign({}, entry, { address: address, lastAddressTxsUrl: fetched.url });
-    state.lastTransactions = txs;
-
-    return {
-      index: state.lastIndex,
-      url: fetched.url,
-      raw: json,
-      transactions: txs
-    };
+    state.lastIndex = index;
+    state.lastTransactions = result.transactions;
+    return result;
   }
 
   async function fetchTransaction(nameOrEntry, txid) {

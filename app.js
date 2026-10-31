@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.14";
+  const APP_VERSION = "2.8.15";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -2311,6 +2311,7 @@ function onClickAddCommonAddressButton() {
     const modeHint = document.querySelector("#modeHint");
 
     document.body.dataset.mode = normalizedMode;
+    window.dispatchEvent(new CustomEvent("chisel:mode", {detail: {mode: normalizedMode}}));
 
     buttons.forEach(function markModeButton(button) {
       button.classList.toggle("active", button.dataset.modeTarget === normalizedMode);
