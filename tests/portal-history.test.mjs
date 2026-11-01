@@ -3,7 +3,7 @@ import {readFile} from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const sources = await Promise.all(["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.store.js", "chisel.portal.record.js", "chisel.portal.js"].map(async file =>
+const sources = await Promise.all(["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.record.js", "chisel.portal.js"].map(async file =>
   [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
 const address = "LZMFvkRUiNVJoQvDHJ9C8tzCyBTD2PxLwk";
 const id = n => n.toString(16).padStart(64, "0");
@@ -41,7 +41,7 @@ function fixture(responder, storage = new Map()) {
   const entry = {...api.getIndex("litecoinGeneral"), address};
   portal.state.currentIndex = entry;
   portal.state.personalAccount = {coin: "litecoin", address, label: "Saved account"};
-  Object.assign(portal.state.config, {persistMainThunderwords: false, backgroundHydrateTransactions: false});
+  Object.assign(portal.state.config, {persistMainThunderwords: false, autoLoadTransactionNotes: false, backgroundHydrateTransactions: false});
   portal.state.fileProxyAvailable = false;
   return {context, api, portal, entry, calls, storage, nodes, timers, intervals, events, document};
 }

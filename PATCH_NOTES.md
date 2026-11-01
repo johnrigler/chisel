@@ -1,3 +1,10 @@
+# 2.8.24 — shared transaction notes and metadata
+
+- Replace Category / Note / Fix with a freeform Note and optional JSON Metadata. Preserve legacy category/follow-up text in the migrated blob. Show saved notes alongside record details; retain unsent drafts during background rendering.
+- Save notes explicitly to FileProxy or the browser. Use separate chain/TXID JSON files through the existing `/raw` and `/save` endpoints; preserve raw transaction files. Shared reads fall back to published HTTP/bundled notes and the browser cache. Newer local edits survive older mirrors.
+- Load notes for visible records in groups of four and on record pages. Shared metadata can supply a title and media descriptions/pictures, and record JSON exports include saved notes. Detect changed shared timestamps before writing and retain drafts when saving fails.
+- Add the reconstructed trapezoid explanation, continuation locators and original JavaScript as a shared note for `99d2afee…f7bc022b`, with a static bundled copy.
+
 # 2.8.23 — record pages, share links and binary OP_RETURN
 
 - Open an individual record from its timestamp or OPEN RECORD action. Back restores the existing list, page, filters, expansion and scroll; record-page rendering leaves the hidden list DOM intact. Browser Back/Forward supports the same navigation.

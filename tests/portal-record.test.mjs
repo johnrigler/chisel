@@ -4,11 +4,11 @@ import test from "node:test";
 import vm from "node:vm";
 
 const files = ["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.payload.js",
-  "chisel.portal.store.js", "chisel.portal.record.js", "chisel.portal.js"];
+  "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.record.js", "chisel.portal.js"];
 const sources = await Promise.all(files.map(async file => [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
 const txid = "ab".repeat(32), dataUrl = "https://records.example/chisel-data/transactions/litecoin/" + txid + ".json";
 const raw = {txid, vin: [], vout: [{value: 0, scriptpubkey: "6a0754657374696e67"}]};
-const json = value => ({ok: true, status: 200, json: async () => value});
+const json = (value, status = 200) => ({ok: status >= 200 && status < 300, status, json: async () => value});
 
 class Element {
   constructor(tag, doc) { this.tagName = tag; this.ownerDocument = doc; this.children = []; this.dataset = {}; this.attributes = {}; this.style = {}; this.className = ""; this.value = ""; this.ownText = ""; this.hidden = false; this.scrollTop = 0; }
@@ -26,6 +26,7 @@ class Element {
   focus() { this.ownerDocument.activeElement = this; }
   scrollIntoView() {}
   click() { this.ownerDocument.clicks.push(this); }
+  closest(selector) { for (let node = this; node; node = node.parentNode) if (node.classList.contains(selector.slice(1))) return node; return null; }
   get classList() { return {contains: name => this.className.split(" ").includes(name),
     add: name => { this.className += " " + name; },
     remove: name => { this.className = this.className.split(" ").filter(value => value !== name).join(" "); },
@@ -33,7 +34,7 @@ class Element {
 }
 
 function fixture(href = "https://chisel.example/ipfs/bafyApp/?mode=portal&address=LSAVED#unrelated", responder) {
-  const nodes = new Map(), events = new Map(), timers = new Map(), calls = [], clipboard = [], blobs = [];
+  const nodes = new Map(), events = new Map(), timers = new Map(), calls = [], clipboard = [], blobs = [], storage = new Map();
   let serial = 0;
   const document = {readyState: "loading", hidden: false, clicks: [],
     addEventListener() {}, querySelector: selector => nodes.get(selector.slice(1)) || null, querySelectorAll: () => [],
@@ -52,8 +53,8 @@ function fixture(href = "https://chisel.example/ipfs/bafyApp/?mode=portal&addres
     addEventListener: (name, callback) => events.set(name, callback),
     setTimeout(callback, ms) { const key = ++serial; timers.set(key, {callback, ms}); return key; }, clearTimeout: key => timers.delete(key),
     scrollTo(options) { context.scrollY = options.top; },
-    localStorage: {getItem() { return null; }, setItem() {}},
-    fetch: async url => { calls.push(String(url)); if (responder) return responder(String(url)); throw new Error("Unexpected network request: " + url); }});
+    localStorage: {getItem(key) { return storage.get(key) || null; }, setItem(key, value) { storage.set(key, value); }},
+    fetch: async (url, options) => { calls.push(String(url)); if (responder) return responder(String(url), options); throw new Error("Unexpected network request: " + url); }});
   const entries = [{url: href, state: null}]; let position = 0;
   context.history = {get state() { return entries[position].state; },
     pushState(state, _, url) { entries.splice(++position); entries.push({state, url}); context.location.href = url; },
@@ -62,8 +63,8 @@ function fixture(href = "https://chisel.example/ipfs/bafyApp/?mode=portal&addres
     forward() { if (position + 1 < entries.length) { context.location.href = entries[++position].url; events.get("popstate")?.(); } }};
   context.window = context;
   for (const [file, source] of sources) vm.runInContext(source, context, {filename: file});
-  Object.assign(context.CHISEL_PORTAL.state.config, {backgroundHydrateTransactions: false, persistMainThunderwords: false});
-  return {context, portal: context.CHISEL_PORTAL, record: context.CHISEL_PORTAL_RECORD, nodes, events, timers, calls, clipboard, blobs, entries};
+  Object.assign(context.CHISEL_PORTAL.state.config, {backgroundHydrateTransactions: false, autoLoadTransactionNotes: false, persistMainThunderwords: false});
+  return {context, portal: context.CHISEL_PORTAL, record: context.CHISEL_PORTAL_RECORD, nodes, events, timers, calls, clipboard, blobs, entries, storage};
 }
 
 function addRow(f, value = raw) {
@@ -73,6 +74,7 @@ function addRow(f, value = raw) {
   return f.portal.state.portalRows[0];
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+const descendants = node => [node, ...node.children.flatMap(descendants)];
 
 test("record URLs preserve the app/IPFS path, identify currency and source, and exclude unrelated state", () => {
   const f = fixture();
@@ -170,4 +172,90 @@ test("JSON download contains the public transaction and lossless payloads withou
   assert.doesNotMatch(JSON.stringify(saved), /exclude-key|exclude-publication-state|ledgerState/);
   assert.match(f.context.document.clicks[0].download, /^chisel-litecoin-[a-f0-9]{64}\.json$/);
   assert.equal(f.nodes.get("portalRecordPage").classList.contains("isAwaitingLedger"), true);
+});
+
+test("FileProxy notes round-trip across browsers and export without rewriting transaction data", async () => {
+  let saved = null;
+  const responder = (url, options) => {
+    if (url.endsWith("/save")) {
+      const body = JSON.parse(options.body);
+      assert.equal(body.path, "data/annotations/litecoin/" + txid + ".json");
+      saved = JSON.parse(body.text);
+      return json({ok: true, path: body.path});
+    }
+    return saved && url.includes("/fileproxy/raw?") ? json(saved) : json({}, 404);
+  };
+  const first = fixture(undefined, responder), row = addRow(first), before = JSON.stringify(row.raw);
+  await first.portal.loadPortalAnnotation(row, {force: true});
+  await first.portal.savePortalAnnotationToFileProxy(row, {note: "The trapezoid analysis", metadata: {title: "Trapezoid"}});
+  assert.equal(saved.coin, "litecoin"); assert.equal(saved.txid, txid);
+  assert.equal(first.portal.displayTitleForRow(row), "Trapezoid"); assert.equal(JSON.stringify(row.raw), before);
+  const second = fixture(undefined, responder), copy = addRow(second);
+  await second.portal.loadPortalAnnotation(copy, {force: true});
+  await second.portal.openRecord(copy.key);
+  assert.match(second.nodes.get("portalRecordContent").textContent, /The trapezoid analysis/);
+  second.nodes.get("portalRecordDownload").onclick();
+  const packet = JSON.parse(await second.blobs[0].text());
+  assert.equal(packet.notes.note, "The trapezoid analysis"); assert.equal(packet.notes.metadata.title, "Trapezoid");
+});
+
+test("ordinary HTTP notes load when Python is unavailable and newer browser notes survive older mirrors", async () => {
+  let document;
+  const f = fixture(undefined, url => {
+    if (url.includes("/fileproxy/")) throw new TypeError("Python unavailable");
+    if (url.includes("/data-bundled/annotations/")) return json(document);
+    return json({}, 404);
+  });
+  const row = addRow(f);
+  f.portal.state.config.autoLoadTransactionNotes = true;
+  document = f.context.CHISEL_PORTAL_NOTES.documentFor(row, {note: "Published HTTP context", metadata: {title: "Trapezoid"}, updatedAt: 10});
+  await f.portal.loadPortalAnnotation(row);
+  assert.equal(f.portal.getPortalAnnotation(row).note, "Published HTTP context");
+  const calls = f.calls.length; await f.portal.loadPortalAnnotation(row); assert.equal(f.calls.length, calls);
+  f.portal.setPortalAnnotation(row, {note: "A newer browser edit"});
+  await f.portal.loadPortalAnnotation(row, {force: true});
+  assert.equal(f.portal.getPortalAnnotation(row).note, "A newer browser edit");
+});
+
+test("a concurrently edited shared note is detected before writing and the draft remains intact", async () => {
+  let document;
+  const f = fixture(undefined, url => { assert.ok(url.includes("/fileproxy/raw?")); return json(document); });
+  const row = addRow(f), N = f.context.CHISEL_PORTAL_NOTES;
+  document = N.documentFor(row, {note: "Original shared note", updatedAt: 10});
+  await f.portal.loadPortalAnnotation(row, {force: true});
+  row.annotationDraft = {note: "Unsent work", metadataText: "", dirty: true};
+  document = N.documentFor(row, {note: "Someone else's newer edit", updatedAt: 20});
+  await assert.rejects(f.portal.savePortalAnnotationToFileProxy(row, {note: "Unsent work"}), /shared note changed/);
+  assert.equal(row.annotationDraft.note, "Unsent work");
+  assert.equal(f.portal.getPortalAnnotation(row).note, "Original shared note");
+  assert.equal(f.calls.some(url => url.endsWith("/save")), false);
+});
+
+test("a failed FileProxy save preserves both the previous note and the unsent draft", async () => {
+  let document;
+  const f = fixture(undefined, url => url.endsWith("/save") ? json({ok: false, error: "disk full"}, 500) : json(document));
+  const row = addRow(f);
+  document = f.context.CHISEL_PORTAL_NOTES.documentFor(row, {note: "Saved note", updatedAt: 10});
+  await f.portal.loadPortalAnnotation(row, {force: true});
+  row.annotationDraft = {note: "Unsent work", metadataText: "", dirty: true};
+  await assert.rejects(f.portal.savePortalAnnotationToFileProxy(row, {note: "Unsent work"}), /disk full/);
+  assert.equal(f.portal.getPortalAnnotation(row).note, "Saved note"); assert.equal(row.annotationDraft.note, "Unsent work");
+});
+
+test("the two-field editor retains an active draft during background rendering and rejects invalid metadata", async () => {
+  const f = fixture(), row = addRow(f);
+  f.portal.setPortalAnnotation(row, {category: "old category", note: "Original note", fix: "A follow-up"});
+  await f.portal.openRecord(row.key);
+  const content = f.nodes.get("portalRecordContent"), controls = descendants(content);
+  const fields = controls.filter(node => node.tagName === "textarea");
+  assert.equal(fields.length, 2); assert.match(fields[0].value, /old category/); assert.match(fields[0].value, /A follow-up/);
+  fields[0].value = "Keep my typing"; fields[0].oninput(); fields[0].focus();
+  f.portal.setPortalAnnotation(row, {note: "A background update"});
+  for (const [key, timer] of [...f.timers]) if (timer.ms === 0) { f.timers.delete(key); timer.callback(); }
+  assert.ok(descendants(content).includes(fields[0])); assert.equal(fields[0].value, "Keep my typing");
+  fields[1].value = "invalid JSON"; fields[1].oninput();
+  const save = descendants(content).find(node => node.textContent === "SAVE IN BROWSER");
+  save.onclick({preventDefault() {}, stopPropagation() {}});
+  assert.equal(f.portal.getPortalAnnotation(row).note, "A background update");
+  assert.equal(row.annotationDraft.note, "Keep my typing"); assert.equal(row.annotationDraft.metadataText, "invalid JSON");
 });

@@ -14,6 +14,13 @@ Chisel is a browser-first toolkit for reading and preserving small blockchain ar
 
 ## Open and share a record
 
+Each record has a freeform **Note** and optional **Metadata** JSON object.
+**SAVE TO FILEPROXY** shares it through the configured service;
+**SAVE IN BROWSER** keeps it on this device. Existing Category/Fix text migrates
+into the note. Saved notes appear directly in record details and accompany
+**DOWNLOAD JSON** exports. See [transaction notes](docs/TRANSACTION_NOTES.md)
+for the file/API format, HTTP fallback and metadata examples.
+
 Click a transaction's timestamp or expand it and choose **OPEN RECORD**.
 The record page has **COPY RECORD LINK**, **DOWNLOAD JSON**, **SOURCE JSON**
 (when a public file URL is known) and **BACK TO LIST**. Returning restores the

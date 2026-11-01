@@ -30,7 +30,7 @@ const context = vm.createContext({URL, URLSearchParams, TextEncoder, TextDecoder
   fetch() { assert.fail("preview fetched a transaction or saved data"); }, location: {href: "https://chisel.example/"}
 });
 context.window = context;
-for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.store.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
+for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
   vm.runInContext(await readFile(new URL("../" + file, import.meta.url), "utf8"), context);
 }
 const P = context.CHISEL_RECORD_PREVIEW, portal = context.CHISEL_PORTAL;
@@ -119,6 +119,18 @@ test("saved asset pictures use ordinary HTTP paths in closed and expanded record
   const images = descendants(closed).concat(descendants(open)).filter(node => node.tagName === "img");
   assert.ok(images.length >= 2);
   assert.ok(images.every(node => node.src === "https://archive.example/chisel-data/assets/evm/137/picture.png"));
+});
+
+test("transaction-note metadata supplies the same media description and picture to both views", () => {
+  const row = {key: "shared-note-media", coin: "litecoin", txid: "5".repeat(64), summary: {title: "transaction"}};
+  portal.state.portalAnnotations[row.key] = context.CHISEL_PORTAL_NOTES.normalize({metadata: {title: "Annotated video",
+    media: {url, title: "Annotated video", description: "Shared descriptive context", authorName: "Shared author", thumbnailUrl: picture}}});
+  for (const expanded of [false, true]) {
+    const container = new Element("div"); portal.renderStreamItem(container, row, {expanded});
+    assert.match(container.textContent, /Annotated video/); assert.match(container.textContent, /Shared descriptive context/);
+    assert.ok(descendants(container).some(node => node.tagName === "img" && node.src === picture));
+  }
+  delete portal.state.portalAnnotations[row.key];
 });
 
 test("rich record parsing binds metadata to the exact shared text and rejects malformed or oversized records", () => {

@@ -11,6 +11,12 @@
 .portalPayload select { width: auto; max-width: 100%; }
 .portalPayloadValue { margin: 10px 0 0; padding: 10px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; background: #f3f6fa; color: inherit; border-radius: 6px; }
 a.portalStreamTime { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.portalTransactionNotes { display: block; min-width: 0; padding: 12px; margin: 14px 0; background: #fff; border: 1px solid #cad2dc; border-radius: 10px; }
+.portalTransactionNotes h5 { margin: 0 0 10px; }
+.portalAnnotationText { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 12px; }
+.portalTransactionNotes .portalAnnotationGrid { display: grid; grid-template-columns: minmax(0, 1fr); }
+.portalTransactionNotes textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.portalTransactionNotes .portalAnnotationActions { flex-wrap: wrap; }
 @media (max-width: 640px) {
   .portalRecordToolbar > * { flex: 1 1 44%; text-align: center; }
   .portalRecordPage { padding: 12px; }

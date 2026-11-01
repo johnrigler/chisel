@@ -143,6 +143,12 @@ link, but it does not currently recursively ingest arbitrary linked resources.
 
 ## Main ThunderWords / address streams
 
+Transaction notes use the existing `/raw` and `/save` endpoints with separate
+`data/annotations/<coin>/<txid>.json` files. They contain one freeform note and
+optional metadata, and can be updated by Portal or authorized external tools.
+The format, EVM paths, browser fallback and static publishing rules are in
+[transaction notes](../../docs/TRANSACTION_NOTES.md).
+
 Portal can persist a public address stream with:
 
 ```text

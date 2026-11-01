@@ -1,0 +1,33 @@
+{
+  "schema": "chisel-transaction-notes-v1",
+  "coin": "litecoin",
+  "txid": "99d2afeed6dc496e4e0f13d1cd304db9cd6adb1d0f90b02dc1e7641cf7bc022b",
+  "note": "This transaction is the first chunk of the McDougall Litecoin v1 executable trapezoid specimen. It was confirmed on September 5, 2026 at 8:43:30 p.m. MDT (September 6 at 02:43:30 UTC).\n\nThe experiment preserved a small runnable program across Litecoin OP_RETURN records so a browser could reconstruct it from ledger data. This was part of the McDougall/M64 artifact resurrection work, including the broader goal of recovering artifacts when their ordinary hosted or IPFS copies disappear.\n\nThis record contains the first 80 raw token bytes at locator 3172893:13. Byte values above 0x7f refer to the McDougall dictionary; for example, 0x86 expands to \"function\". The payload is therefore binary tokenized JavaScript. Rendering it as UTF-8 produces broken characters; Base64 is only another representation of those bytes.\n\nThe earlier continuation at 3172924:19 stores 38 ASCII hex characters. The corrected canonical root at 3172942:28 stores the same payload directly as 19 binary bytes: version 01, a four-byte pointer back to 3172893:13, and the final 14 program bytes. Either continuation reassembles the same 94-byte stream, which hydrates to 194 bytes of JavaScript drawing a filled trapezoid on a canvas.\n\nThe published JSON records were reconstructed and matched against the original repository protocol note and recovered September 6 conversation. A fresh independent explorer check returned HTTP 403 during this analysis; the locator positions are retained from the original receipts and protocol notes. The existing tools/mcdougallResolver page reconstructs the program with its fixed dictionary and keeps execution behind a separate RUN button.",
+  "metadata": {
+    "title": "Trapezoid program — McDougall Litecoin v1",
+    "kind": "executable-artifact",
+    "protocol": "mcdougall-ltc-v1",
+    "role": "first-chunk",
+    "locator": "3172893:13",
+    "payloadBytes": 80,
+    "reconstructedBytes": 94,
+    "canonicalJavaScriptBytes": 194,
+    "canonicalRoot": {
+      "locator": "3172942:28",
+      "txid": "5b77053295eb98eb9446e7d5f522a340a48e68494a17c9edb8ef01743b3adeb9"
+    },
+    "asciiHexRoot": {
+      "locator": "3172924:19",
+      "txid": "4fc7a09123655d3346a153741a35177cb076296c2ee5eaa4359519a200b05b8b"
+    },
+    "canonicalJavaScript": "function a(b){const c=b.getContext(\"2d\");const d=b.width;const e=b.height;c.beginPath();c.moveTo(d*.2,e*.8);c.lineTo(d*.8,e*.8);c.lineTo(d*.65,e*.2);c.lineTo(d*.35,e*.2);c.closePath();c.fill();}",
+    "resolverUrl": "https://johnrigler.github.io/chisel/tools/mcdougallResolver/",
+    "sources": [
+      "https://github.com/johnrigler/chisel/blob/main/docs/MCDOUGALL_LTC_V1.md",
+      "https://rigler.org/chisel-data/transactions/litecoin/BMTiDXHRoNoHFSkXYjYLNscsG4JBXQsTAp2aZFtQgyLN-99d2afeed6dc.json"
+    ],
+    "analysisBy": "ChatGPT-assisted reconstruction",
+    "analysisDate": "2026-11-01"
+  },
+  "updatedAt": 1793513977113
+}

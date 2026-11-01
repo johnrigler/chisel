@@ -22,6 +22,8 @@
     fileProxyUrl: DEFAULT_FILE_PROXY_URL,
     fileProxyReadTimeoutMs: 2000,
     staticDataSources: [DEFAULT_STATIC_DATA_URL],
+    autoLoadTransactionNotes: true,
+    annotationFilePrefix: "data/",
     autoSaveFetchedTransactions: true,
     cacheFetchedTransactionsWithFileProxy: true,
     persistMainThunderwords: true,
@@ -184,7 +186,11 @@
   if (!staticData) throw new Error("Load chisel.portal.static-data.js before chisel.portal.js.");
   const payloadData = window.CHISEL_PORTAL_PAYLOAD;
   if (!payloadData) throw new Error("Load chisel.portal.payload.js before chisel.portal.js.");
+  const notesData = window.CHISEL_PORTAL_NOTES;
+  if (!notesData) throw new Error("Load chisel.portal.notes.js before chisel.portal.js.");
   let recordView = null;
+  const annotationReads = new Map(), annotationPending = new Map();
+  let visibleAnnotationsLoading = false;
   const staticNormalizer = staticData.createNormalizer({
     normalizeCoinName: normalizeCoinName,
     tickerForCoin: tickerForCoin,
@@ -270,20 +276,9 @@
     if (row && typeof row === "object") portalRowDerivedCache.delete(row);
   }
 
-  function normalizePortalAnnotation(value) {
-    const source = value && typeof value === "object" ? value : {};
-    return {
-      category: printableText(source.category || "").slice(0, 80),
-      note: String(source.note || "").trim().slice(0, 5000),
-      fix: String(source.fix || "").trim().slice(0, 5000),
-      updatedAt: Number(source.updatedAt || 0) || 0
-    };
-  }
+  function normalizePortalAnnotation(value) { return notesData.normalize(value); }
 
-  function portalAnnotationHasContent(annotation) {
-    const a = normalizePortalAnnotation(annotation);
-    return !!(a.category || a.note || a.fix);
-  }
+  function portalAnnotationHasContent(annotation) { return notesData.hasContent(annotation); }
 
   function loadPortalAnnotations() {
     const next = Object.create(null);
@@ -292,7 +287,7 @@
       const parsed = raw ? JSON.parse(raw) : {};
       Object.keys(parsed || {}).forEach(function (key) {
         const annotation = normalizePortalAnnotation(parsed[key]);
-        if (portalAnnotationHasContent(annotation)) next[key] = annotation;
+        if (portalAnnotationHasContent(annotation) || annotation.updatedAt) next[key] = annotation;
       });
     } catch (error) {
       setStatus("Local annotation store could not be read: " + (error.message || String(error)), true);
@@ -325,8 +320,9 @@
     const key = portalAnnotationKey(row);
     if (!key) return false;
     const clean = normalizePortalAnnotation(Object.assign({}, annotation, { updatedAt: Date.now() }));
-    if (portalAnnotationHasContent(clean)) state.portalAnnotations[key] = clean;
-    else delete state.portalAnnotations[key];
+    state.portalAnnotations[key] = clean;
+    invalidatePortalRowCache(row);
+    row.annotationRevision = (row.annotationRevision || 0) + 1;
     return savePortalAnnotations();
   }
 
@@ -334,6 +330,8 @@
     const key = portalAnnotationKey(row);
     if (!key) return false;
     delete state.portalAnnotations[key];
+    invalidatePortalRowCache(row);
+    row.annotationRevision = (row.annotationRevision || 0) + 1;
     return savePortalAnnotations();
   }
 
@@ -493,6 +491,8 @@
   }
 
   function displayTitleForRow(row) {
+    const notedTitle = getPortalAnnotation(row).metadata.title;
+    if (typeof notedTitle === "string" && notedTitle.trim()) return truncateText(notedTitle, 96);
     const target = recordTargetUrlForRow(row);
     const captured = target ? readPageMetadata(target) : null;
     if (captured && captured.title) return truncateText(captured.title, 96);
@@ -1528,6 +1528,11 @@
     const rawSummary = raw && raw.summary && typeof raw.summary === "object" ? raw.summary : {};
     const decoded = raw && raw.decoded && typeof raw.decoded === "object" ? raw.decoded : {};
     safeArray(summary.mediaCards).forEach(add);
+    const noteMetadata = getPortalAnnotation(row).metadata;
+    safeArray(noteMetadata.mediaCards).forEach(add);
+    if (noteMetadata.media && typeof noteMetadata.media === "object") add(Object.assign({}, noteMetadata.media, {
+      thumbnailUrl: noteMetadata.media.thumbnailUrl || noteMetadata.media.image || ""
+    }));
     safeArray(rawSummary.mediaCards).forEach(add);
     safeArray(decoded.mediaCards).forEach(add);
     const words = safeArray(summary.evmWords).concat(safeArray(rawSummary.evmWords), safeArray(decoded.words), decoded.artifact ? [decoded.artifact] : []);
@@ -2591,6 +2596,111 @@
     }
   }
 
+  function annotationFilePath(row) {
+    const prefix = String(configValue("annotationFilePrefix", "data/"));
+    return prefix + (/[:/]$/.test(prefix) ? "" : "/") + notesData.path(row);
+  }
+
+  async function readSharedPortalAnnotation(row) {
+    if (failedFileProxyBase === getFileProxyUrl() && Date.now() < fileProxyRetryAfter) throw new Error("FileProxy is temporarily unavailable.");
+    let response;
+    try {
+      return await staticTransport.request(fileProxyRawUrl(annotationFilePath(row)), {cache: "no-store"}, async function (received) {
+        response = received;
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error("Notes read failed with HTTP " + response.status + ".");
+        return notesData.parseDocument(row, await response.json());
+      }, fileProxyReadTimeout());
+    } catch (error) {
+      if (!response || response.status >= 500 || /^(TimeoutError|AbortError)$/.test(error.name)) {
+        state.fileProxyAvailable = false; failedFileProxyBase = getFileProxyUrl(); fileProxyRetryAfter = Date.now() + 30000;
+      }
+      throw error;
+    }
+  }
+
+  function staticAnnotationUrls(row) {
+    const bases = [row.staticBaseUrl].concat(safeArray(row.staticRemoteBaseUrls));
+    try {
+      if (/\/transactions\/[^/]+\/[^/]+\.json$/i.test(new URL(row.staticRawUrl).pathname)) bases.push(new URL("../../", row.staticRawUrl).href);
+    } catch (_) {}
+    getStaticDataSources().forEach(function (source) {
+      try { bases.push(staticData.sourceLocation(source, window.location.href).baseUrl); } catch (_) {}
+    });
+    bases.push(new URL("./data-bundled/", window.location.href).href);
+    return Array.from(new Set(bases.filter(Boolean).map(function (base) { return new URL(staticData.joinDataPath(base, notesData.path(row)), window.location.href).href; })));
+  }
+
+  function loadPortalAnnotation(row, opts) {
+    if (!tickerForCoin(canonicalCoinForRow(row))) return Promise.resolve(getPortalAnnotation(row));
+    if (!configBool("autoLoadTransactionNotes", true) && !(opts && opts.force)) return Promise.resolve(getPortalAnnotation(row));
+    const key = portalAnnotationKey(row), generation = state.portalLoadGeneration, read = annotationReads.get(key);
+    if (!(opts && opts.force) && read && Date.now() - read.checkedAt < 60000) return Promise.resolve(getPortalAnnotation(row));
+    const pending = annotationPending.get(key);
+    if (pending && pending.row === row && pending.generation === generation) return pending.promise;
+    const promise = (async function () {
+      let loaded = null, source = "browser", remoteUpdatedAt = null;
+      try {
+        if (state.fileProxyAvailable === false && !(opts && opts.force)) throw new Error("FileProxy is unavailable.");
+        loaded = await readSharedPortalAnnotation(row);
+        remoteUpdatedAt = loaded ? loaded.updatedAt : 0;
+        if (loaded) source = "FileProxy";
+      } catch (_) {}
+      if (!loaded) for (const url of staticAnnotationUrls(row)) {
+        try {
+          loaded = await staticTransport.request(url, {cache: "no-store"}, async function (response) {
+            if (response.status === 404) return null;
+            if (!response.ok) throw new Error("Notes HTTP " + response.status);
+            return notesData.parseDocument(row, await response.json());
+          }, 4000);
+          if (loaded) { source = "HTTP"; break; }
+        } catch (_) {}
+      }
+      if (generation !== state.portalLoadGeneration || state.portalRowKeys[key] !== row) return getPortalAnnotation(row);
+      annotationReads.set(key, {checkedAt: Date.now(), source: source, remoteUpdatedAt: remoteUpdatedAt});
+      const existing = getPortalAnnotation(row);
+      if (loaded && loaded.updatedAt >= existing.updatedAt && JSON.stringify(normalizePortalAnnotation(loaded)) !== JSON.stringify(existing)) {
+        state.portalAnnotations[key] = normalizePortalAnnotation(loaded);
+        savePortalAnnotations(); invalidatePortalRowCache(row);
+        row.annotationRevision = (row.annotationRevision || 0) + 1;
+        requestPortalRender();
+      }
+      return getPortalAnnotation(row);
+    })().finally(function () { if (annotationPending.get(key) && annotationPending.get(key).promise === promise) annotationPending.delete(key); });
+    annotationPending.set(key, {promise: promise, row: row, generation: generation});
+    return promise;
+  }
+
+  async function savePortalAnnotationToFileProxy(row, value) {
+    const annotation = normalizePortalAnnotation(value), key = portalAnnotationKey(row);
+    const previous = await readSharedPortalAnnotation(row), read = annotationReads.get(key);
+    if (previous && (!read || read.remoteUpdatedAt !== previous.updatedAt)) throw new Error("The shared note changed. Reload it before saving; your draft is retained.");
+    const document = notesData.documentFor(row, Object.assign({}, annotation, {updatedAt: Date.now()}));
+    const saved = await fileProxyPostJson("/save", {path: annotationFilePath(row), text: pretty(document) + "\n"});
+    state.portalAnnotations[key] = normalizePortalAnnotation(document);
+    savePortalAnnotations(); invalidatePortalRowCache(row);
+    annotationReads.set(key, {checkedAt: Date.now(), source: "FileProxy", remoteUpdatedAt: document.updatedAt});
+    row.annotationRevision = (row.annotationRevision || 0) + 1;
+    return saved;
+  }
+
+  function scheduleVisiblePortalAnnotations(rows) {
+    if (!configBool("autoLoadTransactionNotes", true) || visibleAnnotationsLoading) return;
+    const pending = rows.filter(function (row) {
+      const read = annotationReads.get(portalAnnotationKey(row));
+      return !read || Date.now() - read.checkedAt >= 60000;
+    });
+    if (!pending.length) return;
+    visibleAnnotationsLoading = true;
+    const generation = state.portalLoadGeneration;
+    (async function () {
+      for (let i = 0; i < pending.length && generation === state.portalLoadGeneration; i += 4) {
+        await Promise.all(pending.slice(i, i + 4).map(function (row) { return loadPortalAnnotation(row).catch(function () {}); }));
+        await yieldPortalThread();
+      }
+    })().finally(function () { visibleAnnotationsLoading = false; });
+  }
+
   function fileProxyRawUrl(path) {
     if (!path) return "";
     return getFileProxyUrl() + "/raw?path=" + encodeURIComponent(String(path));
@@ -3029,9 +3139,7 @@
     if (row.localPath) flags.push("local");
     flags.push(row.raw ? "hydrated" : "summary");
     const annotation = getPortalAnnotation(row);
-    if (annotation.category) flags.push("cat:" + annotation.category);
     if (annotation.note) flags.push("note");
-    if (annotation.fix) flags.push("fix");
     if (!row.raw) flags.push("txid-only");
     return flags.join(" ");
   }
@@ -4082,96 +4190,70 @@
   }
 
   function appendPortalAnnotationEditor(container, row) {
-    const annotation = getPortalAnnotation(row);
-    const hasContent = portalAnnotationHasContent(annotation);
-
-    const block = document.createElement("details");
-    block.className = "portalAnnotationBlock" + (hasContent ? " hasAnnotation" : " portalAnnotationEmpty");
-    block.open = hasContent;
-
-    const summary = document.createElement("summary");
-    summary.textContent = hasContent ? "Local note" : "add local note";
-    block.appendChild(summary);
-
-    const grid = document.createElement("div");
-    grid.className = "portalAnnotationGrid";
-
-    const categoryLabel = document.createElement("label");
-    categoryLabel.textContent = "Category";
-    const category = document.createElement("input");
-    category.type = "text";
-    category.spellcheck = false;
-    category.maxLength = 80;
-    category.placeholder = "dogecoin, bsv, old tool, needs repair";
-    category.value = annotation.category || "";
-    categoryLabel.appendChild(category);
-    grid.appendChild(categoryLabel);
-
-    const noteLabel = document.createElement("label");
-    noteLabel.textContent = "Note";
-    const note = document.createElement("textarea");
-    note.rows = 4;
-    note.placeholder = "What this record means, why it matters, or how it connects to older work.";
-    note.value = annotation.note || "";
-    noteLabel.appendChild(note);
-    grid.appendChild(noteLabel);
-
-    const fixLabel = document.createElement("label");
-    fixLabel.textContent = "Fix / cleanup";
-    const fix = document.createElement("textarea");
-    fix.rows = 3;
-    fix.placeholder = "Broken URL, title correction, missing category, bad decode, follow-up target.";
-    fix.value = annotation.fix || "";
-    fixLabel.appendChild(fix);
-    grid.appendChild(fixLabel);
-
-    block.appendChild(grid);
-
-    const actions = document.createElement("div");
-    actions.className = "actions portalAnnotationActions";
-
-    const save = document.createElement("button");
-    save.type = "button";
-    save.className = "secondaryButton";
-    save.textContent = "save local note";
-    save.onclick = function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      if (setPortalAnnotation(row, { category: category.value, note: note.value, fix: fix.value })) {
-        setStatus("Saved local annotation for " + shortTxid(row.txid) + ".", false);
-        requestPortalRender();
-      }
+    const annotation = getPortalAnnotation(row), hasContent = portalAnnotationHasContent(annotation);
+    const block = document.createElement("section");
+    block.className = "portalAnnotationBlock portalTransactionNotes";
+    const heading = document.createElement("h5"); heading.textContent = "Notes"; block.appendChild(heading);
+    if (annotation.note) {
+      const text = document.createElement("div"); text.className = "portalAnnotationText";
+      text.textContent = annotation.note; block.appendChild(text);
+    }
+    if (Object.keys(annotation.metadata).length) block.appendChild(makeInlinePre("Metadata", pretty(annotation.metadata), false));
+    const editor = document.createElement("details");
+    editor.open = !!row.annotationDraft;
+    const summary = document.createElement("summary"); summary.textContent = hasContent ? "Edit note" : "Add note";
+    editor.appendChild(summary);
+    const grid = document.createElement("div"); grid.className = "portalAnnotationGrid";
+    const noteLabel = document.createElement("label"); noteLabel.textContent = "Note";
+    const note = document.createElement("textarea"); note.rows = 7; note.maxLength = notesData.MAX_NOTE;
+    note.placeholder = "What this transaction means, the work behind it, links, analysis or follow-up.";
+    note.value = row.annotationDraft ? row.annotationDraft.note : annotation.note;
+    noteLabel.appendChild(note); grid.appendChild(noteLabel);
+    const metadataLabel = document.createElement("label"); metadataLabel.textContent = "Metadata (optional JSON object)";
+    const metadata = document.createElement("textarea"); metadata.rows = 5; metadata.spellcheck = false;
+    metadata.placeholder = '{"title":"Record title","sources":[]}';
+    metadata.value = row.annotationDraft ? row.annotationDraft.metadataText : Object.keys(annotation.metadata).length ? pretty(annotation.metadata) : "";
+    metadataLabel.appendChild(metadata); grid.appendChild(metadataLabel); editor.appendChild(grid);
+    function rememberDraft() { row.annotationDraft = {note: note.value, metadataText: metadata.value, dirty: true}; }
+    note.oninput = metadata.oninput = rememberDraft;
+    function value() { return {schema: notesData.SCHEMA, note: note.value, metadata: notesData.metadata(metadata.value)}; }
+    const actions = document.createElement("div"); actions.className = "actions portalAnnotationActions";
+    const save = document.createElement("button"); save.type = "button"; save.className = "secondaryButton"; save.textContent = "SAVE TO FILEPROXY";
+    save.onclick = async function (event) {
+      event.preventDefault(); event.stopPropagation(); rememberDraft(); save.disabled = true;
+      try {
+        const saved = await savePortalAnnotationToFileProxy(row, value());
+        row.annotationDraft = null;
+        setStatus("Saved transaction note through FileProxy: " + saved.path + ".", false); requestPortalRender();
+      } catch (error) { setStatus(error.message || String(error), true); }
+      finally { save.disabled = false; }
     };
-    actions.appendChild(save);
-
-    if (hasContent) {
-      const clear = document.createElement("button");
-      clear.type = "button";
-      clear.className = "secondaryButton";
-      clear.textContent = "clear local note";
-      clear.onclick = function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        category.value = "";
-        note.value = "";
-        fix.value = "";
-        if (clearPortalAnnotation(row)) {
-          setStatus("Cleared local annotation for " + shortTxid(row.txid) + ".", false);
-          requestPortalRender();
+    const local = document.createElement("button"); local.type = "button"; local.className = "secondaryButton"; local.textContent = "SAVE IN BROWSER";
+    local.onclick = function (event) {
+      event.preventDefault(); event.stopPropagation(); rememberDraft();
+      try {
+        if (setPortalAnnotation(row, value())) {
+          row.annotationDraft = null;
+          annotationReads.set(portalAnnotationKey(row), Object.assign({}, annotationReads.get(portalAnnotationKey(row)), {source: "browser"}));
+          setStatus("Saved transaction note in this browser.", false); requestPortalRender();
         }
-      };
-      actions.appendChild(clear);
-    }
-
+      } catch (error) { setStatus(error.message || String(error), true); }
+    };
+    const reload = document.createElement("button"); reload.type = "button"; reload.className = "secondaryButton"; reload.textContent = "RELOAD SHARED NOTE";
+    reload.onclick = function (event) {
+      event.preventDefault(); event.stopPropagation();
+      loadPortalAnnotation(row, {force: true}).then(function () { requestPortalRender(); }).catch(function (error) { setStatus(error.message, true); });
+    };
+    actions.appendChild(save); actions.appendChild(local); actions.appendChild(reload); editor.appendChild(actions);
+    const help = document.createElement("p"); help.className = "muted";
+    help.textContent = "FileProxy saves are shared through the configured server. Browser saves stay on this device. Notes and metadata are separate from the ledger.";
+    editor.appendChild(help); block.appendChild(editor);
+    const read = annotationReads.get(portalAnnotationKey(row));
     if (annotation.updatedAt) {
-      const stamp = document.createElement("span");
-      stamp.className = "muted";
-      const d = new Date(annotation.updatedAt);
-      stamp.textContent = Number.isNaN(d.getTime()) ? "" : "last edited " + d.toISOString().slice(0, 16).replace("T", " ");
-      actions.appendChild(stamp);
+      const stamp = document.createElement("p"); stamp.className = "muted";
+      stamp.textContent = (read && read.source || "browser") + " · updated " + new Date(annotation.updatedAt).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+      block.appendChild(stamp);
     }
-
-    block.appendChild(actions);
     container.appendChild(block);
     return block;
   }
@@ -4376,6 +4458,7 @@
     header.appendChild(actions);
     container.appendChild(header);
 
+    appendPortalAnnotationEditor(container, row);
     appendPortalPayloads(container, row);
 
     // Linked media leads the expanded record. Ledger flow and supporting
@@ -4399,7 +4482,7 @@
     }
     appendPortalTransactionQr(supportTarget, row);
     appendPortalInterpretedRecord(supportTarget, row);
-    appendPortalAnnotationEditor(supportTarget, row);
+
 
     const evmImages = collectEvmImageAssets(row);
     const hasEvmImages = evmImages.length > 0;
@@ -5130,6 +5213,7 @@
     });
     scheduleVisiblePortalDates(pageRows);
     scheduleVisiblePortalFinance(pageRows);
+    scheduleVisiblePortalAnnotations(pageRows);
   }
 
   async function selectPortalRow(key) {
@@ -5163,6 +5247,7 @@
       find: findPortalRecord, sourceUrl: recordDataUrl,
       render: function (content, row) { appendPortalInlineDetails(content, row, {recordPage: true}); },
       status: setStatus, copy: copyPortalText,
+      annotation: function (row) { return notesData.documentFor(row, getPortalAnnotation(row)); },
       placeholder: function (route) {
         const profile = EVM_PROFILES.find(function (item) { return "evm" + item.label === route.sourceId; });
         const entry = profile ? evmIndexEntry(profile) : getCoinIndexByCoinName(route.coin);
@@ -5170,6 +5255,7 @@
           index: entry || {coin: route.coin, chainId: route.chainId}, summary: {title: "transaction " + shortTxid(route.txid)}}, {silent: true});
       },
       resolve: async function (route, row) {
+        loadPortalAnnotation(row).catch(function () {});
         if (row.raw) return row;
         if (route.dataUrl) row.staticRawUrl = route.dataUrl;
         const loaded = await hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true, deferCache: true});
@@ -7136,6 +7222,8 @@ function getPortalFirstCharacter() {
     loadPortalAnnotations: loadPortalAnnotations,
     getPortalAnnotation: getPortalAnnotation,
     setPortalAnnotation: setPortalAnnotation,
+    loadPortalAnnotation: loadPortalAnnotation,
+    savePortalAnnotationToFileProxy: savePortalAnnotationToFileProxy,
     clearPortalAnnotation: clearPortalAnnotation,
     extractSummary: extractSummary,
     extractBlockTime: extractBlockTime,

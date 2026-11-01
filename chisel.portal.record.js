@@ -48,7 +48,7 @@
     return url.href;
   }
 
-  function exportRecord(row, url, source) {
+  function exportRecord(row, url, source, annotation) {
     const summary = row.summary || {}, presentation = {};
     ["title", "primaryUrl", "opReturnText", "mediaCards", "blockTime", "blockHeight"].forEach(function (field) {
       if (summary[field] !== undefined) presentation[field] = summary[field];
@@ -61,7 +61,7 @@
     }).filter(Boolean);
     if (payloads.length) presentation.opReturnText = payloads.map(function (payload) { return payload.text; }).filter(Boolean).join("\n");
     return {schema: "chisel-record-v1", coin: root.CHISEL_PORTAL_STORE.canonicalCoinForRow(row), txid: row.txid,
-      url: url, sourceUrl: source || "", summary: presentation, opReturn: payloads, raw: row.raw || null};
+      url: url, sourceUrl: source || "", summary: presentation, opReturn: payloads, notes: annotation || null, raw: row.raw || null};
   }
 
   function createController(options) {
@@ -79,8 +79,11 @@
       const page = get("portalRecordPage");
       if (page) page.classList.toggle("isAwaitingLedger", !!row.publication && row.publication.ledgerState !== "seen");
       const url = recordUrl(row, root.location.href, source);
-      const signature = [row, row.raw, row.summary, row.loadError, row.publication && row.publication.ledgerState];
-      if (content && (force || !lastRender || signature.some(function (value, i) { return value !== lastRender[i]; }))) {
+      const signature = [row, row.raw, row.summary, row.loadError, row.publication && row.publication.ledgerState, row.annotationRevision];
+      const focused = doc.activeElement;
+      const editing = !force && row.annotationDraft && row.annotationDraft.dirty && focused &&
+        typeof focused.closest === "function" && focused.closest(".portalAnnotationBlock");
+      if (content && !editing && (force || !lastRender || signature.some(function (value, i) { return value !== lastRender[i]; }))) {
         try { deps.render(content, row); }
         catch (error) {
           content.textContent = "Record display failed: " + (error.message || String(error));
@@ -189,7 +192,8 @@
       if (download) download.onclick = function () {
         if (!current || !current.row.raw) return;
         const source = deps.sourceUrl(current.row), url = recordUrl(current.row, root.location.href, source);
-        const blob = new Blob([JSON.stringify(exportRecord(current.row, url, source), null, 2)], {type: "application/json"});
+        const annotation = deps.annotation ? deps.annotation(current.row) : null;
+        const blob = new Blob([JSON.stringify(exportRecord(current.row, url, source, annotation), null, 2)], {type: "application/json"});
         const objectUrl = URL.createObjectURL(blob), link = doc.createElement("a");
         link.href = objectUrl;
         link.download = "chisel-" + current.coin + "-" + current.txid + ".json";

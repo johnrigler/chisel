@@ -3,7 +3,7 @@ import {readFile} from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const sources = await Promise.all(["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.store.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.debug.js"]
+const sources = await Promise.all(["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.debug.js"]
   .map(async file => [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
 const index = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const headerErrorStart = index.indexOf('    window.addEventListener("error", function (e) {');
