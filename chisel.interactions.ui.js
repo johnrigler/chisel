@@ -87,8 +87,10 @@
         const wanted = new Set(owners.map(function (owner) { return owner.key; }));
         for (const key of view.entries.keys()) if (!wanted.has(key)) view.entries.delete(key);
         renderer.render(list, owners); empty.hidden = owners.length > 0;
-        older.hidden = !feed.hasMore; older.disabled = feed.busy || !!feed.error && !client.state.online;
-        message.textContent = feed.error ? "Shared history unavailable. Saved entries remain available." : feed.busy ? "Reading history…" : "";
+        const unavailable = !client.state.online && !!(feed.error || client.state.error);
+        if (fullComments) empty.textContent = unavailable ? "Shared comments are unavailable. Pending comments stay on this device." : feed.loaded ? "No comments yet." : "Reading comments…";
+        older.hidden = !feed.hasMore; older.disabled = feed.busy || unavailable;
+        message.textContent = feed.error || unavailable ? "Shared history unavailable. Saved entries remain available." : feed.busy ? "Reading history…" : "";
       };
       return view;
     }

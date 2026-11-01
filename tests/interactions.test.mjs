@@ -276,6 +276,15 @@ test("an unavailable API keeps a posted comment locally, marks it pending, and r
   assert.equal(f.client.state.outbox.some(item => item.document.payload.kind === "comment"), true);
 });
 
+test("an unavailable comment API is not presented as an empty confirmed comment history", async () => {
+  const f = uiFixture({request: async () => { throw new Error("History API HTTP 404"); }});
+  await f.client.flush(); await flush();
+  assert.match(f.comments.textContent, /Shared comments are unavailable/);
+  assert.doesNotMatch(f.comments.textContent, /No comments yet/);
+  const older = walk(f.comments).find(node => node.tagName === "BUTTON" && node.textContent === "OLDER COMMENTS");
+  assert.equal(older.disabled, true);
+});
+
 test("the published synthetic signed-comment vector verifies with the production Noble backend", async () => {
   const vector = JSON.parse(await readFile(new URL("fixtures/signed-comment-v1.json", import.meta.url), "utf8"));
   assert.equal((await A.verifyDocument(vector)).status, "verified");
