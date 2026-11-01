@@ -4432,11 +4432,13 @@
     const card = safeArray(summary.mediaCards)[0] || {};
     const read = annotationReads.get(portalAnnotationKey(row)), annotation = getPortalAnnotation(row);
     // Automatic history never publishes a browser-only note or its metadata.
-    const sharedTitle = read && read.source === "FileProxy" && read.remoteUpdatedAt === annotation.updatedAt ? annotation.metadata.title : "";
+    const shared = read && read.source === "FileProxy" && read.remoteUpdatedAt === annotation.updatedAt ? annotation : null;
+    const title = printableText(shared && shared.metadata.title || card.title || summary.title || "transaction " + shortTxid(row.txid));
+    const synopsis = printableText(card.description || card.text || shared && shared.note || summary.cleanText || opReturnTextForRow(row));
     return {subject: {coin: coin, txid: row.txid.toLowerCase().replace(/^0x/, ""),
       sourceId: coin === "evm" ? sourceIdForRow(row) : "", chainId: coin === "evm" ? String(row.index && row.index.chainId || "137") : "", dataUrl: recordDataUrl(row)},
-      title: printableText(sharedTitle || card.title || summary.title || "transaction " + shortTxid(row.txid)),
-      synopsis: printableText(card.description || card.text || summary.cleanText || summary.opReturnText || opReturnTextForRow(row)),
+      title: title.includes("\ufffd") ? "transaction " + shortTxid(row.txid) : title,
+      synopsis: synopsis.includes("\ufffd") ? opReturnTextForRow(row) : synopsis,
       url: publicInteractionUrl(summary.primaryUrl || card.url || safeArray(summary.opReturnUrls)[0] || "")};
   }
 

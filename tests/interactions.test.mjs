@@ -280,3 +280,24 @@ test("the published synthetic signed-comment vector verifies with the production
   const vector = JSON.parse(await readFile(new URL("fixtures/signed-comment-v1.json", import.meta.url), "utf8"));
   assert.equal((await A.verifyDocument(vector)).status, "verified");
 });
+
+const portalSource = await readFile(new URL("../chisel.portal.js", import.meta.url), "utf8");
+const descriptorSource = portalSource.slice(portalSource.indexOf("  function describeInteractionRecord("), portalSource.indexOf("  function recordPortalInteraction("));
+function descriptor(annotation, read) {
+  const scope = vm.createContext({canonicalCoinForRow: row => row.coin, safeArray: value => Array.isArray(value) ? value : [],
+    annotationReads: new Map([["key", read]]), portalAnnotationKey: () => "key", getPortalAnnotation: () => annotation,
+    printableText: value => String(value || ""), shortTxid: value => value.slice(0, 12), sourceIdForRow: () => "other",
+    recordDataUrl: () => "", publicInteractionUrl: value => value, opReturnTextForRow: () => "Binary OP_RETURN · 80 bytes"});
+  vm.runInContext(descriptorSource, scope); return scope.describeInteractionRecord;
+}
+
+test("the actual Portal history descriptor uses lossless binary text and includes only demonstrably shared notes", () => {
+  const row = {coin: "litecoin", txid: "ab".repeat(32), summary: {title: "Binary program", opReturnText: "\ufffdgarbled legacy summary", cleanText: "\ufffdlegacy bytes"}};
+  const browserNote = {note: "PRIVATE BROWSER NOTE", metadata: {title: "PRIVATE TITLE"}, updatedAt: 200};
+  const local = descriptor(browserNote, {source: "browser", remoteUpdatedAt: 200})(row);
+  assert.equal(local.synopsis, "Binary OP_RETURN · 80 bytes"); assert.doesNotMatch(JSON.stringify(local), /PRIVATE|\ufffd/);
+  const newerLocal = descriptor(browserNote, {source: "FileProxy", remoteUpdatedAt: 100})(row);
+  assert.doesNotMatch(JSON.stringify(newerLocal), /PRIVATE/);
+  const shared = descriptor({note: "A program that draws a trapezoid.", metadata: {title: "Trapezoid"}, updatedAt: 100}, {source: "FileProxy", remoteUpdatedAt: 100})(row);
+  assert.equal(shared.title, "Trapezoid"); assert.equal(shared.synopsis, "A program that draws a trapezoid.");
+});
