@@ -1996,6 +1996,8 @@
       <span id="activityPulse">IDLE</span>
     </div>
     <div id="activityCurrent" class="chiselStatusLine" role="status" aria-live="polite">Chisel: Starting…</div>
+    <span id="portalIndexCaption" hidden></span>
+    <span id="portalStatus" hidden></span>
     <div class="activityMonitorMeta">
       <span id="activityRecords">Records: pending</span>
       <span id="activityProxyState">FileProxy: untested</span>
@@ -2519,8 +2521,6 @@
             <a id="portalThunderwordExplorerLink" class="secondaryButton" href="#">verify address</a>
           </div>
         </div>
-        <p id="portalIndexCaption" class="muted"></p>
-        <p id="portalStatus" class="muted"></p>
       </details>
 
       <details class="panel portalDrawer">
@@ -2936,7 +2936,7 @@
     });
   })();
   </script>
-  <script src="chisel.activity-monitor.js?rev=20261025-a"></script>
+<script src="chisel.activity-monitor.js?rev=20261031-status-v2821"></script>
   <script src="chisel.debug.js?rev=20261031-resources-v2820"></script>
   <script src="vendor/qrcode.min.js?rev=20261012S"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20261012S"></script>
@@ -2968,7 +2968,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261031-resources-v2820"></script>
+<script src="app.js?rev=20261031-status-v2821"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">

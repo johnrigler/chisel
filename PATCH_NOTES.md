@@ -1,3 +1,8 @@
+# 2.8.21 — Portal status messages in the top activity panel
+
+- Show the actual Portal status message in the top activity panel, including search results, loading progress and errors. Remove the duplicate caption/status lines below the address lookup.
+- Keep status/caption sources available to diagnostics and existing observers. The activity badge can become idle without erasing the latest message.
+
 # 2.8.20 — identify failed resources accurately
 
 - Failed pictures and media are logged as resource warnings rather than fatal "unknown script" errors. The debug export retains the resource tag and sanitized URL so the failing image or asset can be identified.

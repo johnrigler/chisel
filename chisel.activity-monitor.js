@@ -69,39 +69,22 @@
     proxy.textContent = value ? value.slice(0, 90) : "FileProxy: untested";
   }
 
-  window.chiselActivity = function (source, message, level) {
+  window.chiselActivity = function (source, message, level, detail) {
     originalActivity.apply(this, arguments);
     const src = String(source || "");
     const msg = String(message || "");
     const failure = level === "error" || /error|fail|rejected|timeout/i.test(msg);
 
     if (src === "Portal") {
-      if (failure) {
-        state("error");
-        if (document.body.dataset.mode === "portal" && current.dataset.latched !== "error") {
-          current.textContent = "Portal: request failed; inspect activity log";
-          current.dataset.level = "error";
-        }
-        pulse();
-      } else if (/response received/i.test(msg)) {
-        state("ok");
-        if (document.body.dataset.mode === "portal" && current.dataset.latched !== "error") {
-          if (current.textContent !== "Portal: transaction stream updating") {
-            current.textContent = "Portal: transaction stream updating";
-          }
-          current.dataset.level = "info";
-        }
-        pulse();
-      } else if (/status changed/i.test(msg)) {
-        state("ok");
-        pulse();
-      } else if (/loading/i.test(msg)) {
-        state("busy");
-        if (document.body.dataset.mode === "portal" && current.dataset.latched !== "error") {
-          current.textContent = "Portal: loading transaction records";
-          current.dataset.level = "busy";
-        }
+      const loading = /loading/i.test(msg);
+      state(failure ? "error" : loading ? "busy" : "ok");
+      if (document.body.dataset.mode === "portal" && current.dataset.latched !== "error") {
+        const status = String(detail || message || "");
+        const diagnostics = window.CHISEL_DIAGNOSTICS;
+        current.textContent = "Portal: " + (diagnostics ? diagnostics.clean(status) : status);
+        current.dataset.level = failure ? "error" : loading ? "busy" : "info";
       }
+      if (!loading || failure) pulse();
     } else if (src === "Send" || src === "Broadcast") {
       state(failure ? "error" : /load|build|sign|broadcast/i.test(msg) ? "busy" : "ok");
       if (failure || /success|accepted|confirmed/i.test(msg)) pulse();
@@ -136,10 +119,7 @@
     if (lastStatusAt && Date.now() - lastStatusAt > 12000 &&
         (monitor.dataset.state === "ok" || monitor.dataset.state === "busy")) {
       state("idle");
-      if (document.body.dataset.mode === "portal" && current.dataset.latched !== "error") {
-        current.textContent = "Portal: no recent status updates";
-        current.dataset.level = "info";
-      }
+      // Preserve the last actual status; the badge reports inactivity.
     }
   }, 1000);
 })();
