@@ -21,6 +21,11 @@ into the note. Saved notes appear directly in record details and accompany
 **DOWNLOAD JSON** exports. See [transaction notes](docs/TRANSACTION_NOTES.md)
 for the file/API format, HTTP fallback and metadata examples.
 
+The trapezoid note also displays its reconstructed JavaScript. Choose
+**RUN FUNCTION** to draw it directly inside the note. The reader reassembles
+the McDougall transaction chunks when available and retains the saved source
+for offline use. Functions run in a separate, bounded canvas worker.
+
 Click a transaction's timestamp or expand it and choose **OPEN RECORD**.
 The record page has **COPY RECORD LINK**, **DOWNLOAD JSON**, **SOURCE JSON**
 (when a public file URL is known) and **BACK TO LIST**. Returning restores the

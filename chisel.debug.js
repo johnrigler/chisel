@@ -1,7 +1,7 @@
 /* Local diagnostics: sanitized errors and endpoint routes, never request bodies or key material. */
 (function () {
   "use strict";
-  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1", RELEASE="20261101-v2824";
+  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1", RELEASE="20261101-v2825";
   let events=[];
   try { const saved=JSON.parse(sessionStorage.getItem(KEY)||"[]"); if(Array.isArray(saved)) events=saved.slice(-MAX); } catch (_) {}
   const sensitive=/\b(?:(?:0x)?[0-9a-fA-F]{64,}|[1-9A-HJ-NP-Za-km-z]{51,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;

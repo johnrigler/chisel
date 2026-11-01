@@ -14,11 +14,13 @@
     "canonicalJavaScriptBytes": 194,
     "canonicalRoot": {
       "locator": "3172942:28",
-      "txid": "5b77053295eb98eb9446e7d5f522a340a48e68494a17c9edb8ef01743b3adeb9"
+      "txid": "5b77053295eb98eb9446e7d5f522a340a48e68494a17c9edb8ef01743b3adeb9",
+      "rawUrl": "https://rigler.org/chisel-data/transactions/litecoin/7A3N2yUyC2HyFFngtNvc3yefndNHxpQPJ6dib1Xym6br-5b77053295eb.json"
     },
     "asciiHexRoot": {
       "locator": "3172924:19",
-      "txid": "4fc7a09123655d3346a153741a35177cb076296c2ee5eaa4359519a200b05b8b"
+      "txid": "4fc7a09123655d3346a153741a35177cb076296c2ee5eaa4359519a200b05b8b",
+      "rawUrl": "https://rigler.org/chisel-data/transactions/litecoin/6NRm3mb8RxXpwJnw4jBTTXTPNjrwmxN5xTdBoLqDFQf4-4fc7a0912365.json"
     },
     "canonicalJavaScript": "function a(b){const c=b.getContext(\"2d\");const d=b.width;const e=b.height;c.beginPath();c.moveTo(d*.2,e*.8);c.lineTo(d*.8,e*.8);c.lineTo(d*.65,e*.2);c.lineTo(d*.35,e*.2);c.closePath();c.fill();}",
     "resolverUrl": "https://johnrigler.github.io/chisel/tools/mcdougallResolver/",
@@ -27,7 +29,9 @@
       "https://rigler.org/chisel-data/transactions/litecoin/BMTiDXHRoNoHFSkXYjYLNscsG4JBXQsTAp2aZFtQgyLN-99d2afeed6dc.json"
     ],
     "analysisBy": "ChatGPT-assisted reconstruction",
-    "analysisDate": "2026-11-01"
+    "analysisDate": "2026-11-01",
+    "entry": "a",
+    "runtime": "canvas"
   },
   "updatedAt": 1793513977113
 }

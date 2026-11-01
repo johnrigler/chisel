@@ -2,8 +2,9 @@
 
 Notes describe the meaning and context of a transaction separately from its
 ledger bytes. The editor has two fields: a freeform Note and an optional JSON
-Metadata object. Notes render as literal text with preserved line breaks;
-metadata is data, never executable code.
+Metadata object. Notes render as literal text with preserved line breaks.
+Canvas functions stored in metadata also have a source view and an explicit
+**RUN FUNCTION** control within Notes.
 
 **SAVE TO FILEPROXY** writes a shared file through the configured server.
 **SAVE IN BROWSER** writes only localStorage. Existing browser notes are not
@@ -93,3 +94,37 @@ Configuration defaults:
 `annotationFilePrefix` is relative to FileProxy's workspace. A deployment with
 an allowed external data root can use `"data-root:"` instead. Static HTTP
 locations always use the root-relative `annotations/...` path.
+
+## Reconstructed canvas functions
+
+The trapezoid note shows the reconstructed JavaScript directly below its
+explanation. **RUN FUNCTION** executes it and draws a 640 × 360 canvas in the
+same note. Completed output survives background record rerenders for the
+current session. Opening a note displays the source without executing it.
+
+The metadata fields are `canonicalJavaScript` (source, at most 32,000
+characters), `runtime: "canvas"` and `entry` (the named function to call with
+a canvas). When `entry` is absent, the first named function is used. For example:
+
+```json
+{
+  "runtime": "canvas",
+  "entry": "draw",
+  "canonicalJavaScript": "function draw(canvas){const c=canvas.getContext('2d');c.fillRect(20,20,80,80);}"
+}
+```
+
+For `protocol: "mcdougall-ltc-v1"`, the reader also fetches
+`canonicalRoot.txid` using its optional `rawUrl` or the existing transaction
+readers. It checks the TXID and the continuation's pointer against `locator`,
+joins the first chunk to the continuation tail and expands the fixed v1
+dictionary. Both binary and ASCII-hex continuation payloads are supported.
+The provenance line reports the reconstructed byte counts. The saved source
+remains available when those transaction files cannot be reached.
+
+Execution uses a separate opaque sandbox frame and a dedicated canvas worker.
+Only the pixels return to the Portal. The worker has a three-second deadline;
+its frame's CSP blocks network reads and retains isolation from Portal storage
+and keys. The main page's CSP does not enable JavaScript string evaluation.
+The runner files are static assets and work without Python. The broader trust
+and provenance model remains a separate follow-up.

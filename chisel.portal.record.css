@@ -17,6 +17,11 @@ a.portalStreamTime { color: inherit; text-decoration: underline; text-underline-
 .portalTransactionNotes .portalAnnotationGrid { display: grid; grid-template-columns: minmax(0, 1fr); }
 .portalTransactionNotes textarea { width: 100%; box-sizing: border-box; resize: vertical; }
 .portalTransactionNotes .portalAnnotationActions { flex-wrap: wrap; }
+.portalNoteFunction { margin: 16px 0; min-width: 0; }
+.portalNoteFunctionSource { padding: 12px; margin: 8px 0; border-radius: 8px; background: #f1f4f8; color: #152d3c; white-space: pre-wrap; overflow-wrap: anywhere; }
+.portalNoteFunctionCanvas { display: block; width: 100%; max-width: 640px; height: auto; background: #fff; border: 1px solid #b9c4d0; border-radius: 8px; }
+.portalNoteFunctionCanvas[hidden], .portalNoteFunction iframe[hidden] { display: none; }
+.portalNoteFunctionStatus { margin: 10px 0; }
 @media (max-width: 640px) {
   .portalRecordToolbar > * { flex: 1 1 44%; text-align: center; }
   .portalRecordPage { padding: 12px; }

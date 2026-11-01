@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 const files = ["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.payload.js",
-  "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.record.js", "chisel.portal.js"];
+  "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js"];
 const sources = await Promise.all(files.map(async file => [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
 const txid = "ab".repeat(32), dataUrl = "https://records.example/chisel-data/transactions/litecoin/" + txid + ".json";
 const raw = {txid, vin: [], vout: [{value: 0, scriptpubkey: "6a0754657374696e67"}]};

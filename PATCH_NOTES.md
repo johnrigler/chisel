@@ -1,3 +1,9 @@
+# 2.8.25 — runnable reconstructed functions in notes
+
+- Show a readable JavaScript function and RUN FUNCTION control inside transaction Notes. Draw canvas output beside the source and preserve completed drawings during background record rerenders.
+- Reconstruct the trapezoid from the first OP_RETURN chunk and its continuation, checking transaction identity and the predecessor locator. Support both binary and ASCII-hex roots; retain the shared note's saved source when the files are unavailable.
+- Execute only on request in an opaque sandbox frame and a three-second canvas worker. Keep execution outside the Portal's storage/session and retain the main page CSP. No FileProxy/Python changes are required.
+
 # 2.8.24 — shared transaction notes and metadata
 
 - Replace Category / Note / Fix with a freeform Note and optional JSON Metadata. Preserve legacy category/follow-up text in the migrated blob. Show saved notes alongside record details; retain unsent drafts during background rendering.

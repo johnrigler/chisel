@@ -188,6 +188,8 @@
   if (!payloadData) throw new Error("Load chisel.portal.payload.js before chisel.portal.js.");
   const notesData = window.CHISEL_PORTAL_NOTES;
   if (!notesData) throw new Error("Load chisel.portal.notes.js before chisel.portal.js.");
+  const noteFunction = window.CHISEL_NOTE_FUNCTION;
+  if (!noteFunction) throw new Error("Load chisel.portal.note-function.js before chisel.portal.js.");
   let recordView = null;
   const annotationReads = new Map(), annotationPending = new Map();
   let visibleAnnotationsLoading = false;
@@ -4198,6 +4200,14 @@
       const text = document.createElement("div"); text.className = "portalAnnotationText";
       text.textContent = annotation.note; block.appendChild(text);
     }
+    noteFunction.render(block, row, annotation, {loadTransaction: async function (txid, rawUrl) {
+      const coin = canonicalCoinForRow(row), known = state.portalRowKeys[rowKey({coin: coin, txid: txid})];
+      if (known && known.raw) return known.raw;
+      if (rawUrl && CHISEL.safeWebUrl(rawUrl, window.location.href)) {
+        try { return (await staticTransport.fetchStaticRawFromRow({coin: coin, txid: txid, staticRawUrl: rawUrl})).json; } catch (_) {}
+      }
+      return (await loadLocalTransaction(txid, coin)).raw;
+    }});
     if (Object.keys(annotation.metadata).length) block.appendChild(makeInlinePre("Metadata", pretty(annotation.metadata), false));
     const editor = document.createElement("details");
     editor.open = !!row.annotationDraft;
@@ -4357,6 +4367,7 @@
   }
 
   function appendPortalInlineDetails(container, row, options) {
+    noteFunction.disposeWithin(container);
     container.innerHTML = "";
 
     if (row.draftRecord) {
@@ -5176,6 +5187,7 @@
     if (state.portalSortPending) sortPortalRows();
     const list = $("#portalTransactionList");
     if (!list) return;
+    noteFunction.disposeWithin(list);
     list.innerHTML = "";
     list.classList.remove("muted");
     state.visiblePortalRowKeys = Object.create(null);
