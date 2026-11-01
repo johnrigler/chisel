@@ -7,6 +7,10 @@ fixtures. Read scheduling now uses `chisel.portal.queue.js` (v2.8.26); see
 [`docs/PORTAL_QUEUE.md`](docs/PORTAL_QUEUE.md). Source selection and rendering
 remain in the Portal for later passes.
 
+In v2.8.27, mounted-row reconciliation and display-tree updates use
+`chisel.portal.view.js`. The Portal retains its existing presentation builders
+and public API; see [`docs/PORTAL_VIEW.md`](docs/PORTAL_VIEW.md).
+
 This is an inspection-only map of executable source files. It intentionally excludes JSON datasets, Markdown/text documentation, images, hashes, and license text. `dist/` and vendored code are included because they execute, but are marked as generated/third-party and are not proposed as extraction targets.
 
 ## Legend
@@ -32,6 +36,7 @@ The dependency columns describe *direct* dependencies in the file (not what a lo
 | `app.js` | application/UI | D | F | B | - | G | A | Etch/Review/Start controller; owns form state, manual-draft storage, QR handoff, and exposes many `window.*` actions consumed by v277 self-tests. |
 | `chisel.portal.js` | application/UI | D | F | B | - | G | A | Portal reader, mutable `state`, rendering, static/local/live sources, annotations, and `window.CHISEL_PORTAL`. |
 | `chisel.portal.store.js` | application/UI | - | - | B | - | G | A | Portal record identity/merge rules and recent display snapshots; storage and normalization are injected, with no DOM, network or timers. |
+| `chisel.portal.view.js` | application/UI | D | - | - | - | G | - | Keyed mounted-node reconciliation, scroll anchoring and updates for display-only DOM trees; no source, storage or transaction logic. |
 | `chisel.selftest.js` | application/UI | D | F | B | - | G | A | v277 test/demo runner; calls `app.js` globals and inspects `CHISEL_PORTAL.state`. |
 | `fixtures/etch/etch-fixtures.js` | compatibility/legacy | - | - | - | - | G | A | Fixture data installed as `window.CHISEL_ETCH_FIXTURES`; required by the self-test fixture route. |
 | `data-bundled/portal-starter.js` | provider/API adapter | - | F | - | - | G | A | Static data bootstrap and fallback fetch; publishes `CHISEL_PORTAL_STARTER_DATA`. |

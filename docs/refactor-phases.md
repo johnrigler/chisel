@@ -9,7 +9,9 @@ to `chisel.portal.store.js` with fixtures captured from v2.8.18. See
 In v2.8.26, transaction/note read coordination moved to
 `chisel.portal.queue.js`. Date and amount readers share transaction hydration,
 and reset cancels obsolete queued jobs. See [`PORTAL_QUEUE.md`](PORTAL_QUEUE.md).
-Incremental row rendering remains a separate pass.
+In v2.8.27, visible rows are reconciled by identity and record details update in
+separate sections. Note editors and unchanged function runtimes remain mounted.
+See [`PORTAL_VIEW.md`](PORTAL_VIEW.md).
 
 ## Safety rule
 

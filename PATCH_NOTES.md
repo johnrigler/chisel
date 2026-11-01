@@ -1,3 +1,9 @@
+# 2.8.27 — incremental Portal rendering
+
+- Keep visible transaction rows mounted by chain/TXID identity. Update changed headers and detail sections, reconcile chronological order, and anchor a scrolled list as new records arrive.
+- Retain note editors, unsent drafts, caret/focus, payload controls, open drawers and unchanged images during background reads. Keep the same reconstructed-function iframe and canvas when its source is unchanged; dispose it when the function changes or the row leaves the page.
+- Apply the same section updates to individual record pages, including while a note is being edited. Reuse pagination controls during background refreshes. Keep source selection, the read queue, transaction creation and signing behavior unchanged.
+
 # 2.8.26 — shared Portal read queue
 
 - Coordinate transaction hydration, visible date/amount reads, shared notes and artifact continuation reads through one vanilla JavaScript queue. Prioritize opened/expanded records, then the visible page, then newer history. Share pending transaction reads across date lookup, expansion and background loading.

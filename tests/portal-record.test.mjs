@@ -4,23 +4,30 @@ import test from "node:test";
 import vm from "node:vm";
 
 const files = ["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.payload.js",
-  "chisel.portal.queue.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js"];
+  "chisel.portal.queue.js", "chisel.portal.view.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js"];
 const sources = await Promise.all(files.map(async file => [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
 const txid = "ab".repeat(32), dataUrl = "https://records.example/chisel-data/transactions/litecoin/" + txid + ".json";
 const raw = {txid, vin: [], vout: [{value: 0, scriptpubkey: "6a0754657374696e67"}]};
 const json = (value, status = 200) => ({ok: status >= 200 && status < 300, status, json: async () => value});
 
 class Element {
-  constructor(tag, doc) { this.tagName = tag; this.ownerDocument = doc; this.children = []; this.dataset = {}; this.attributes = {}; this.style = {}; this.className = ""; this.value = ""; this.ownText = ""; this.hidden = false; this.scrollTop = 0; }
+  constructor(tag, doc) { this.tagName = tag; this.nodeType = tag === "#text" ? 3 : 1; this.ownerDocument = doc; this.children = []; this.dataset = {}; this.attributes = {}; this.style = {}; this.className = ""; this.value = ""; this.ownText = ""; this.hidden = false; this.scrollTop = 0; }
   get textContent() { return this.ownText + this.children.map(child => child.textContent).join(""); }
-  set textContent(value) { this.ownText = String(value); this.replaceChildren(); }
+  set textContent(value) { this.replaceChildren(); if (this.nodeType === 3) this.ownText = String(value); else if (String(value)) { const node = new Element("#text", this.ownerDocument); node.ownText = String(value); this.appendChild(node); } }
+  get nodeValue() { return this.nodeType === 3 ? this.ownText : null; }
+  set nodeValue(value) { this.ownText = String(value); }
   get firstChild() { return this.children[0] || null; }
   get childNodes() { return this.children; }
   set innerHTML(value) { assert.equal(value, ""); this.ownText = ""; this.replaceChildren(); }
   appendChild(child) { if (child.parentNode) child.parentNode.removeChild(child); this.children.push(child); child.parentNode = this; return child; }
+  insertBefore(child, before) { if (child === before) return child; if (child.parentNode) child.parentNode.removeChild(child); const at = before ? this.children.indexOf(before) : this.children.length; assert.ok(at >= 0); this.children.splice(at, 0, child); child.parentNode = this; return child; }
+  replaceChild(child, old) { this.insertBefore(child, old); this.removeChild(old); return old; }
+  contains(child) { for (let node = child; node; node = node.parentNode) if (node === this) return true; return false; }
+  remove() { this.parentNode?.removeChild(this); }
   removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parentNode = null; }
-  replaceChildren(...children) { this.children.forEach(child => { child.parentNode = null; }); this.children = []; children.forEach(child => this.appendChild(child)); }
+  replaceChildren(...children) { this.children.forEach(child => { child.parentNode = null; }); this.children = []; this.ownText = ""; children.forEach(child => this.appendChild(child)); }
   setAttribute(key, value) { this.attributes[key] = String(value); }
+  getAttribute(key) { return this.attributes[key] ?? null; }
   removeAttribute(key) { delete this.attributes[key]; }
   addEventListener() {}
   focus() { this.ownerDocument.activeElement = this; }
@@ -38,7 +45,7 @@ function fixture(href = "https://chisel.example/ipfs/bafyApp/?mode=portal&addres
   let serial = 0;
   const document = {readyState: "loading", hidden: false, clicks: [],
     addEventListener() {}, querySelector: selector => nodes.get(selector.slice(1)) || null, querySelectorAll: () => [],
-    createElement: tag => new Element(tag, document)};
+    createElement: tag => new Element(tag, document), createTextNode(text) { const node = new Element("#text", document); node.ownText = String(text); return node; }};
   document.body = new Element("body", document); document.body.dataset.mode = "portal";
   for (const id of ["portalListView", "portalTransactionList", "portalRecordPage", "portalRecordContent", "portalRecordHeading",
     "portalRecordUrl", "portalRecordStatus", "portalRecordSource", "portalRecordCopyLink", "portalRecordBack", "portalRecordDownload", "portalStatus", "portalEvmWordSearch"]) nodes.set(id, new Element("div", document));
@@ -51,6 +58,7 @@ function fixture(href = "https://chisel.example/ipfs/bafyApp/?mode=portal&addres
     location: {href}, document, scrollY: 450, isSecureContext: true,
     navigator: {clipboard: {writeText: async text => clipboard.push(text)}},
     addEventListener: (name, callback) => events.set(name, callback),
+    removeEventListener: (name, callback) => { if (events.get(name) === callback) events.delete(name); },
     setTimeout(callback, ms) { const key = ++serial; timers.set(key, {callback, ms}); return key; }, clearTimeout: key => timers.delete(key),
     scrollTo(options) { context.scrollY = options.top; },
     localStorage: {getItem(key) { return storage.get(key) || null; }, setItem(key, value) { storage.set(key, value); }},
@@ -324,9 +332,195 @@ test("the two-field editor retains an active draft during background rendering a
   f.portal.setPortalAnnotation(row, {note: "A background update"});
   for (const [key, timer] of [...f.timers]) if (timer.ms === 0) { f.timers.delete(key); timer.callback(); }
   assert.ok(descendants(content).includes(fields[0])); assert.equal(fields[0].value, "Keep my typing");
+  assert.match(byClass(content, "portalAnnotationText").textContent, /A background update/);
   fields[1].value = "invalid JSON"; fields[1].oninput();
   const save = descendants(content).find(node => node.textContent === "SAVE IN BROWSER");
   save.onclick({preventDefault() {}, stopPropagation() {}});
   assert.equal(f.portal.getPortalAnnotation(row).note, "A background update");
   assert.equal(row.annotationDraft.note, "Keep my typing"); assert.equal(row.annotationDraft.metadataText, "invalid JSON");
+});
+
+function paint(f) {
+  const handle = f.portal.state.portalRenderHandle, timer = f.timers.get(handle);
+  assert.ok(timer, "a Portal render was requested");
+  f.timers.delete(handle); timer.callback();
+}
+function streamFixture(count = 2) {
+  const f = fixture();
+  Object.assign(f.portal.state.config, {autoFetchVisibleTransactionDates: false, autoFetchVisibleTransactionAmounts: false, portalPageSize: 2});
+  f.context.CHISEL_PORTAL_STARTER_DATA = {transactions: Array.from({length: count}, (_, i) => ({coin: "litecoin", txid: (i + 1).toString(16).padStart(64, "0"),
+    raw: {...raw, txid: (i + 1).toString(16).padStart(64, "0")}, summary: {title: "Record " + i, blockTime: 1700000000 - i * 100}}))};
+  f.portal.loadEmbeddedStaticDataset(); paint(f);
+  return f;
+}
+function refreshStream(f) {
+  f.portal.state.staticDatasetLoaded = false;
+  f.portal.loadEmbeddedStaticDataset(); paint(f);
+}
+const byClass = (node, name) => descendants(node).find(child => child.classList.contains(name));
+
+test("an unrelated history update preserves mounted rows, an open editor, caret, payload control and disclosure", async () => {
+  const f = streamFixture(), list = f.nodes.get("portalTransactionList"), row = f.portal.state.portalRows[0];
+  const item = list.children[0], toggle = byClass(item, "portalExpandButton");
+  await toggle.onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  const details = byClass(item, "portalInlineDetails"), fields = descendants(details).filter(node => node.tagName === "textarea");
+  const editor = fields[0].closest(".portalAnnotationBlock").children.find(node => node.tagName === "details" && descendants(node).includes(fields[0]));
+  editor.open = true; fields[0].value = "Typing through a ledger refresh"; fields[0].oninput(); fields[0].focus(); fields[0].selectionStart = 8; fields[0].selectionEnd = 12;
+  const payload = descendants(details).find(node => node.tagName === "select"); payload.value = "hex"; payload.onchange();
+  const drawer = byClass(details, "portalInlineDrawer"); drawer.open = true;
+  const neighbor = list.children[1]; f.portal.setPortalAnnotation(f.portal.state.portalRows[1], {metadata: {title: "Updated neighbor"}});
+  refreshStream(f);
+  assert.equal(list.children[0], item); assert.equal(list.children[1], neighbor);
+  assert.equal(byClass(item, "portalExpandButton"), toggle); assert.equal(byClass(item, "portalInlineDetails"), details);
+  assert.equal(f.context.document.activeElement, fields[0]); assert.equal(fields[0].value, "Typing through a ledger refresh");
+  assert.equal(fields[0].selectionStart, 8); assert.equal(fields[0].selectionEnd, 12); assert.equal(editor.open, true);
+  assert.ok(descendants(details).includes(payload)); assert.equal(payload.value, "hex"); assert.equal(drawer.open, true);
+  assert.match(neighbor.textContent, /Updated neighbor/); assert.equal(row.annotationDraft.dirty, true);
+});
+
+test("a changed transaction updates its own date, ledger state and amounts without replacing its editor", async () => {
+  const f = streamFixture(), list = f.nodes.get("portalTransactionList"), row = f.portal.state.portalRows[0], item = list.children[0];
+  row.publication = {ledgerState: "awaiting", submittedAt: 1700000001, summary: {}, metadata: {}}; refreshStream(f);
+  await byClass(item, "portalExpandButton").onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  const note = descendants(item).find(node => node.tagName === "textarea"); note.value = "Unsent note"; note.oninput(); note.focus();
+  const beforeTime = byClass(item, "portalStreamTime").textContent;
+  row.publication.ledgerState = "seen";
+  const incoming = f.context.CHISEL_PORTAL_STARTER_DATA.transactions[0];
+  incoming.summary.blockTime += 3600;
+  incoming.raw = {...incoming.raw, vin: [{prevout: {value: 100000, scriptpubkey_address: "LSource"}}],
+    vout: [...raw.vout, {value: 99000, scriptpubkey_address: row.index.address}]};
+  refreshStream(f);
+  assert.equal(list.children[0], item); assert.ok(item.classList.contains("isLedgerSeen")); assert.equal(item.dataset.ledgerState, "seen");
+  assert.notEqual(byClass(item, "portalStreamTime").textContent, beforeTime);
+  assert.match(byClass(item, "portalStreamFinance").textContent, /\+0\.00099000 LTC/);
+  assert.equal(descendants(item).find(node => node.tagName === "textarea"), note);
+  assert.equal(note.value, "Unsent note"); assert.equal(f.context.document.activeElement, note);
+});
+
+test("shared note updates retain the dirty editor and its live save handler while refreshing displayed text", async () => {
+  const f = streamFixture(), row = f.portal.state.portalRows[0], item = f.nodes.get("portalTransactionList").children[0];
+  await byClass(item, "portalExpandButton").onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  const fields = descendants(item).filter(node => node.tagName === "textarea"), save = descendants(item).find(node => node.textContent === "SAVE IN BROWSER");
+  fields[0].value = "My draft"; fields[0].oninput(); fields[1].value = '{"title":"My metadata"}'; fields[1].oninput(); fields[0].focus();
+  f.portal.setPortalAnnotation(row, {note: "New shared text"}); refreshStream(f);
+  assert.match(byClass(item, "portalAnnotationText").textContent, /New shared text/);
+  assert.equal(descendants(item).find(node => node.textContent === "SAVE IN BROWSER"), save);
+  save.onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  assert.equal(f.portal.getPortalAnnotation(row).note, "My draft"); assert.equal(f.portal.getPortalAnnotation(row).metadata.title, "My metadata");
+  assert.equal(row.annotationDraft, null); assert.equal(fields[0].value, "My draft");
+});
+
+test("a running note function keeps its iframe, canvas and pending execution across its own record updates", async () => {
+  const f = streamFixture(), row = f.portal.state.portalRows[0], item = f.nodes.get("portalTransactionList").children[0];
+  f.portal.setPortalAnnotation(row, {note: "Drawing", metadata: {runtime: "canvas", canonicalJavaScript: "function draw(canvas){return canvas;}", entry: "draw"}});
+  await byClass(item, "portalExpandButton").onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  const runtime = byClass(item, "portalNoteFunction"), frame = descendants(runtime).find(node => node.tagName === "iframe"), canvas = byClass(runtime, "portalNoteFunctionCanvas");
+  const run = descendants(runtime).find(node => node.textContent === "RUN FUNCTION"); run.onclick();
+  const timeout = Array.from(f.timers).find(([, timer]) => timer.ms === 6000)?.[0]; assert.ok(timeout); assert.equal(run.disabled, true);
+  f.portal.setPortalAnnotation(row, {...f.portal.getPortalAnnotation(row), note: "A changed note, same function"});
+  f.context.CHISEL_PORTAL_STARTER_DATA.transactions[0].summary.title = "New title"; refreshStream(f);
+  assert.equal(byClass(item, "portalNoteFunction"), runtime); assert.ok(descendants(runtime).includes(frame)); assert.ok(descendants(runtime).includes(canvas));
+  assert.equal(run.disabled, true); assert.equal(f.timers.has(timeout), true); assert.match(runtime.textContent, /Running function/);
+  await byClass(item, "portalExpandButton").onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  assert.equal(f.timers.has(timeout), false); assert.equal(frame.parentNode, null); assert.equal(f.events.has("message"), false);
+});
+
+test("a changed function disposes its old runtime but keeps the open editor and row", async () => {
+  const f = streamFixture(), row = f.portal.state.portalRows[0], item = f.nodes.get("portalTransactionList").children[0];
+  f.portal.setPortalAnnotation(row, {metadata: {canonicalJavaScript: "function draw(canvas){return canvas;}", entry: "draw"}});
+  await byClass(item, "portalExpandButton").onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  const runtime = byClass(item, "portalNoteFunction"), frame = descendants(runtime).find(node => node.tagName === "iframe"), note = descendants(item).find(node => node.tagName === "textarea");
+  descendants(runtime).find(node => node.textContent === "RUN FUNCTION").onclick();
+  f.portal.setPortalAnnotation(row, {metadata: {canonicalJavaScript: "function draw(canvas){canvas.width=200;}", entry: "draw"}}); refreshStream(f);
+  assert.notEqual(byClass(item, "portalNoteFunction"), runtime); assert.equal(frame.parentNode, null);
+  assert.equal(descendants(item).find(node => node.tagName === "textarea"), note); assert.equal(f.nodes.get("portalTransactionList").children[0], item);
+  assert.equal(Array.from(f.timers.values()).some(timer => timer.ms === 6000), false);
+});
+
+test("record-page background changes retain the running function and its existing note controls", async () => {
+  const f = streamFixture(), row = f.portal.state.portalRows[0];
+  f.portal.setPortalAnnotation(row, {metadata: {canonicalJavaScript: "function draw(canvas){return canvas;}", entry: "draw"}});
+  await f.portal.openRecord(row);
+  const content = f.nodes.get("portalRecordContent"), runtime = byClass(content, "portalNoteFunction"), note = descendants(content).find(node => node.tagName === "textarea");
+  const run = descendants(runtime).find(node => node.textContent === "RUN FUNCTION"); run.onclick();
+  f.portal.setPortalAnnotation(row, {...f.portal.getPortalAnnotation(row), metadata: {...f.portal.getPortalAnnotation(row).metadata, title: "Changed while running"}}); refreshStream(f);
+  assert.match(content.textContent, /Changed while running/); assert.equal(byClass(content, "portalNoteFunction"), runtime);
+  assert.equal(descendants(content).find(node => node.tagName === "textarea"), note); assert.equal(run.disabled, true);
+  f.nodes.get("portalRecordBack").onclick(); if (f.portal.state.portalRenderScheduled) paint(f);
+  assert.equal(f.nodes.get("portalListView").hidden, false);
+});
+
+test("keyed ordering preserves a focused row while inserting, sorting and removing its siblings", () => {
+  const f = fixture(), doc = f.context.document, list = doc.createElement("div"), disposed = [], moves = [], originalInsert = list.insertBefore;
+  list.insertBefore = function (node, before) { if (node.parentNode === list) moves.push(node.dataset.key); return originalInsert.call(this, node, before); };
+  const renderer = f.context.CHISEL_PORTAL_VIEW.createList({key: row => row.key,
+    create(row) { const node = doc.createElement("article"); node.dataset.key = row.key; return node; }, update() {}, dispose: node => disposed.push(node.dataset.key)});
+  const [a, b, c, d] = ["a", "b", "c", "d"].map(key => ({key}));
+  renderer.render(list, [a, b, c]); const focused = list.children[1]; focused.focus();
+  renderer.render(list, [c, d, b, a]);
+  assert.deepEqual(list.children.map(node => node.dataset.key), ["c", "d", "b", "a"]); assert.equal(list.children[2], focused);
+  assert.equal(moves.includes("b"), false); assert.equal(doc.activeElement, focused);
+  renderer.render(list, [d, b]); assert.equal(list.children[1], focused); assert.deepEqual(disposed.sort(), ["a", "c"]);
+  renderer.render(list, [{key: "b"}]); assert.notEqual(list.children[0], focused); assert.deepEqual(disposed.sort(), ["a", "b", "c", "d"]);
+});
+
+test("keyed rendering keeps the visible scroll anchor after a new transaction is inserted above it", () => {
+  const f = fixture(), doc = f.context.document, list = doc.createElement("div"); list.getBoundingClientRect = () => ({top: 0, bottom: 100});
+  const renderer = f.context.CHISEL_PORTAL_VIEW.createList({key: row => row.key, create(row) {
+    const node = doc.createElement("article"); node.dataset.key = row.key;
+    node.getBoundingClientRect = () => { const top = list.children.indexOf(node) * 40 - list.scrollTop; return {top, bottom: top + 40}; };
+    return node;
+  }, update() {}});
+  const [a, b, c, d] = ["a", "b", "c", "d"].map(key => ({key}));
+  renderer.render(list, [a, b, c]); list.scrollTop = 45; const visible = list.children[1], top = visible.getBoundingClientRect().top;
+  renderer.render(list, [d, a, b, c]);
+  assert.equal(visible.getBoundingClientRect().top, top); assert.equal(list.scrollTop, 85);
+});
+
+test("same-source thumbnails and the expanded media image remain mounted when the record text changes", async () => {
+  const f = streamFixture(), row = f.portal.state.portalRows[0], item = f.nodes.get("portalTransactionList").children[0];
+  const media = {title: "Video", url: "https://youtu.be/jNQXAC9IVRw", thumbnailUrl: "https://images.example/video.png"};
+  f.portal.setPortalAnnotation(row, {metadata: {media}}); refreshStream(f);
+  await byClass(item, "portalExpandButton").onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  const thumb = byClass(item, "portalStreamThumbImage"), hero = byClass(item, "portalEvmMediaThumb"); assert.ok(thumb); assert.ok(hero);
+  f.portal.setPortalAnnotation(row, {note: "More context", metadata: {title: "Updated title", media}}); refreshStream(f);
+  assert.equal(byClass(item, "portalStreamThumbImage"), thumb); assert.equal(byClass(item, "portalEvmMediaThumb"), hero);
+  assert.match(item.textContent, /Updated title/);
+});
+
+test("pagination reuses focused page controls and disposes only the rows leaving the visible page", async () => {
+  const f = streamFixture(4), list = f.nodes.get("portalTransactionList"), doc = f.context.document;
+  const controls = doc.createElement("div"); f.nodes.set("portalPageControls", controls); refreshStream(f);
+  const next = descendants(controls).find(node => node.textContent === "page2"); next.focus(); refreshStream(f);
+  assert.equal(descendants(controls).find(node => node.textContent === "page2"), next); assert.equal(doc.activeElement, next);
+  const old = list.children[0], row = f.portal.state.portalRows[0];
+  f.portal.setPortalAnnotation(row, {metadata: {canonicalJavaScript: "function draw(canvas){return canvas;}", entry: "draw"}});
+  await byClass(old, "portalExpandButton").onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  const frame = descendants(old).find(node => node.tagName === "iframe"); assert.ok(frame);
+  next.onclick();
+  assert.equal(f.portal.state.portalPage, 2); assert.equal(list.children.includes(old), false); assert.equal(frame.parentNode, null);
+  assert.deepEqual(list.children.map(node => node.dataset.key), Array.from(f.portal.state.portalRows.slice(2, 4), row => row.key));
+  assert.equal(Object.keys(f.portal.state.expandedRowKeys).length, 0);
+});
+
+test("resetting a stream with the same transaction ID creates a fresh view and disposes the old function", async () => {
+  const f = streamFixture(), row = f.portal.state.portalRows[0], list = f.nodes.get("portalTransactionList"), old = list.children[0];
+  f.portal.setPortalAnnotation(row, {metadata: {canonicalJavaScript: "function draw(canvas){return canvas;}", entry: "draw"}});
+  await byClass(old, "portalExpandButton").onclick({preventDefault() {}, stopPropagation() {}}); paint(f);
+  const frame = descendants(old).find(node => node.tagName === "iframe");
+  f.portal.clearPortalStream(); f.portal.loadEmbeddedStaticDataset(); paint(f);
+  assert.notEqual(f.portal.state.portalRows[0], row); assert.notEqual(list.children[0], old);
+  assert.equal(frame.parentNode, null); assert.equal(byClass(list.children[0], "portalInlineDetails"), undefined);
+});
+
+test("a static image that reached its fallback source is retained when its logical source list is unchanged", () => {
+  const f = fixture(), doc = f.context.document, mounted = doc.createElement("div"), next = doc.createElement("div");
+  const image = doc.createElement("img"), incoming = doc.createElement("img");
+  image.dataset.portalImageSource = incoming.dataset.portalImageSource = "https://first.example/image.png|https://fallback.example/image.png";
+  image.src = "https://fallback.example/image.png"; incoming.src = "https://first.example/image.png";
+  image.setAttribute("src", image.src); incoming.setAttribute("src", incoming.src);
+  mounted.appendChild(image); next.appendChild(incoming);
+  f.context.CHISEL_PORTAL_VIEW.patchChildren(mounted, next);
+  assert.equal(mounted.firstChild, image); assert.equal(image.src, "https://fallback.example/image.png");
+  assert.equal(image.getAttribute("src"), "https://fallback.example/image.png");
 });

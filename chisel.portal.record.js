@@ -80,10 +80,7 @@
       if (page) page.classList.toggle("isAwaitingLedger", !!row.publication && row.publication.ledgerState !== "seen");
       const url = recordUrl(row, root.location.href, source);
       const signature = [row, row.raw, row.summary, row.loadError, row.publication && row.publication.ledgerState, row.annotationRevision];
-      const focused = doc.activeElement;
-      const editing = !force && row.annotationDraft && row.annotationDraft.dirty && focused &&
-        typeof focused.closest === "function" && focused.closest(".portalAnnotationBlock");
-      if (content && !editing && (force || !lastRender || signature.some(function (value, i) { return value !== lastRender[i]; }))) {
+      if (content && (force || !lastRender || signature.some(function (value, i) { return value !== lastRender[i]; }))) {
         try { deps.render(content, row); }
         catch (error) {
           content.textContent = "Record display failed: " + (error.message || String(error));

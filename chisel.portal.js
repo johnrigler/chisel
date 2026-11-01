@@ -193,6 +193,14 @@
   const queueApi = window.CHISEL_PORTAL_QUEUE;
   if (!queueApi) throw new Error("Load chisel.portal.queue.js before chisel.portal.js.");
   const loadingQueue = queueApi.createQueue({concurrency: 6, reserved: 1, groupLimits: {notes: 2}});
+  const viewApi = window.CHISEL_PORTAL_VIEW;
+  if (!viewApi) throw new Error("Load chisel.portal.view.js before chisel.portal.js.");
+  const streamViews = new WeakMap(), detailViews = new WeakMap(), annotationViews = new WeakMap();
+  const streamList = viewApi.createList({key: rowKey,
+    create: function (row) { return renderPortalStreamItem(document.createElement("div"), row); },
+    update: function (node, row) { renderPortalStreamItem(null, row, {item: node}); },
+    dispose: function (node) { noteFunction.disposeWithin(node); }
+  });
   let recordView = null;
   const annotationReads = new Map();
   let visibleAnnotationsLoading = false;
@@ -2728,6 +2736,7 @@
       return CHISEL.safeWebUrl(staticData.joinDataPath(base, path), window.location.href);
     }).filter(Boolean)));
     if (state.fileProxyAvailable !== false) urls.push(fileProxyRawUrl(path));
+    img.dataset.portalImageSource = urls.join("|");
     let index = 0;
     img.onerror = function () {
       index += 1;
@@ -3495,13 +3504,13 @@
   }
 
   function renderPortalPageControls(rows) {
-    const box = $("#portalPageControls");
-    if (!box) return;
-    box.innerHTML = "";
+    const target = $("#portalPageControls");
+    if (!target) return;
+    const box = document.createElement("div");
 
     const filteredRows = Array.isArray(rows) ? rows : getFilteredPortalRows();
     if (!state.portalRows.length || !filteredRows.length) {
-      box.textContent = "";
+      target.textContent = "";
       return;
     }
 
@@ -3549,6 +3558,7 @@
     });
 
     addButton("›", page + 1, page >= count);
+    viewApi.patchChildren(target, box);
   }
 
   function mergePortalSummary(existingSummary, incomingSummary) {
@@ -4206,81 +4216,100 @@
 
   function appendPortalAnnotationEditor(container, row) {
     const annotation = getPortalAnnotation(row), hasContent = portalAnnotationHasContent(annotation);
-    const block = document.createElement("section");
-    block.className = "portalAnnotationBlock portalTransactionNotes";
-    const heading = document.createElement("h5"); heading.textContent = "Notes"; block.appendChild(heading);
-    if (annotation.note) {
-      const text = document.createElement("div"); text.className = "portalAnnotationText";
-      text.textContent = annotation.note; block.appendChild(text);
-    }
-    noteFunction.render(block, row, annotation, {loadTransaction: async function (txid, rawUrl) {
-      const coin = canonicalCoinForRow(row), known = state.portalRowKeys[rowKey({coin: coin, txid: txid})];
-      if (known && known.raw) return known.raw;
-      return queuePortalRead("artifact:" + coin + ":" + txid, row, "transaction", async function () {
-        if (rawUrl && CHISEL.safeWebUrl(rawUrl, window.location.href)) {
-          try { return (await staticTransport.fetchStaticRawFromRow({coin: coin, txid: txid, staticRawUrl: rawUrl})).json; } catch (_) {}
-        }
-        return (await loadLocalTransaction(txid, coin)).raw;
-      });
-    }});
-    if (Object.keys(annotation.metadata).length) block.appendChild(makeInlinePre("Metadata", pretty(annotation.metadata), false));
-    const editor = document.createElement("details");
-    editor.open = !!row.annotationDraft;
-    const summary = document.createElement("summary"); summary.textContent = hasContent ? "Edit note" : "Add note";
-    editor.appendChild(summary);
-    const grid = document.createElement("div"); grid.className = "portalAnnotationGrid";
-    const noteLabel = document.createElement("label"); noteLabel.textContent = "Note";
-    const note = document.createElement("textarea"); note.rows = 7; note.maxLength = notesData.MAX_NOTE;
-    note.placeholder = "What this transaction means, the work behind it, links, analysis or follow-up.";
-    note.value = row.annotationDraft ? row.annotationDraft.note : annotation.note;
-    noteLabel.appendChild(note); grid.appendChild(noteLabel);
-    const metadataLabel = document.createElement("label"); metadataLabel.textContent = "Metadata (optional JSON object)";
-    const metadata = document.createElement("textarea"); metadata.rows = 5; metadata.spellcheck = false;
-    metadata.placeholder = '{"title":"Record title","sources":[]}';
-    metadata.value = row.annotationDraft ? row.annotationDraft.metadataText : Object.keys(annotation.metadata).length ? pretty(annotation.metadata) : "";
-    metadataLabel.appendChild(metadata); grid.appendChild(metadataLabel); editor.appendChild(grid);
-    function rememberDraft() { row.annotationDraft = {note: note.value, metadataText: metadata.value, dirty: true}; }
-    note.oninput = metadata.oninput = rememberDraft;
-    function value() { return {schema: notesData.SCHEMA, note: note.value, metadata: notesData.metadata(metadata.value)}; }
-    const actions = document.createElement("div"); actions.className = "actions portalAnnotationActions";
-    const save = document.createElement("button"); save.type = "button"; save.className = "secondaryButton"; save.textContent = "SAVE TO FILEPROXY";
-    save.onclick = async function (event) {
-      event.preventDefault(); event.stopPropagation(); rememberDraft(); save.disabled = true;
-      try {
-        const saved = await savePortalAnnotationToFileProxy(row, value());
-        row.annotationDraft = null;
-        setStatus("Saved transaction note through FileProxy: " + saved.path + ".", false); requestPortalRender();
-      } catch (error) { setStatus(error.message || String(error), true); }
-      finally { save.disabled = false; }
-    };
-    const local = document.createElement("button"); local.type = "button"; local.className = "secondaryButton"; local.textContent = "SAVE IN BROWSER";
-    local.onclick = function (event) {
-      event.preventDefault(); event.stopPropagation(); rememberDraft();
-      try {
-        if (setPortalAnnotation(row, value())) {
+    let view = annotationViews.get(container);
+    if (!view || view.row !== row) {
+      noteFunction.disposeWithin(container); container.replaceChildren();
+      const block = document.createElement("section");
+      block.className = "portalAnnotationBlock portalTransactionNotes";
+      const heading = document.createElement("h5"); heading.textContent = "Notes"; block.appendChild(heading);
+      const text = document.createElement("div"); text.className = "portalAnnotationText"; block.appendChild(text);
+      const runtime = document.createElement("div"); runtime.style.display = "contents"; block.appendChild(runtime);
+      const metadataDrawer = makeInlinePre("Metadata", "", false); block.appendChild(metadataDrawer);
+      const metadataPre = metadataDrawer.children[metadataDrawer.children.length - 1];
+      const editor = document.createElement("details"); editor.open = !!row.annotationDraft;
+      const summary = document.createElement("summary"); editor.appendChild(summary);
+      const grid = document.createElement("div"); grid.className = "portalAnnotationGrid";
+      const noteLabel = document.createElement("label"); noteLabel.textContent = "Note";
+      const note = document.createElement("textarea"); note.rows = 7; note.maxLength = notesData.MAX_NOTE;
+      note.placeholder = "What this transaction means, the work behind it, links, analysis or follow-up.";
+      noteLabel.appendChild(note); grid.appendChild(noteLabel);
+      const metadataLabel = document.createElement("label"); metadataLabel.textContent = "Metadata (optional JSON object)";
+      const metadata = document.createElement("textarea"); metadata.rows = 5; metadata.spellcheck = false;
+      metadata.placeholder = '{"title":"Record title","sources":[]}';
+      metadataLabel.appendChild(metadata); grid.appendChild(metadataLabel); editor.appendChild(grid);
+      function rememberDraft() { row.annotationDraft = {note: note.value, metadataText: metadata.value, dirty: true}; }
+      note.oninput = metadata.oninput = rememberDraft;
+      function value() { return {schema: notesData.SCHEMA, note: note.value, metadata: notesData.metadata(metadata.value)}; }
+      const actions = document.createElement("div"); actions.className = "actions portalAnnotationActions";
+      const save = document.createElement("button"); save.type = "button"; save.className = "secondaryButton"; save.textContent = "SAVE TO FILEPROXY";
+      save.onclick = async function (event) {
+        event.preventDefault(); event.stopPropagation(); rememberDraft(); save.disabled = true;
+        try {
+          const saved = await savePortalAnnotationToFileProxy(row, value());
           row.annotationDraft = null;
-          annotationReads.set(portalAnnotationKey(row), Object.assign({}, annotationReads.get(portalAnnotationKey(row)), {source: "browser"}));
-          setStatus("Saved transaction note in this browser.", false); requestPortalRender();
-        }
-      } catch (error) { setStatus(error.message || String(error), true); }
-    };
-    const reload = document.createElement("button"); reload.type = "button"; reload.className = "secondaryButton"; reload.textContent = "RELOAD SHARED NOTE";
-    reload.onclick = function (event) {
-      event.preventDefault(); event.stopPropagation();
-      loadPortalAnnotation(row, {force: true}).then(function () { requestPortalRender(); }).catch(function (error) { setStatus(error.message, true); });
-    };
-    actions.appendChild(save); actions.appendChild(local); actions.appendChild(reload); editor.appendChild(actions);
-    const help = document.createElement("p"); help.className = "muted";
-    help.textContent = "FileProxy saves are shared through the configured server. Browser saves stay on this device. Notes and metadata are separate from the ledger.";
-    editor.appendChild(help); block.appendChild(editor);
-    const read = annotationReads.get(portalAnnotationKey(row));
-    if (annotation.updatedAt) {
-      const stamp = document.createElement("p"); stamp.className = "muted";
-      stamp.textContent = (read && read.source || "browser") + " · updated " + new Date(annotation.updatedAt).toISOString().slice(0, 16).replace("T", " ") + " UTC";
-      block.appendChild(stamp);
+          setStatus("Saved transaction note through FileProxy: " + saved.path + ".", false); requestPortalRender();
+        } catch (error) { setStatus(error.message || String(error), true); }
+        finally { save.disabled = false; }
+      };
+      const local = document.createElement("button"); local.type = "button"; local.className = "secondaryButton"; local.textContent = "SAVE IN BROWSER";
+      local.onclick = function (event) {
+        event.preventDefault(); event.stopPropagation(); rememberDraft();
+        try {
+          if (setPortalAnnotation(row, value())) {
+            row.annotationDraft = null;
+            annotationReads.set(portalAnnotationKey(row), Object.assign({}, annotationReads.get(portalAnnotationKey(row)), {source: "browser"}));
+            setStatus("Saved transaction note in this browser.", false); requestPortalRender();
+          }
+        } catch (error) { setStatus(error.message || String(error), true); }
+      };
+      const reload = document.createElement("button"); reload.type = "button"; reload.className = "secondaryButton"; reload.textContent = "RELOAD SHARED NOTE";
+      reload.onclick = function (event) {
+        event.preventDefault(); event.stopPropagation();
+        loadPortalAnnotation(row, {force: true}).then(function () { requestPortalRender(); }).catch(function (error) { setStatus(error.message, true); });
+      };
+      actions.appendChild(save); actions.appendChild(local); actions.appendChild(reload); editor.appendChild(actions);
+      const help = document.createElement("p"); help.className = "muted";
+      help.textContent = "FileProxy saves are shared through the configured server. Browser saves stay on this device. Notes and metadata are separate from the ledger.";
+      editor.appendChild(help); block.appendChild(editor);
+      const stamp = document.createElement("p"); stamp.className = "muted"; block.appendChild(stamp);
+      container.appendChild(block);
+      view = {row: row, block: block, text: text, runtime: runtime, metadataDrawer: metadataDrawer,
+        metadataPre: metadataPre, editor: editor, summary: summary, note: note, metadata: metadata, stamp: stamp};
+      annotationViews.set(container, view);
     }
-    container.appendChild(block);
-    return block;
+    view.text.hidden = !annotation.note;
+    if (view.text.textContent !== annotation.note) view.text.textContent = annotation.note;
+    view.metadataDrawer.hidden = !Object.keys(annotation.metadata).length;
+    const metadataText = pretty(annotation.metadata);
+    if (view.metadataPre.textContent !== metadataText) view.metadataPre.textContent = metadataText;
+    view.summary.textContent = hasContent ? "Edit note" : "Add note";
+    const draft = row.annotationDraft;
+    const noteValue = draft ? draft.note : annotation.note;
+    const metadataValue = draft ? draft.metadataText : Object.keys(annotation.metadata).length ? metadataText : "";
+    if (view.note.value !== noteValue) view.note.value = noteValue;
+    if (view.metadata.value !== metadataValue) view.metadata.value = metadataValue;
+    const read = annotationReads.get(portalAnnotationKey(row));
+    view.stamp.hidden = !annotation.updatedAt;
+    view.stamp.textContent = annotation.updatedAt ? (read && read.source || "browser") + " · updated " +
+      new Date(annotation.updatedAt).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "";
+    const spec = noteFunction.descriptor(annotation);
+    const functionStamp = JSON.stringify(spec && [spec.source, spec.entry, spec.metadata.protocol,
+      spec.metadata.locator, spec.metadata.canonicalRoot]);
+    if (view.functionStamp !== functionStamp) {
+      noteFunction.disposeWithin(view.runtime); view.runtime.replaceChildren();
+      noteFunction.render(view.runtime, row, annotation, {loadTransaction: async function (txid, rawUrl) {
+        const coin = canonicalCoinForRow(row), known = state.portalRowKeys[rowKey({coin: coin, txid: txid})];
+        if (known && known.raw) return known.raw;
+        return queuePortalRead("artifact:" + coin + ":" + txid, row, "transaction", async function () {
+          if (rawUrl && CHISEL.safeWebUrl(rawUrl, window.location.href)) {
+            try { return (await staticTransport.fetchStaticRawFromRow({coin: coin, txid: txid, staticRawUrl: rawUrl})).json; } catch (_) {}
+          }
+          return (await loadLocalTransaction(txid, coin)).raw;
+        });
+      }});
+      view.functionStamp = functionStamp;
+    }
+    return view.block;
   }
 
   // A transaction reference should identify its chain, not its current explorer.
@@ -4381,21 +4410,97 @@
     return card;
   }
 
-  function appendPortalInlineDetails(container, row, options) {
-    noteFunction.disposeWithin(container);
-    container.innerHTML = "";
+  function portalDisplayStamp(row) {
+    return JSON.stringify([row.raw, row.summary, row.publication, row.index, row.localPath,
+      row.rawSourceUrl, row.blockTime, row.confirmed, row.loadError, row.dateLookupError,
+      getPortalAnnotation(row), state.personalAccount, !!state.pendingHydration[row.key],
+      !!state.pendingDateLookup[row.key], !!state.attemptedFinanceLookup[row.key],
+      rowExplorerUrl(row), portalRecordUrl(row),
+      collectEvmMediaCards(row).map(function (card) { return readPageMetadata(card.url); }),
+      getStaticDataSources(), getFileProxyUrl(), state.fileProxyAvailable,
+      configValue("inlineImageThumbScale", 2), configValue("inlineImageScale", 12), configValue("inlineImageExpandedScale", 12)]);
+  }
 
-    if (row.draftRecord) {
-      appendPortalDraftDetails(container, row);
+  function portalDisclosures(container) {
+    const found = new Map(), counts = Object.create(null);
+    function visit(node) {
+      if (String(node.tagName).toLowerCase() === "details") {
+        const summary = Array.from(node.childNodes).find(function (child) { return String(child.tagName).toLowerCase() === "summary"; });
+        const name = node.className + ":" + (summary && summary.textContent || "");
+        const key = name + ":" + (counts[name] = (counts[name] || 0) + 1);
+        found.set(key, node);
+      }
+      Array.from(node.childNodes || []).forEach(visit);
+    }
+    visit(container); return found;
+  }
+
+  function updatePortalDetailPart(view, name, stamp, build, displayOnly) {
+    let part = view.parts[name];
+    if (!part) {
+      const node = document.createElement("div"); node.style.display = "contents";
+      node.dataset.portalPart = name; view.container.appendChild(node);
+      part = view.parts[name] = {node: node};
+    }
+    if (part.stamp === stamp) return;
+    const focus = document.activeElement;
+    if (!displayOnly && focus && part.node.contains && part.node.contains(focus) &&
+        /^(?:INPUT|TEXTAREA|SELECT)$/i.test(focus.tagName)) {
+      if (!part.waitingForBlur) {
+        part.waitingForBlur = true;
+        focus.addEventListener("blur", function () { part.waitingForBlur = false; requestPortalRender(); }, {once: true});
+      }
       return;
     }
-
-    const mediaHero = appendPortalEvmMediaCards(container, row);
-    if (mediaHero) mediaHero.classList.add("portalMediaHero");
-    if (row.publication && row.publication.metadata && Object.keys(row.publication.metadata).length) {
-      container.appendChild(makeInlinePre("Linked media metadata (off-chain)", pretty(row.publication.metadata), false));
+    const next = document.createElement("div"); build(next);
+    if (displayOnly) viewApi.patchChildren(part.node, next);
+    else {
+      const disclosures = portalDisclosures(part.node);
+      noteFunction.disposeWithin(part.node);
+      part.node.replaceChildren();
+      while (next.firstChild) part.node.appendChild(next.firstChild);
+      portalDisclosures(part.node).forEach(function (node, key) { if (disclosures.has(key)) node.open = disclosures.get(key).open; });
     }
+    part.stamp = stamp;
+  }
 
+  function appendPortalInlineDetails(container, row, options) {
+    let view = detailViews.get(container);
+    if (!view || view.row !== row) {
+      noteFunction.disposeWithin(container); container.replaceChildren();
+      view = {row: row, container: container, parts: Object.create(null)}; detailViews.set(container, view);
+    }
+    const stamp = portalDisplayStamp(row);
+    if (row.draftRecord) {
+      updatePortalDetailPart(view, "draft", JSON.stringify(row.draftRecord), function (target) { appendPortalDraftDetails(target, row); });
+      return;
+    }
+    const cards = collectEvmMediaCards(row);
+    const mediaStamp = JSON.stringify([cards, cards.map(function (card) { return readPageMetadata(card.url); }),
+      row.publication && row.publication.metadata]);
+    updatePortalDetailPart(view, "media", mediaStamp, function (target) {
+      const hero = appendPortalEvmMediaCards(target, row);
+      if (hero) hero.classList.add("portalMediaHero");
+      if (row.publication && row.publication.metadata && Object.keys(row.publication.metadata).length) {
+        target.appendChild(makeInlinePre("Linked media metadata (off-chain)", pretty(row.publication.metadata), false));
+      }
+    }, true);
+    updatePortalDetailPart(view, "header", stamp + !!(options && options.recordPage), function (target) { appendPortalInlineHeader(target, row, options); }, true);
+    if (!view.parts.notes) {
+      const notes = document.createElement("div"); notes.style.display = "contents";
+      notes.dataset.portalPart = "notes"; container.appendChild(notes); view.parts.notes = {node: notes};
+    }
+    appendPortalAnnotationEditor(view.parts.notes.node, row);
+    updatePortalDetailPart(view, "payload", JSON.stringify(extractOutputs(row.raw).map(function (output) { return [output.n, output.opReturnPayload]; })),
+      function (target) { appendPortalPayloads(target, row); });
+    updatePortalDetailPart(view, "body", JSON.stringify([row.raw, row.summary, row.loadError,
+      !!state.pendingHydration[row.key], row.index, state.personalAccount, getPortalAnnotation(row).metadata,
+      getStaticDataSources(), getFileProxyUrl(), state.fileProxyAvailable,
+      configValue("inlineImageScale", 12), configValue("inlineImageExpandedScale", 12)]),
+      function (target) { appendPortalInlineBody(target, row); });
+  }
+
+  function appendPortalInlineHeader(container, row, options) {
     const summary = row.summary || makeBasicSummary(row.txid, row.raw || row, row.index);
     const header = document.createElement("div");
     header.className = "portalInlineHeader";
@@ -4484,9 +4589,9 @@
     header.appendChild(actions);
     container.appendChild(header);
 
-    appendPortalAnnotationEditor(container, row);
-    appendPortalPayloads(container, row);
+  }
 
+  function appendPortalInlineBody(container, row) {
     // Linked media leads the expanded record. Ledger flow and supporting
     // interpretation remain available immediately below it.
     const ledgerFirst = canonicalCoinForRow(row) === "litecoin" &&
@@ -4806,10 +4911,16 @@
   function renderPortalStreamItem(list, row, options) {
     const opts = options || {};
     const expanded = opts.expanded === undefined ? !!state.expandedRowKeys[row.key] : !!opts.expanded;
+    const existing = opts.item && streamViews.get(opts.item);
+    const stamp = portalDisplayStamp(row) + ":" + expanded + ":" + (row.key === state.selectedRowKey);
+    if (existing && existing.stamp === stamp) {
+      if (expanded) appendPortalInlineDetails(existing.detail, row);
+      return opts.item;
+    }
     const primaryUrl = recordTargetUrlForRow(row);
     const isPersonal = personalAccountMatchesRow(row);
     const recordBehavior = portalRecordBehaviorForRow(row);
-    const item = document.createElement("div");
+    const item = opts.item || document.createElement("div");
     item.className = "portalStreamItem" +
       (expanded ? " isExpanded" : "") +
       (row.publication ? (row.publication.ledgerState === "seen" ? " isLedgerSeen" : " isAwaitingLedger") : "") +
@@ -4820,10 +4931,16 @@
       item.dataset.ledgerState = row.publication.ledgerState;
       item.setAttribute("aria-label", row.publication.ledgerState === "seen"
         ? "Transaction observed by ledger" : "Transaction awaiting ledger read");
+    } else {
+      delete item.dataset.ledgerState;
+      item.removeAttribute("aria-label");
     }
     if (isPersonal) {
       item.dataset.personalAddress = state.personalAccount.address;
       item.title = "This transaction touches your loaded public account.";
+    } else {
+      delete item.dataset.personalAddress;
+      item.removeAttribute("title");
     }
 
     const line = document.createElement("div");
@@ -4961,16 +5078,26 @@
     }
     line.appendChild(finance);
     if (verify) line.appendChild(verify);
-    item.appendChild(line);
+    if (existing) viewApi.patchDisplay(item.firstChild, line);
+    else item.appendChild(line);
 
+    let detail = existing && existing.detail;
     if (expanded) {
-      const detail = document.createElement("div");
-      detail.className = "portalInlineDetails";
+      if (!detail) {
+        detail = document.createElement("div");
+        detail.className = "portalInlineDetails";
+        item.appendChild(detail);
+      }
       appendPortalInlineDetails(detail, row);
-      item.appendChild(detail);
+    } else if (detail) {
+      noteFunction.disposeWithin(detail);
+      item.removeChild(detail);
+      detail = null;
     }
 
-    list.appendChild(item);
+    streamViews.set(item, {stamp: stamp, detail: detail});
+    if (list) list.appendChild(item);
+    return item;
   }
 
   function appendPortalDraftDetails(container, row) {
@@ -5187,12 +5314,11 @@
     if (state.portalSortPending) sortPortalRows();
     const list = $("#portalTransactionList");
     if (!list) return;
-    noteFunction.disposeWithin(list);
-    list.innerHTML = "";
     list.classList.remove("muted");
     state.visiblePortalRowKeys = Object.create(null);
 
     if (!state.portalRows.length) {
+      streamList.clear();
       list.classList.add("muted");
       list.textContent = "◷ Loading ThunderWords…";
       setText("#portalExplorerCount", "◷ Loading ThunderWords…");
@@ -5203,6 +5329,7 @@
 
     const filteredRows = getFilteredPortalRows();
     if (!filteredRows.length) {
+      streamList.clear();
       list.classList.add("muted");
       list.textContent = "◷ Looking for matching ThunderWords…";
       setText("#portalExplorerCount", "◷ 0 shown · " + state.portalRows.length + " loaded");
@@ -5221,8 +5348,8 @@
 
     pageRows.forEach(function (row) {
       state.visiblePortalRowKeys[row.key] = true;
-      renderPortalStreamItem(list, row);
     });
+    streamList.render(list, pageRows);
     loadingQueue.reprioritize(portalReadPriority);
     scheduleVisiblePortalDates(pageRows);
     scheduleVisiblePortalFinance(pageRows);

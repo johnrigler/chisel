@@ -30,7 +30,7 @@ const context = vm.createContext({URL, URLSearchParams, TextEncoder, TextDecoder
   fetch() { assert.fail("preview fetched a transaction or saved data"); }, location: {href: "https://chisel.example/"}
 });
 context.window = context;
-for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.queue.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
+for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.queue.js", "chisel.portal.view.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
   vm.runInContext(await readFile(new URL("../" + file, import.meta.url), "utf8"), context);
 }
 const P = context.CHISEL_RECORD_PREVIEW, portal = context.CHISEL_PORTAL;
@@ -341,7 +341,8 @@ test("closed Netflix rows show saved title, description and a small picture; exp
     assert.equal(descendants(closed).filter(node => node.className === "portalInlineDetails").length, 0);
     const open = new Element("div"); portal.renderStreamItem(open, row, {expanded: true, onToggle() {}});
     const details = descendants(open).find(node => node.className === "portalInlineDetails");
-    assert.match(details.firstChild.className, /portalMediaHero/);
+    assert.equal(details.firstChild.style.display, "contents");
+    assert.match(details.firstChild.firstChild.className, /portalMediaHero/);
     const heroImages = descendants(details.firstChild).filter(node => node.tagName === "img");
     assert.equal(heroImages.length, 1); assert.equal(heroImages[0].src, image);
     assert.equal(descendants(details).filter(node => node.tagName === "img" && node.src === image).length, 1);
