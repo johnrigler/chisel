@@ -3,7 +3,7 @@ import {readFile} from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const sources = await Promise.all(["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.js"].map(async file =>
+const sources = await Promise.all(["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.store.js", "chisel.portal.js"].map(async file =>
   [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
 const address = "LZMFvkRUiNVJoQvDHJ9C8tzCyBTD2PxLwk";
 const id = n => n.toString(16).padStart(64, "0");

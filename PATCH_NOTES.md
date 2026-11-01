@@ -1,3 +1,9 @@
+# 2.8.19 — extract the Portal record store
+
+- Move record identity, deduplication, summary merging and recent display snapshots into `chisel.portal.store.js`. The module uses injected normalization/storage callbacks and has no DOM, network or timers.
+- Preserve the Portal API/state, row objects, cache key/limits, visible text/media, pending-to-seen behavior and first-page loading priority from 2.8.18. Rendering and request scheduling remain in the Portal.
+- Add fixtures captured from 16 pre-refactor record transitions and direct store tests for merging, persistence, reset behavior and browser script order.
+
 # 2.8.18 — OP_RETURN text in closed records
 
 - Portal rows always show decoded OP_RETURN text, including BlockCypher output scripts and older rows with generic summaries. Cached summary text remains visible before raw transaction data loads.

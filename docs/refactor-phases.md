@@ -1,6 +1,11 @@
 # Chisel Refactor Phases
 
-This file defines the low-risk refactor order for the next Chisel passes. The project does not yet have a real automated test harness, so changes should remain small, reversible, and easy to inspect in a browser.
+This file defines the low-risk refactor order for the next Chisel passes. Automated fixtures and regression tests now run from `tests/` and GitHub Actions. Changes should remain small, reversible, and easy to inspect in a browser.
+
+In v2.8.19, Portal record identity, merge rules and recent display snapshots moved
+to `chisel.portal.store.js` with fixtures captured from v2.8.18. See
+[`PORTAL_STORE.md`](PORTAL_STORE.md). The next independent passes are a shared
+loading queue and incremental row rendering.
 
 ## Safety rule
 

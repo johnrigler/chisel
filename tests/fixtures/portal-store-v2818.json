@@ -1,0 +1,1037 @@
+{
+  "sourceCommit": "a2553aaa77ad67aba235badcdc1b993b9110accb",
+  "scenarios": [
+    {
+      "name": "receipt, sparse cache, live ledger and later observation update merge into one row",
+      "steps": [
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "index": {
+              "coin": "litecoin",
+              "name": "receipt"
+            },
+            "summary": {
+              "title": "Reviewed video",
+              "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+              "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+              "mediaCards": [
+                {
+                  "url": "https://youtu.be/jNQXAC9IVRw",
+                  "title": "Reviewed video",
+                  "authorName": "Saved channel",
+                  "thumbnailUrl": "https://images.example/picture.jpg",
+                  "description": "Saved description"
+                }
+              ],
+              "blockTime": 1793450000,
+              "blockTimeEstimated": true,
+              "blockHeight": 3200000
+            },
+            "raw": {
+              "txid": "abababababababababababababababababababababababababababababababab",
+              "vin": [],
+              "vout": [],
+              "source": "submitted"
+            },
+            "publication": {
+              "coin": "litecoin",
+              "txid": "abababababababababababababababababababababababababababababababab",
+              "summary": {
+                "title": "Reviewed video",
+                "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                "mediaCards": [
+                  {
+                    "url": "https://youtu.be/jNQXAC9IVRw",
+                    "title": "Reviewed video",
+                    "authorName": "Saved channel",
+                    "thumbnailUrl": "https://images.example/picture.jpg",
+                    "description": "Saved description"
+                  }
+                ],
+                "blockTime": 1793450000,
+                "blockTimeEstimated": true,
+                "blockHeight": 3200000
+              },
+              "ledgerState": "awaiting-ledger",
+              "submittedAt": 1793450000000,
+              "metadata": {
+                "authorName": "Saved channel"
+              }
+            },
+            "discoverySource": "local-broadcast"
+          },
+          "options": {
+            "publicationUpdate": true
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "index": {
+                  "coin": "litecoin",
+                  "name": "receipt"
+                },
+                "summary": {
+                  "title": "Reviewed video",
+                  "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                  "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                  "mediaCards": [
+                    {
+                      "url": "https://youtu.be/jNQXAC9IVRw",
+                      "title": "Reviewed video",
+                      "authorName": "Saved channel",
+                      "thumbnailUrl": "https://images.example/picture.jpg",
+                      "description": "Saved description"
+                    }
+                  ],
+                  "blockTime": 1793450000,
+                  "blockTimeEstimated": true,
+                  "blockHeight": 3200000
+                },
+                "raw": {
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "vin": [],
+                  "vout": [],
+                  "source": "submitted"
+                },
+                "publication": {
+                  "coin": "litecoin",
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "summary": {
+                    "title": "Reviewed video",
+                    "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                    "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                    "mediaCards": [
+                      {
+                        "url": "https://youtu.be/jNQXAC9IVRw",
+                        "title": "Reviewed video",
+                        "authorName": "Saved channel",
+                        "thumbnailUrl": "https://images.example/picture.jpg",
+                        "description": "Saved description"
+                      }
+                    ],
+                    "blockTime": 1793450000,
+                    "blockTimeEstimated": true,
+                    "blockHeight": 3200000
+                  },
+                  "ledgerState": "awaiting-ledger",
+                  "submittedAt": 1793450000000,
+                  "metadata": {
+                    "authorName": "Saved channel"
+                  }
+                },
+                "discoverySource": "local-broadcast",
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "LTC",
+            "txid": "ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB",
+            "index": {
+              "coin": "litecoin",
+              "name": "filesystem"
+            },
+            "summary": {
+              "title": "transaction ababababab",
+              "opReturnText": "",
+              "primaryUrl": "",
+              "mediaCards": [
+                {
+                  "url": "https://youtu.be/jNQXAC9IVRw",
+                  "title": "https://youtu.be/jNQXAC9IVRw",
+                  "authorName": "",
+                  "thumbnailUrl": ""
+                }
+              ],
+              "blockTime": 0,
+              "blockHeight": 0
+            },
+            "raw": null,
+            "localPath": "data/transactions/litecoin/example.json",
+            "discoverySource": "fileProxy"
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB",
+                "index": {
+                  "coin": "litecoin",
+                  "name": "filesystem"
+                },
+                "summary": {
+                  "title": "Reviewed video",
+                  "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                  "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                  "mediaCards": [
+                    {
+                      "url": "https://youtu.be/jNQXAC9IVRw",
+                      "title": "Reviewed video",
+                      "authorName": "Saved channel",
+                      "thumbnailUrl": "https://images.example/picture.jpg",
+                      "description": "Saved description"
+                    }
+                  ],
+                  "blockTime": 1793450000,
+                  "blockTimeEstimated": true,
+                  "blockHeight": 3200000
+                },
+                "raw": {
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "vin": [],
+                  "vout": [],
+                  "source": "submitted"
+                },
+                "publication": {
+                  "coin": "litecoin",
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "summary": {
+                    "title": "Reviewed video",
+                    "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                    "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                    "mediaCards": [
+                      {
+                        "url": "https://youtu.be/jNQXAC9IVRw",
+                        "title": "Reviewed video",
+                        "authorName": "Saved channel",
+                        "thumbnailUrl": "https://images.example/picture.jpg",
+                        "description": "Saved description"
+                      }
+                    ],
+                    "blockTime": 1793450000,
+                    "blockTimeEstimated": true,
+                    "blockHeight": 3200000
+                  },
+                  "ledgerState": "awaiting-ledger",
+                  "submittedAt": 1793450000000,
+                  "metadata": {
+                    "authorName": "Saved channel"
+                  }
+                },
+                "discoverySource": "fileProxy",
+                "key": "litecoin:abababababababababababababababababababababababababababababababab",
+                "localPath": "data/transactions/litecoin/example.json",
+                "blockTime": 1793450000
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "index": {
+              "coin": "litecoin",
+              "name": "ledger"
+            },
+            "summary": {
+              "title": "https://youtu.be/jNQXAC9IVRw",
+              "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+              "blockTime": 1793451000,
+              "blockHeight": 3200001,
+              "ledgerFinance": {
+                "selectedAddress": "LTEST",
+                "netSat": -1000,
+                "feeSat": 1000,
+                "outputTotalSat": 49000
+              }
+            },
+            "raw": {
+              "txid": "abababababababababababababababababababababababababababababababab",
+              "vin": [],
+              "vout": [],
+              "source": "ledger"
+            },
+            "confirmed": true,
+            "discoverySource": "live-search"
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "index": {
+                  "coin": "litecoin",
+                  "name": "ledger"
+                },
+                "summary": {
+                  "title": "Reviewed video",
+                  "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                  "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                  "mediaCards": [
+                    {
+                      "url": "https://youtu.be/jNQXAC9IVRw",
+                      "title": "Reviewed video",
+                      "authorName": "Saved channel",
+                      "thumbnailUrl": "https://images.example/picture.jpg",
+                      "description": "Saved description"
+                    }
+                  ],
+                  "blockTime": 1793451000,
+                  "blockTimeEstimated": false,
+                  "blockHeight": 3200001,
+                  "ledgerFinance": {
+                    "selectedAddress": "LTEST",
+                    "netSat": -1000,
+                    "feeSat": 1000,
+                    "outputTotalSat": 49000
+                  }
+                },
+                "raw": {
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "vin": [],
+                  "vout": [],
+                  "source": "ledger"
+                },
+                "publication": {
+                  "coin": "litecoin",
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "summary": {
+                    "title": "Reviewed video",
+                    "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                    "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                    "mediaCards": [
+                      {
+                        "url": "https://youtu.be/jNQXAC9IVRw",
+                        "title": "Reviewed video",
+                        "authorName": "Saved channel",
+                        "thumbnailUrl": "https://images.example/picture.jpg",
+                        "description": "Saved description"
+                      }
+                    ],
+                    "blockTime": 1793450000,
+                    "blockTimeEstimated": true,
+                    "blockHeight": 3200000
+                  },
+                  "ledgerState": "awaiting-ledger",
+                  "submittedAt": 1793450000000,
+                  "metadata": {
+                    "authorName": "Saved channel"
+                  }
+                },
+                "discoverySource": "live-search",
+                "key": "litecoin:abababababababababababababababababababababababababababababababab",
+                "localPath": "data/transactions/litecoin/example.json",
+                "blockTime": 1793451000,
+                "confirmed": true
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "index": {
+              "coin": "litecoin",
+              "name": "receipt"
+            },
+            "summary": {
+              "title": "Reviewed video",
+              "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+              "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+              "mediaCards": [
+                {
+                  "url": "https://youtu.be/jNQXAC9IVRw",
+                  "title": "Reviewed video",
+                  "authorName": "Saved channel",
+                  "thumbnailUrl": "https://images.example/picture.jpg",
+                  "description": "Saved description"
+                }
+              ],
+              "blockTime": 1793450000,
+              "blockTimeEstimated": true,
+              "blockHeight": 3200000
+            },
+            "raw": {
+              "txid": "abababababababababababababababababababababababababababababababab",
+              "vin": [],
+              "vout": [],
+              "source": "submitted"
+            },
+            "publication": {
+              "coin": "litecoin",
+              "txid": "abababababababababababababababababababababababababababababababab",
+              "summary": {
+                "title": "Reviewed video",
+                "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                "mediaCards": [
+                  {
+                    "url": "https://youtu.be/jNQXAC9IVRw",
+                    "title": "Reviewed video",
+                    "authorName": "Saved channel",
+                    "thumbnailUrl": "https://images.example/picture.jpg",
+                    "description": "Saved description"
+                  }
+                ],
+                "blockTime": 1793450000,
+                "blockTimeEstimated": true,
+                "blockHeight": 3200000
+              },
+              "ledgerState": "seen",
+              "submittedAt": 1793450000000,
+              "metadata": {
+                "authorName": "Saved channel"
+              }
+            },
+            "discoverySource": "local-broadcast"
+          },
+          "options": {
+            "publicationUpdate": true
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "index": {
+                  "coin": "litecoin",
+                  "name": "ledger"
+                },
+                "summary": {
+                  "title": "Reviewed video",
+                  "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                  "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                  "mediaCards": [
+                    {
+                      "url": "https://youtu.be/jNQXAC9IVRw",
+                      "title": "Reviewed video",
+                      "authorName": "Saved channel",
+                      "thumbnailUrl": "https://images.example/picture.jpg",
+                      "description": "Saved description"
+                    }
+                  ],
+                  "blockTime": 1793451000,
+                  "blockTimeEstimated": false,
+                  "blockHeight": 3200001,
+                  "ledgerFinance": {
+                    "selectedAddress": "LTEST",
+                    "netSat": -1000,
+                    "feeSat": 1000,
+                    "outputTotalSat": 49000
+                  }
+                },
+                "raw": {
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "vin": [],
+                  "vout": [],
+                  "source": "ledger"
+                },
+                "publication": {
+                  "coin": "litecoin",
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "summary": {
+                    "title": "Reviewed video",
+                    "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                    "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                    "mediaCards": [
+                      {
+                        "url": "https://youtu.be/jNQXAC9IVRw",
+                        "title": "Reviewed video",
+                        "authorName": "Saved channel",
+                        "thumbnailUrl": "https://images.example/picture.jpg",
+                        "description": "Saved description"
+                      }
+                    ],
+                    "blockTime": 1793450000,
+                    "blockTimeEstimated": true,
+                    "blockHeight": 3200000
+                  },
+                  "ledgerState": "seen",
+                  "submittedAt": 1793450000000,
+                  "metadata": {
+                    "authorName": "Saved channel"
+                  }
+                },
+                "discoverySource": "live-search",
+                "key": "litecoin:abababababababababababababababababababababababababababababababab",
+                "localPath": "data/transactions/litecoin/example.json",
+                "blockTime": 1793450000,
+                "confirmed": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "chain and EVM source identities remain distinct",
+      "steps": [
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "main"
+            }
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "main",
+                  "blockTime": 0
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "tLTC",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "test"
+            }
+          },
+          "expected": {
+            "key": "litecoinTestnet:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "main",
+                  "blockTime": 0
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "tLTC",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "test",
+                  "blockTime": 0
+                },
+                "key": "litecoinTestnet:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "evm",
+            "sourceId": "evmGomez",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "gomez"
+            }
+          },
+          "expected": {
+            "key": "evmGomez:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "main",
+                  "blockTime": 0
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "tLTC",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "test",
+                  "blockTime": 0
+                },
+                "key": "litecoinTestnet:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmGomez",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "gomez",
+                  "blockTime": 0
+                },
+                "key": "evmGomez:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "evm",
+            "sourceId": "evmJethro",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "jethro"
+            }
+          },
+          "expected": {
+            "key": "evmJethro:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "main",
+                  "blockTime": 0
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "tLTC",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "test",
+                  "blockTime": 0
+                },
+                "key": "litecoinTestnet:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmGomez",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "gomez",
+                  "blockTime": 0
+                },
+                "key": "evmGomez:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmJethro",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "jethro",
+                  "blockTime": 0
+                },
+                "key": "evmJethro:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "evm",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "contractName": "Gomez",
+              "title": "gomez update"
+            }
+          },
+          "expected": {
+            "key": "evmGomez:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "main",
+                  "blockTime": 0
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "tLTC",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "test",
+                  "blockTime": 0
+                },
+                "key": "litecoinTestnet:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmGomez",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "gomez update",
+                  "blockTime": 0,
+                  "contractName": "Gomez"
+                },
+                "key": "evmGomez:abababababababababababababababababababababababababababababababab",
+                "blockTime": 0
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmJethro",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "jethro",
+                  "blockTime": 0
+                },
+                "key": "evmJethro:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "doge",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "doge"
+            }
+          },
+          "expected": {
+            "key": "dogecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "main",
+                  "blockTime": 0
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "tLTC",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "test",
+                  "blockTime": 0
+                },
+                "key": "litecoinTestnet:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmGomez",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "gomez update",
+                  "blockTime": 0,
+                  "contractName": "Gomez"
+                },
+                "key": "evmGomez:abababababababababababababababababababababababababababababababab",
+                "blockTime": 0
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmJethro",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "jethro",
+                  "blockTime": 0
+                },
+                "key": "evmJethro:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "doge",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "doge",
+                  "blockTime": 0
+                },
+                "key": "dogecoin:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "unknown",
+            "sourceId": "custom",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "custom"
+            }
+          },
+          "expected": {
+            "key": "custom:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "main",
+                  "blockTime": 0
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "tLTC",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "test",
+                  "blockTime": 0
+                },
+                "key": "litecoinTestnet:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmGomez",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "gomez update",
+                  "blockTime": 0,
+                  "contractName": "Gomez"
+                },
+                "key": "evmGomez:abababababababababababababababababababababababababababababababab",
+                "blockTime": 0
+              },
+              {
+                "coin": "evm",
+                "sourceId": "evmJethro",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "jethro",
+                  "blockTime": 0
+                },
+                "key": "evmJethro:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "doge",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "doge",
+                  "blockTime": 0
+                },
+                "key": "dogecoin:abababababababababababababababababababababababababababababababab"
+              },
+              {
+                "coin": "unknown",
+                "sourceId": "custom",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "custom",
+                  "blockTime": 0
+                },
+                "key": "custom:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "index times and rich media survive sparse refreshes without a publication",
+      "steps": [
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "Reviewed video",
+              "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+              "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+              "mediaCards": [
+                {
+                  "url": "https://youtu.be/jNQXAC9IVRw",
+                  "title": "Reviewed video",
+                  "authorName": "Saved channel",
+                  "thumbnailUrl": "https://images.example/picture.jpg",
+                  "description": "Saved description"
+                }
+              ],
+              "blockTime": 1793451000,
+              "blockTimeEstimated": false,
+              "blockHeight": 3200000,
+              "imageChordLines": [
+                "Simage"
+              ],
+              "imageAssetPath": "data/assets/picture.png"
+            },
+            "raw": {
+              "txid": "abababababababababababababababababababababababababababababababab",
+              "blocktime": 1793451000
+            }
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "Reviewed video",
+                  "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                  "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                  "mediaCards": [
+                    {
+                      "url": "https://youtu.be/jNQXAC9IVRw",
+                      "title": "Reviewed video",
+                      "authorName": "Saved channel",
+                      "thumbnailUrl": "https://images.example/picture.jpg",
+                      "description": "Saved description"
+                    }
+                  ],
+                  "blockTime": 1793451000,
+                  "blockTimeEstimated": false,
+                  "blockHeight": 3200000,
+                  "imageChordLines": [
+                    "Simage"
+                  ],
+                  "imageAssetPath": "data/assets/picture.png"
+                },
+                "raw": {
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "blocktime": 1793451000
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "transaction ababababab",
+              "blockTime": 1793440000,
+              "blockTimeEstimated": true,
+              "blockHeight": 0,
+              "mediaCards": [],
+              "opReturnText": "",
+              "imageChordLines": [],
+              "imageAssetPath": ""
+            },
+            "raw": null
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "Reviewed video",
+                  "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                  "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                  "mediaCards": [
+                    {
+                      "url": "https://youtu.be/jNQXAC9IVRw",
+                      "title": "Reviewed video",
+                      "authorName": "Saved channel",
+                      "thumbnailUrl": "https://images.example/picture.jpg",
+                      "description": "Saved description"
+                    }
+                  ],
+                  "blockTime": 1793451000,
+                  "blockTimeEstimated": false,
+                  "blockHeight": 3200000,
+                  "imageChordLines": [
+                    "Simage"
+                  ],
+                  "imageAssetPath": "data/assets/picture.png"
+                },
+                "raw": {
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "blocktime": 1793451000
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab",
+                "blockTime": 1793440000
+              }
+            ]
+          }
+        },
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "blockTime": "2026-10-31T23:00:00Z",
+              "blockHeight": 3200002,
+              "mediaCards": [
+                {
+                  "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+                  "title": "Updated video",
+                  "thumbnailUrl": "",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "Reviewed video",
+                  "primaryUrl": "https://youtu.be/jNQXAC9IVRw",
+                  "opReturnText": "https://youtu.be/jNQXAC9IVRw",
+                  "mediaCards": [
+                    {
+                      "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+                      "title": "Updated video",
+                      "authorName": "Saved channel",
+                      "thumbnailUrl": "https://images.example/picture.jpg",
+                      "description": "Saved description"
+                    }
+                  ],
+                  "blockTime": 1793487600,
+                  "blockTimeEstimated": false,
+                  "blockHeight": 3200002,
+                  "imageChordLines": [
+                    "Simage"
+                  ],
+                  "imageAssetPath": "data/assets/picture.png"
+                },
+                "raw": {
+                  "txid": "abababababababababababababababababababababababababababababababab",
+                  "blocktime": 1793451000
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab",
+                "blockTime": 1793487600
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "invalid transaction identity is ignored",
+      "steps": [
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "invalid",
+            "summary": {
+              "title": "bad"
+            }
+          },
+          "expected": {
+            "key": null,
+            "rows": []
+          }
+        },
+        {
+          "row": {
+            "coin": "litecoin",
+            "txid": "abababababababababababababababababababababababababababababababab",
+            "summary": {
+              "title": "valid"
+            }
+          },
+          "expected": {
+            "key": "litecoin:abababababababababababababababababababababababababababababababab",
+            "rows": [
+              {
+                "coin": "litecoin",
+                "txid": "abababababababababababababababababababababababababababababababab",
+                "summary": {
+                  "title": "valid",
+                  "blockTime": 0
+                },
+                "key": "litecoin:abababababababababababababababababababababababababababababababab"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

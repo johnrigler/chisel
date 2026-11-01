@@ -1,5 +1,10 @@
 # Chisel refactor map (v2.7.7)
 
+Update for v2.8.19: the static-data extraction below is complete. Record identity,
+merging and recent display snapshots now live in `chisel.portal.store.js`; see
+[`docs/PORTAL_STORE.md`](docs/PORTAL_STORE.md) for its boundary and compatibility
+fixtures. Loading queues and rendering remain in the Portal for later passes.
+
 This is an inspection-only map of executable source files. It intentionally excludes JSON datasets, Markdown/text documentation, images, hashes, and license text. `dist/` and vendored code are included because they execute, but are marked as generated/third-party and are not proposed as extraction targets.
 
 ## Legend
@@ -24,6 +29,7 @@ The dependency columns describe *direct* dependencies in the file (not what a lo
 | `index.html` | application/UI | D | - | - | - | G | A | Main shell; script-load order defines the global integration contract. |
 | `app.js` | application/UI | D | F | B | - | G | A | Etch/Review/Start controller; owns form state, manual-draft storage, QR handoff, and exposes many `window.*` actions consumed by v277 self-tests. |
 | `chisel.portal.js` | application/UI | D | F | B | - | G | A | Portal reader, mutable `state`, rendering, static/local/live sources, annotations, and `window.CHISEL_PORTAL`. |
+| `chisel.portal.store.js` | application/UI | - | - | B | - | G | A | Portal record identity/merge rules and recent display snapshots; storage and normalization are injected, with no DOM, network or timers. |
 | `chisel.selftest.js` | application/UI | D | F | B | - | G | A | v277 test/demo runner; calls `app.js` globals and inspects `CHISEL_PORTAL.state`. |
 | `fixtures/etch/etch-fixtures.js` | compatibility/legacy | - | - | - | - | G | A | Fixture data installed as `window.CHISEL_ETCH_FIXTURES`; required by the self-test fixture route. |
 | `data-bundled/portal-starter.js` | provider/API adapter | - | F | - | - | G | A | Static data bootstrap and fallback fetch; publishes `CHISEL_PORTAL_STARTER_DATA`. |
