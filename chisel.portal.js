@@ -190,8 +190,11 @@
   if (!notesData) throw new Error("Load chisel.portal.notes.js before chisel.portal.js.");
   const noteFunction = window.CHISEL_NOTE_FUNCTION;
   if (!noteFunction) throw new Error("Load chisel.portal.note-function.js before chisel.portal.js.");
+  const queueApi = window.CHISEL_PORTAL_QUEUE;
+  if (!queueApi) throw new Error("Load chisel.portal.queue.js before chisel.portal.js.");
+  const loadingQueue = queueApi.createQueue({concurrency: 6, reserved: 1, groupLimits: {notes: 2}});
   let recordView = null;
-  const annotationReads = new Map(), annotationPending = new Map();
+  const annotationReads = new Map();
   let visibleAnnotationsLoading = false;
   const staticNormalizer = staticData.createNormalizer({
     normalizeCoinName: normalizeCoinName,
@@ -272,6 +275,18 @@
       portalRowDerivedCache.set(row, cache);
     }
     return cache;
+  }
+
+  function portalReadPriority(row, group) {
+    const key = row && (row.key || rowKey(row));
+    if (key && (state.expandedRowKeys[key] || state.selectedRowKey === key ||
+        recordView && recordView.currentRow() === row)) return 0;
+    return (isVisiblePortalRow(row) ? 10 : 20) + (group === "notes" ? 1 : 0);
+  }
+
+  function queuePortalRead(key, row, group, run) {
+    return loadingQueue.enqueue({key: key, owner: row, group: group,
+      priority: portalReadPriority(row, group), order: rowTime(row), run: run});
   }
 
   function invalidatePortalRowCache(row) {
@@ -2638,9 +2653,7 @@
     if (!configBool("autoLoadTransactionNotes", true) && !(opts && opts.force)) return Promise.resolve(getPortalAnnotation(row));
     const key = portalAnnotationKey(row), generation = state.portalLoadGeneration, read = annotationReads.get(key);
     if (!(opts && opts.force) && read && Date.now() - read.checkedAt < 60000) return Promise.resolve(getPortalAnnotation(row));
-    const pending = annotationPending.get(key);
-    if (pending && pending.row === row && pending.generation === generation) return pending.promise;
-    const promise = (async function () {
+    return queuePortalRead("notes:" + key, row, "notes", async function () {
       let loaded = null, source = "browser", remoteUpdatedAt = null;
       try {
         if (state.fileProxyAvailable === false && !(opts && opts.force)) throw new Error("FileProxy is unavailable.");
@@ -2668,9 +2681,7 @@
         requestPortalRender();
       }
       return getPortalAnnotation(row);
-    })().finally(function () { if (annotationPending.get(key) && annotationPending.get(key).promise === promise) annotationPending.delete(key); });
-    annotationPending.set(key, {promise: promise, row: row, generation: generation});
-    return promise;
+    }).then(function (value) { return value || getPortalAnnotation(row); });
   }
 
   async function savePortalAnnotationToFileProxy(row, value) {
@@ -2700,7 +2711,7 @@
         await Promise.all(pending.slice(i, i + 4).map(function (row) { return loadPortalAnnotation(row).catch(function () {}); }));
         await yieldPortalThread();
       }
-    })().finally(function () { visibleAnnotationsLoading = false; });
+    })().finally(function () { if (generation === state.portalLoadGeneration) visibleAnnotationsLoading = false; });
   }
 
   function fileProxyRawUrl(path) {
@@ -3448,6 +3459,7 @@
     snapshotRecentPortalSummaries(false);
     const publications = state.portalRows.filter(function (row) { return !!row.publication; });
     state.portalLoadGeneration += 1;
+    loadingQueue.reset();
     state.liveLedgerHistories = Object.create(null);
     transactionStore.reset();
     state.expandedRowKeys = Object.create(null);
@@ -3458,6 +3470,7 @@
     state.visibleFinanceLookupScheduled = false;
     state.visibleDateLookupScheduled = false;
     state.visibleDateLookupToken = "";
+    visibleAnnotationsLoading = false;
     state.visiblePortalRowKeys = Object.create(null);
     state.portalSortPending = false;
     state.selectedRowKey = "";
@@ -4203,10 +4216,12 @@
     noteFunction.render(block, row, annotation, {loadTransaction: async function (txid, rawUrl) {
       const coin = canonicalCoinForRow(row), known = state.portalRowKeys[rowKey({coin: coin, txid: txid})];
       if (known && known.raw) return known.raw;
-      if (rawUrl && CHISEL.safeWebUrl(rawUrl, window.location.href)) {
-        try { return (await staticTransport.fetchStaticRawFromRow({coin: coin, txid: txid, staticRawUrl: rawUrl})).json; } catch (_) {}
-      }
-      return (await loadLocalTransaction(txid, coin)).raw;
+      return queuePortalRead("artifact:" + coin + ":" + txid, row, "transaction", async function () {
+        if (rawUrl && CHISEL.safeWebUrl(rawUrl, window.location.href)) {
+          try { return (await staticTransport.fetchStaticRawFromRow({coin: coin, txid: txid, staticRawUrl: rawUrl})).json; } catch (_) {}
+        }
+        return (await loadLocalTransaction(txid, coin)).raw;
+      });
     }});
     if (Object.keys(annotation.metadata).length) block.appendChild(makeInlinePre("Metadata", pretty(annotation.metadata), false));
     const editor = document.createElement("details");
@@ -4681,15 +4696,10 @@
     }, 200);
   }
 
-  const hydrationPromises = new Map();
   function hydratePortalRow(key, opts) {
-    const previous = hydrationPromises.get(key), row = state.portalRowKeys[key], generation = state.portalLoadGeneration;
-    if (previous && previous.row === row && previous.generation === generation) return previous.promise;
-    const promise = hydratePortalRowOnce(key, opts).finally(function () {
-      if (hydrationPromises.get(key) && hydrationPromises.get(key).promise === promise) hydrationPromises.delete(key);
-    });
-    hydrationPromises.set(key, {row: row, generation: generation, promise: promise});
-    return promise;
+    const row = state.portalRowKeys[key];
+    if (!row) return Promise.resolve(null);
+    return queuePortalRead("transaction:" + key, row, "transaction", function () { return hydratePortalRowOnce(key, opts); });
   }
 
   async function hydratePortalRowOnce(key, opts) {
@@ -4727,7 +4737,7 @@
       schedulePersonalCacheSnapshot();
       return row;
     } catch (error) {
-      row.loadError = error.message || String(error);
+      if (generation === state.portalLoadGeneration && state.portalRowKeys[key] === row) row.loadError = error.message || String(error);
       return row;
     } finally {
       if (generation === state.portalLoadGeneration) delete state.pendingHydration[key];
@@ -5049,39 +5059,28 @@
       return { changed: false, saved: false };
     }
     state.attemptedDateLookup[key] = true;
-    state.pendingDateLookup[key] = true;
+    const pending = state.pendingDateLookup;
+    pending[key] = true;
     try {
-      const loaded = await loadTransactionForRow(row, { quiet: true, refreshIndex: false, deferCache: true });
-      if (generation !== state.portalLoadGeneration || !loaded || !loaded.json) return { changed: false, saved: false };
-      const exactTime = extractBlockTime(loaded.json);
-      const blockHeight = extractBlockHeight(loaded.json);
-      const hydratedSummary = extractSummary(loaded.json, rowIndexEntry(row));
-
-      // We already fetched the raw transaction to learn its date. Keep it.
-      // That lets the collapsed Portal row recognize LLx sticker/index outputs
-      // immediately instead of waiting for the user to expand the record.
-      row.raw = loaded.json;
-      row.summary = mergePortalSummary(row.summary, hydratedSummary);
+      const hydrated = await hydratePortalRow(key, {quiet: true, silent: true, suppressRender: true,
+        deferSort: true, refreshIndex: false, deferCache: true});
+      if (generation !== state.portalLoadGeneration || state.portalRowKeys[key] !== row || !hydrated || !row.raw) return {changed: false, saved: false};
+      const exactTime = extractBlockTime(row.raw);
+      const blockHeight = extractBlockHeight(row.raw);
       row.summary = mergePortalSummary(row.summary, {
         blockTime: exactTime || row.summary.blockTime || 0,
         blockTimeEstimated: false,
         blockHeight: blockHeight || row.summary.blockHeight || 0
       });
       row.blockTime = exactTime || row.blockTime || 0;
-      row.localPath = loaded.path || row.localPath;
       invalidatePortalRowCache(row);
       upsertPortalRow(row, { silent: true, deferSort: true });
-      if (loaded.cachePromise) {
-        loaded.cachePromise.then(function (saved) {
-          if (saved && state.portalRowKeys[key] === row) row.localPath = saved.path || row.localPath;
-        });
-      }
-      return { changed: true, saved: !!loaded.saved };
+      return {changed: true, saved: false};
     } catch (error) {
-      row.dateLookupError = error.message || String(error);
+      if (generation === state.portalLoadGeneration && state.portalRowKeys[key] === row) row.dateLookupError = error.message || String(error);
       return { changed: false, saved: false };
     } finally {
-      delete state.pendingDateLookup[key];
+      delete pending[key];
     }
   }
 
@@ -5129,7 +5128,7 @@
       fetchVisiblePortalDates(candidates, generation).catch(function (error) {
         console.warn("Visible transaction date lookup failed:", error);
       }).finally(function () {
-        state.visibleDateLookupScheduled = false;
+        if (generation === state.portalLoadGeneration) state.visibleDateLookupScheduled = false;
       });
     }, 0);
   }
@@ -5181,6 +5180,7 @@
     cancelScheduledPortalRender();
     if (recordView && recordView.active()) {
       state.portalListDirty = true;
+      loadingQueue.reprioritize(portalReadPriority);
       recordView.refresh();
       return;
     }
@@ -5223,6 +5223,7 @@
       state.visiblePortalRowKeys[row.key] = true;
       renderPortalStreamItem(list, row);
     });
+    loadingQueue.reprioritize(portalReadPriority);
     scheduleVisiblePortalDates(pageRows);
     scheduleVisiblePortalFinance(pageRows);
     scheduleVisiblePortalAnnotations(pageRows);

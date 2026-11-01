@@ -3,7 +3,9 @@
 Update for v2.8.19: the static-data extraction below is complete. Record identity,
 merging and recent display snapshots now live in `chisel.portal.store.js`; see
 [`docs/PORTAL_STORE.md`](docs/PORTAL_STORE.md) for its boundary and compatibility
-fixtures. Loading queues and rendering remain in the Portal for later passes.
+fixtures. Read scheduling now uses `chisel.portal.queue.js` (v2.8.26); see
+[`docs/PORTAL_QUEUE.md`](docs/PORTAL_QUEUE.md). Source selection and rendering
+remain in the Portal for later passes.
 
 This is an inspection-only map of executable source files. It intentionally excludes JSON datasets, Markdown/text documentation, images, hashes, and license text. `dist/` and vendored code are included because they execute, but are marked as generated/third-party and are not proposed as extraction targets.
 

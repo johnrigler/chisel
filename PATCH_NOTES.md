@@ -1,3 +1,9 @@
+# 2.8.26 — shared Portal read queue
+
+- Coordinate transaction hydration, visible date/amount reads, shared notes and artifact continuation reads through one vanilla JavaScript queue. Prioritize opened/expanded records, then the visible page, then newer history. Share pending transaction reads across date lookup, expansion and background loading.
+- Bound reads to six active jobs, reserving one slot for an opened record and limiting ordinary note reads to two. Reprioritize pending work as the visible page changes. Keep the existing source fallback order, timeouts, cache writes and provider retry policies.
+- Cancel obsolete queued work on reset and ignore its late results. Keep unfinished active reads counted until they settle. Prevent old date/notes cleanup from changing the next load's bookkeeping.
+
 # 2.8.25 — runnable reconstructed functions in notes
 
 - Show a readable JavaScript function and RUN FUNCTION control inside transaction Notes. Draw canvas output beside the source and preserve completed drawings during background record rerenders.

@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 const files = ["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.payload.js",
-  "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js"];
+  "chisel.portal.queue.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js"];
 const sources = await Promise.all(files.map(async file => [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
 const txid = "ab".repeat(32), dataUrl = "https://records.example/chisel-data/transactions/litecoin/" + txid + ".json";
 const raw = {txid, vin: [], vout: [{value: 0, scriptpubkey: "6a0754657374696e67"}]};
@@ -155,6 +155,77 @@ test("opening a record already loading in the background shares its pending read
   assert.equal(f.nodes.get("portalRecordStatus").textContent, "");
   assert.match(f.nodes.get("portalRecordContent").textContent, /Testing/);
   assert.equal(f.calls.length, 1);
+});
+
+function addQueuedRows(f, count = 8) {
+  f.context.CHISEL_PORTAL_STARTER_DATA = {transactions: Array.from({length: count}, (_, i) => {
+    const id = (i + 1).toString(16).padStart(64, "0");
+    return {coin: "litecoin", txid: id, localPath: "data/transactions/litecoin/" + id + ".json",
+      rawUrl: "https://records.example/" + id + ".json", summary: {title: "Queued record " + i}};
+  })};
+  f.portal.loadEmbeddedStaticDataset();
+  Object.assign(f.portal.state.config, {backgroundHydrateTransactions: true, autoHydrateLocalTransactions: true,
+    autoSaveFetchedTransactions: false, cacheFetchedTransactionsWithFileProxy: false});
+  return f.portal.state.portalRows.slice();
+}
+
+test("a visible date lookup and record expansion share one transaction request", async () => {
+  let release;
+  const f = fixture(undefined, () => new Promise(resolve => { release = resolve; }));
+  const row = addQueuedRows(f, 1)[0];
+  // Paint the list, then run its scheduled visible date/amount readers.
+  const paint = Array.from(f.timers).find(([, timer]) => timer.ms === 0);
+  assert.ok(paint); f.timers.delete(paint[0]); paint[1].callback();
+  const readers = Array.from(f.timers).filter(([, timer]) => timer.ms === 0);
+  for (const [id, timer] of readers) { f.timers.delete(id); timer.callback(); }
+  await flush(); assert.equal(f.portal.state.pendingDateLookup[row.key], true);
+  assert.equal(f.calls.length, 1);
+  const opened = f.portal.openRecord(row.key); await flush(); assert.equal(f.calls.length, 1);
+  release(json({...raw, txid: row.txid, status: {confirmed: true, block_time: 1788662610, block_height: 3172893}}));
+  await opened; await flush();
+  assert.equal(f.calls.length, 1); assert.equal(row.blockTime, 1788662610);
+  assert.equal(f.portal.state.pendingDateLookup[row.key], undefined);
+  assert.equal(f.portal.state.pendingHydration[row.key], undefined);
+});
+
+test("opening a queued record uses reserved capacity and shares the background transaction read", async () => {
+  const releases = new Map();
+  const f = fixture(undefined, url => new Promise(resolve => { releases.set(url, resolve); }));
+  const rows = addQueuedRows(f), backgrounds = rows.map(row => f.portal.hydrateLocalRowsInBackground([row]));
+  await flush(); assert.equal(f.calls.length, 5);
+  const wanted = rows[7], url = wanted.staticRawUrl;
+  assert.equal(f.calls.includes(url), false);
+  const opened = f.portal.openRecord(wanted.key); await flush();
+  assert.equal(f.calls.length, 6); assert.equal(f.calls.at(-1), url);
+  releases.get(url)(json({...raw, txid: wanted.txid})); await opened;
+  assert.equal(wanted.raw.txid, wanted.txid);
+  for (const [url, release] of releases) release(json({...raw, txid: url.match(/([0-9a-f]{64})\.json$/)[1]}));
+  await flush();
+  for (const [url, release] of releases) release(json({...raw, txid: url.match(/([0-9a-f]{64})\.json$/)[1]}));
+  await Promise.all(backgrounds);
+  assert.equal(new Set(f.calls).size, rows.length); assert.equal(f.calls.length, rows.length);
+});
+
+test("reset drops queued reads and old completions cannot detach the new read for the same transaction", async () => {
+  const releases = new Map();
+  const f = fixture(undefined, url => new Promise(resolve => {
+    if (!releases.has(url)) releases.set(url, []); releases.get(url).push(resolve);
+  }));
+  const oldRows = addQueuedRows(f), backgrounds = oldRows.map(row => f.portal.hydrateLocalRowsInBackground([row]));
+  await flush(); assert.equal(f.calls.length, 5);
+  const notes = f.portal.loadPortalAnnotation(oldRows[0], {force: true});
+  f.portal.clearPortalStream("reset queue test"); await notes; await Promise.all(backgrounds);
+  const fresh = addQueuedRows(f).find(row => row.txid === oldRows[0].txid), url = fresh.staticRawUrl;
+  const opening = f.portal.openRecord(fresh.key); await flush();
+  assert.equal(releases.get(url).length, 2); assert.equal(f.calls.length, 6);
+  releases.get(url)[0](json({...raw, txid: fresh.txid})); await flush();
+  assert.equal(fresh.raw, null);
+  const reopened = f.portal.openRecord(fresh.key); await flush();
+  assert.equal(releases.get(url).length, 2, "old cleanup cannot make a duplicate fetch necessary");
+  releases.get(url)[1](json({...raw, txid: fresh.txid})); await Promise.all([opening, reopened]);
+  assert.equal(fresh.raw.txid, fresh.txid); assert.equal(f.calls.length, 6, "obsolete queued transactions and notes never start");
+  for (const [url, callbacks] of releases) for (const release of callbacks) release(json({...raw, txid: url.match(/([0-9a-f]{64})\.json$/)[1]}));
+  await flush(); assert.equal(f.portal.state.portalRows.find(row => row.key === fresh.key), fresh);
 });
 
 test("JSON download contains the public transaction and lossless payloads without identity or receipt state", async () => {

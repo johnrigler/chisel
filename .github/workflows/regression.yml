@@ -50,6 +50,7 @@ jobs:
           node --check chisel.portal.record.js
           node --check chisel.activity-monitor.js
           node --check chisel.portal.store.js
+          node --check chisel.portal.queue.js
           node --check chisel.thunderwords.js
           node --check chisel.portal.js
           node --check chisel.record-preview.js

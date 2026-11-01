@@ -31,6 +31,24 @@ const finance = testHarness(firstValue, value => value?.tx || value, getInputAdd
   payloadData);
 const esplo = (address, value) => ({ scriptpubkey_address: address, value });
 
+test('a date lookup completing after reset cannot clear the new load pending flag', async () => {
+  const start = source.indexOf('  async function fetchPortalRowDate(');
+  const end = source.indexOf('  async function fetchVisiblePortalDates(', start);
+  const row = {key: 'litecoin:reset'}, state = {portalLoadGeneration: 1, portalRowKeys: {[row.key]: row},
+    pendingDateLookup: {}, attemptedDateLookup: {}};
+  let release;
+  const reading = new Promise(resolve => { release = resolve; });
+  const fetchDate = new Function('state', 'rowNeedsVisibleDateLookup', 'hydratePortalRow',
+    source.slice(start, end) + '\nreturn fetchPortalRowDate;')(state, () => true, () => reading);
+  const old = fetchDate(row, 1), oldPending = state.pendingDateLookup;
+  assert.equal(oldPending[row.key], true);
+  state.portalLoadGeneration = 2;
+  state.pendingDateLookup = {[row.key]: true};
+  release(null); await old;
+  assert.equal(state.pendingDateLookup[row.key], true);
+  assert.equal(oldPending[row.key], undefined);
+});
+
 test('visible ledger data returns before a slow FileProxy save completes', async () => {
   const start = source.indexOf('  async function loadTransactionLocalFirst(');
   const end = source.indexOf('  function selectRelativePortalRow(', start);

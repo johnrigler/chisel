@@ -204,7 +204,7 @@
       return openFromUrl();
     }
 
-    return {active: active, refresh: refresh, bind: bind, back: back, openFromUrl: openFromUrl,
+    return {active: active, currentRow: function () { return current && current.row; }, refresh: refresh, bind: bind, back: back, openFromUrl: openFromUrl,
       openRow: function (row) {
         const route = parseRoute(recordUrl(row, root.location.href, deps.sourceUrl(row)));
         return open(route, row, true);

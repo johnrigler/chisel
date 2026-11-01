@@ -30,7 +30,7 @@ const context = vm.createContext({URL, URLSearchParams, TextEncoder, TextDecoder
   fetch() { assert.fail("preview fetched a transaction or saved data"); }, location: {href: "https://chisel.example/"}
 });
 context.window = context;
-for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
+for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.queue.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
   vm.runInContext(await readFile(new URL("../" + file, import.meta.url), "utf8"), context);
 }
 const P = context.CHISEL_RECORD_PREVIEW, portal = context.CHISEL_PORTAL;
