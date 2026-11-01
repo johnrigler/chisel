@@ -101,6 +101,11 @@ test("binary OP_RETURN has a lossless encoding selector and no corrupted text in
       assert.equal(pre.textContent, expected);
       select.value = "base64"; select.onchange();
       assert.equal(Buffer.from(pre.textContent, "base64").toString("hex"), expected);
+      container.innerHTML = "";
+      portal.renderStreamItem(container, row, {expanded: true});
+      const refreshed = descendants(container).find(node => node.className === "portalPayload");
+      assert.equal(descendants(refreshed).find(node => node.tagName === "select").value, "base64");
+      assert.equal(Buffer.from(descendants(refreshed).find(node => node.className === "portalPayloadValue").textContent, "base64").toString("hex"), expected);
     }
   }
 });

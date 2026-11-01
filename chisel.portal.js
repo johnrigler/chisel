@@ -4509,13 +4509,14 @@
         const option = document.createElement("option");
         option.value = key; option.textContent = values[key]; encoding.appendChild(option);
       });
-      encoding.value = Object.keys(values)[0];
+      const choices = row.payloadEncodingChoices || (row.payloadEncodingChoices = Object.create(null));
+      encoding.value = Object.prototype.hasOwnProperty.call(values, choices[output.n]) ? choices[output.n] : Object.keys(values)[0];
       const data = document.createElement("pre");
       data.className = "portalPayloadValue";
       const copy = document.createElement("button");
       copy.type = "button"; copy.className = "secondaryButton"; copy.textContent = "COPY";
       function show() { data.textContent = payload[encoding.value] || ""; }
-      encoding.onchange = show;
+      encoding.onchange = function () { choices[output.n] = encoding.value; show(); };
       copy.onclick = function () { copyPortalText(data.textContent, copy).catch(function (error) { setStatus(error.message, true); }); };
       show();
       actions.appendChild(encoding); actions.appendChild(copy);
