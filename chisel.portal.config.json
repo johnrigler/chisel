@@ -1,5 +1,7 @@
 {
   "fileProxyUrl": "https://rigler.org/fileproxy",
+  "fileProxyReadTimeoutMs": 2000,
+  "staticDataSources": ["https://rigler.org/chisel-data/"],
   "autoSaveFetchedTransactions": true,
   "cacheFetchedTransactionsWithFileProxy": true,
   "persistMainThunderwords": true,

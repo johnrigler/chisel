@@ -82,6 +82,17 @@ test("cached OP_RETURN notes display in full before raw data loads without repea
   assert.match(container.firstChild.className, /hasOpReturnText/);
 });
 
+test("saved asset pictures use ordinary HTTP paths in closed and expanded records", () => {
+  const row = {key: "static-picture", coin: "evm", txid: "4".repeat(64), staticBaseUrl: "https://archive.example/chisel-data/",
+    summary: {title: "Saved picture", imageAssetPath: "data-root:assets/evm/137/picture.png"}};
+  const closed = new Element("div"), open = new Element("div");
+  portal.renderStreamItem(closed, row, {expanded: false});
+  portal.renderStreamItem(open, row, {expanded: true});
+  const images = descendants(closed).concat(descendants(open)).filter(node => node.tagName === "img");
+  assert.ok(images.length >= 2);
+  assert.ok(images.every(node => node.src === "https://archive.example/chisel-data/assets/evm/137/picture.png"));
+});
+
 test("rich record parsing binds metadata to the exact shared text and rejects malformed or oversized records", () => {
   assert.equal(P.parseRecord(null, url), null);
   assert.equal(P.parseRecord(JSON.stringify(record), url).metadata.extra, record.metadata.extra);

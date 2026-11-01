@@ -16,12 +16,60 @@
   }
 
   function joinDataPath(base, path) {
-    const p = String(path || "").replace(/^\/+/, "");
+    const p = staticDataPath(path).replace(/^\/+/, "");
     if (!p) return String(base || "");
     if (isAbsoluteUrl(p)) return p;
     const b = String(base || "");
     if (!b) return p;
     return trimUrlSlash(b) + "/" + p;
+  }
+
+  function staticDataPath(value) {
+    return String(value || "").replace(/^data-root:/i, "").replace(/^data\/(?=(?:transactions|assets|index)\/)/i, "");
+  }
+
+  function sourceLocation(value, pageUrl) {
+    const text = String(value || "").trim();
+    const url = new URL(text, pageUrl || undefined);
+    if (!/^https?:$/.test(url.protocol) || url.username || url.password) throw new Error("Static data needs an HTTP(S) URL without credentials.");
+    if (!/\.json$/i.test(url.pathname) && !url.pathname.endsWith("/")) url.pathname += "/";
+    const currency = url.pathname.match(/^(.*\/)transactions\/([^/]+)\/$/);
+    const rootUrl = new URL(currency ? currency[1] : /\/index\/[^/]+\.json$/i.test(url.pathname) ? "../" : "./", url).href;
+    return {url: url.href, source: text, baseUrl: rootUrl, coin: currency ? normalizeProbeCoin(currency[2]) : ""};
+  }
+
+  function txidFromFilename(value) {
+    const name = decodeURIComponent(String(value || "").split("/").pop());
+    if (/^[0-9a-f]{64}\.json$/i.test(name)) return name.slice(0, -5).toLowerCase();
+    const match = name.match(/^([1-9A-HJ-NP-Za-km-z]{1,45})-([0-9a-f]{12})\.json$/i);
+    if (!match) return "";
+    const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    let number = 0n;
+    for (const letter of match[1]) {
+      const digit = alphabet.indexOf(letter);
+      if (digit < 0) return "";
+      number = number * 58n + BigInt(digit);
+    }
+    const hex = number.toString(16).padStart(64, "0");
+    return hex.length === 64 && hex.startsWith(match[2].toLowerCase()) ? hex : "";
+  }
+
+  function directoryFiles(html, directoryUrl) {
+    const base = new URL(directoryUrl);
+    const out = [], seen = new Set();
+    const links = String(html || "").matchAll(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi);
+    for (const match of links) {
+      try {
+        const url = new URL(match[2].replace(/&amp;/g, "&"), base);
+        const name = url.pathname.slice(base.pathname.length);
+        if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname) || name.includes("/") || url.search || url.hash) continue;
+        const txid = txidFromFilename(name);
+        if (!txid || seen.has(txid)) continue;
+        seen.add(txid);
+        out.push({txid: txid, rawUrl: url.href});
+      } catch (_) {}
+    }
+    return out;
   }
 
   function normalizePathList(value, fallback) {
@@ -84,7 +132,7 @@
         blockTime: summary.blockTime || row.blockTime || 0,
         streamLabel: row.streamLabel || contextValue.sourceLabel || "static dataset",
         localPath: row.localPath || "",
-        staticRawPath: row.rawPath || row.path || "",
+        staticRawPath: staticDataPath(row.rawPath || row.path || ""),
         staticRawUrl: row.rawUrl || "",
         staticBaseUrl: contextValue.baseUrl || "",
         staticRemoteBaseUrls: normalizePathList(contextValue.remoteBaseUrls, []),
@@ -124,19 +172,106 @@
     const cryptoApi = deps.crypto;
     if (typeof fetchFn !== "function") throw new Error("Static dataset transport requires fetch.");
 
+    async function request(url, options, read, timeoutMs) {
+      const Controller = deps.AbortController || root.AbortController;
+      const controller = Controller ? new Controller() : null;
+      const timer = deps.setTimeout || root.setTimeout && root.setTimeout.bind(root);
+      const clear = deps.clearTimeout || root.clearTimeout && root.clearTimeout.bind(root);
+      const external = options && options.signal;
+      const abort = function () { if (controller) controller.abort(); };
+      if (external && controller) {
+        if (external.aborted) controller.abort();
+        else external.addEventListener("abort", abort, {once: true});
+      }
+      let timerId;
+      try {
+        const pending = Promise.resolve().then(function () {
+          return fetchFn(url, Object.assign({}, options, controller ? {signal: controller.signal} : {}));
+        }).then(read);
+        if (!timer || !(timeoutMs > 0)) return await pending;
+        return await Promise.race([pending, new Promise(function (_, reject) {
+          timerId = timer(function () {
+            abort();
+            const error = new Error(String(url) + " timed out after " + timeoutMs + " ms.");
+            error.name = "TimeoutError";
+            reject(error);
+          }, timeoutMs);
+        })]);
+      } finally {
+        if (timerId !== undefined && clear) clear(timerId);
+        if (external && controller) external.removeEventListener("abort", abort);
+      }
+    }
+
     async function fetchJsonNoStore(url) {
-      const response = await fetchFn(url, { cache: "no-store" });
-      if (!response.ok) throw new Error(url + " failed with HTTP " + response.status + ".");
-      return response.json();
+      return request(url, {cache: "no-store"}, function (response) {
+        if (!response.ok) throw new Error(url + " failed with HTTP " + response.status + ".");
+        return response.json();
+      }, deps.timeoutMs || 8000);
+    }
+
+    function manifestBases(manifest, manifestUrl) {
+      const absolute = isAbsoluteUrl(manifestUrl) || deps.baseUrl ? new URL(manifestUrl, deps.baseUrl).href : manifestUrl;
+      const directory = dirnameUrl(absolute);
+      const declared = manifest.baseUrl || directory;
+      const baseUrl = isAbsoluteUrl(directory) ? new URL(declared, directory).href : declared;
+      return Array.from(new Set([baseUrl, directory]));
     }
 
     async function loadManifest(manifestUrl) {
       const manifest = await fetchJsonNoStore(manifestUrl);
-      const baseUrl = manifest.baseUrl ? manifest.baseUrl : dirnameUrl(manifestUrl);
       const indexPath = manifest.defaultIndex || "index/portal.index.json";
-      const indexUrl = joinDataPath(baseUrl, indexPath);
-      const index = await fetchJsonNoStore(indexUrl);
-      return { manifest: manifest, baseUrl: baseUrl, indexUrl: indexUrl, index: index };
+      let error;
+      for (const base of manifestBases(manifest, manifestUrl)) {
+        const indexUrl = joinDataPath(base, indexPath);
+        try { return {manifest: manifest, baseUrl: base, indexUrl: indexUrl, index: await fetchJsonNoStore(indexUrl)}; }
+        catch (caught) { error = caught; }
+      }
+      throw error;
+    }
+
+    async function loadCatalog(source) {
+      const location = sourceLocation(source, deps.baseUrl);
+      if (/\.json$/i.test(new URL(location.url).pathname)) {
+        const json = await fetchJsonNoStore(location.url);
+        if (json.defaultIndex || json.hashes) return loadManifest(location.url);
+        return Object.assign(location, {index: json, indexUrl: location.url});
+      }
+      const errors = [];
+      let catalog = null;
+      for (const path of ["index/transactions.index.json", "index/portal.index.json"]) {
+        const indexUrl = joinDataPath(location.baseUrl, path);
+        try {
+          const json = await fetchJsonNoStore(indexUrl);
+          let rows = Array.isArray(json) ? json : json.transactions;
+          if (!Array.isArray(rows)) throw new Error("Static index has no transactions array.");
+          if (location.coin) rows = rows.filter(function (row) { return normalizeProbeCoin(row.coin || row.summary && row.summary.coin) === location.coin; });
+          if (!rows.length) throw new Error("Static index has no matching transactions.");
+          catalog = Object.assign({}, location, {index: {transactions: rows}, indexUrl: indexUrl});
+          break;
+        } catch (error) { errors.push(error.message || String(error)); }
+      }
+      const directories = location.coin ? [location.url] : [joinDataPath(location.baseUrl, "transactions/litecoin/")];
+      for (const directory of directories) {
+        try {
+          const html = await request(directory, {cache: "no-store"}, function (response) {
+            if (!response.ok) throw new Error(directory + " failed with HTTP " + response.status);
+            return response.text();
+          }, deps.timeoutMs || 8000);
+          const coin = location.coin || "litecoin";
+          const rows = directoryFiles(html, directory).map(function (row) { return Object.assign({coin: coin}, row); });
+          if (!rows.length) throw new Error("No transaction JSON files found at " + directory);
+          const combined = new Map();
+          if (catalog) catalog.index.transactions.forEach(function (row) { combined.set((row.coin || "") + ":" + row.txid, row); });
+          rows.forEach(function (row) {
+            const key = row.coin + ":" + row.txid;
+            combined.set(key, Object.assign({}, combined.get(key), row));
+          });
+          return Object.assign({}, location, {index: {transactions: Array.from(combined.values())}, indexUrl: catalog ? catalog.indexUrl : directory});
+        } catch (error) { errors.push(error.message || String(error)); }
+      }
+      if (catalog) return catalog;
+      throw new Error("Static HTTP data unavailable: " + errors.join(" | "));
     }
 
     async function fetchStaticRawFromRow(row, canonicalCoinForRow) {
@@ -144,8 +279,12 @@
       const errors = [];
       for (let i = 0; i < paths.length; i += 1) {
         try {
+          const json = await fetchJsonNoStore(paths[i]);
+          const tx = json && json.tx || json;
+          const actual = String(json && (json.txid || json.hash) || tx && (tx.txid || tx.hash) || "").replace(/^0x/i, "").toLowerCase();
+          if (row.txid && actual !== String(row.txid).toLowerCase()) throw new Error("Static transaction identity does not match the requested TXID.");
           return {
-            json: await fetchJsonNoStore(paths[i]),
+            json: json,
             source: row.staticSource || "static",
             url: paths[i],
             coin: row.coin || (canonicalCoinForRow ? canonicalCoinForRow(row) : "")
@@ -167,15 +306,22 @@
         reports.push(report);
         try {
           const manifest = await fetchJsonNoStore(manifestUrl);
-          const baseUrl = manifest.baseUrl ? manifest.baseUrl : dirnameUrl(manifestUrl);
           const hashes = manifest.hashes || {};
           const paths = Object.keys(hashes);
           for (let j = 0; j < paths.length; j += 1) {
             const path = paths[j];
-            const url = joinDataPath(baseUrl, path);
-            const response = await fetchFn(url, { cache: "no-store" });
-            if (!response.ok) throw new Error(url + " failed with HTTP " + response.status);
-            const buffer = await response.arrayBuffer();
+            let buffer, failure;
+            for (const base of manifestBases(manifest, manifestUrl)) {
+              const url = joinDataPath(base, path);
+              try {
+                buffer = await request(url, {cache: "no-store"}, function (response) {
+                  if (!response.ok) throw new Error(url + " failed with HTTP " + response.status);
+                  return response.arrayBuffer();
+                }, deps.timeoutMs || 8000);
+                break;
+              } catch (error) { failure = error; }
+            }
+            if (!buffer) throw failure;
             let digest = "";
             if (cryptoApi && cryptoApi.subtle) {
               const hashBuffer = await cryptoApi.subtle.digest("SHA-256", buffer);
@@ -193,8 +339,10 @@
     }
 
     return {
+      request: request,
       fetchJsonNoStore: fetchJsonNoStore,
       loadManifest: loadManifest,
+      loadCatalog: loadCatalog,
       fetchStaticRawFromRow: fetchStaticRawFromRow,
       validateStaticDataset: validateStaticDataset
     };
@@ -375,6 +523,10 @@
   }
 
   root.CHISEL_PORTAL_STATIC_DATA = {
+    staticDataPath: staticDataPath,
+    sourceLocation: sourceLocation,
+    directoryFiles: directoryFiles,
+    txidFromFilename: txidFromFilename,
     isAbsoluteUrl: isAbsoluteUrl,
     trimUrlSlash: trimUrlSlash,
     dirnameUrl: dirnameUrl,

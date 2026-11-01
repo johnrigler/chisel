@@ -236,6 +236,71 @@ test("FileProxy background reads hydrate the visible recent page before older re
   assert.equal(f.portal.state.localHydrationReport.hydrated, 3);
 });
 
+test("a hung Python API times out once, then catalog and transaction reads use static HTTP", async () => {
+  const root = "https://rigler.org/chisel-data/", txid = id(66);
+  const raw = {txid, vin: [], vout: [{value: 0, scriptpubkey: "6a0754657374696e67"}]};
+  const f = fixture(url => {
+    if (url.includes("/fileproxy/")) return new Promise(() => {});
+    if (url === root + "index/transactions.index.json") return json({transactions: [{coin: "litecoin", txid, path: "data-root:transactions/litecoin/" + txid + ".json"}]});
+    if (url === root + "transactions/litecoin/" + txid + ".json") return json(raw);
+    return json({}, 404);
+  });
+  const loading = f.portal.listLocalTransactions();
+  await new Promise(resolve => setImmediate(resolve));
+  const timeout = [...f.timers.values()].find(timer => timer.ms === 2000);
+  assert.ok(timeout); timeout.callback();
+  const rows = await loading;
+  assert.equal(rows.length, 1); assert.equal(rows[0].discoverySource, "preloaded");
+  const loaded = await f.portal.loadLocalTransaction(txid, "litecoin");
+  assert.equal(loaded.source, "static"); assert.equal(loaded.raw.txid, txid);
+  assert.equal(f.portal.extractSummary(loaded.raw, f.entry).opReturnText, "Testing");
+  assert.equal(f.calls.filter(url => url.includes("/fileproxy/")).length, 1);
+  assert.ok(f.calls.every(url => url.includes("/fileproxy/") || url.startsWith(root)));
+});
+
+test("the pasted HTTP directory remains unchanged and works without any Python or ledger request", async () => {
+  const source = "https://archive.example/chisel-data/transactions/litecoin/", txid = id(67);
+  const raw = {txid, vin: [], vout: [], blocktime: 1700000000};
+  const f = fixture(url => {
+    if (url === source) return {ok: true, status: 200, text: async () => '<a href="' + txid + '.json">transaction</a>'};
+    if (url === source + txid + ".json") return json(raw);
+    if (url.startsWith("https://archive.example/chisel-data/index/")) return json({}, 404);
+    throw new Error("Reader depended on another service: " + url);
+  });
+  const input = {value: source, dataset: {edited: "true"}};
+  f.nodes.set("#portalStaticDataUrl", input);
+  const first = await f.portal.loadStaticHttpSources();
+  const loaded = await f.portal.loadLocalTransactionPath("data-root:transactions/litecoin/" + txid + ".json", txid, "litecoin");
+  assert.equal(loaded.raw.txid, txid); assert.equal(loaded.source, "static");
+  assert.equal(input.value, source);
+  const again = await f.portal.loadStaticHttpSources();
+  assert.equal(first.rows[0], again.rows[0]); assert.equal(f.portal.state.portalRows.length, 1);
+});
+
+test("static HTTP hydration fills the visible recent records before older history", async () => {
+  const root = "https://records.example/chisel-data/", read = [];
+  const f = fixture(url => {
+    if (url === root + "index/transactions.index.json") return json({transactions: Array.from({length: 6}, (_, i) => ({
+      coin: "litecoin", txid: id(i + 70), path: "transactions/litecoin/" + id(i + 70) + ".json", summary: {blockTime: i + 1}}))});
+    if (url.endsWith(".json") && url.startsWith(root + "transactions/litecoin/")) {
+      const txid = url.split("/").pop().slice(0, -5); read.push(txid);
+      return json({txid, vin: [], vout: [{value: 0, scriptpubkey: "6a0754657374696e67"}]});
+    }
+    if (url === root + "transactions/litecoin/") return json({}, 404);
+    throw new Error("Unexpected dependency: " + url);
+  });
+  Object.assign(f.portal.state.config, {staticDataSources: [root], backgroundHydrateTransactions: true, portalPageSize: 2});
+  const loaded = await f.portal.loadStaticHttpSources();
+  for (let turn = 0; turn < 5 && loaded.rows.some(row => !row.raw); turn += 1) {
+    for (const [key, timer] of [...f.timers]) if (timer.ms === 0) { f.timers.delete(key); timer.callback(); }
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert.deepEqual(read.slice(0, 4), [id(75), id(74), id(73), id(72)]);
+  assert.equal(loaded.rows.every(row => row.raw && row.summary.opReturnText === "Testing"), true);
+  assert.equal(f.portal.state.portalRows.every(row => row.raw), true, "hydrate the stored row objects");
+  assert.ok(f.calls.every(url => url.startsWith(root)), "static reads do not probe Python or live explorers");
+});
+
 test("recent presentation cache stays bounded and excludes unrelated summary fields", () => {
   const f = fixture(() => { throw new Error("offline"); });
   f.context.CHISEL_PORTAL_STARTER_DATA = {transactions: Array.from({length: 100}, (_, i) => ({

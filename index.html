@@ -2477,11 +2477,15 @@
 
       <details id="filePortalSettings" class="panel portalDrawer">
         <summary>☰ File portal / storage</summary>
-        <p class="help">Storage is a Portal concern, not part of signing. rigler.org/fileproxy can cache ledger data now and can later host signed off-ledger records associated with a Chisel page.</p>
+        <p class="help">Read saved records directly from a website or IPFS gateway. FileProxy optionally speeds up indexing, metadata and saves.</p>
         <div class="portalControls">
           <div class="portalIndexBar">
             <div>
-              <label for="portalFileProxyUrl">fileProxy URL</label>
+              <label for="portalStaticDataUrl">Static data URL</label>
+              <input id="portalStaticDataUrl" type="text" spellcheck="false" autocomplete="off" value="https://rigler.org/chisel-data/" placeholder="Data root or transactions/litecoin/ directory">
+            </div>
+            <div>
+              <label for="portalFileProxyUrl">FileProxy URL (optional)</label>
               <input id="portalFileProxyUrl" type="text" spellcheck="false" autocomplete="off" value="https://rigler.org/fileproxy">
             </div>
             <div class="actions">
@@ -2937,7 +2941,7 @@
   })();
   </script>
 <script src="chisel.activity-monitor.js?rev=20261031-status-v2821"></script>
-  <script src="chisel.debug.js?rev=20261031-resources-v2820"></script>
+  <script src="chisel.debug.js?rev=20261031-http-v2822"></script>
   <script src="vendor/qrcode.min.js?rev=20261012S"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20261012S"></script>
   <script src="chisel.js?rev=20261017-security1"></script>
@@ -2953,9 +2957,9 @@
   <script src="chisel.litecoin.js?rev=20261017-security1"></script>
   <script src="chisel.thunderwords.js?rev=20261031-history-v2815"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
-  <script src="chisel.portal.static-data.js?rev=20261012S"></script>
+<script src="chisel.portal.static-data.js?rev=20261031-http-v2822"></script>
   <script src="chisel.portal.store.js?rev=20261031-store-v2819"></script>
-  <script src="chisel.portal.js?rev=20261031-store-v2819"></script>
+  <script src="chisel.portal.js?rev=20261031-http-v2822"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261031-errors-v2817"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
@@ -2968,7 +2972,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261031-status-v2821"></script>
+<script src="app.js?rev=20261031-http-v2822"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">

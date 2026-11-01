@@ -1,7 +1,7 @@
 /* Local diagnostics: sanitized errors and endpoint routes, never request bodies or key material. */
 (function () {
   "use strict";
-  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1", RELEASE="20261031-v2820";
+  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1", RELEASE="20261031-v2822";
   let events=[];
   try { const saved=JSON.parse(sessionStorage.getItem(KEY)||"[]"); if(Array.isArray(saved)) events=saved.slice(-MAX); } catch (_) {}
   const sensitive=/\b(?:(?:0x)?[0-9a-fA-F]{64,}|[1-9A-HJ-NP-Za-km-z]{51,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;
@@ -88,6 +88,8 @@
     const identity=document.getElementById("headerIdentityName");
     const portal=window.CHISEL_PORTAL && window.CHISEL_PORTAL.state || {};
     const proxy=document.getElementById("portalFileProxyUrl");
+    const staticSource=document.getElementById("portalStaticDataUrl");
+    const staticConfig=portal.config && portal.config.staticDataSources || [];
     const configured=portal.config && portal.config.fileProxyUrl || "https://rigler.org/fileproxy";
     const status=document.getElementById("portalStatus");
     const health=document.getElementById("portalFileProxyHealth");
@@ -99,6 +101,7 @@
       fileProxy:{configured:endpoint(configured),entered:endpoint(proxy && proxy.value),
         effective:endpoint(proxy && proxy.value || configured),available:typeof portal.fileProxyAvailable === "boolean" ? portal.fileProxyAvailable : null,
         health:clean(health && health.textContent),pageProtocol:location.protocol || new URL(location.href).protocol},
+      staticData:{configured:(Array.isArray(staticConfig) ? staticConfig : [staticConfig]).map(endpoint),entered:endpoint(staticSource && staticSource.value)},
       portal:{status:clean(status && status.textContent),coin:clean(portal.currentIndex && portal.currentIndex.coin),
         accountCoin:clean(portal.personalAccount && portal.personalAccount.coin),rows:Array.isArray(portal.portalRows) ? portal.portalRows.length : 0,
         publications:(portal.portalRows || []).filter(row=>row.publication).slice(0,20).map(row=>({coin:clean(row.publication.coin),

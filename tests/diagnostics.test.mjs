@@ -156,7 +156,7 @@ test("requests to explicit 7799 and 47799 endpoints are preserved and failures r
     f.nodes.get("portalFileProxyUrl").value=base;
     await assert.rejects(f.portal.loadLocalTransaction(txid,"litecoin"),/Storage backend unavailable/);
     assert.ok(f.calls[0].url.startsWith(base.replace(/\/$/,"")+"/tx?"));
-    const event=f.debug.snapshot().events.at(-1);
+    const event=f.debug.snapshot().events.filter(event=>event.type==="fileproxy.request").at(-1);
     assert.equal(event.type,"fileproxy.request"); assert.equal(event.httpStatus,503);
     assert.equal(event.endpoint.port,new URL(base).port); assert.equal(event.method,"GET");
     assert.equal(event.detail,"Storage backend unavailable");
@@ -168,12 +168,12 @@ test("network failures and malformed JSON preserve their actual causes", async (
   const network=fixture(()=>{throw new TypeError("Failed to fetch: connection refused");});
   await assert.rejects(network.portal.loadLocalTransaction(txid,"litecoin"),/connection refused/);
   assert.equal(network.portal.state.fileProxyAvailable,false);
-  const event=network.debug.snapshot().events.at(-1);
+  const event=network.debug.snapshot().events.filter(event=>event.type==="fileproxy.request").at(-1);
   assert.equal(event.detail,"Failed to fetch: connection refused"); assert.equal(event.endpoint.port,"7799");
   assert.equal(event.httpStatus,undefined); assert.match(event.error.stack,/connection refused/);
   const malformed=fixture(()=>({ok:true,status:200,json:async()=>{throw new SyntaxError("Unexpected token <");}}));
   await assert.rejects(malformed.portal.loadLocalTransaction(txid,"litecoin"),/invalid JSON: Unexpected token </);
-  const parse=malformed.debug.snapshot().events.at(-1);
+  const parse=malformed.debug.snapshot().events.filter(event=>event.type==="fileproxy.request").at(-1);
   assert.equal(parse.httpStatus,200); assert.equal(parse.error.cause,"Unexpected token <");
 });
 

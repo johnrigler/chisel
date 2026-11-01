@@ -235,23 +235,23 @@ data-bundled/
 
 ## Portal
 
-Start fileProxy:
+Open `index.html` in Portal mode. Bundled records and saved browser summaries
+render immediately. Portal also reads published catalogs and transaction JSON
+directly from `https://rigler.org/chisel-data/`, independently of Python.
+
+Under **File portal / storage**, **Static data URL** accepts a data root or the
+exact currency directory, such as
+`https://rigler.org/chisel-data/transactions/litecoin/`. The entered URL is
+preserved. **FileProxy URL (optional)** is a separate setting for API indexing,
+caching and saves. If that API fails or hangs, reads fall back to the static
+files. See [static HTTP data](docs/STATIC_HTTP_DATA.md) for discovery rules and
+configuration.
+
+For optional local imports, caching and writes, start FileProxy:
 
 ```bash
 python3 tools/fileProxy/proxy.py
 ```
-
-Open `index.html` in Portal mode. The included config sets:
-
-```json
-{
-  "autoLoadLocalTransactions": true,
-  "autoLoadConversationStreams": false,
-  "portalFilterDogecoin": true
-}
-```
-
-That avoids remote Thunderword fetching on page load and shows the local/bundled Dogecoin import first.
 
 ## bunOven and fileProxy
 

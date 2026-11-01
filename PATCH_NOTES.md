@@ -1,3 +1,9 @@
+# 2.8.22 — direct static HTTP data with optional FileProxy
+
+- Add a separate Static data URL field that preserves the entered website/currency directory. Read catalogs, directory listings and transaction JSON directly from the web server or an HTTP IPFS gateway without Python.
+- Prefer the full transaction index, merge files missing from older indexes, translate `data-root:` paths under the HTTP root and resolve manifests relative to their own URL. Check fetched transaction identity and use known static asset paths for pictures in closed and expanded records.
+- Load the HTTP catalog independently of FileProxy and hydrate visible/recent records first, four at a time. Bound FileProxy GETs to two seconds by default and defer repeated requests after service failures; API catalog and raw reads fall back to published HTTP files.
+
 # 2.8.21 — Portal status messages in the top activity panel
 
 - Show the actual Portal status message in the top activity panel, including search results, loading progress and errors. Remove the duplicate caption/status lines below the address lookup.

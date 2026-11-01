@@ -15,10 +15,13 @@
   const DEFAULT_STATIC_MANIFEST_PATH = "data/manifest.json";
   const DEFAULT_BUNDLED_MANIFEST_PATH = "data-bundled/manifest.json";
   const DEFAULT_REMOTE_MANIFEST_URL = "https://rigler.org/chisel-data/manifest.json";
+  const DEFAULT_STATIC_DATA_URL = "https://rigler.org/chisel-data/";
   const PORTAL_ANNOTATIONS_STORAGE_KEY = "chisel.portal.annotations.v1";
   const PORTAL_PERSONAL_ACCOUNT_STORAGE_KEY = "chisel.portal.personalAccount.v1";
   const DEFAULT_PORTAL_CONFIG = {
     fileProxyUrl: DEFAULT_FILE_PROXY_URL,
+    fileProxyReadTimeoutMs: 2000,
+    staticDataSources: [DEFAULT_STATIC_DATA_URL],
     autoSaveFetchedTransactions: true,
     cacheFetchedTransactionsWithFileProxy: true,
     persistMainThunderwords: true,
@@ -34,7 +37,7 @@
     liveLedgerRefreshFocusStaleMs: 60000,
     autoSelectNewest: false,
     autoLoadConversationStreams: true,
-    autoLoadStaticDataset: false,
+    autoLoadStaticDataset: true,
     autoSearchLedgersAfterStatic: true,
     staticManifestPaths: [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH],
     staticManifestMirrors: [DEFAULT_REMOTE_MANIFEST_URL],
@@ -186,7 +189,12 @@
     shortTxid: shortTxid,
     txidRe: TXID_RE
   });
-  const staticTransport = staticData.createTransport({ fetch: fetch, crypto: window.crypto });
+  const staticTransport = staticData.createTransport({ fetch: fetch, crypto: window.crypto, baseUrl: window.location.href });
+  let staticHttpLoad = null;
+  let staticHttpGeneration = -1;
+  let staticHttpSourceKey = "";
+  let fileProxyRetryAfter = 0;
+  let failedFileProxyBase = "";
 
   function $(selector) { return document.querySelector(selector); }
 
@@ -2047,9 +2055,9 @@
       img.alt = "EVM image thumbnail";
       img.title = evmImages[0].assetId || "EVM image asset";
       img.loading = "lazy";
-      img.src = fileProxyRawUrl(evmImages[0].path);
+      const imageUrl = setPortalAssetImage(img, evmImages[0].path, row);
       cell.appendChild(img);
-      return fileProxyRawUrl(evmImages[0].path);
+      return imageUrl;
     }
 
     const mediaCard = firstMediaThumbnailCard(row);
@@ -2503,12 +2511,14 @@
 
     for (let i = 0; i < directUrls.length; i += 1) {
       try {
-        const response = await fetch(directUrls[i], { cache: "no-store" });
-        if (!response.ok) {
-          recordPortalError("portal.config", "HTTP " + response.status, {endpoint:directUrls[i], httpStatus:response.status, method:"GET"});
-          continue;
-        }
-        const json = await response.json();
+        const json = await staticTransport.request(directUrls[i], {cache: "no-store"}, async function (response) {
+          if (!response.ok) {
+            recordPortalError("portal.config", "HTTP " + response.status, {endpoint:directUrls[i], httpStatus:response.status, method:"GET"});
+            return null;
+          }
+          return response.json();
+        }, 2000);
+        if (!json) continue;
         if (json && json.ok && json.config) return Object.assign({}, DEFAULT_PORTAL_CONFIG, json.config);
         if (json && !json.ok) continue;
         return Object.assign({}, DEFAULT_PORTAL_CONFIG, json);
@@ -2532,7 +2542,18 @@
       proxy.value = state.config.fileProxyUrl;
       proxy.setAttribute("autocomplete", "off");
     }
+    const staticUrl = $("#portalStaticDataUrl");
+    if (staticUrl && !staticUrl.dataset.edited) staticUrl.value = normalizePathList(state.config.staticDataSources, [DEFAULT_STATIC_DATA_URL])[0] || "";
     applyPortalFilterConfig();
+  }
+
+  function getStaticDataSources() {
+    const input = $("#portalStaticDataUrl");
+    return input && input.value.trim() ? [input.value.trim()] : normalizePathList(configValue("staticDataSources", null), [DEFAULT_STATIC_DATA_URL]);
+  }
+
+  function fileProxyReadTimeout() {
+    return Math.max(250, Math.min(10000, Number(configValue("fileProxyReadTimeoutMs", 2000)) || 2000));
   }
 
   function getFileProxyUrl() {
@@ -2545,27 +2566,33 @@
   async function requestFileProxyJson(url, options) {
     const started = Date.now();
     const method = options && options.method || "GET";
+    const base = getFileProxyUrl();
+    if (failedFileProxyBase === base && Date.now() < fileProxyRetryAfter) throw new Error("FileProxy is temporarily unavailable; static HTTP reads remain available.");
     let response;
     try {
-      try {
-        response = await fetch(url, options);
+      return await staticTransport.request(url, options, async function (received) {
+        response = received;
         state.fileProxyAvailable = true;
-      } catch (error) {
-        state.fileProxyAvailable = false;
-        throw error;
-      }
-      let json;
-      try { json = await response.json(); }
-      catch (error) { throw new Error("FileProxy HTTP " + response.status + " returned invalid JSON: " + (error.message || String(error)), {cause:error}); }
-      if (!response.ok || !json || json.ok === false) {
-        throw new Error((json && json.error) || ("FileProxy request failed with HTTP " + response.status));
-      }
-      try {
-        if (window.CHISEL_DIAGNOSTICS) window.CHISEL_DIAGNOSTICS.record("fileproxy.response", "Response received", {
-          endpoint:url, method:method, httpStatus:response.status, durationMs:Date.now()-started});
-      } catch (_) {}
-      return json;
+        let json;
+        try { json = await response.json(); }
+        catch (error) { throw new Error("FileProxy HTTP " + response.status + " returned invalid JSON: " + (error.message || String(error)), {cause:error}); }
+        if (!response.ok || !json || json.ok === false) {
+          throw new Error((json && json.error) || ("FileProxy request failed with HTTP " + response.status));
+        }
+        try {
+          if (window.CHISEL_DIAGNOSTICS) window.CHISEL_DIAGNOSTICS.record("fileproxy.response", "Response received", {
+            endpoint:url, method:method, httpStatus:response.status, durationMs:Date.now()-started});
+        } catch (_) {}
+        fileProxyRetryAfter = 0;
+        failedFileProxyBase = "";
+        return json;
+      }, method === "GET" ? fileProxyReadTimeout() : 8000);
     } catch (error) {
+      if (!response || /^(TimeoutError|AbortError)$/.test(error.name) || response.status >= 500 || response.status === 401 || response.status === 403) {
+        state.fileProxyAvailable = false;
+        failedFileProxyBase = base;
+        fileProxyRetryAfter = Date.now() + 30000;
+      }
       recordPortalError("fileproxy.request", error, {endpoint:url, method:method,
         httpStatus:response && response.status, durationMs:Date.now()-started});
       throw error;
@@ -2585,6 +2612,10 @@
   }
 
   async function fileProxyIsAvailable() {
+    if (failedFileProxyBase === getFileProxyUrl()) {
+      if (Date.now() < fileProxyRetryAfter) return false;
+      state.fileProxyAvailable = null;
+    }
     if (state.fileProxyAvailable === true) return true;
     if (state.fileProxyAvailable === false) return false;
     try {
@@ -2598,6 +2629,25 @@
   function fileProxyRawUrl(path) {
     if (!path) return "";
     return getFileProxyUrl() + "/raw?path=" + encodeURIComponent(String(path));
+  }
+
+  function setPortalAssetImage(img, path, row) {
+    const bases = [row && row.staticBaseUrl].concat(safeArray(row && row.staticRemoteBaseUrls));
+    getStaticDataSources().forEach(function (source) {
+      try { bases.push(staticData.sourceLocation(source, window.location.href).baseUrl); } catch (_) {}
+    });
+    const urls = Array.from(new Set(bases.filter(Boolean).map(function (base) {
+      return CHISEL.safeWebUrl(staticData.joinDataPath(base, path), window.location.href);
+    }).filter(Boolean)));
+    if (state.fileProxyAvailable !== false) urls.push(fileProxyRawUrl(path));
+    let index = 0;
+    img.onerror = function () {
+      index += 1;
+      if (index < urls.length) img.src = urls[index];
+      else img.onerror = null;
+    };
+    if (urls.length) img.src = urls[0];
+    return urls[0] || "";
   }
 
   function normalizePathList(value, fallback) {
@@ -2672,6 +2722,7 @@
 
   async function loadConfiguredStaticDatasets(opts) {
     const reports = [];
+    const httpLoad = loadStaticHttpSources();
     const localPaths = normalizePathList(configValue("staticManifestPaths", null), [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH]);
     for (let i = 0; i < localPaths.length; i += 1) {
       try {
@@ -2689,6 +2740,8 @@
         reports.push({ source: mirrors[j], error: error.message || String(error) });
       }
     }
+    const http = await httpLoad;
+    reports.push.apply(reports, http.reports);
     requestPortalRender();
     setText("#portalThunderwordRaw", pretty({ staticDatasets: reports }));
     if (!(opts && opts.quiet)) {
@@ -2698,6 +2751,65 @@
       setStatus("Static dataset refresh finished: " + added + " added, " + updated + " updated. fileProxy was not required.", false);
     }
     return reports;
+  }
+
+  function loadStaticHttpSources() {
+    const generation = state.portalLoadGeneration;
+    const sources = getStaticDataSources(), key = sources.join("\n");
+    if (staticHttpLoad && staticHttpGeneration === generation && staticHttpSourceKey === key) return staticHttpLoad;
+    staticHttpGeneration = generation;
+    staticHttpSourceKey = key;
+    const promise = Promise.all(sources.map(async function (source) {
+      try {
+        const loaded = await staticTransport.loadCatalog(source);
+        if (generation !== state.portalLoadGeneration) return {source: source, cancelled: true, rows: []};
+        const rows = normalizeStaticDatasetRows(loaded.index, {baseUrl: loaded.baseUrl, sourceLabel: source, sourceBadge: "HTTP"});
+        const report = mergeStaticRows(rows, {silent: true});
+        const storedRows = rows.map(function (row) { return state.portalRowKeys[rowKey(row)]; }).filter(Boolean);
+        requestPortalRender();
+        if (configBool("backgroundHydrateTransactions", false)) window.setTimeout(function () {
+          hydrateStaticHttpRows(storedRows, generation).catch(function (error) { recordPortalError("static.hydration", error, {endpoint: source}); });
+        }, 0);
+        return Object.assign({source: source, indexUrl: loaded.indexUrl, rows: storedRows}, report);
+      } catch (error) {
+        recordPortalError("static.catalog", error, {endpoint: source});
+        return {source: source, error: error.message || String(error), rows: []};
+      }
+    })).then(function (reports) {
+      return {reports: reports.map(function (report) { const copy = Object.assign({}, report); delete copy.rows; return copy; }),
+        rows: [].concat.apply([], reports.map(function (report) { return report.rows; }))};
+    }).finally(function () { if (staticHttpLoad === promise) staticHttpLoad = null; });
+    staticHttpLoad = promise;
+    return promise;
+  }
+
+  async function hydrateStaticHttpRows(rows, generation) {
+    const ordered = prioritizePortalRows(rows);
+    for (let i = 0; i < ordered.length; i += 4) {
+      if (generation !== state.portalLoadGeneration) return;
+      await Promise.all(ordered.slice(i, i + 4).map(async function (row) {
+        if (row.raw || state.pendingHydration[row.key] || state.pendingDateLookup[row.key]) return;
+        await hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true, deferSort: true});
+        if (generation === state.portalLoadGeneration) requestPortalRender();
+      }));
+      await yieldPortalThread();
+    }
+  }
+
+  async function loadStaticHttpTransaction(txid, coin, path) {
+    const key = rowKey({coin: coin, txid: txid});
+    let row = state.portalRowKeys[key] || state.staticRawByTxid[coin + ":" + txid];
+    if (row && (row.staticRawPath || row.staticRawUrl)) {
+      try { return await fetchStaticRawFromRow(row); } catch (_) {}
+    }
+    if (path) {
+      const bases = getStaticDataSources().map(function (source) { return staticData.sourceLocation(source, window.location.href).baseUrl; });
+      try { return await staticTransport.fetchStaticRawFromRow({txid: txid, coin: coin, staticRawPath: path, staticRemoteBaseUrls: bases}); } catch (_) {}
+    }
+    await loadStaticHttpSources();
+    row = state.portalRowKeys[key] || state.staticRawByTxid[coin + ":" + txid];
+    if (!row || !(row.staticRawPath || row.staticRawUrl)) throw new Error("Transaction is not present in the static HTTP catalog.");
+    return fetchStaticRawFromRow(row);
   }
 
   async function fetchStaticRawFromRow(row) {
@@ -2821,7 +2933,14 @@
   async function loadLocalTransaction(txid, coin) {
     const requestedCoin = normalizeCoinName(coin || "");
     const lookupCoin = requestedCoin && requestedCoin !== "unknown" ? requestedCoin : "";
-    const json = await fileProxyJson("/tx", { txid: txid, coin: lookupCoin });
+    let json;
+    try { json = await fileProxyJson("/tx", { txid: txid, coin: lookupCoin }); }
+    catch (error) {
+      try {
+        const loaded = await loadStaticHttpTransaction(txid, lookupCoin);
+        return {txid: txid, coin: lookupCoin, path: "", raw: loaded.json, source: "static", url: loaded.url};
+      } catch (_) { throw error; }
+    }
     const tx = json.json || tryParseJsonText(json.text) || { text: json.text, txid: txid };
     return { txid: txid, coin: normalizeCoinName(lookupCoin || json.coin || tx.coin || tx.ticker || tx.chain || ""), path: json.path, raw: tx };
   }
@@ -2829,11 +2948,26 @@
   async function loadLocalTransactionPath(path, txid, coin) {
     const localPath = String(path || "").trim();
     if (!localPath) throw new Error("Local transaction path is missing.");
-    const response = await fetch(fileProxyRawUrl(localPath), { cache: "no-store" });
-    if (!response.ok) throw new Error(localPath + " failed with HTTP " + response.status + ".");
-    const text = await response.text();
-    const tx = tryParseJsonText(text);
-    if (!tx || typeof tx !== "object") throw new Error(localPath + " is not transaction JSON.");
+    let tx;
+    try {
+      if (failedFileProxyBase === getFileProxyUrl() && Date.now() < fileProxyRetryAfter) throw new Error("FileProxy is temporarily unavailable.");
+      tx = await staticTransport.request(fileProxyRawUrl(localPath), {cache: "no-store"}, async function (response) {
+        if (!response.ok) throw new Error(localPath + " failed with HTTP " + response.status + ".");
+        const value = tryParseJsonText(await response.text());
+        if (!value || typeof value !== "object") throw new Error(localPath + " is not transaction JSON.");
+        return value;
+      }, fileProxyReadTimeout());
+    } catch (error) {
+      if (/^(TimeoutError|AbortError|TypeError)$/.test(error.name)) {
+        state.fileProxyAvailable = false;
+        failedFileProxyBase = getFileProxyUrl();
+        fileProxyRetryAfter = Date.now() + 30000;
+      }
+      try {
+        const loaded = await loadStaticHttpTransaction(txid, normalizeCoinName(coin), localPath);
+        return {txid: txid, coin: normalizeCoinName(coin), path: "", raw: loaded.json, source: "static", url: loaded.url};
+      } catch (_) { throw error; }
+    }
     const requestedCoin = normalizeCoinName(coin || "");
     return {
       txid: txid || extractTxid(tx),
@@ -3927,7 +4061,7 @@
       img.alt = asset.assetId || "EVM image asset";
       img.title = asset.assetId || asset.path || "EVM image asset";
       img.loading = "lazy";
-      img.src = fileProxyRawUrl(asset.path);
+      setPortalAssetImage(img, asset.path, row);
       frame.appendChild(img);
 
       const caption = document.createElement("p");
@@ -4967,7 +5101,7 @@
     if (row.localPath) {
       try {
         const local = await loadLocalTransactionPath(row.localPath, row.txid, canonicalCoinForRow(row));
-        return { json: local.raw, source: "local", path: local.path, coin: local.coin };
+        return { json: local.raw, source: local.source || "local", path: local.path, coin: local.coin, url: local.url };
       } catch (error) {
         row.localPathLoadError = error.message || String(error);
       }
@@ -4988,7 +5122,7 @@
     if (configBool("localFirstTransactions", true)) {
       try {
         const local = await loadLocalTransaction(id, coin || (indexEntry && indexEntry.coin) || "");
-        if (local && local.raw) return { json: local.raw, source: "local", path: local.path, coin: local.coin };
+        if (local && local.raw) return { json: local.raw, source: local.source || "local", path: local.path, coin: local.coin, url: local.url };
       } catch (error) {}
     }
 
@@ -5106,7 +5240,13 @@
     }
 
     if (!json) {
-      json = await fileProxyJson("/txids", { coin: coin });
+      try { json = await fileProxyJson("/txids", { coin: coin }); }
+      catch (error) {
+        const loaded = await loadStaticHttpSources();
+        if (!loaded.rows.length) throw error;
+        setStatus("Loaded " + loaded.rows.length + " saved transaction(s) directly over HTTP. FileProxy is optional.", false);
+        return loaded.rows;
+      }
       rows = json.transactions || [];
     }
 
@@ -6541,7 +6681,7 @@ function getPortalFirstCharacter() {
       element.textContent = "FileProxy: connected (" + label + ")";
       element.style.color = "#a2d889";
     } catch (error) {
-      element.textContent = "FileProxy: " + label + " UNREACHABLE (" + (error.name === "AbortError" ? "timeout" : error.message || "network error") + "). Live explorer reads may still work.";
+      element.textContent = "FileProxy: " + label + " unavailable. Direct HTTP reading does not require it.";
       element.style.color = "#ffb39f";
     } finally {
       window.clearTimeout(timeout);
@@ -6575,8 +6715,19 @@ function getPortalFirstCharacter() {
     if ($("#portalFileProxyUrl") && !$("#portalFileProxyUrl").value) $("#portalFileProxyUrl").value = DEFAULT_FILE_PROXY_URL;
     if ($("#portalFileProxyUrl")) $("#portalFileProxyUrl").addEventListener("change", function () {
       state.fileProxyAvailable = null;
+      fileProxyRetryAfter = 0;
       checkFileProxyHealth();
     });
+    const staticInput = $("#portalStaticDataUrl");
+    if (staticInput) {
+      staticInput.addEventListener("input", function () { staticInput.dataset.edited = "true"; });
+      staticInput.addEventListener("change", function () {
+        staticInput.dataset.edited = "true";
+        loadStaticHttpSources().then(function (loaded) {
+          setStatus(loaded.rows.length ? "Loaded " + loaded.rows.length + " saved transaction(s) directly over HTTP." : "Static HTTP data could not be loaded. Check the activity log.", !loaded.rows.length);
+        });
+      });
+    }
     if ($("#portalScale")) $("#portalScale").value = String(DEFAULT_SCALE);
     if ($("#portalSkipPrefix")) $("#portalSkipPrefix").value = String(DEFAULT_SKIP_PREFIX);
     if ($("#portalSkipSuffix")) $("#portalSkipSuffix").value = String(DEFAULT_SKIP_SUFFIX);
@@ -6889,6 +7040,7 @@ function getPortalFirstCharacter() {
     buildPortalMacDougall: buildPortalMacDougall,
     loadConversationStreams: loadConversationStreams,
     loadEmbeddedStaticDataset: loadEmbeddedStaticDataset,
+    loadStaticHttpSources: loadStaticHttpSources,
     loadConfiguredStaticDatasets: loadConfiguredStaticDatasets,
     validateStaticDataset: validateStaticDataset,
     clearPortalStream: clearPortalStream,
