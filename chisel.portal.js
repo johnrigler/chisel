@@ -182,6 +182,9 @@
 
   const staticData = window.CHISEL_PORTAL_STATIC_DATA;
   if (!staticData) throw new Error("Load chisel.portal.static-data.js before chisel.portal.js.");
+  const payloadData = window.CHISEL_PORTAL_PAYLOAD;
+  if (!payloadData) throw new Error("Load chisel.portal.payload.js before chisel.portal.js.");
+  let recordView = null;
   const staticNormalizer = staticData.createNormalizer({
     normalizeCoinName: normalizeCoinName,
     tickerForCoin: tickerForCoin,
@@ -505,6 +508,7 @@
     const rawTitle = summary.title || (row && row.title) || "";
     const anchorTitle = anchorTextsFromHtml(rawTitle)[0] || "";
     let title = isRawHtmlTitle(rawTitle) ? compactMediaTitle(anchorTitle || rawTitle) : printableText(rawTitle);
+    if (title.includes("\ufffd")) title = "";
 
     if (isLikelyUrl(title) || isPlainAddressDerivedTitle(row, title) || looksLikeEncodedPortalTitle(title)) title = "";
     if (/^untitled transaction$/i.test(title) || /^(?:evm )?transaction(?:\s+[0-9a-f]{6,}(?:…[0-9a-f]{4,})?)?$/i.test(title)) title = "";
@@ -588,49 +592,6 @@
     if (typeof entry.valueSat !== "undefined") return entry.valueSat;
     if (typeof entry.satoshis !== "undefined") return entry.satoshis;
     return undefined;
-  }
-
-  function getOpReturnHex(entry) {
-    if (!entry) return "";
-    const asm = entry.scriptpubkey_asm || (entry.scriptPubKey && entry.scriptPubKey.asm) || "";
-    const parts = String(asm).trim().split(/\s+/).filter(Boolean);
-    if (/^OP_RETURN$/i.test(parts[0]) && parts.length > 1) return parts[parts.length - 1];
-    const hex = entry.script || entry.scriptpubkey || (entry.scriptPubKey && entry.scriptPubKey.hex) || "";
-    if (/^6a/i.test(hex)) return hex;
-    return "";
-  }
-
-  function decodeOpReturnScriptHex(hex) {
-    let clean = String(hex || "").replace(/\s+/g, "").toLowerCase();
-    if (!/^[0-9a-f]*$/.test(clean) || clean.length < 2) return "";
-    if (!clean.startsWith("6a")) return clean;
-    clean = clean.slice(2);
-    if (clean.length < 2) return "";
-
-    const op = parseInt(clean.slice(0, 2), 16);
-    if (op > 0 && op <= 75) return clean.slice(2, 2 + op * 2);
-    if (op === 76 && clean.length >= 4) {
-      const n = parseInt(clean.slice(2, 4), 16);
-      return clean.slice(4, 4 + n * 2);
-    }
-    if (op === 77 && clean.length >= 6) {
-      const n = parseInt(clean.slice(2, 6).match(/../g).reverse().join(""), 16);
-      return clean.slice(6, 6 + n * 2);
-    }
-    return clean;
-  }
-
-  function hexToUtf8(hex) {
-    let clean = String(hex || "").replace(/\s+/g, "");
-    if (/^6a/i.test(clean)) clean = decodeOpReturnScriptHex(clean);
-    if (!/^[0-9a-fA-F]*$/.test(clean) || clean.length % 2) return "";
-    try {
-      const pairs = clean.match(/../g) || [];
-      const bytes = pairs.map(function (part) { return parseInt(part, 16); });
-      return printableText(new TextDecoder().decode(new Uint8Array(bytes)));
-    } catch (error) {
-      return "";
-    }
   }
 
   function cleanTxid(value) {
@@ -891,10 +852,9 @@
     const script = String(raw && (raw.script || raw.scriptpubkey ||
       (raw.scriptPubKey && raw.scriptPubKey.hex)) || "");
     if (direction === "output" && (/^OP_RETURN(?:\s|$)/i.test(asm) || /^6a/i.test(script))) {
-      const hex = getOpReturnHex(raw) || (/^6a/i.test(script) ? script : "");
-      const decoded = hex ? hexToUtf8(hex) : "";
+      const payload = payloadData.fromOutput(raw);
       return { label: "OP_RETURN", address: "", kind: "data",
-        subtitle: decoded || "Data output", rawScript: script || asm };
+        subtitle: payload && (payload.text || payload.label) || "Data output", rawScript: script || asm };
     }
     return { label: script ? "Script output" : "Address unavailable", address: "",
       kind: "script", subtitle: script ? script.slice(0, 40) + (script.length > 40 ? "…" : "") : "",
@@ -1026,14 +986,15 @@
     return safeArray(tx && (tx.vout || tx.outputs)).map(function (entry, index) {
       const address = getOutputAddress(entry);
       const type = getOutputType(entry);
-      const opHex = getOpReturnHex(entry);
+      const payload = payloadData.fromOutput(entry);
       return {
         n: typeof entry.n === "number" ? entry.n : index,
         address: address,
         type: type,
         value: getOutputValue(entry),
-        opReturnHex: opHex,
-        opReturnText: opHex ? hexToUtf8(opHex) : "",
+        opReturnHex: payload && payload.hex || "",
+        opReturnText: payload && payload.text || "",
+        opReturnPayload: payload,
         raw: entry
       };
     });
@@ -1042,12 +1003,11 @@
   function opReturnTextForRow(row) {
     // Read the same output scripts used by the expanded transaction flow.
     // Older cached summaries may have only a generic title or no OP_RETURN.
-    const texts = extractOutputs(row && row.raw).map(function (output) {
-      return output.opReturnText;
-    }).filter(Boolean);
-    if (texts.length) return texts.join("\n");
-    return String(row && row.summary && row.summary.opReturnText ||
+    const payloads = extractOutputs(row && row.raw).map(function (output) { return output.opReturnPayload; }).filter(Boolean);
+    if (payloads.length) return payloads.map(function (payload) { return payload.text || payload.label; }).join("\n");
+    const text = String(row && row.summary && row.summary.opReturnText ||
       row && row.draftRecord && row.draftRecord.ledger.opReturnText || "").trim();
+    return text.includes("\ufffd") ? "OP_RETURN data · open record to inspect bytes" : text;
   }
 
   function looksLikeAddressLine(line) {
@@ -1170,14 +1130,18 @@
     const records = pairIpfsRecords(lineRecords);
 
     outputs.forEach(function (output) {
-      if (output.opReturnHex) {
+      if (output.opReturnPayload) {
         const payload = describeOpReturnText(output.opReturnText);
         records.push({
           kind: "op-return",
           index: output.n,
           hex: output.opReturnHex,
           text: output.opReturnText,
-          title: payload.title,
+          title: payload.title || output.opReturnPayload.label,
+          encoding: output.opReturnPayload.kind,
+          bytes: output.opReturnPayload.bytes,
+          base64: output.opReturnPayload.base64,
+          scriptHex: output.opReturnPayload.scriptHex,
           urls: payload.urls,
           parsedJson: payload.parsedJson
         });
@@ -2231,6 +2195,7 @@
     if (!stream || stream.source === "wif" || !window.history || !window.history.replaceState) return;
     try {
       const url = new URL(window.location.href);
+      if (url.searchParams.has("txid")) return;
       url.searchParams.set("mode", "portal");
       url.searchParams.set("address", stream.address);
       url.searchParams.set("coin", stream.coin);
@@ -4309,7 +4274,7 @@
     return card;
   }
 
-  function appendPortalInlineDetails(container, row) {
+  function appendPortalInlineDetails(container, row, options) {
     container.innerHTML = "";
 
     if (row.draftRecord) {
@@ -4342,6 +4307,20 @@
 
     const actions = document.createElement("div");
     actions.className = "actions portalInlineActions";
+
+    const recordLink = window.CHISEL_PORTAL_RECORD ? portalRecordUrl(row) : "";
+    if (!(options && options.recordPage) && recordLink) {
+      const open = document.createElement("a");
+      open.className = "secondaryButton";
+      open.textContent = "OPEN RECORD";
+      setSafeHref(open, recordLink);
+      open.onclick = function (event) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault(); event.stopPropagation();
+        openPortalRecord(row);
+      };
+      actions.appendChild(open);
+    }
 
     const primaryTarget = recordTargetUrlForRow(row);
     if (primaryTarget) {
@@ -4396,6 +4375,8 @@
     if (meta.textContent) header.appendChild(meta);
     header.appendChild(actions);
     container.appendChild(header);
+
+    appendPortalPayloads(container, row);
 
     // Linked media leads the expanded record. Ledger flow and supporting
     // interpretation remain available immediately below it.
@@ -4510,6 +4491,42 @@
     if (appendDataContainer) supportTarget.appendChild(dataContainer);
   }
 
+  function appendPortalPayloads(container, row) {
+    extractOutputs(row.raw).forEach(function (output) {
+      const payload = output.opReturnPayload;
+      if (!payload) return;
+      const section = document.createElement("section");
+      section.className = "portalPayload";
+      const heading = document.createElement("h5");
+      heading.textContent = "OP_RETURN #" + output.n + " · " + payload.label;
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const encoding = document.createElement("select");
+      encoding.setAttribute("aria-label", "OP_RETURN #" + output.n + " representation");
+      const values = payload.kind === "invalid" ? {scriptHex: "Script HEX"} :
+        Object.assign({}, payload.kind !== "binary" ? {text: payload.kind === "ascii" ? "ASCII text" : "UTF-8 text"} : {}, {hex: "HEX", base64: "Base64"});
+      Object.keys(values).forEach(function (key) {
+        const option = document.createElement("option");
+        option.value = key; option.textContent = values[key]; encoding.appendChild(option);
+      });
+      encoding.value = Object.keys(values)[0];
+      const data = document.createElement("pre");
+      data.className = "portalPayloadValue";
+      const copy = document.createElement("button");
+      copy.type = "button"; copy.className = "secondaryButton"; copy.textContent = "COPY";
+      function show() { data.textContent = payload[encoding.value] || ""; }
+      encoding.onchange = show;
+      copy.onclick = function () { copyPortalText(data.textContent, copy).catch(function (error) { setStatus(error.message, true); }); };
+      show();
+      actions.appendChild(encoding); actions.appendChild(copy);
+      section.appendChild(heading); section.appendChild(actions); section.appendChild(data);
+      if (payload.error) {
+        const error = document.createElement("p"); error.textContent = payload.error; section.appendChild(error);
+      }
+      container.appendChild(section);
+    });
+  }
+
   function isLocalPortalRow(row) {
     return !!(row && (row.localPath || row.discoverySource === "fileProxy"));
   }
@@ -4569,7 +4586,18 @@
     }, 200);
   }
 
-  async function hydratePortalRow(key, opts) {
+  const hydrationPromises = new Map();
+  function hydratePortalRow(key, opts) {
+    const previous = hydrationPromises.get(key), row = state.portalRowKeys[key], generation = state.portalLoadGeneration;
+    if (previous && previous.row === row && previous.generation === generation) return previous.promise;
+    const promise = hydratePortalRowOnce(key, opts).finally(function () {
+      if (hydrationPromises.get(key) && hydrationPromises.get(key).promise === promise) hydrationPromises.delete(key);
+    });
+    hydrationPromises.set(key, {row: row, generation: generation, promise: promise});
+    return promise;
+  }
+
+  async function hydratePortalRowOnce(key, opts) {
     const row = state.portalRowKeys[key];
     if (!row) return null;
     const generation = state.portalLoadGeneration;
@@ -4591,6 +4619,7 @@
       const loaded = await loadTransactionForRow(row, opts);
       if (generation !== state.portalLoadGeneration || state.portalRowKeys[key] !== row) return null;
       row.raw = loaded.json;
+      row.rawSourceUrl = loaded.url || row.rawSourceUrl || "";
       row.localPath = loaded.path || row.localPath;
       row.summary = mergePortalSummary(row.summary, extractSummary(loaded.json, rowIndexEntry(row)));
       row.blockTime = row.summary.blockTime || row.blockTime || 0;
@@ -4726,9 +4755,18 @@
       thumb = thumbnailLink;
     }
 
-    const time = document.createElement("span");
+    const recordLink = !row.draftRecord && window.CHISEL_PORTAL_RECORD ? portalRecordUrl(row) : "";
+    const time = document.createElement(recordLink ? "a" : "span");
     time.className = "portalStreamTime";
     time.textContent = formatRowTime(row);
+    if (recordLink) {
+      setSafeHref(time, recordLink);
+      time.title = "Open Chisel record page";
+      time.onclick = function (event) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault(); event.stopPropagation(); openPortalRecord(row);
+      };
+    }
 
     const coin = document.createElement("span");
     coin.className = "portalStreamCoin";
@@ -5046,6 +5084,11 @@
 
   function renderPortalRows() {
     cancelScheduledPortalRender();
+    if (recordView && recordView.active()) {
+      state.portalListDirty = true;
+      recordView.refresh();
+      return;
+    }
     if (state.portalSortPending) sortPortalRows();
     const list = $("#portalTransactionList");
     if (!list) return;
@@ -5090,6 +5133,61 @@
 
   async function selectPortalRow(key) {
     return togglePortalRowDetails(key, true);
+  }
+
+  function recordDataUrl(row) {
+    const api = window.CHISEL_PORTAL_RECORD;
+    const candidates = [row.rawSourceUrl].concat(staticData.rawPathsForRow(row));
+    if (/^transactions\//.test(staticData.staticDataPath(row.localPath))) getStaticDataSources().forEach(function (source) {
+      try { candidates.push(staticData.joinDataPath(staticData.sourceLocation(source, window.location.href).baseUrl, row.localPath)); } catch (_) {}
+    });
+    return candidates.map(function (url) { return api.publicDataUrl(url, window.location.href); }).find(Boolean) || "";
+  }
+
+  function portalRecordUrl(row) {
+    return window.CHISEL_PORTAL_RECORD.recordUrl(row, window.location.href, recordDataUrl(row));
+  }
+
+  function findPortalRecord(route) {
+    return state.portalRows.find(function (row) {
+      return row.txid === route.txid && canonicalCoinForRow(row) === route.coin &&
+        (!route.sourceId || sourceIdForRow(row) === route.sourceId) &&
+        (!route.chainId || String(row.index && row.index.chainId || "137") === route.chainId);
+    });
+  }
+
+  function initializeRecordView() {
+    if (recordView) return recordView;
+    recordView = window.CHISEL_PORTAL_RECORD.createController({document: document, state: state,
+      find: findPortalRecord, sourceUrl: recordDataUrl,
+      render: function (content, row) { appendPortalInlineDetails(content, row, {recordPage: true}); },
+      status: setStatus, copy: copyPortalText,
+      placeholder: function (route) {
+        const profile = EVM_PROFILES.find(function (item) { return "evm" + item.label === route.sourceId; });
+        const entry = profile ? evmIndexEntry(profile) : getCoinIndexByCoinName(route.coin);
+        return upsertPortalRow({coin: route.coin, txid: route.txid, sourceId: route.sourceId,
+          index: entry || {coin: route.coin, chainId: route.chainId}, summary: {title: "transaction " + shortTxid(route.txid)}}, {silent: true});
+      },
+      resolve: async function (route, row) {
+        if (row.raw) return row;
+        if (route.dataUrl) row.staticRawUrl = route.dataUrl;
+        const loaded = await hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true, deferCache: true});
+        if (!loaded || !loaded.raw) throw new Error(loaded && loaded.loadError || "Transaction data is unavailable from the saved files and ledger services.");
+        return loaded;
+      },
+      onReturn: function () {
+        if (state.portalListDirty) { state.portalListDirty = false; window.setTimeout(requestPortalRender, 0); }
+      }
+    });
+    return recordView;
+  }
+
+  function openPortalRecord(rowOrKey) {
+    const row = typeof rowOrKey === "string" ? state.portalRowKeys[rowOrKey] : rowOrKey;
+    if (!row) return Promise.resolve(null);
+    const view = initializeRecordView();
+    view.bind();
+    return view.openRow(row);
   }
 
   async function loadTransactionForRow(row, opts) {
@@ -6710,6 +6808,8 @@ function getPortalFirstCharacter() {
 
     if (!loadThunderword) return;
 
+    initializeRecordView().bind();
+
     if ($("#portalTxid")) $("#portalTxid").value = DEFAULT_DIGIBYTE_TXID;
     if ($("#portalColorPath")) $("#portalColorPath").value = DEFAULT_COLOR_PATH;
     if ($("#portalFileProxyUrl") && !$("#portalFileProxyUrl").value) $("#portalFileProxyUrl").value = DEFAULT_FILE_PROXY_URL;
@@ -7026,6 +7126,10 @@ function getPortalFirstCharacter() {
     appendPortalInlineDetails: appendPortalInlineDetails,
     renderDraftRecord: renderDraftRecord,
     renderStreamItem: renderPortalStreamItem,
+    openRecord: openPortalRecord,
+    loadRecordFromUrl: function () { return initializeRecordView().bind(); },
+    recordUrl: portalRecordUrl,
+    recordSourceUrl: recordDataUrl,
     presentPublication: presentPublication,
     renderSemantics: renderSemantics,
     loadPortalAnnotations: loadPortalAnnotations,

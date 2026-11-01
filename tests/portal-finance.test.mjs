@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
+
+const payloadContext = vm.createContext({TextDecoder, Uint8Array});
+payloadContext.window = payloadContext;
+vm.runInContext(await readFile(new URL('../chisel.portal.payload.js', import.meta.url), 'utf8'), payloadContext);
+const payloadData = payloadContext.CHISEL_PORTAL_PAYLOAD;
 
 // Exercise the actual browser finance functions without a DOM or explorer API.
 const source = await readFile(new URL('../chisel.portal.js', import.meta.url), 'utf8');
@@ -15,14 +21,14 @@ const getInputAddress = input => getOutputAddress(input?.prevout || input?.prevO
   input?.address || input?.addresses?.[0] || '';
 const testHarness = new Function('firstValue', 'txObject', 'getInputAddress',
   'getOutputAddress', 'getOutputType', 'canonicalCoinForRow', 'normalizePersonalAccount',
-  'state', 'makeInlinePre', 'pretty', 'document', 'getOpReturnHex', 'hexToUtf8',
+  'state', 'makeInlinePre', 'pretty', 'document', 'payloadData',
   source.slice(begin, end) +
   '\nreturn {portalFinanceForRow,portalOutputSatoshis,portalLedgerTarget};');
 const state = { personalAccount: { coin: 'litecoin', address: 'LTEST' } };
 const finance = testHarness(firstValue, value => value?.tx || value, getInputAddress,
   getOutputAddress, () => 'p2pkh', row => row.coin || 'litecoin',
   account => account?.address ? account : null, state, () => null, JSON.stringify, {},
-  output => output?.scriptpubkey || '', () => '');
+  payloadData);
 const esplo = (address, value) => ({ scriptpubkey_address: address, value });
 
 test('visible ledger data returns before a slow FileProxy save completes', async () => {
@@ -160,9 +166,9 @@ test('transaction-flow output targets label zero-value scripts', () => {
   const helperStart = source.indexOf('  function portalLedgerTarget(raw, parsed, direction)');
   const helperEnd = source.indexOf('  function appendPortalFinanceDetails(container, row)', helperStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart);
-  const target = new Function('getOpReturnHex', 'hexToUtf8',
+  const target = new Function('payloadData',
     source.slice(helperStart, helperEnd) + '\nreturn portalLedgerTarget;')(
-      raw => raw.script || '', () => ''
+      payloadData
     );
   assert.equal(target({ script: '6a00' }, { valueSat: 0 }, 'output').label, 'OP_RETURN');
   assert.equal(target({ output_index: -1 }, { valueSat: null }, 'input').label, 'Coinbase');

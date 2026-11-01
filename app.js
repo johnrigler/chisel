@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.22";
+  const APP_VERSION = "2.8.23";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -2324,7 +2324,7 @@ function onClickAddCommonAddressButton() {
     try {
       const url = new URL(window.location.href);
       url.searchParams.set("mode", normalizedMode);
-      window.history.replaceState(null, "", url.toString());
+      window.history.replaceState(window.history.state, "", url.toString());
     } catch (error) {
       // Non-fatal. Some local/file contexts may not allow URL mutation.
     }

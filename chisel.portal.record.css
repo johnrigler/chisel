@@ -1,0 +1,18 @@
+#portalListView[hidden], #portalRecordPage[hidden], #portalRecordSource[hidden] { display: none; }
+.portalRecordPage { min-width: 0; scroll-margin-top: 150px; }
+.portalRecordToolbar { flex-wrap: wrap; margin-bottom: 12px; }
+.portalRecordUrl { display: block; overflow-wrap: anywhere; font-size: 12px; margin: 0 0 14px; }
+.portalRecordPage .portalInlineDetails { margin: 0; border-radius: 12px; color: #000; --publication-text: #000; }
+.portalRecordPage.isAwaitingLedger .portalInlineDetails { color: #000080; --publication-text: #000080; }
+.portalRecordPage .portalInlineDetails :is(.portalInlineHeader h4, .portalInlineHeader code, .portalInlineHeader .muted, .portalEvmMediaBody, .portalTransactionQrInfo) { color: var(--publication-text); }
+.portalRecordPage h2 { margin: 12px 0 6px; }
+.portalPayload { min-width: 0; margin: 14px 0; padding: 12px; border: 1px solid #cad2dc; border-radius: 10px; background: #fff; color: var(--publication-text, #253b4a); }
+.portalPayload h5 { margin: 0 0 8px; }
+.portalPayload select { width: auto; max-width: 100%; }
+.portalPayloadValue { margin: 10px 0 0; padding: 10px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; background: #f3f6fa; color: inherit; border-radius: 6px; }
+a.portalStreamTime { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 640px) {
+  .portalRecordToolbar > * { flex: 1 1 44%; text-align: center; }
+  .portalRecordPage { padding: 12px; }
+  .portalPayload .actions { flex-wrap: wrap; }
+}

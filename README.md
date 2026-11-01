@@ -12,6 +12,33 @@
 
 Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts. **Portal** is the primary public reader; **Send**, **Review**, **Examples**, and **Tools** expose other workflows. It is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
 
+## Open and share a record
+
+Click a transaction's timestamp or expand it and choose **OPEN RECORD**.
+The record page has **COPY RECORD LINK**, **DOWNLOAD JSON**, **SOURCE JSON**
+(when a public file URL is known) and **BACK TO LIST**. Returning restores the
+existing list and its page, filters, expansion and scroll. Background data
+changes can update that list after it becomes visible again.
+
+Record URLs use `?mode=portal&coin=litecoin&txid=<64-hex-TXID>` under the current
+Chisel path, including an IPFS gateway path. An optional `data=<JSON-URL>`
+lets a fresh browser read the transaction directly from a published file;
+otherwise the existing static/FileProxy/ledger readers resolve it. The TXID
+in the source JSON must match. EVM links also retain the source view and chain.
+The copied link excludes unrelated account parameters and local API settings.
+
+If a recipient or an AI cannot run the Chisel UI, use **SOURCE JSON** or attach
+the **DOWNLOAD JSON** file. The `chisel-record-v1` export contains the public
+transaction, display summary, source/link and OP_RETURN bytes as HEX/Base64.
+It excludes browser identity and receipt-verification state. It does not
+establish independent live ledger verification.
+
+Readable ASCII/UTF-8 stays visible in closed rows. Binary OP_RETURN is labeled
+with its byte count rather than rendered as broken UTF-8. Expanded records
+offer a representation selector and copy control. Base64 is a representation
+of the original bytes; selecting it does not establish the payload's format
+or interpret an unknown binary protocol.
+
 ## Share text or a link into Chisel
 
 Install the [Mogwai share widget](https://johnrigler.github.io/mogwai/app/)

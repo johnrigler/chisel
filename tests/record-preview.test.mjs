@@ -14,6 +14,7 @@ class Element {
   removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parentNode = null; }
   replaceChildren(...children) { this.children.forEach(child => { child.parentNode = null; }); this.children = []; this.ownText = ""; children.forEach(child => this.appendChild(child)); }
   setAttribute(key, value) { this.attributes[key] = String(value); }
+  removeAttribute(key) { delete this.attributes[key]; delete this[key]; }
   addEventListener() {}
   get classList() { return {contains: name => this.className.split(" ").includes(name), add: name => { this.className += " " + name; }}; }
 }
@@ -22,13 +23,14 @@ const savedMetadata = new Map();
 const context = vm.createContext({URL, URLSearchParams, TextEncoder, TextDecoder, Uint8Array, console, addEventListener() {},
   setTimeout() { return 1; }, clearTimeout() {},
   document: {readyState: "loading", addEventListener() {}, createElement: tag => new Element(tag),
+    createTextNode(text) { const node = new Element("#text"); node.textContent = text; return node; },
     getElementById(id) { assert.notEqual(id, "senderWif", "preview must never read a key"); return nodes.get(id) || null; },
     querySelector(selector) { return nodes.get(selector) || null; }, querySelectorAll() { return []; }},
   localStorage: {getItem(key) { return savedMetadata.get(key) || null; }, setItem() { assert.fail("preview wrote storage"); }},
   fetch() { assert.fail("preview fetched a transaction or saved data"); }, location: {href: "https://chisel.example/"}
 });
 context.window = context;
-for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.store.js", "chisel.portal.js", "chisel.record-preview.js"]) {
+for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.store.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
   vm.runInContext(await readFile(new URL("../" + file, import.meta.url), "utf8"), context);
 }
 const P = context.CHISEL_RECORD_PREVIEW, portal = context.CHISEL_PORTAL;
@@ -80,6 +82,27 @@ test("cached OP_RETURN notes display in full before raw data loads without repea
   const title = descendants(container).find(node => node.className === "portalStreamTitle");
   assert.equal(title.textContent, text);
   assert.match(container.firstChild.className, /hasOpReturnText/);
+});
+
+test("binary OP_RETURN has a lossless encoding selector and no corrupted text in either view", async () => {
+  const raw = JSON.parse(await readFile(new URL("fixtures/portal-binary-opreturn.json", import.meta.url), "utf8"));
+  const row = {key: "binary-opreturn", coin: "litecoin", txid: raw.txid, raw,
+    summary: {title: "old \ufffd broken title", opReturnText: "old \ufffd broken text"}};
+  for (const expanded of [false, true]) {
+    const container = new Element("div");
+    portal.renderStreamItem(container, row, {expanded});
+    assert.doesNotMatch(container.textContent, /\ufffd/);
+    assert.match(container.textContent, /Binary OP_RETURN · 80 bytes/);
+    if (expanded) {
+      const section = descendants(container).find(node => node.className === "portalPayload");
+      const select = descendants(section).find(node => node.tagName === "select");
+      const pre = descendants(section).find(node => node.className === "portalPayloadValue");
+      const expected = raw.vout.find(output => output.scriptpubkey.startsWith("6a")).scriptpubkey.slice(6);
+      assert.equal(pre.textContent, expected);
+      select.value = "base64"; select.onchange();
+      assert.equal(Buffer.from(pre.textContent, "base64").toString("hex"), expected);
+    }
+  }
 });
 
 test("saved asset pictures use ordinary HTTP paths in closed and expanded records", () => {

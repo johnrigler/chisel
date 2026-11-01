@@ -1,3 +1,10 @@
+# 2.8.23 — record pages, share links and binary OP_RETURN
+
+- Open an individual record from its timestamp or OPEN RECORD action. Back restores the existing list, page, filters, expansion and scroll; record-page rendering leaves the hidden list DOM intact. Browser Back/Forward supports the same navigation.
+- Share a Chisel URL containing currency/TXID and an optional public JSON source. A fresh visit can read that source directly without Python or an index. SOURCE JSON and DOWNLOAD JSON expose the underlying transaction and lossless payloads for inspection outside Chisel.
+- Decode OP_RETURN as text only when it is valid, printable ASCII/UTF-8. Binary payloads show their byte count and exact HEX/Base64 representations; truncated scripts are reported explicitly. The screenshot transaction `99d2afee…f7bc022b` contains 80 binary bytes.
+- Extract payload handling and record navigation into vanilla browser modules. Shared pending reads prevent record navigation from duplicating background transaction requests.
+
 # 2.8.22 — direct static HTTP data with optional FileProxy
 
 - Add a separate Static data URL field that preserves the entered website/currency directory. Read catalogs, directory listings and transaction JSON directly from the web server or an HTTP IPFS gateway without Python.
