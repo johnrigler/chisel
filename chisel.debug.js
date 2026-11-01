@@ -1,7 +1,7 @@
 /* Local diagnostics: sanitized errors and endpoint routes, never request bodies or key material. */
 (function () {
   "use strict";
-  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1", RELEASE="20261031-v2817";
+  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1", RELEASE="20261031-v2820";
   let events=[];
   try { const saved=JSON.parse(sessionStorage.getItem(KEY)||"[]"); if(Array.isArray(saved)) events=saved.slice(-MAX); } catch (_) {}
   const sensitive=/\b(?:(?:0x)?[0-9a-fA-F]{64,}|[1-9A-HJ-NP-Za-km-z]{51,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;
@@ -45,6 +45,7 @@
     if (info.method) entry.method=clean(info.method,12);
     if (info.endpoint) entry.endpoint=endpoint(info.endpoint);
     if (info.coin) entry.coin=clean(info.coin,40);
+    if (info.resourceTag) entry.resourceTag=clean(info.resourceTag,20);
     if (Number.isFinite(info.httpStatus)) entry.httpStatus=info.httpStatus;
     if (Number.isFinite(info.durationMs)) entry.durationMs=Math.max(0,Math.round(info.durationMs));
     if (info.error) entry.error=errorInfo(info.error);
@@ -119,8 +120,19 @@
   }
   window.CHISEL_DIAGNOSTICS={record:record,error:recordError,clean:clean,endpoint:endpoint,snapshot:snapshot,download:download,clear:function(){events=[];try{sessionStorage.removeItem(KEY)}catch(_){}}};
   window.addEventListener("error",function(e){
+    const target=e.target, tag=String(target && target.tagName || "").toUpperCase();
+    // Resource error events have no runtime message, filename or stack.
+    // Keep the failed target instead of inventing an unknown script error.
+    if (/^(SCRIPT|LINK|IMG|VIDEO|AUDIO|SOURCE|TRACK|IFRAME|OBJECT|EMBED|INPUT)$/.test(tag) && !e.message && !e.error) {
+      const url=target.currentSrc || target.src || target.href || "";
+      const critical=tag === "SCRIPT" || (tag === "LINK" && /\bstylesheet\b/i.test(target.rel || ""));
+      record(tag === "SCRIPT" ? "javascript.load" : "resource.load",tag+" failed to load",{
+        level:critical ? "error" : "warn",endpoint:url,resourceTag:tag
+      });
+      return;
+    }
     const file=e.filename?e.filename.split("/").pop().split("?")[0]:"unknown";
-    recordError("javascript.error",e.error || e.message || "script error",{endpoint:e.filename});
+    recordError("javascript.error",e.error || e.message || "Runtime error; browser provided no source details",{endpoint:e.filename});
     record("javascript.location",file+":"+(e.lineno||0)+":"+(e.colno||0));
   },true);
   window.addEventListener("unhandledrejection",function(e){recordError("javascript.rejection",e.reason || "promise rejected");});

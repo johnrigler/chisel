@@ -1,3 +1,8 @@
+# 2.8.20 — identify failed resources accurately
+
+- Failed pictures and media are logged as resource warnings rather than fatal "unknown script" errors. The debug export retains the resource tag and sanitized URL so the failing image or asset can be identified.
+- Actual script and stylesheet load failures remain errors with the failed filename. Runtime JavaScript errors retain their message, source and stack; missing browser details are reported explicitly rather than called a script-load failure.
+
 # 2.8.19 — extract the Portal record store
 
 - Move record identity, deduplication, summary merging and recent display snapshots into `chisel.portal.store.js`. The module uses injected normalization/storage callbacks and has no DOM, network or timers.

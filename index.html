@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-0bc0/n6gqtOiT0bwPx6ABf4fnvypcnaXP76wL9O71aA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-hGr1AHAQYjVUIEJ+ScDqWtzMlolUVxoHa2ioAukQ0KA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
@@ -2892,9 +2892,18 @@
       });
     });
     window.addEventListener("error", function (e) {
-      const file = e.filename ? e.filename.split("/").pop().split("?")[0] : "unknown script";
+      const target = e.target, tag = String(target && target.tagName || "").toUpperCase();
+      if (/^(SCRIPT|LINK|IMG|VIDEO|AUDIO|SOURCE|TRACK|IFRAME|OBJECT|EMBED|INPUT)$/.test(tag) && !e.message && !e.error) {
+        const url = String(target.currentSrc || target.src || target.href || "");
+        const file = url && !/^(data|blob):/i.test(url) ? url.split("/").pop().split(/[?#]/)[0] : tag.toLowerCase() + " resource";
+        const critical = tag === "SCRIPT" || (tag === "LINK" && /\bstylesheet\b/i.test(target.rel || ""));
+        const source = tag === "SCRIPT" ? "JavaScript" : /^(IMG|VIDEO|AUDIO|SOURCE|TRACK|IFRAME)$/.test(tag) ? "Media" : "Resource";
+        window.chiselActivity(source,file + " failed to load",critical ? "error" : "warn");
+        return;
+      }
+      const file = e.filename ? e.filename.split("/").pop().split(/[?#]/)[0] : "source unavailable";
       const where = e.lineno ? ":" + e.lineno + (e.colno ? ":" + e.colno : "") : "";
-      const detail = e.message || (e.error && e.error.name) || "Script load error";
+      const detail = e.message || (e.error && e.error.name) || "Runtime error; browser provided no source details";
       window.chiselActivity("JavaScript",file + where + " " + detail,"error");
     }, true);
     window.addEventListener("unhandledrejection", function (e) {
@@ -2928,7 +2937,7 @@
   })();
   </script>
   <script src="chisel.activity-monitor.js?rev=20261025-a"></script>
-  <script src="chisel.debug.js?rev=20261031-errors-v2817"></script>
+  <script src="chisel.debug.js?rev=20261031-resources-v2820"></script>
   <script src="vendor/qrcode.min.js?rev=20261012S"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20261012S"></script>
   <script src="chisel.js?rev=20261017-security1"></script>
@@ -2959,7 +2968,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261031-store-v2819"></script>
+<script src="app.js?rev=20261031-resources-v2820"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">

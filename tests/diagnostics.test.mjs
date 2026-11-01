@@ -5,11 +5,16 @@ import vm from "node:vm";
 
 const sources = await Promise.all(["chisel.js", "chisel.portal.static-data.js", "chisel.portal.store.js", "chisel.portal.js", "chisel.debug.js"]
   .map(async file => [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
+const index = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const headerErrorStart = index.indexOf('    window.addEventListener("error", function (e) {');
+const headerErrorEnd = index.indexOf('    window.addEventListener("unhandledrejection"', headerErrorStart);
+assert.ok(headerErrorStart >= 0 && headerErrorEnd > headerErrorStart);
+const headerErrorSource = index.slice(headerErrorStart, headerErrorEnd);
 const txid = "ab".repeat(32);
 const response = (status, value) => ({ok: status >= 200 && status < 300, status, json: async () => value});
 
 function fixture(responder = () => response(200, {ok:true, json:{txid}})) {
-  const storage = new Map(), listeners = new Map(), calls = [];
+  const storage = new Map(), listeners = new Map(), calls = [], activity = [];
   const nodes = new Map([
     ["portalFileProxyUrl", {value:"http://127.0.0.1:7799/"}],
     ["portalStatus", {textContent:"Ledger refresh failed with HTTP 429"}],
@@ -33,8 +38,77 @@ function fixture(responder = () => response(200, {ok:true, json:{txid}})) {
   });
   context.window = context;
   for(const [file, source] of sources) vm.runInContext(source, context, {filename:file});
-  return {context,storage,listeners,calls,nodes,debug:context.CHISEL_DIAGNOSTICS,portal:context.CHISEL_PORTAL};
+  // Exercise the actual inline header handler as well as the export listener.
+  let headerError;
+  const register = context.addEventListener;
+  context.addEventListener = (name, callback) => { assert.equal(name, "error"); headerError = callback; };
+  context.chiselActivity = (source, message, level) => activity.push({source, message, level});
+  vm.runInContext(headerErrorSource, context);
+  context.addEventListener = register;
+  const dispatchError = event => { headerError(event); listeners.get("error")(event); };
+  return {context,storage,listeners,calls,nodes,activity,dispatchError,debug:context.CHISEL_DIAGNOSTICS,portal:context.CHISEL_PORTAL};
 }
+
+test("failed pictures retain their actual resource URL without reporting a JavaScript failure", () => {
+  const f=fixture();
+  f.dispatchError({target:{tagName:"IMG",currentSrc:"https://user:credential@images.example/selected.jpg?token=query-secret#fragment-secret",
+    src:"https://images.example/fallback.jpg"}});
+  const data=f.debug.snapshot(), event=data.events.at(-1);
+  assert.equal(event.type,"resource.load"); assert.equal(event.level,"warn"); assert.equal(event.resourceTag,"IMG");
+  assert.equal(event.endpoint.origin,"https://images.example"); assert.equal(event.endpoint.path,"/selected.jpg");
+  assert.equal(data.events.some(event=>event.type.startsWith("javascript.")),false);
+  assert.equal(f.activity[0].source,"Media"); assert.equal(f.activity[0].level,"warn");
+  assert.match(f.activity[0].message,/selected\.jpg/);
+  assert.doesNotMatch(JSON.stringify(data)+JSON.stringify(f.activity),/credential|query-secret|fragment-secret|unknown script|Script load error/);
+});
+
+test("a script resource failure names the asset and remains an error", () => {
+  const f=fixture();
+  f.dispatchError({target:{tagName:"SCRIPT",src:"https://chisel.example/chisel.portal.store.js?rev=example"}});
+  const event=f.debug.snapshot().events.at(-1);
+  assert.equal(event.type,"javascript.load"); assert.equal(event.level,"error");
+  assert.equal(event.resourceTag,"SCRIPT"); assert.equal(event.endpoint.path,"/chisel.portal.store.js");
+  assert.deepEqual(f.activity[0],{source:"JavaScript",message:"chisel.portal.store.js failed to load",level:"error"});
+});
+
+test("stylesheets remain errors while optional icons and media remain resource warnings", () => {
+  for(const [tag,rel,url,level] of [["LINK","stylesheet","https://chisel.example/style.css","error"],
+    ["LINK","icon","https://chisel.example/icon.png","warn"],
+    ["VIDEO","","https://media.example/video.mp4","warn"],
+    ["AUDIO","","https://media.example/audio.mp3","warn"]]) {
+    const f=fixture();
+    f.dispatchError({target:{tagName:tag,rel,href:url,src:url}});
+    const event=f.debug.snapshot().events.at(-1);
+    assert.equal(event.type,"resource.load"); assert.equal(event.resourceTag,tag); assert.equal(event.level,level);
+    assert.equal(f.activity[0].level,level); assert.notEqual(f.activity[0].source,"JavaScript");
+  }
+});
+
+test("real runtime errors retain their source, location and stack", () => {
+  const f=fixture(), error=new TypeError("Synthetic record merge failure");
+  f.dispatchError({message:error.message,error,filename:"https://chisel.example/chisel.portal.store.js?rev=example",lineno:55,colno:8});
+  const data=f.debug.snapshot(), event=data.events.at(-2);
+  assert.equal(event.type,"javascript.error"); assert.equal(event.level,"error"); assert.equal(event.error.name,"TypeError");
+  assert.match(event.error.stack,/diagnostics.test.mjs/); assert.equal(event.endpoint.path,"/chisel.portal.store.js");
+  assert.equal(data.events.at(-1).detail,"chisel.portal.store.js:55:8");
+  assert.match(f.activity[0].message,/chisel\.portal\.store\.js:55:8 Synthetic record merge failure/);
+  assert.equal(f.activity[0].level,"error");
+});
+
+test("opaque runtime errors do not invent a failed script resource", () => {
+  const f=fixture(); f.dispatchError({message:"Script error.",filename:"",lineno:0,colno:0});
+  assert.equal(f.debug.snapshot().events.at(-2).type,"javascript.error");
+  assert.match(f.activity[0].message,/source unavailable Script error\./);
+  assert.doesNotMatch(f.activity[0].message,/load error|failed to load/);
+});
+
+test("failed inline image payloads are not copied into activity or debug output", () => {
+  const f=fixture(); f.dispatchError({target:{tagName:"IMG",src:"data:image/png;base64,do-not-export-image-content"}});
+  const event=f.debug.snapshot().events.at(-1);
+  assert.equal(event.type,"resource.load"); assert.equal(event.endpoint,null);
+  assert.equal(f.activity[0].message,"img resource failed to load");
+  assert.doesNotMatch(JSON.stringify(f.debug.snapshot())+JSON.stringify(f.activity),/do-not-export-image-content/);
+});
 
 test("actual messages and stack traces survive export while credentials, query values and key material do not", () => {
   const f=fixture();
