@@ -569,8 +569,8 @@
     if (!entry) return "";
     const asm = entry.scriptpubkey_asm || (entry.scriptPubKey && entry.scriptPubKey.asm) || "";
     const parts = String(asm).trim().split(/\s+/).filter(Boolean);
-    if (parts[0] === "OP_RETURN" && parts.length) return parts[parts.length - 1];
-    const hex = entry.scriptpubkey || (entry.scriptPubKey && entry.scriptPubKey.hex) || "";
+    if (/^OP_RETURN$/i.test(parts[0]) && parts.length > 1) return parts[parts.length - 1];
+    const hex = entry.script || entry.scriptpubkey || (entry.scriptPubKey && entry.scriptPubKey.hex) || "";
     if (/^6a/i.test(hex)) return hex;
     return "";
   }
@@ -1024,6 +1024,17 @@
         raw: entry
       };
     });
+  }
+
+  function opReturnTextForRow(row) {
+    // Read the same output scripts used by the expanded transaction flow.
+    // Older cached summaries may have only a generic title or no OP_RETURN.
+    const texts = extractOutputs(row && row.raw).map(function (output) {
+      return output.opReturnText;
+    }).filter(Boolean);
+    if (texts.length) return texts.join("\n");
+    return String(row && row.summary && row.summary.opReturnText ||
+      row && row.draftRecord && row.draftRecord.ledger.opReturnText || "").trim();
   }
 
   function looksLikeAddressLine(line) {
@@ -1625,7 +1636,7 @@
     const title = titleFromSemantics(semantics, txid);
     const imageLines = lines.filter(function (line) { return /^S/.test(line); }).length;
     const ipfsCount = semantics.records.filter(function (record) { return record.kind === "ipfs-v0-cid"; }).length;
-    const opText = semantics.records.filter(function (record) { return record.kind === "op-return" && record.text; }).map(function (record) { return record.text; })[0] || "";
+    const opText = semantics.records.filter(function (record) { return record.kind === "op-return" && record.text; }).map(function (record) { return record.text; }).join("\n");
     const opUrls = semantics.records.filter(function (record) { return record.kind === "op-return-url"; }).map(function (record) { return record.url; });
     const primaryUrl = primaryUrlFromSemantics(semantics);
     const artifact = semantics.records.find(function (record) {
@@ -2730,7 +2741,7 @@
       } : undefined
     });
     state.currentSavedPath = saved.path || "";
-    if (mainThunderword) {
+    if (mainThunderword || options.refreshIndex === false) {
       state.mainThunderwordReindexPending = true;
       scheduleMainThunderwordReindex();
     }
@@ -3310,6 +3321,7 @@
   }
 
   function resetPortalRowsForNewLoad() {
+    snapshotRecentPortalSummaries(false);
     const publications = state.portalRows.filter(function (row) { return !!row.publication; });
     state.portalLoadGeneration += 1;
     state.liveLedgerHistories = Object.create(null);
@@ -3407,6 +3419,37 @@
     const previous = existingSummary && typeof existingSummary === "object" ? existingSummary : {};
     const incoming = incomingSummary && typeof incomingSummary === "object" ? incomingSummary : {};
     const merged = Object.assign({}, previous, incoming);
+    // Index/address refreshes often omit display data already decoded from
+    // this immutable transaction. Keep it until a richer value arrives.
+    ["opReturnText", "primaryUrl", "cleanText", "imageAssetPath", "imageMime", "ledgerFinance"].forEach(function (field) {
+      if (!incoming[field] && previous[field]) merged[field] = previous[field];
+    });
+    ["opReturnUrls", "mediaCards", "imageChordLines"].forEach(function (field) {
+      if (!safeArray(incoming[field]).length && safeArray(previous[field]).length) merged[field] = previous[field];
+    });
+    if (safeArray(previous.mediaCards).length && safeArray(incoming.mediaCards).length) {
+      const cards = previous.mediaCards.slice();
+      incoming.mediaCards.forEach(function (card) {
+        if (!card || typeof card !== "object") return;
+        const url = normalizeMediaUrl(card.url || card.sourceUrl || "");
+        const index = url ? cards.findIndex(function (old) {
+          return old && normalizeMediaUrl(old.url || old.sourceUrl || "") === url;
+        }) : -1;
+        if (index < 0) { cards.push(card); return; }
+        const old = cards[index];
+        const updated = Object.assign({}, old, card);
+        Object.keys(old).forEach(function (field) {
+          if (card[field] === undefined || card[field] === null || card[field] === "") updated[field] = old[field];
+        });
+        if (old.title && isLikelyUrl(card.title)) updated.title = old.title;
+        cards[index] = updated;
+      });
+      merged.mediaCards = cards;
+    }
+    if (previous.title && (!incoming.title || isLikelyUrl(incoming.title) ||
+        /^(?:(?:evm )?transaction(?:\s|$)|untitled transaction$)/i.test(incoming.title))) {
+      merged.title = previous.title;
+    }
     const previousTime = normalizeUnixTime(previous.blockTime || previous.block_time || previous.time || previous.timestamp);
     const incomingTime = normalizeUnixTime(incoming.blockTime || incoming.block_time || incoming.time || incoming.timestamp);
     const previousIsExact = previousTime && !previous.blockTimeEstimated;
@@ -3428,9 +3471,76 @@
     return merged;
   }
 
+  const RECENT_PORTAL_CACHE_KEY = "chisel.portal.recentDisplay.v1";
+  const RECENT_PORTAL_CACHE_LIMIT = 60;
+  let recentPortalSummaries = null;
+  let recentPortalSaveTimer = null;
+
+  function readRecentPortalSummaries() {
+    if (recentPortalSummaries) return recentPortalSummaries;
+    recentPortalSummaries = new Map();
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(RECENT_PORTAL_CACHE_KEY) || "[]");
+      safeArray(saved).slice(0, RECENT_PORTAL_CACHE_LIMIT).forEach(function (row) {
+        if (row && typeof row.key === "string" && row.summary && typeof row.summary === "object") {
+          recentPortalSummaries.set(row.key, row.summary);
+        }
+      });
+    } catch (error) {}
+    return recentPortalSummaries;
+  }
+
+  function prioritizePortalRows(rows) {
+    if (state.portalSortPending) sortPortalRows();
+    const visible = new Set(getPortalPageRows(getFilteredPortalRows()).map(rowKey));
+    function priority(row) {
+      const key = row.key || rowKey(row);
+      return state.expandedRowKeys[key] ? 2 : (visible.has(key) ? 1 : 0);
+    }
+    return rows.slice().sort(function (a, b) {
+      return priority(b) - priority(a) || rowTime(b) - rowTime(a) || compareStreamItems(a, b);
+    });
+  }
+
+  function snapshotRecentPortalSummaries(persist) {
+    const previous = readRecentPortalSummaries();
+    const next = new Map();
+    prioritizePortalRows(state.portalRows).slice(0, RECENT_PORTAL_CACHE_LIMIT).forEach(function (row) {
+      const summary = {};
+      // Store public presentation fields only; raw transactions, accounts,
+      // transport credentials and ledger-verification state are excluded.
+      ["txid", "title", "primaryUrl", "cleanText", "opReturnText", "opReturnUrls", "mediaCards",
+        "lines", "imageLines", "imageChordLines", "ipfsCount", "imageCount", "imageAssetPath",
+        "imageMime", "imageBytes", "imageWidth", "imageHeight", "imageAssetId", "artifactId",
+        "artifactAddress", "blockHeight", "blockTime", "blockTimeEstimated", "ledgerFinance"].forEach(function (field) {
+        if (row.summary && row.summary[field] !== undefined) summary[field] = row.summary[field];
+      });
+      if (JSON.stringify(summary).length <= 32768) next.set(row.key || rowKey(row), summary);
+    });
+    previous.forEach(function (summary, key) {
+      if (next.size < RECENT_PORTAL_CACHE_LIMIT && !next.has(key)) next.set(key, summary);
+    });
+    recentPortalSummaries = next;
+    if (persist === false) return;
+    try {
+      window.localStorage.setItem(RECENT_PORTAL_CACHE_KEY, JSON.stringify(Array.from(next, function (entry) {
+        return {key: entry[0], summary: entry[1]};
+      })));
+    } catch (error) { console.warn("Recent Portal display cache could not be saved:", error); }
+  }
+
+  function scheduleRecentPortalSnapshot() {
+    if (recentPortalSaveTimer) return;
+    recentPortalSaveTimer = window.setTimeout(function () {
+      recentPortalSaveTimer = null;
+      snapshotRecentPortalSummaries();
+    }, 200);
+  }
+
   function upsertPortalRow(row, opts) {
     if (!row || !TXID_RE.test(String(row.txid || ""))) return null;
     const key = rowKey(row);
+    row.summary = mergePortalSummary(readRecentPortalSummaries().get(key), row.summary);
     const existing = state.portalRowKeys[key];
     const publicationUpdate = !!(opts && opts.publicationUpdate);
     const previousRowTime = existing ? extractBlockTime(existing) : 0;
@@ -3470,6 +3580,7 @@
     state.portalSortPending = true;
     if (!state.portalBatchDepth && !(opts && opts.deferSort)) sortPortalRows();
     if (!(opts && opts.silent)) requestPortalRender();
+    scheduleRecentPortalSnapshot();
 
     if (opts && opts.select) {
       selectPortalRow(key).catch(function (error) { setStatus(error.message || String(error), true); });
@@ -4539,6 +4650,7 @@
   async function hydratePortalRow(key, opts) {
     const row = state.portalRowKeys[key];
     if (!row) return null;
+    const generation = state.portalLoadGeneration;
     if (row.raw || state.pendingHydration[key]) {
       if (row.raw) await cacheLiveRawPortalRowMaybe(row, opts);
       return row;
@@ -4555,20 +4667,27 @@
 
     try {
       const loaded = await loadTransactionForRow(row, opts);
+      if (generation !== state.portalLoadGeneration || state.portalRowKeys[key] !== row) return null;
       row.raw = loaded.json;
       row.localPath = loaded.path || row.localPath;
-      row.summary = extractSummary(loaded.json, rowIndexEntry(row));
+      row.summary = mergePortalSummary(row.summary, extractSummary(loaded.json, rowIndexEntry(row)));
       row.blockTime = row.summary.blockTime || row.blockTime || 0;
       upsertPortalRow(row, { silent: true, deferSort: !!(opts && opts.deferSort) });
+      if (loaded.cachePromise) {
+        loaded.cachePromise.then(function (saved) {
+          if (saved && state.portalRowKeys[key] === row) row.localPath = saved.path || row.localPath;
+        });
+      }
       schedulePersonalCacheSnapshot();
       return row;
     } catch (error) {
       row.loadError = error.message || String(error);
       return row;
     } finally {
-      delete state.pendingHydration[key];
+      if (generation === state.portalLoadGeneration) delete state.pendingHydration[key];
       if (busyTracked) portalBusyEnd();
-      if (state.expandedRowKeys[key] || (!(opts && opts.suppressRender) && (!(opts && opts.silent) || isVisiblePortalRow(row)))) requestPortalRender();
+      if (generation === state.portalLoadGeneration &&
+          (state.expandedRowKeys[key] || (!(opts && opts.suppressRender) && (!(opts && opts.silent) || isVisiblePortalRow(row))))) requestPortalRender();
     }
   }
 
@@ -4696,7 +4815,9 @@
     const titleWrap = document.createElement("span");
     titleWrap.className = "portalStreamTitle";
     const titleText = displayTitleForRow(row);
-    const compactGeneric = !primaryUrl && /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
+    const opText = opReturnTextForRow(row);
+    const genericTitle = /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
+    const compactGeneric = !primaryUrl && !opText && genericTitle;
     if (compactGeneric) item.classList.add("isCompactGeneric");
     titleWrap.title = compactGeneric ? "Expand for transaction details" : titleText;
     if (primaryUrl) {
@@ -4708,9 +4829,17 @@
       titleLink.className = "isDirectLink";
       titleWrap.appendChild(titleLink);
     } else {
-      titleWrap.textContent = compactGeneric ? "" : titleText;
+      // Plain notes need one full text copy, not a duplicate truncated title.
+      titleWrap.textContent = genericTitle || titleText === truncateText(opText, 96) ? "" : titleText;
     }
     if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
+    if (opText) {
+      const payload = document.createElement("span");
+      payload.className = "portalStreamOpReturn";
+      payload.textContent = opText;
+      titleWrap.appendChild(payload);
+      item.classList.add("hasOpReturnText");
+    }
 
     let verify = null;
     const url = rowExplorerUrl(row);
@@ -4867,7 +4996,7 @@
     state.attemptedDateLookup[key] = true;
     state.pendingDateLookup[key] = true;
     try {
-      const loaded = await loadTransactionForRow(row, { quiet: true, refreshIndex: false });
+      const loaded = await loadTransactionForRow(row, { quiet: true, refreshIndex: false, deferCache: true });
       if (generation !== state.portalLoadGeneration || !loaded || !loaded.json) return { changed: false, saved: false };
       const exactTime = extractBlockTime(loaded.json);
       const blockHeight = extractBlockHeight(loaded.json);
@@ -4887,6 +5016,11 @@
       row.localPath = loaded.path || row.localPath;
       invalidatePortalRowCache(row);
       upsertPortalRow(row, { silent: true, deferSort: true });
+      if (loaded.cachePromise) {
+        loaded.cachePromise.then(function (saved) {
+          if (saved && state.portalRowKeys[key] === row) row.localPath = saved.path || row.localPath;
+        });
+      }
       return { changed: true, saved: !!loaded.saved };
     } catch (error) {
       row.dateLookupError = error.message || String(error);
@@ -4955,21 +5089,23 @@
         rowCanHydrate(row) && !state.pendingHydration[row.key] &&
         !state.pendingDateLookup[row.key] &&
         !state.attemptedFinanceLookup[row.key];
-    }).slice(0, 6);
+    });
     if (!candidates.length) return;
     const generation = state.portalLoadGeneration;
     state.visibleFinanceLookupScheduled = true;
     window.setTimeout(function () {
       (async function () {
-        for (let offset = 0; offset < candidates.length; offset += 2) {
+        for (let offset = 0; offset < candidates.length; offset += 4) {
           if (generation !== state.portalLoadGeneration) return;
-          await Promise.all(candidates.slice(offset, offset + 2).map(async function (row) {
+          await Promise.all(candidates.slice(offset, offset + 4).map(async function (row) {
             if (row.raw || state.pendingHydration[row.key] ||
                 state.pendingDateLookup[row.key]) return;
             state.attemptedFinanceLookup[row.key] = true;
             await hydratePortalRow(row.key, {
-              quiet: true, suppressRender: true, silent: true, deferSort: true
+              quiet: true, suppressRender: true, silent: true, deferSort: true,
+              refreshIndex: false, deferCache: true
             });
+            if (generation === state.portalLoadGeneration) requestPortalRender();
           }));
           if (generation !== state.portalLoadGeneration) return;
           requestPortalRender();
@@ -5071,14 +5207,17 @@
     const api = getThunderwords();
     if (!api || !indexEntry || !indexCanFetch(indexEntry)) throw new Error("No local transaction and no live tx fetcher configured.");
     const loaded = await api.fetchTransaction(indexEntry, id);
-    const saved = await autoSaveTransactionMaybe(loaded.json, id, indexEntry, opts);
+    const cachePromise = opts && opts.deferCache ?
+      autoSaveTransactionMaybe(loaded.json, id, indexEntry, Object.assign({}, opts, {refreshIndex: false})) : null;
+    const saved = cachePromise ? null : await autoSaveTransactionMaybe(loaded.json, id, indexEntry, opts);
     return {
       json: loaded.json,
       source: "live",
       url: loaded.url,
       coin: indexEntry.coin || indexEntry.ticker || "",
       path: saved && saved.path ? saved.path : "",
-      saved: saved || null
+      saved: saved || null,
+      cachePromise: cachePromise
     };
   }
 
@@ -5094,9 +5233,9 @@
 
   async function hydrateLocalRowsInBackground(rows, generation) {
     const runGeneration = generation == null ? state.portalLoadGeneration : generation;
-    const candidates = safeArray(rows).filter(function (row) {
+    const candidates = prioritizePortalRows(safeArray(rows).filter(function (row) {
       return isLocalPortalRow(row) && !row.raw;
-    });
+    }));
     const report = {
       requested: candidates.length,
       hydrated: 0,
@@ -5129,14 +5268,20 @@
         report.skipped += 1;
         continue;
       }
-      if (state.pendingHydration[key]) {
+      if (state.pendingHydration[key] || state.pendingDateLookup[key]) {
         report.skipped += 1;
         continue;
       }
       visibleChanges = visibleChanges || isVisiblePortalRow(row);
       const hydrated = await hydratePortalRow(key, { silent: true, suppressRender: true, deferSort: true });
+      if (runGeneration !== state.portalLoadGeneration) {
+        report.cancelled = true;
+        report.status = "cancelled";
+        return report;
+      }
       if (hydrated && hydrated.raw) report.hydrated += 1;
       else report.failed += 1;
+      if (isVisiblePortalRow(row)) requestPortalRender();
 
       if ((i + 1) % 4 === 0) {
         if (visibleChanges) requestPortalRender();
@@ -6005,7 +6150,7 @@ function getPortalFirstCharacter() {
     const seenTrail = new Set();
     const seenChildTx = new Set();
     state.portalRows.forEach(function (existing) { seenChildTx.add(rowKey(existing)); });
-    const ordered = rows.slice().sort(compareStreamItems);
+    const ordered = prioritizePortalRows(rows);
     const shouldFetchRabbitTrails = configBool("autoFetchRabbitTrails", false);
     let savedRawAddressResults = 0;
     let failedRawAddressResults = 0;
@@ -6379,7 +6524,12 @@ function getPortalFirstCharacter() {
       rows.forEach(function (tx) {
         if (!tx || !TXID_RE.test(String(tx.txid || ""))) return;
         const index = cloneIndexForAddress(entry, account.address, account.label);
-        if (state.portalRowKeys[rowKey({coin: account.coin, index: index, txid: tx.txid})]) return;
+        const existing = state.portalRowKeys[rowKey({coin: account.coin, index: index, txid: tx.txid})];
+        if (existing) {
+          existing.summary = mergePortalSummary(tx.summary, existing.summary);
+          invalidatePortalRowCache(existing);
+          return;
+        }
         upsertPortalRow({
           index:index, coin:account.coin, txid:tx.txid,
           summary:tx.summary || makeBasicSummary(tx.txid, tx, entry),
@@ -6644,10 +6794,14 @@ function getPortalFirstCharacter() {
     if ($("#portalSkipSuffix")) $("#portalSkipSuffix").value = String(DEFAULT_SKIP_SUFFIX);
 
     loadPortalAnnotations();
+    window.addEventListener("pagehide", function () { snapshotRecentPortalSummaries(); });
     renderThunderwordOptions();
     state.urlMainThunderwordRequest = mainThunderwordRequestFromUrl();
     state.personalAccount = loadPersonalAccount();
-    if (state.personalAccount) populatePersonalAccountFields(state.personalAccount);
+    if (state.personalAccount) {
+      const prepared = populatePersonalAccountFields(state.personalAccount);
+      if (prepared && !state.urlMainThunderwordRequest) restorePersonalTxCache(prepared.account, prepared.entry);
+    }
     window.addEventListener("chisel:main-account", receiveMainThunderwordAccount);
     window.addEventListener("chisel:identity-accounts", function (event) {
       receiveIdentityAccounts(event).catch(function (error) {

@@ -41,6 +41,47 @@ const record = {schema: "chisel-shared-record-v1", opReturnText: url,
 const values = {coin: "litecoin", ascii: url, hex: "", fee: "0.0001", ipfs: "", recipients: [{address: "LLxPUBLIC", amount: "0.00000546", outputType: "unspendable"}]};
 const descendants = node => [node, ...node.children.flatMap(descendants)];
 
+test("BlockCypher OP_RETURN script text appears in closed records even with a generic saved title", () => {
+  const text = "Testing, testing.";
+  const raw = {hash: "1".repeat(64), inputs: [], outputs: [
+    {value: 0, script: "6a" + text.length.toString(16).padStart(2, "0") + Buffer.from(text).toString("hex")}
+  ]};
+  const row = {key: "blockcypher-note", coin: "litecoin", txid: raw.hash, raw,
+    summary: {title: "transaction " + raw.hash.slice(0, 10)}};
+  assert.equal(portal.extractSummary(raw, {coin: "litecoin"}).opReturnText, text);
+  for (const expanded of [false, true, false]) {
+    const container = new Element("div");
+    portal.renderStreamItem(container, row, {expanded, onToggle() {}});
+    const payload = descendants(container).find(node => node.className === "portalStreamOpReturn");
+    assert.equal(payload?.textContent, text);
+    assert.doesNotMatch(container.firstChild.className, /isCompactGeneric/);
+    if (!expanded) assert.equal(descendants(container).filter(node => node.className === "portalInlineDetails").length, 0);
+  }
+});
+
+test("all decoded OP_RETURN outputs remain visible as literal text beside media metadata", () => {
+  const texts = [("<img src=x onerror=alert(1)> " + "Readable note. ".repeat(10)).trim(), "Second output"];
+  const raw = {txid: "2".repeat(64), vin: [], vout: texts.map(text => ({value: 0,
+    scriptPubKey: {asm: "OP_RETURN " + Buffer.from(text).toString("hex"), type: "nulldata"}}))};
+  const row = {key: "multiple-notes", coin: "litecoin", txid: raw.txid, raw, summary: record.summary};
+  const container = new Element("div"); portal.renderStreamItem(container, row, {expanded: false});
+  const payload = descendants(container).find(node => node.className === "portalStreamOpReturn");
+  assert.equal(payload.textContent, texts.join("\n"));
+  assert.equal(payload.children.length, 0, "ledger text is never inserted as HTML");
+  assert.match(container.textContent, /A complete shared title/);
+  assert.ok(descendants(container).some(node => node.tagName === "img" && node.src === picture));
+});
+
+test("cached OP_RETURN notes display in full before raw data loads without repeating the title", () => {
+  const text = "Visible from the summary. ".repeat(10).trim();
+  const row = {key: "cached-note", coin: "litecoin", txid: "3".repeat(64),
+    summary: {title: text.slice(0, 95) + "…", opReturnText: text}};
+  const container = new Element("div"); portal.renderStreamItem(container, row, {expanded: false});
+  const title = descendants(container).find(node => node.className === "portalStreamTitle");
+  assert.equal(title.textContent, text);
+  assert.match(container.firstChild.className, /hasOpReturnText/);
+});
+
 test("rich record parsing binds metadata to the exact shared text and rejects malformed or oversized records", () => {
   assert.equal(P.parseRecord(null, url), null);
   assert.equal(P.parseRecord(JSON.stringify(record), url).metadata.extra, record.metadata.extra);

@@ -25,6 +25,31 @@ const finance = testHarness(firstValue, value => value?.tx || value, getInputAdd
   output => output?.scriptpubkey || '', () => '');
 const esplo = (address, value) => ({ scriptpubkey_address: address, value });
 
+test('visible ledger data returns before a slow FileProxy save completes', async () => {
+  const start = source.indexOf('  async function loadTransactionLocalFirst(');
+  const end = source.indexOf('  function selectRelativePortalRow(', start);
+  assert.ok(start >= 0 && end > start);
+  const raw = {txid: 'a'.repeat(64), vin: [], vout: []};
+  let finishSave, savedOptions;
+  const saving = new Promise(resolve => { finishSave = resolve; });
+  const load = new Function('TXID_RE', 'state', 'rowKey', 'configBool', 'getThunderwords',
+    'indexCanFetch', 'autoSaveTransactionMaybe', source.slice(start, end) + '\nreturn loadTransactionLocalFirst;')(
+    /^[a-f0-9]{64}$/, {portalRowKeys: {}}, () => 'row', () => false,
+    () => ({fetchTransaction: async () => ({json: raw, url: 'https://ledger.example/tx'})}), () => true,
+    (json, txid, entry, options) => { assert.equal(json, raw); savedOptions = options; return saving; }
+  );
+  const result = await Promise.race([
+    load({coin: 'litecoin'}, raw.txid, 'litecoin', {deferCache: true}),
+    new Promise(resolve => setImmediate(() => resolve('blocked by FileProxy')))
+  ]);
+  assert.notEqual(result, 'blocked by FileProxy');
+  assert.equal(result.json, raw);
+  assert.equal(result.path, '');
+  assert.equal(savedOptions.refreshIndex, false, 'index rebuilding is batched after saves');
+  finishSave({path: 'data/transactions/litecoin/saved.json'});
+  assert.equal((await result.cachePromise).path, 'data/transactions/litecoin/saved.json');
+});
+
 test('Esplora incoming and outgoing amounts are per-address net, not all outputs', () => {
   const incoming = finance.portalFinanceForRow({ raw: {
     vin: [{ prevout: esplo('OTHER', 100000) }],

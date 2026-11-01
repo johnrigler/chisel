@@ -5,6 +5,21 @@
  * only the transaction details. Explorer verification appears after expansion.
  */
 
+/* Decoded ledger text is readable without opening the transaction. */
+.portalStreamItem.hasOpReturnText .portalStreamRow > .portalStreamTitle {
+  display: block;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  -webkit-line-clamp: unset;
+}
+.portalStreamOpReturn {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+
 /* No redundant "details" or "verify" links on a collapsed transaction. */
 .portalStreamItem:not(.isExpanded) .portalStreamVerify {
   display: none;

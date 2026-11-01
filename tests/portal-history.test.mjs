@@ -187,6 +187,87 @@ test("saved account history restores immediately offline with its own address an
   assert.equal(live.discoverySource, "live-search"); assert.ok(live.raw);
 });
 
+test("recent decoded text and media survive a reset, a sparse index refresh and a new page load", async () => {
+  const f = fixture(() => { throw new Error("offline"); });
+  const txid = id(77), text = "Testing, testing.", url = "https://youtu.be/jNQXAC9IVRw";
+  const rich = {coin: "litecoin", txid, index: f.entry, raw: {txid, vin: [], vout: []},
+    summary: {title: "Reviewed video", opReturnText: text, primaryUrl: url, blockTime: 1700000000,
+      ledgerFinance: {outputTotalSat: 9000, feeSat: 1000},
+      mediaCards: [{url, title: "Reviewed video", authorName: "Saved channel", thumbnailUrl: "https://images.example/picture.jpg"}]},
+    submittedAt: 1700000000000, ledgerState: "awaiting-ledger", metadata: {}};
+  f.portal.presentPublication(rich);
+  const snapshot = [...f.timers.values()].find(timer => timer.ms === 200);
+  assert.ok(snapshot); snapshot.callback();
+  const saved = f.storage.get("chisel.portal.recentDisplay.v1");
+  assert.ok(saved.includes(text));
+  assert.doesNotMatch(saved, /"raw"|"index"|"publication"|ledgerState|submittedAt/);
+
+  const sparse = {coin: "litecoin", txid, summary: {title: "transaction " + txid.slice(0, 10),
+    opReturnText: "", primaryUrl: "", mediaCards: [{url, title: url, thumbnailUrl: ""}]}};
+  for (const session of [f, fixture(() => { throw new Error("offline"); }, f.storage)]) {
+    session.portal.clearPortalStream();
+    session.context.CHISEL_PORTAL_STARTER_DATA = {transactions: [sparse]};
+    session.portal.loadEmbeddedStaticDataset();
+    const summary = session.portal.state.portalRowKeys["litecoin:" + txid].summary;
+    assert.equal(summary.opReturnText, text);
+    assert.equal(summary.title, "Reviewed video");
+    assert.equal(summary.primaryUrl, url);
+    assert.equal(summary.ledgerFinance.feeSat, 1000);
+    assert.equal(summary.mediaCards[0].title, "Reviewed video");
+    assert.equal(summary.mediaCards[0].authorName, "Saved channel");
+    assert.equal(summary.mediaCards[0].thumbnailUrl, "https://images.example/picture.jpg");
+  }
+});
+
+test("FileProxy background reads hydrate the visible recent page before older records in index order", async () => {
+  const order = [], times = [100, 300, 200];
+  const indexed = times.map((time, i) => ({coin: "litecoin", txid: id(i + 1), path: "data/transactions/litecoin/" + id(i + 1) + ".json",
+    summary: {title: "transaction " + id(i + 1), blockTime: time}}));
+  const f = fixture(url => {
+    if (new URL(url).pathname.endsWith("/tx-index")) return json({transactions: indexed});
+    const path = new URL(url).searchParams.get("path"), index = indexed.findIndex(row => row.path === path);
+    assert.ok(index >= 0, url); order.push(times[index]);
+    return {ok: true, status: 200, text: async () => JSON.stringify({txid: indexed[index].txid, vin: [], vout: [], blocktime: times[index]})};
+  });
+  Object.assign(f.portal.state.config, {backgroundHydrateTransactions: true, autoHydrateLocalTransactions: true, portalPageSize: 2});
+  const rows = await f.portal.listLocalTransactions();
+  await f.portal.hydrateLocalRowsInBackground(rows);
+  assert.deepEqual(order, [300, 200, 100]);
+  assert.equal(f.portal.state.localHydrationReport.hydrated, 3);
+});
+
+test("recent presentation cache stays bounded and excludes unrelated summary fields", () => {
+  const f = fixture(() => { throw new Error("offline"); });
+  f.context.CHISEL_PORTAL_STARTER_DATA = {transactions: Array.from({length: 100}, (_, i) => ({
+    coin: "litecoin", txid: id(i + 1), summary: {title: "A saved note", opReturnText: "Note " + i,
+      blockTime: 1700000000 + i, senderWif: "never retain this", raw: {privateKey: "never retain this"}}
+  }))};
+  f.portal.loadEmbeddedStaticDataset();
+  [...f.timers.values()].find(timer => timer.ms === 200).callback();
+  const saved = f.storage.get("chisel.portal.recentDisplay.v1"), rows = JSON.parse(saved);
+  assert.equal(rows.length, 60);
+  assert.equal(rows[0].key, "litecoin:" + id(100));
+  assert.doesNotMatch(saved, /senderWif|privateKey|never retain/);
+});
+
+test("a slow transaction read finishing after reset cannot repopulate the cleared stream", async () => {
+  let release;
+  const txid = id(88), path = "data/transactions/litecoin/" + txid + ".json";
+  const f = fixture(url => new URL(url).pathname.endsWith("/tx-index") ?
+    json({transactions: [{coin: "litecoin", txid, path, summary: {title: "Slow record", blockTime: 100}}]}) :
+    new Promise(resolve => { release = resolve; }));
+  Object.assign(f.portal.state.config, {backgroundHydrateTransactions: true, autoHydrateLocalTransactions: true});
+  const rows = await f.portal.listLocalTransactions();
+  const hydration = f.portal.hydrateLocalRowsInBackground(rows);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(typeof release, "function");
+  f.portal.clearPortalStream();
+  release({ok: true, text: async () => JSON.stringify({txid, vin: [], vout: []})});
+  const report = await hydration;
+  assert.equal(report.cancelled, true);
+  assert.equal(f.portal.state.portalRows.length, 0);
+});
+
 test("refresh is throttled on return, skips hidden/other-mode pages, and suppresses overlapping requests", async () => {
   let release;
   const f = fixture(() => new Promise(resolve => { release = resolve; }));

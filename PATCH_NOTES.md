@@ -1,3 +1,11 @@
+# 2.8.18 — OP_RETURN text in closed records
+
+- Portal rows always show decoded OP_RETURN text, including BlockCypher output scripts and older rows with generic summaries. Cached summary text remains visible before raw transaction data loads.
+- Full payload text wraps on desktop and phones without title truncation or a two-line limit. Media titles, metadata and thumbnails remain visible alongside it.
+- The latest 60 display summaries survive resets and reloads. Sparse index results retain decoded text, media and amounts; saved account rows restore before configuration/network loading.
+- The entire visible Litecoin page loads missing details in groups of four and paints each completed record. Background FileProxy hydration prioritizes the visible page, then newer records, ahead of older history.
+- Visible ledger reads display before FileProxy saving/indexing completes. Index rebuilds are batched after saves, and stale in-flight reads cannot repopulate a reset stream.
+
 # 2.8.17 — actual errors and FileProxy endpoint diagnostics
 
 - Debug exports retain sanitized activity/error messages, JavaScript stacks, promise rejection reasons and failed ledger reads. FileProxy requests record the actual host, port and route, HTTP status and duration without request bodies, URL credentials, query values or key material.
