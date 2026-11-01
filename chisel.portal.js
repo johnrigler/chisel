@@ -202,6 +202,8 @@
     dispose: function (node) { noteFunction.disposeWithin(node); }
   });
   let recordView = null;
+  let interactionClient = null, interactionView = null;
+  const deferredInteractions = [];
   const annotationReads = new Map();
   let visibleAnnotationsLoading = false;
   const staticNormalizer = staticData.createNormalizer({
@@ -4297,7 +4299,9 @@
       spec.metadata.locator, spec.metadata.canonicalRoot]);
     if (view.functionStamp !== functionStamp) {
       noteFunction.disposeWithin(view.runtime); view.runtime.replaceChildren();
-      noteFunction.render(view.runtime, row, annotation, {loadTransaction: async function (txid, rawUrl) {
+      noteFunction.render(view.runtime, row, annotation, {onEngage: function (action) {
+        recordPortalInteraction("engage", row, {action: action});
+      }, loadTransaction: async function (txid, rawUrl) {
         const coin = canonicalCoinForRow(row), known = state.portalRowKeys[rowKey({coin: coin, txid: txid})];
         if (known && known.raw) return known.raw;
         return queuePortalRead("artifact:" + coin + ":" + txid, row, "transaction", async function () {
@@ -4410,6 +4414,91 @@
     return card;
   }
 
+  function publicInteractionUrl(value, data) {
+    try {
+      const safe = CHISEL.safeWebUrl(value, window.location.href);
+      if (!safe) return "";
+      const url = new URL(safe);
+      if (!data) {
+        url.hash = "";
+        for (const key of url.searchParams.keys()) if (/token|secret|password|authorization|api.?key|credential|wif/i.test(key)) return "";
+      }
+      return window.CHISEL_INTERACTIONS.publicUrl(url.href, data);
+    } catch (_) { return ""; }
+  }
+
+  function describeInteractionRecord(row) {
+    const coin = canonicalCoinForRow(row), summary = row.summary || {};
+    const card = safeArray(summary.mediaCards)[0] || {};
+    const read = annotationReads.get(portalAnnotationKey(row)), annotation = getPortalAnnotation(row);
+    // Automatic history never publishes a browser-only note or its metadata.
+    const sharedTitle = read && read.source === "FileProxy" && read.remoteUpdatedAt === annotation.updatedAt ? annotation.metadata.title : "";
+    return {subject: {coin: coin, txid: row.txid.toLowerCase().replace(/^0x/, ""),
+      sourceId: coin === "evm" ? sourceIdForRow(row) : "", chainId: coin === "evm" ? String(row.index && row.index.chainId || "137") : "", dataUrl: recordDataUrl(row)},
+      title: printableText(sharedTitle || card.title || summary.title || "transaction " + shortTxid(row.txid)),
+      synopsis: printableText(card.description || card.text || summary.cleanText || summary.opReturnText || opReturnTextForRow(row)),
+      url: publicInteractionUrl(summary.primaryUrl || card.url || safeArray(summary.opReturnUrls)[0] || "")};
+  }
+
+  function recordPortalInteraction(kind, row, options) {
+    if (row && row.draftRecord || !window.CHISEL_INTERACTIONS) return;
+    try {
+      const record = row ? describeInteractionRecord(row) : null;
+      const detail = Object.assign({at: new Date().toISOString(), mode: document.body.dataset.mode || "portal"}, options || {});
+      if (record && detail.url) record.url = publicInteractionUrl(detail.url);
+      if (interactionClient) interactionClient.record(kind, record, detail).catch(function (error) {
+        if (window.CHISEL_DIAGNOSTICS) window.CHISEL_DIAGNOSTICS.record("history", error.message || String(error), {kind: kind});
+      });
+      else if ($("#portalViewingNow") && deferredInteractions.length < 100) deferredInteractions.push({kind: kind, record: record, detail: detail});
+    } catch (_) { /* History must not interrupt selection or media interaction. */ }
+  }
+
+  function initializePortalInteractions() {
+    if (interactionClient || !$("#portalViewingNow") || !window.CHISEL_INTERACTIONS || !window.CHISEL_INTERACTIONS_UI) return;
+    if (!window.crypto || typeof window.crypto.getRandomValues !== "function") return;
+    interactionClient = window.CHISEL_INTERACTIONS.createClient({baseUrl: getFileProxyUrl,
+      readStorage: function (key) { return window.localStorage.getItem(key); },
+      writeStorage: function (key, value) { window.localStorage.setItem(key, value); },
+      signer: function () { return window.CHISEL_COMMENT_SIGNER; }, crypto: CHISEL,
+      request: function (base, path, options) {
+        return staticTransport.request(base + path, options || {}, async function (response) {
+          let result;
+          try { result = await response.json(); } catch (_) { throw new Error("History API returned no JSON (HTTP " + response.status + ")."); }
+          if (!response.ok || !result || result.ok === false) throw new Error("History API HTTP " + response.status + ": " + (result && result.error || "unavailable"));
+          return result;
+        }, fileProxyReadTimeout());
+      }
+    });
+    interactionView = window.CHISEL_INTERACTIONS_UI.create({client: interactionClient, document: document,
+      open: function (subject) {
+        try {
+          window.CHISEL_INTERACTIONS.subjectKey(subject);
+          let row = findPortalRecord(subject);
+          if (!row) {
+            const profile = EVM_PROFILES.find(function (item) { return "evm" + item.label === subject.sourceId; });
+            const index = subject.coin === "evm" ? Object.assign({}, profile ? evmIndexEntry(profile) : {}, {coin: "evm", chainId: subject.chainId}) : getCoinIndexByCoinName(subject.coin);
+            row = upsertPortalRow({coin: subject.coin, txid: subject.txid, sourceId: subject.sourceId, index: index,
+              staticRawUrl: subject.dataUrl, summary: {title: "transaction " + shortTxid(subject.txid)}}, {silent: true});
+          }
+          openPortalRecord(row);
+        } catch (error) { setStatus(error.message || String(error), true); }
+      }});
+    interactionView.start();
+    deferredInteractions.splice(0).forEach(function (event) { interactionClient.record(event.kind, event.record, event.detail).catch(function () {}); });
+    document.addEventListener("click", function (event) {
+      const link = event.target.closest && event.target.closest("a");
+      if (!link || !link.matches(".portalEvmMediaCard, .portalStreamThumb, .isDirectLink, .portalRecordTarget, .portalInlineLinks a")) return;
+      const owner = link.closest(".portalStreamItem, #portalRecordContent"), row = owner && state.portalRowKeys[owner.dataset.key];
+      if (row) recordPortalInteraction("engage", row, {action: "open_media", url: link.href});
+    }, {capture: true});
+    window.addEventListener("chisel:record-engagement", function (event) {
+      const detail = event.detail || {}, row = state.portalRowKeys[detail.key];
+      if (row) recordPortalInteraction("engage", row, {action: String(detail.action || "engage").slice(0, 48)});
+    });
+    window.addEventListener("chisel:mode", function (event) { recordPortalInteraction("visit", null, {action: "mode", mode: event.detail && event.detail.mode || "portal"}); });
+    requestPortalRender();
+  }
+
   function portalDisplayStamp(row) {
     return JSON.stringify([row.raw, row.summary, row.publication, row.index, row.localPath,
       row.rawSourceUrl, row.blockTime, row.confirmed, row.loadError, row.dateLookupError,
@@ -4465,6 +4554,7 @@
   }
 
   function appendPortalInlineDetails(container, row, options) {
+    container.dataset.key = row.key;
     let view = detailViews.get(container);
     if (!view || view.row !== row) {
       noteFunction.disposeWithin(container); container.replaceChildren();
@@ -4491,6 +4581,13 @@
       notes.dataset.portalPart = "notes"; container.appendChild(notes); view.parts.notes = {node: notes};
     }
     appendPortalAnnotationEditor(view.parts.notes.node, row);
+    if (interactionView) {
+      if (!view.parts.comments) {
+        const comments = document.createElement("div"); comments.style.display = "contents";
+        container.insertBefore(comments, view.parts.payload && view.parts.payload.node || null); view.parts.comments = {node: comments};
+      }
+      interactionView.comments(view.parts.comments.node, describeInteractionRecord(row));
+    }
     updatePortalDetailPart(view, "payload", JSON.stringify(extractOutputs(row.raw).map(function (output) { return [output.n, output.opReturnPayload]; })),
       function (target) { appendPortalPayloads(target, row); });
     updatePortalDetailPart(view, "body", JSON.stringify([row.raw, row.summary, row.loadError,
@@ -4539,6 +4636,7 @@
     if (primaryTarget) {
       const primary = document.createElement("a");
       primary.className = "secondaryButton";
+      primary.classList.add("portalRecordTarget");
       setSafeHref(primary, primaryTarget);
       primary.target = "_blank";
       primary.rel = "noopener noreferrer";
@@ -4865,6 +4963,7 @@
     }
 
     state.expandedRowKeys[key] = true;
+    recordPortalInteraction("select", row, {action: "expand"});
     state.selectedRowKey = key;
     state.selectedTxid = row.txid;
     if ($("#portalTxid")) $("#portalTxid").value = row.txid;
@@ -5384,6 +5483,7 @@
   function initializeRecordView() {
     if (recordView) return recordView;
     recordView = window.CHISEL_PORTAL_RECORD.createController({document: document, state: state,
+      onOpen: function (row) { recordPortalInteraction("select", row, {action: "open_record"}); },
       find: findPortalRecord, sourceUrl: recordDataUrl,
       render: function (content, row) { appendPortalInlineDetails(content, row, {recordPage: true}); },
       status: setStatus, copy: copyPortalText,
@@ -7262,6 +7362,7 @@ function getPortalFirstCharacter() {
     loadPortalConfig().then(function (config) {
       applyPortalConfig(config);
       applyEvmProfileConfig();
+      initializePortalInteractions();
       // A saved public identity is the homepage. The generic indexes remain
       // available through explicit navigation, never as an automatic takeover.
       if (state.personalAccount && !state.urlMainThunderwordRequest) {
@@ -7303,6 +7404,7 @@ function getPortalFirstCharacter() {
     }).catch(function (error) {
       applyPortalConfig(DEFAULT_PORTAL_CONFIG);
       applyEvmProfileConfig();
+      initializePortalInteractions();
       setStatus("Portal config skipped: " + (error.message || String(error)), true);
       if (state.urlMainThunderwordRequest) {
         loadMainThunderwordFromUrl().catch(function (loadError) {

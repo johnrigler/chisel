@@ -1937,6 +1937,35 @@
     .portalStreamItem .portalStreamRow :is(.portalStreamTitle, .portalStreamTitle a, .portalStreamMetadata, .portalStreamMetadata a, .portalStreamTime, .portalStreamCoin, .portalStreamFinance, .portalStreamFinanceAmount, .portalStreamFinanceFee),
     .portalStreamItem .portalInlineDetails,
     .portalStreamItem .portalInlineDetails :is(.portalInlineHeader h4, .portalInlineHeader code, .portalInlineHeader .muted, .portalEvmMediaBody, .portalEvmMediaBody .muted, .portalTransactionQrInfo, .portalTransactionQrInfo code) { color: var(--publication-text); }
+    .portalHistoryHeading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+    .portalHistoryHeading h3 { margin:0; font-size:17px; }
+    .portalHistoryHeading .secondaryButton { margin-left:auto; font-size:11px; }
+    .portalHistoryList { max-height:240px; overflow:auto; overscroll-behavior:contain; }
+    .portalHistoryEntry { position:relative; border-top:1px solid #344150; padding:10px 3px; font-size:13px; overflow-wrap:anywhere; }
+    .portalHistoryMeta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; font-size:11px; color:#93a7b9; margin-bottom:4px; }
+    .portalHistoryKind { font-weight:700; }
+    .portalHistoryRecord { display:block; width:100%; background:none; border:0; padding:0; text-align:left; color:#b7d7ff; font:inherit; font-weight:600; cursor:pointer; }
+    .portalHistoryRecord:hover { text-decoration:underline; }
+    .portalHistorySynopsis { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; margin:4px 0; white-space:pre-wrap; }
+    .portalHistoryAuthor { margin:4px 0 0; color:#93a7b9; font-size:11px; }
+    .portalHistoryAuthor.isVerified { color:#8fd7ae; }
+    .portalHistoryMessage:empty { display:none; }
+    .portalHistorySettings { margin-top:10px; font-size:12px; }
+    .portalHistorySettings .inlineOption { margin:10px 0; }
+    .portalComments { margin:14px 0; padding:14px; border:1px solid #c9ced4; border-radius:8px; background:#fff; color:#15202b; }
+    .portalComments h5 { margin:0 0 8px; font-size:15px; }
+    .portalComments .portalHistoryList { max-height:340px; }
+    .portalComments .portalHistoryEntry { border-color:#d7dee5; }
+    .portalComments .muted,.portalComments .portalHistoryMeta,.portalComments .portalHistoryAuthor { color:#536477; }
+    .portalComments .portalHistoryAuthor.isVerified { color:#185e36; }
+    .portalCommentText { white-space:pre-wrap; margin:5px 0; }
+    .portalCommentForm { margin-top:12px; display:grid; gap:8px; }
+    .portalCommentForm label { display:grid; gap:6px; color:#15202b; font-size:13px; }
+    .portalCommentForm textarea { box-sizing:border-box; width:100%; color:#15202b; background:#fff; border:1px solid #aebbc8; }
+    .portalCommentForm button { justify-self:start; }
+    .portalHistoryExport { font-size:10px; margin-top:5px; padding:4px 8px; }
+    .portalCommentProof { margin-top:6px; font-size:12px; }
+    .portalCommentProof pre { max-height:160px; }
 </style>
   <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261031-opreturn-v2818" />
   <link rel="stylesheet" href="chisel.portal.record.css?rev=20261101-queue-v2826" />
@@ -2373,6 +2402,23 @@
 
 
     <section class="modePanel" data-mode-panel="portal">
+      <section id="portalViewingNow" class="panel portalViewingNow" aria-labelledby="portalViewingNowHeading" hidden>
+        <div class="portalHistoryHeading">
+          <h3 id="portalViewingNowHeading">Viewing now</h3>
+          <span id="portalInteractionStatus" class="muted" role="status">Loading history…</span>
+          <button id="portalInteractionRefresh" class="secondaryButton" type="button">REFRESH HISTORY</button>
+        </div>
+        <div id="portalInteractionHistory"></div>
+        <details class="portalHistorySettings">
+          <summary>History controls</summary>
+          <label class="inlineOption"><input id="portalInteractionEnabled" type="checkbox" checked> Log page visits, selections and engagements</label>
+          <div class="actions">
+            <button id="portalInteractionExport" class="secondaryButton" type="button">EXPORT LOADED HISTORY</button>
+            <button id="portalInteractionClear" class="secondaryButton" type="button">CLEAR LOCAL / UNSENT HISTORY</button>
+          </div>
+          <p class="muted">Shared on this FileProxy. Entries are dated and older entries remain. Clearing local history does not remove shared entries. Browser-only notes, key fields and keystrokes are excluded.</p>
+        </details>
+      </section>
       <section id="portalRecordPage" class="panel portalRecordPage" hidden>
         <div class="portalRecordToolbar actions">
           <button id="portalRecordBack" class="secondaryButton" type="button">← BACK TO LIST</button>
@@ -2956,7 +3002,7 @@
   })();
   </script>
 <script src="chisel.activity-monitor.js?rev=20261031-status-v2821"></script>
-  <script src="chisel.debug.js?rev=20261101-view-v2827"></script>
+  <script src="chisel.debug.js?rev=20261101-history-v2828"></script>
   <script src="vendor/qrcode.min.js?rev=20261012S"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20261012S"></script>
   <script src="chisel.js?rev=20261017-security1"></script>
@@ -2975,12 +3021,14 @@
 <script src="chisel.portal.static-data.js?rev=20261101-queue-v2826"></script>
   <script src="chisel.portal.payload.js?rev=20261101-queue-v2826"></script>
   <script src="chisel.portal.queue.js?rev=20261101-queue-v2826"></script>
-  <script src="chisel.portal.view.js?rev=20261101-view-v2827"></script>
+  <script src="chisel.portal.view.js?rev=20261101-history-v2828"></script>
   <script src="chisel.portal.store.js?rev=20261031-store-v2819"></script>
   <script src="chisel.portal.notes.js?rev=20261101-queue-v2826"></script>
-  <script src="chisel.portal.note-function.js?rev=20261101-queue-v2826"></script>
-  <script src="chisel.portal.record.js?rev=20261101-view-v2827"></script>
-  <script src="chisel.portal.js?rev=20261101-view-v2827"></script>
+  <script src="chisel.portal.note-function.js?rev=20261101-history-v2828"></script>
+  <script src="chisel.portal.record.js?rev=20261101-history-v2828"></script>
+  <script src="chisel.interactions.js?rev=20261101-history-v2828"></script>
+  <script src="chisel.interactions.ui.js?rev=20261101-history-v2828"></script>
+  <script src="chisel.portal.js?rev=20261101-history-v2828"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261031-errors-v2817"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
@@ -2993,7 +3041,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-<script src="app.js?rev=20261101-view-v2827"></script>
+<script src="app.js?rev=20261101-history-v2828"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
     <div class="portalBusyCard">

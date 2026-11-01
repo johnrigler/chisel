@@ -115,6 +115,7 @@
       rememberList();
       const token = ++sequence;
       current = Object.assign({}, route, {row: row || deps.placeholder(route)});
+      if (deps.onOpen) deps.onOpen(current.row);
       lastRender = null;
       show();
       if (push && root.history) {

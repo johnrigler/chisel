@@ -83,6 +83,7 @@
     frame.title = "Note function runtime"; frame.referrerPolicy = "no-referrer";
     frame.src = new URL("tools/noteRunner/index.html", root.location.href).href;
     let source = spec.source, ready = false, pending = null, timer = null, disposed = false;
+    function engaged(action) { try { if (options && options.onEngage) options.onEngage(action); } catch (_) {} }
     function paint(result) {
       if (!canvas.getContext || typeof root.ImageData !== "function") return;
       canvas.getContext("2d").putImageData(new root.ImageData(new Uint8ClampedArray(result.pixels), WIDTH, HEIGHT), 0, 0);
@@ -108,10 +109,12 @@
         const result = {source: executedSource, pixels: data.pixels}; results.set(row, result);
         if (source === executedSource) { paint(result); status.textContent = "Function ran."; }
         else status.textContent = "Source updated. Run again to draw the reconstructed version.";
-      } else status.textContent = "Function error: " + String(data.error || "Invalid canvas result").slice(0, 500);
+        engaged("function_drawn");
+      } else { status.textContent = "Function error: " + String(data.error || "Invalid canvas result").slice(0, 500); engaged("function_failed"); }
       finish();
     }
     run.onclick = function () {
+      engaged("run_function");
       pending = {id: String(Date.now()) + ":" + Math.random().toString(36).slice(2), source: source, entry: spec.entry, width: WIDTH, height: HEIGHT};
       run.disabled = true; status.textContent = "Running function…";
       timer = root.setTimeout(function () { status.textContent = "Function runtime timed out."; finish(); frame.remove(); ready = false; block.appendChild(frame); }, 6000);

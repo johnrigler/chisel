@@ -1,0 +1,35 @@
+{
+  "format": "chisel-signed-v1",
+  "type": "chisel-comment-v1",
+  "identity": "chisel:v1:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  "payload": {
+    "schema": "chisel-interaction-v1",
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "session": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "kind": "comment",
+    "at": "2026-11-01T12:00:00.000Z",
+    "mode": "portal",
+    "action": "comment",
+    "subject": {
+      "coin": "litecoin",
+      "txid": "abababababababababababababababababababababababababababababababab",
+      "sourceId": "",
+      "chainId": "",
+      "dataUrl": "https://records.example/a.json"
+    },
+    "title": "Synthetic comment fixture",
+    "synopsis": "A public test record.",
+    "url": "https://youtu.be/jNQXAC9IVRw?t=90",
+    "comment": "A dated comment. Ω 🧪",
+    "author": {
+      "identity": "chisel:v1:0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "coin": "litecoin",
+      "address": "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ"
+    }
+  },
+  "proof": {
+    "algorithm": "secp256k1-sha256",
+    "digest": "af6e2563d81b0f7f8b7a81a6fda7fba11e8407c8bf2d38d8b9e96e3f4f3fde07",
+    "signature": "dd2c6afddeef3a91d68b7191f521440d64fa51dc922eeaf492fda3c4edf010fe6c9fa68a861d47dc1077a3f7667475807432aa2a3e2c805cd022a35ded2dac71"
+  }
+}

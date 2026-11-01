@@ -3,7 +3,7 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.27";
+  const APP_VERSION = "2.8.28";
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -3301,4 +3301,7 @@ function init() {
   window.startReceiveMonitor = startReceiveMonitor;
   window.saveWalletCredential = saveWalletCredential;
   window.openArtifactScanner = openArtifactScanner;
+  if (window.CHISEL_INTERACTIONS) window.CHISEL_COMMENT_SIGNER = window.CHISEL_INTERACTIONS.createCommentSigner({
+    crypto: CHISEL, privateKey: function () { return state.identityPrivateKeyHex || ""; }
+  });
 })();

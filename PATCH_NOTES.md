@@ -1,3 +1,10 @@
+# 2.8.28 — interaction history and dated comments
+
+- Add a shared **Viewing now** history with public record titles/synopses, newest-first activity, older pages and record reopening. Log page arrivals, selections, media opens and reconstructed-function activity without logging key fields, keystrokes or browser-only notes.
+- Add separate append-only dated comments to expanded records and record pages. A loaded identity signs comments with its canonical Litecoin identity; readers verify signatures before labeling authors. Export each original JSON document with its signature proof at the bottom.
+- Queue interactions locally when FileProxy is unavailable or needs updating. Preserve pending IDs/signatures across reloads, scope queues to their selected API, expose pause/export/clear controls, and preserve active comment drafts during background updates.
+- Add the corresponding append/read/download API in Mogwai FileProxy. Pull Mogwai and restart each configured FileProxy process to enable shared history. See `docs/INTERACTION_HISTORY.md`.
+
 # 2.8.27 — incremental Portal rendering
 
 - Keep visible transaction rows mounted by chain/TXID identity. Update changed headers and detail sections, reconcile chronological order, and anchor a scrolled list as new records arrive.

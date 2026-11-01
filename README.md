@@ -292,6 +292,21 @@ For optional local imports, caching and writes, start FileProxy:
 python3 tools/fileProxy/proxy.py
 ```
 
+## Interaction history and comments
+
+**Viewing now** shows dated visits, selected records and engagements, newest
+first, with earlier pages and links back to each record. Expanded records and
+record pages also have append-only comments. A loaded identity signs each
+comment with its Litecoin identity; browser readers verify the proof before
+displaying a verified author. Each comment can be exported as its original JSON
+file with the signature at the bottom.
+
+History uses Mogwai FileProxy's new `/interactions` API. Pull Mogwai and restart
+the configured FileProxy process to enable the shared feed; Chisel preserves a
+local outbox until it is available. The history controls expose pause, export
+and local clearing. See [interaction history](docs/INTERACTION_HISTORY.md) for
+the schema, signing, privacy scope and deployment details.
+
 ## bunOven and fileProxy
 
 `bunOven` should consume fileProxy. The new endpoint is:

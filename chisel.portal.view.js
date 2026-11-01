@@ -95,25 +95,34 @@
       // them does not interrupt their session. moveBefore preserves DOM state
       // even when two such rows exchange positions on supporting browsers.
       const positions = new Map(original.map(function (node, i) { return [node, i]; }));
-      const scores = [], previous = []; let best = -1;
-      desired.forEach(function (node, i) {
-        if (!positions.has(node)) { scores[i] = 0; previous[i] = -1; return; }
-        const focused = target.ownerDocument && target.ownerDocument.activeElement;
-        const protectedNode = node.contains && (node.contains(focused) || node.querySelector && node.querySelector("iframe"));
-        const weight = protectedNode ? desired.length + 1 : 1;
-        scores[i] = weight; previous[i] = -1;
-        for (let j = 0; j < i; j += 1) if (positions.has(desired[j]) && positions.get(desired[j]) < positions.get(node) && scores[j] + weight > scores[i]) {
-          scores[i] = scores[j] + weight; previous[i] = j;
-        }
-        if (best < 0 || scores[i] > scores[best]) best = i;
+      let lastPosition = -1;
+      const ordered = desired.every(function (node) {
+        if (!positions.has(node)) return true;
+        const position = positions.get(node), follows = position > lastPosition;
+        lastPosition = position; return follows;
       });
       const kept = new Set();
-      for (let i = best; i >= 0; i = previous[i]) kept.add(desired[i]);
+      if (ordered) desired.forEach(function (node) { if (positions.has(node)) kept.add(node); });
+      else {
+        const scores = [], previous = []; let best = -1;
+        desired.forEach(function (node, i) {
+          if (!positions.has(node)) { scores[i] = 0; previous[i] = -1; return; }
+          const focused = target.ownerDocument && target.ownerDocument.activeElement;
+          const protectedNode = node.contains && (node.contains(focused) || node.querySelector && node.querySelector("iframe"));
+          const weight = protectedNode ? desired.length + 1 : 1;
+          scores[i] = weight; previous[i] = -1;
+          for (let j = 0; j < i; j += 1) if (positions.has(desired[j]) && positions.get(desired[j]) < positions.get(node) && scores[j] + weight > scores[i]) {
+            scores[i] = scores[j] + weight; previous[i] = j;
+          }
+          if (best < 0 || scores[i] > scores[best]) best = i;
+        });
+        for (let i = best; i >= 0; i = previous[i]) kept.add(desired[i]);
+      }
       let before = null;
       for (let i = desired.length - 1; i >= 0; i -= 1) {
         const node = desired[i];
         if (!kept.has(node)) {
-          const siblings = Array.from(target.childNodes), at = siblings.indexOf(node);
+          const siblings = node.parentNode === target ? Array.from(target.childNodes) : [], at = siblings.indexOf(node);
           if (at < 0 || (siblings[at + 1] || null) !== before) {
             if (typeof target.moveBefore === "function" && node.parentNode === target) target.moveBefore(node, before);
             else target.insertBefore(node, before);
