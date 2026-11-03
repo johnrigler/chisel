@@ -1,0 +1,425 @@
+Script started on 2026-11-03 12:00:40-07:00 [TERM="xterm-256color" TTY="/dev/pts/9" COLUMNS="80" LINES="23"]
+[?2004h]0;john@penguin: ~/chisel-->> pwd
+[?2004l/home/john/chisel
+[?2004h]0;john@penguin: ~/chisel-->> .[Kcat $$
+[?2004lcat: 15616: No such file or directory
+[?2004h]0;john@penguin: ~/chisel-->> cat 1968
+[?2004lnode --test tests/evm-write.test.mjs
+node --test tests/*.test.mjs
+node --check chisel.evm.contracts.js
+node --check chisel.evm.write.js
+node --check chisel.evm.write.ui.js
+node tests/check-inline-scripts.mjs evm.html
+[?2004h]0;john@penguin: ~/chisel-->> . 1968
+[?2004l[32m✔ contract registry separates shared ABI, implementation and deployed Polygon address [90m(8.709ms)[39m[39m
+[32m✔ Jethro calldata retains exact Unicode and never signs or sends in the build stage [90m(3.554307ms)[39m[39m
+[32m✔ wallet connect, simulation and gas review never send a transaction [90m(10.263154ms)[39m[39m
+[32m✔ wrong chain, no bytecode, and simulation failure all stop before send [90m(8.648385ms)[39m[39m
+[32m✔ only exact previously reviewed calldata can be sent; a send cannot be replayed [90m(6.291462ms)[39m[39m
+[32m✔ account changes, chain changes, code changes, and invalidation block stale submission [90m(10.975ms)[39m[39m
+[32m✔ an input or wallet change during asynchronous review cannot reactivate a stale send [90m(57.833384ms)[39m[39m
+[32m✔ transaction receipt distinguishes pending, confirmed, and reverted execution [90m(4.664923ms)[39m[39m
+[32m✔ EVM workbench includes the writer scripts and explicit review and send controls [90m(15.170538ms)[39m[39m
+[34mℹ tests 9[39m
+[34mℹ suites 0[39m
+[34mℹ pass 9[39m
+[34mℹ fail 0[39m
+[34mℹ cancelled 0[39m
+[34mℹ skipped 0[39m
+[34mℹ todo 0[39m
+[34mℹ duration_ms 765.439[39m
+[32m✔ Portal status travels through the existing observer to the top panel as actual text [90m(106.802616ms)[39m[39m
+[32m✔ idle changes the activity badge while keeping the last meaningful Portal message [90m(18.027077ms)[39m[39m
+[32m✔ Portal errors display their actual reason and background status respects a latched error [90m(26.131154ms)[39m[39m
+[32m✔ CertLedger handoff reconstructs the fixed tags and 71-byte ASCII without trusting imported outputs [90m(40.476615ms)[39m[39m
+[32m✔ the existing Send artifact loader accepts the CertLedger plan, replaces recipients and leaves signing to review [90m(91.594231ms)[39m[39m
+[32m✔ CertLedger review refreshes a changed URL fragment instead of retaining an earlier digest [90m(33.333461ms)[39m[39m
+[32m✔ BLE connection is reused for successive jobs with the verified packet pacing [90m(29.482615ms)[39m[39m
+[32m✔ Serial chooser is reused and each job releases its writer and port [90m(10.517538ms)[39m[39m
+[32m✔ Serial failure reports accepted bytes, closes cleanly, and never retries [90m(5.511461ms)[39m[39m
+[32m✔ overlapping Serial jobs are rejected without opening another writer [90m(5.751077ms)[39m[39m
+[32m✔ a print session keeps the visible screen awake and removes its leave guard when finished [90m(10.572307ms)[39m[39m
+[32m✔ a wake lock arriving after a print finishes is released instead of leaking [90m(5.658384ms)[39m[39m
+[32m✔ wake-lock denial does not reject the print session [90m(4.434307ms)[39m[39m
+[32m✔ failed pictures retain their actual resource URL without reporting a JavaScript failure [90m(77.491616ms)[39m[39m
+[32m✔ a script resource failure names the asset and remains an error [90m(16.454153ms)[39m[39m
+[32m✔ stylesheets remain errors while optional icons and media remain resource warnings [90m(127.192692ms)[39m[39m
+[32m✔ real runtime errors retain their source, location and stack [90m(24.294923ms)[39m[39m
+[32m✔ opaque runtime errors do not invent a failed script resource [90m(24.158308ms)[39m[39m
+[32m✔ failed inline image payloads are not copied into activity or debug output [90m(19.431846ms)[39m[39m
+[32m✔ actual messages and stack traces survive export while credentials, query values and key material do not [90m(23.00823ms)[39m[39m
+[32m✔ promise rejections retain the reason and stack instead of only the Error type [90m(18.190385ms)[39m[39m
+[32m✔ snapshot distinguishes entered and configured ports and Send currency from the Portal account [90m(16.510769ms)[39m[39m
+[32m✔ requests to explicit 7799 and 47799 endpoints are preserved and failures record the exact port and status [90m(137.668077ms)[39m[39m
+[32m✔ network failures and malformed JSON preserve their actual causes [90m(47.591615ms)[39m[39m
+[32m✔ POST failures log request metadata without persisting the posted transaction [90m(21.916693ms)[39m[39m
+[32m✔ diagnostics exceptions cannot change successful requests or hide the original failure [90m(28.770077ms)[39m[39m
+file:///home/john/chisel/tests/ecash-etch.test.mjs:4
+import { Ecc, Script, Tx, UnsignedTx, ALL_BIP143, sha256d, toHex } from '../vendor/ecash-sdk-4.14.4.js';
+                                      ^^^^^^^^^^
+SyntaxError: Named export 'ALL_BIP143' not found. The requested module '../vendor/ecash-sdk-4.14.4.js' is a CommonJS module, which may not support all module.exports as named exports.
+CommonJS modules can always be imported via the default export, for example using:
+
+import pkg from '../vendor/ecash-sdk-4.14.4.js';
+const { Ecc, Script, Tx, UnsignedTx, ALL_BIP143, sha256d, toHex } = pkg;
+
+[90m    at ModuleJob._instantiate (node:internal/modules/esm/module_job:123:21)[39m
+[90m    at async ModuleJob.run (node:internal/modules/esm/module_job:191:5)[39m
+[90m    at async ModuleLoader.import (node:internal/modules/esm/loader:337:24)[39m
+[90m    at async loadESM (node:internal/process/esm_loader:34:7)[39m
+[90m    at async handleMainPromise (node:internal/modules/run_main:106:12)[39m
+
+Node.js v18.20.4
+[31m✖ /home/john/chisel/tests/ecash-etch.test.mjs [90m(1311.891462ms)[39m[39m
+  [32m'test failed'[39m
+
+[32m✔ contract registry separates shared ABI, implementation and deployed Polygon address [90m(12.215616ms)[39m[39m
+[32m✔ Jethro calldata retains exact Unicode and never signs or sends in the build stage [90m(3.668154ms)[39m[39m
+[32m✔ wallet connect, simulation and gas review never send a transaction [90m(9.325769ms)[39m[39m
+[32m✔ wrong chain, no bytecode, and simulation failure all stop before send [90m(6.224077ms)[39m[39m
+[32m✔ only exact previously reviewed calldata can be sent; a send cannot be replayed [90m(5.734846ms)[39m[39m
+[32m✔ account changes, chain changes, code changes, and invalidation block stale submission [90m(9.695846ms)[39m[39m
+[32m✔ an input or wallet change during asynchronous review cannot reactivate a stale send [90m(44.375308ms)[39m[39m
+[32m✔ transaction receipt distinguishes pending, confirmed, and reverted execution [90m(4.248693ms)[39m[39m
+[32m✔ EVM workbench includes the writer scripts and explicit review and send controls [90m(14.847769ms)[39m[39m
+[32m✔ production Noble transaction and identity signing preserve known-good bytes without legacy signing [90m(824.082154ms)[39m[39m
+[32m✔ high-S signature twins, invalid keys, altered payloads and malformed signatures are rejected [90m(67.341538ms)[39m[39m
+[32m✔ canonical signing rejects exotic objects, getters, cycles, sparse arrays, hidden and unsupported values [90m(9.480077ms)[39m[39m
+[32m✔ artifact signing snapshots JSON before awaiting cryptography [90m(152.930231ms)[39m[39m
+[32m✔ Noble signs all 253 inputs with canonical CompactSize and locally verifiable signatures [90m(9467.443308ms)[39m[39m
+[32m✔ a missing Noble vendor cannot silently fall back to legacy signing [90m(26.285231ms)[39m[39m
+[32m✔ arrival, selection, engagement and comment are separate dated documents in reverse server order [90m(156.067ms)[39m[39m
+[32m✔ an unavailable API retains an exportable outbox across reload and never fabricates server confirmation [90m(7.135ms)[39m[39m
+[32m✔ retry after a lost write response reuses the same ID and creates no duplicate comment [90m(9.772539ms)[39m[39m
+[32m✔ a busy shared history pages backward while preserving older entries when newer activity arrives [90m(169.713461ms)[39m[39m
+[32m✔ catching up more than one page of new visitors does not skip the gap between the old and new heads [90m(403.290769ms)[39m[39m
+[32m✔ comments are scoped by currency, transaction, EVM source and chain [90m(41.376923ms)[39m[39m
+[32m✔ an authenticated comment signs its exact text, date and record, and binds the signature to a Litecoin identity [90m(834.450538ms)[39m[39m
+[32m✔ an available identity cannot silently fall back to an unsigned comment if signing fails [90m(16.081923ms)[39m[39m
+[32m✔ the scoped signer refuses non-comment payloads and a changed identity during signing [90m(64.381385ms)[39m[39m
+[32m✔ pausing activity still allows explicit comments and clearing local data erases unsent entries [90m(12.56277ms)[39m[39m
+[32m✔ changing API endpoints never sends a previous endpoint's pending history to the new server [90m(9.125154ms)[39m[39m
+[32m✔ history schema excludes arbitrary fields and private or credential-bearing record sources [90m(12.446ms)[39m[39m
+[32m✔ Viewing now starts collapsed and the one-line summary follows the latest activity [90m(148.675923ms)[39m[39m
+[32m✔ Viewing now links its dated synopsis back to the selected record and polls the shared API [90m(56.208539ms)[39m[39m
+[32m✔ background interaction updates preserve a comment draft, focus and caret [90m(38.701ms)[39m[39m
+[32m✔ posting two comments appends both texts and dates instead of replacing the first comment or record note [90m(89.754385ms)[39m[39m
+[32m✔ unsigned comments render literal text and a failed signer leaves the comment draft intact [90m(82.399077ms)[39m[39m
+[32m✔ a verified signed comment shows its Litecoin author and exports the exact signature footer [90m(499.090001ms)[39m[39m
+[32m✔ an unavailable API keeps a posted comment locally, marks it pending, and reports the missing shared service [90m(15.238924ms)[39m[39m
+[32m✔ an unavailable comment API is not presented as an empty confirmed comment history [90m(38.832616ms)[39m[39m
+[32m✔ the published synthetic signed-comment vector verifies with the production Noble backend [90m(26.116615ms)[39m[39m
+[32m✔ the actual Portal history descriptor uses lossless binary text and includes only demonstrably shared notes [90m(13.345538ms)[39m[39m
+file:///home/john/chisel/tests/keeper-signing.test.mjs:6
+import { publicKeyHexFromPrivateKeyHex, signTextWithPrivateKeyHex, verifyTextSignature } from '../tools/keeperBun/keeper-crypto.js';
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: Named export 'publicKeyHexFromPrivateKeyHex' not found. The requested module '../tools/keeperBun/keeper-crypto.js' is a CommonJS module, which may not support all module.exports as named exports.
+CommonJS modules can always be imported via the default export, for example using:
+
+import pkg from '../tools/keeperBun/keeper-crypto.js';
+const { publicKeyHexFromPrivateKeyHex, signTextWithPrivateKeyHex, verifyTextSignature } = pkg;
+
+[90m    at ModuleJob._instantiate (node:internal/modules/esm/module_job:123:21)[39m
+[90m    at async ModuleJob.run (node:internal/modules/esm/module_job:191:5)[39m
+[90m    at async ModuleLoader.import (node:internal/modules/esm/loader:337:24)[39m
+[90m    at async loadESM (node:internal/process/esm_loader:34:7)[39m
+[90m    at async handleMainPromise (node:internal/modules/run_main:106:12)[39m
+
+Node.js v18.20.4
+[31m✖ /home/john/chisel/tests/keeper-signing.test.mjs [90m(1012.768462ms)[39m[39m
+  [32m'test failed'[39m
+
+[32m✔ portal rejects executable links at rendering time and removes stale hrefs [90m(106.419846ms)[39m[39m
+[32m✔ portal anchor writes use checked links or a locally generated download Blob [90m(20.179461ms)[39m[39m
+[32m✔ CSP authorizes the exact inline scripts and limits script and object execution [90m(9.529462ms)[39m[39m
+[32m✔ main page script assets exist and load Noble before identity and Send [90m(412.694308ms)[39m[39m
+[32m✔ vendored QR libraries initialize with dynamic string compilation disabled [90m(171.870308ms)[39m[39m
+[32m✔ EIP-155 dictionary refs canonicalize chain and address [90m(17.523769ms)[39m[39m
+[32m✔ EVM resolver maps uint256 max to missing and preserves existing IDs [90m(20.415846ms)[39m[39m
+[32m✔ permissionless-style EVM resolver appends missing terms and reuses duplicates [90m(9.104846ms)[39m[39m
+[32m✔ Solidity dictionary exposes append-only vocabulary plus generic log-only packets [90m(119.738538ms)[39m[39m
+[32m✔ hand-auditable ABI contains the carrier-neutral Packet surface [90m(28.408693ms)[39m[39m
+[32m✔ captured deployment artifact matches its reproducible Hardhat bytecode hash and includes Packet ABI [90m(27.135ms)[39m[39m
+[32m✔ M64 byte transport round-trips arbitrary bytes [90m(28.073385ms)[39m[39m
+[32m✔ M64 stage hydrates exactly to canonical source [90m(24.904538ms)[39m[39m
+[32m✔ dictionary references above index 63 use the extended path and hydrate [90m(4.481077ms)[39m[39m
+[32m✔ external dictionary lookup can hydrate extended dictionary ids [90m(4.091847ms)[39m[39m
+[32m✔ reserved and truncated dictionary encodings are rejected [90m(6.410462ms)[39m[39m
+[32m✔ legacy artifact validation preserves the v2 workbench boundary [90m(3.622ms)[39m[39m
+[32m✔ M64 v3 validator accepts the external dictionary artifact contract [90m(5.988154ms)[39m[39m
+[32m✔ M64 v3 validator requires dictionary language to match artifact language [90m(2.658462ms)[39m[39m
+[32m✔ M64 v3 validator rejects malformed integrity and payload fields [90m(19.223ms)[39m[39m
+[32m✔ js-canonical-v1 accepts ordinary division and canonicalizes through the compatibility codec [90m(6.866693ms)[39m[39m
+[32m✔ js-canonical-v1 rejects template literals instead of silently rewriting them [90m(3.488846ms)[39m[39m
+[32m✔ js-canonical-v1 rejects regular-expression literals in expression positions [90m(2.76623ms)[39m[39m
+[32m✔ js-canonical-v1 accepts the current Dark Star staging source [90m(119.798154ms)[39m[39m
+[32m✔ memory dictionary resolver keeps stable append-only ids [90m(6.063307ms)[39m[39m
+[31m✖ M64 v3 publishes and hydrates JavaScript through a resolver without embedding dictionary terms [90m(8.534154ms)[39m[39m
+  Error: Web Crypto SHA-256 is required for M64 v3
+      at sha256HexUtf8 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:14:30[90m)[39m
+      at Object.buildJavascriptArtifactV3 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:37:22[90m)[39m
+      at async TestContext.<anonymous> [90m(file:///home/john/chisel/[39mtests/m64.test.mjs:207:17[90m)[39m
+  [90m    at async Test.run (node:internal/test_runner/test:632:9)[39m
+  [90m    at async Test.processPendingSubtests (node:internal/test_runner/test:374:7)[39m
+
+[31m✖ M64 v3 hydration rejects the wrong dictionary and tampered integrity metadata [90m(2.512231ms)[39m[39m
+  Error: Web Crypto SHA-256 is required for M64 v3
+      at sha256HexUtf8 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:14:30[90m)[39m
+      at Object.buildJavascriptArtifactV3 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:37:22[90m)[39m
+      at async TestContext.<anonymous> [90m(file:///home/john/chisel/[39mtests/m64.test.mjs:229:17[90m)[39m
+  [90m    at async Test.run (node:internal/test_runner/test:632:9)[39m
+  [90m    at async Test.processPendingSubtests (node:internal/test_runner/test:374:7)[39m
+
+[31m✖ Dark Star completes the M64 v3 canonicalize-resolve-hydrate integrity loop [90m(57.893769ms)[39m[39m
+  Error: Web Crypto SHA-256 is required for M64 v3
+      at sha256HexUtf8 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:14:30[90m)[39m
+      at Object.buildJavascriptArtifactV3 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:37:22[90m)[39m
+      at async TestContext.<anonymous> [90m(file:///home/john/chisel/[39mtests/m64.test.mjs:251:17[90m)[39m
+  [90m    at async Test.run (node:internal/test_runner/test:632:9)[39m
+  [90m    at async Test.processPendingSubtests (node:internal/test_runner/test:374:7)[39m
+
+[32m✔ real trapezoid bytes reconstruct the documented function from binary and ASCII-hex roots [90m(65.367154ms)[39m[39m
+[32m✔ function descriptors and display formatting preserve executable source and strings [90m(15.697231ms)[39m[39m
+[32m✔ note UI reconstructs without running, draws only after Run and restores completed output [90m(49.497ms)[39m[39m
+[32m✔ runner starts only for parent requests, bounds work and ignores late results from replaced jobs [90m(7.858231ms)[39m[39m
+[32m✔ actual worker executes the reconstructed trapezoid and returns canvas pixels or a function error [90m(9.355923ms)[39m[39m
+[32m✔ a date lookup completing after reset cannot clear the new load pending flag [90m(23.514308ms)[39m[39m
+[32m✔ visible ledger data returns before a slow FileProxy save completes [90m(9.052ms)[39m[39m
+[32m✔ Esplora incoming and outgoing amounts are per-address net, not all outputs [90m(8.989692ms)[39m[39m
+[32m✔ Bitcoin Core decimal LTC amounts convert to integer satoshis [90m(2.363539ms)[39m[39m
+[32m✔ unknown addresses, missing values and unsafe numbers do not invent a net [90m(3.194231ms)[39m[39m
+[32m✔ fees are derived only when all input and output values are present [90m(2.817846ms)[39m[39m
+[32m✔ non-Litecoin transactions do not get LTC satoshi interpretations [90m(1.669923ms)[39m[39m
+[32m✔ silent background hydration does not trigger the blocking transaction spinner [90m(3.960154ms)[39m[39m
+[32m✔ BlockCypher outputs and previous output_value supply a visible amount [90m(2.889ms)[39m[39m
+[32m✔ Insight normalization aliases do not turn decimal LTC into satoshi integers [90m(3.972693ms)[39m[39m
+[32m✔ BlockCypher transactions are treated as full UTXO rows [90m(3.871538ms)[39m[39m
+[32m✔ expanded Litecoin view renders two transaction-flow tables while retaining raw JSON [90m(3.896539ms)[39m[39m
+[32m✔ transaction-flow output targets label zero-value scripts [90m(15.735154ms)[39m[39m
+[32m✔ base58 LTC addresses use exact case for per-address net calculations [90m(3.155769ms)[39m[39m
+[32m✔ coinbase and OP_RETURN rows remain visible with sensible labels [90m(4.246385ms)[39m[39m
+[32m✔ expanded Litecoin view keeps ledger flow ahead of supporting artifacts after the leading media preview [90m(2.817615ms)[39m[39m
+[32m✔ Blockchair is a mainnet verification option without becoming a JSON API [90m(121.561615ms)[39m[39m
+[32m✔ BlockCypher history follows every before cursor and reads confirmation timestamps [90m(124.669923ms)[39m[39m
+[32m✔ Esplora failover pages all confirmed history after the first 25 while retaining mempool rows [90m(30.845923ms)[39m[39m
+[32m✔ an unavailable older page preserves new rows and is retried instead of claiming complete history [90m(117.919769ms)[39m[39m
+[32m✔ repeated pages terminate with a partial-history warning instead of an infinite loop [90m(26.093615ms)[39m[39m
+[32m✔ new transactions stream into Portal before older pages finish, with pending first and no duplicate rows [90m(207.294538ms)[39m[39m
+[32m✔ a FileProxy record is navy until ledger history confirms the same transaction [90m(29.916077ms)[39m[39m
+[32m✔ only a complete history permits refresh to stop at a previously known confirmed transaction [90m(48.632923ms)[39m[39m
+[32m✔ retrying an older page first catches up with new pages before resuming the previously covered history [90m(113.465384ms)[39m[39m
+[32m✔ the configured two-minute timer runs the live refresh and can be disabled [90m(74.420693ms)[39m[39m
+[32m✔ saved account history restores immediately offline with its own address and cannot overwrite fresher live rows [90m(96.073307ms)[39m[39m
+[32m✔ recent decoded text and media survive a reset, a sparse index refresh and a new page load [90m(40.367692ms)[39m[39m
+[32m✔ FileProxy background reads hydrate the visible recent page before older records in index order [90m(24.995461ms)[39m[39m
+[32m✔ a hung Python API times out once, then catalog and transaction reads use static HTTP [90m(44.616847ms)[39m[39m
+[32m✔ the pasted HTTP directory remains unchanged and works without any Python or ledger request [90m(21.169308ms)[39m[39m
+[32m✔ static HTTP hydration fills the visible recent records before older history [90m(120.170616ms)[39m[39m
+[32m✔ recent presentation cache stays bounded and excludes unrelated summary fields [90m(92.780847ms)[39m[39m
+[32m✔ a slow transaction read finishing after reset cannot repopulate the cleared stream [90m(69.916307ms)[39m[39m
+[32m✔ refresh is throttled on return, skips hidden/other-mode pages, and suppresses overlapping requests [90m(66.81477ms)[39m[39m
+[32m✔ a new confirmed ledger read retains reviewed media and supplies the sent row's final timestamp [90m(77.703539ms)[39m[39m
+[32m✔ legacy category, note and fix migrate into one blob without losing text or duplicating it [90m(8.654616ms)[39m[39m
+[32m✔ metadata is an optional bounded JSON object and supports notes without text [90m(4.154ms)[39m[39m
+[32m✔ note files use chain/TXID identity and separate EVM source views and networks [90m(5.828154ms)[39m[39m
+[32m✔ a note from another transaction or format cannot attach to this record [90m(3.859231ms)[39m[39m
+[32m✔ the published trapezoid note identifies the real first chunk and both continuation records [90m(43.071077ms)[39m[39m
+[32m✔ the screenshot transaction is 80 binary bytes, preserved exactly as HEX and Base64 [90m(24.033615ms)[39m[39m
+[32m✔ ASCII, Unicode and Base64 text retain their literal bytes and text [90m(16.671846ms)[39m[39m
+[32m✔ control bytes and invalid UTF-8 never become replacement-character text [90m(6.439385ms)[39m[39m
+[32m✔ push lengths, multiple pushes and truncated scripts preserve boundaries without inventing data [90m(7.275231ms)[39m[39m
+[32m✔ Base64 conversion round-trips every byte value without browser or Node-specific encoders [90m(251.542307ms)[39m[39m
+[32m✔ public receipt is reconstructed from the sent bytes and keeps only matching reviewed metadata [90m(102.039846ms)[39m[39m
+[32m✔ broadcast immediately emits a pending record before any ledger read and duplicate acceptance reuses its TXID [90m(35.824539ms)[39m[39m
+[32m✔ not-found, mismatched bytes and a TXID-only response stay pending and schedule another live read [90m(28.745154ms)[39m[39m
+[32m✔ an independent exact byte read changes the existing record to seen, without claiming a block confirmation [90m(19.525769ms)[39m[39m
+[32m✔ overlapping retries never launch a second read for the same transaction [90m(32.046769ms)[39m[39m
+[32m✔ a timeout retains the in-flight reader so a retry cannot multiply hanging network requests [90m(40.63723ms)[39m[39m
+[32m✔ reload restores the public receipt as pending and ignores a persisted seen claim [90m(46.660692ms)[39m[39m
+[32m✔ mainnet and testnet receipts never share the same chain key or output address prefix [90m(19.839692ms)[39m[39m
+[32m✔ one read budget bounds transactions and notes while reserving a slot for an opened record [90m(72.003461ms)[39m[39m
+[32m✔ a second consumer promotes and shares the queued transaction instead of starting another read [90m(33.947538ms)[39m[39m
+[32m✔ visible work precedes history and newer history precedes older records [90m(14.910769ms)[39m[39m
+[32m✔ changing pages reprioritizes pending owners without recreating their requests [90m(14.180769ms)[39m[39m
+[32m✔ reset cancels obsolete callers and their queued work without freeing active network slots early [90m(10.701077ms)[39m[39m
+[32m✔ replaced row owners cannot inherit or complete one another's request [90m(4.830154ms)[39m[39m
+[32m✔ a failed read releases its slot and permits an explicit retry of the same key [90m(8.880462ms)[39m[39m
+[32m✔ record URLs preserve the app/IPFS path, identify currency and source, and exclude unrelated state [90m(198.758077ms)[39m[39m
+[32m✔ shared links exclude API credentials, private hosts and token-bearing source URLs [90m(45.208307ms)[39m[39m
+[32m✔ open and Back preserve the existing list nodes, page, filter, expansion and scroll with no network reads [90m(239.320769ms)[39m[39m
+[32m✔ a fresh record URL reads its direct JSON source without an index, Python or ledger request [90m(138.612308ms)[39m[39m
+[32m✔ returning while a record is loading prevents a late completion from reopening the page [90m(60.599769ms)[39m[39m
+[32m✔ opening a record already loading in the background shares its pending read [90m(137.038846ms)[39m[39m
+[32m✔ a visible date lookup and record expansion share one transaction request [90m(66.942616ms)[39m[39m
+[32m✔ opening a queued record uses reserved capacity and shares the background transaction read [90m(95.433077ms)[39m[39m
+[32m✔ reset drops queued reads and old completions cannot detach the new read for the same transaction [90m(84.373308ms)[39m[39m
+[32m✔ JSON download contains the public transaction and lossless payloads without identity or receipt state [90m(73.992154ms)[39m[39m
+[32m✔ FileProxy notes round-trip across browsers and export without rewriting transaction data [90m(77.572307ms)[39m[39m
+[32m✔ ordinary HTTP notes load when Python is unavailable and newer browser notes survive older mirrors [90m(22.321692ms)[39m[39m
+[32m✔ a concurrently edited shared note is detected before writing and the draft remains intact [90m(28.849615ms)[39m[39m
+[32m✔ a failed FileProxy save preserves both the previous note and the unsent draft [90m(35.940231ms)[39m[39m
+[32m✔ the two-field editor retains an active draft during background rendering and rejects invalid metadata [90m(59.448154ms)[39m[39m
+[32m✔ an unrelated history update preserves mounted rows, an open editor, caret, payload control and disclosure [90m(63.436384ms)[39m[39m
+[32m✔ unverified saved rows are navy; ledger-observed rows become black without replacing the row [90m(24.487154ms)[39m[39m
+[32m✔ direct record pages use the same navy-to-black ledger display rule [90m(30.779077ms)[39m[39m
+[32m✔ a changed transaction updates its own date, ledger state and amounts without replacing its editor [90m(66.997923ms)[39m[39m
+[32m✔ shared note updates retain the dirty editor and its live save handler while refreshing displayed text [90m(54.624538ms)[39m[39m
+[32m✔ a running note function keeps its iframe, canvas and pending execution across its own record updates [90m(66.073616ms)[39m[39m
+[32m✔ a changed function disposes its old runtime but keeps the open editor and row [90m(47.595384ms)[39m[39m
+[32m✔ record-page background changes retain the running function and its existing note controls [90m(45.402231ms)[39m[39m
+[32m✔ keyed ordering preserves a focused row while inserting, sorting and removing its siblings [90m(12.644231ms)[39m[39m
+[32m✔ keyed rendering keeps the visible scroll anchor after a new transaction is inserted above it [90m(11.014077ms)[39m[39m
+[32m✔ same-source thumbnails and the expanded media image remain mounted when the record text changes [90m(93.502692ms)[39m[39m
+[32m✔ pagination reuses focused page controls and disposes only the rows leaving the visible page [90m(48.221616ms)[39m[39m
+[32m✔ resetting a stream with the same transaction ID creates a fresh view and disposes the old function [90m(35.843385ms)[39m[39m
+[32m✔ a static image that reached its fallback source is retained when its logical source list is unchanged [90m(8.881538ms)[39m[39m
+[32m✔ 2.8.18 parity: receipt, sparse cache, live ledger and later observation update merge into one row [90m(25.166076ms)[39m[39m
+[32m✔ 2.8.18 parity: chain and EVM source identities remain distinct [90m(6.633461ms)[39m[39m
+[32m✔ 2.8.18 parity: index times and rich media survive sparse refreshes without a publication [90m(2.376539ms)[39m[39m
+[32m✔ 2.8.18 parity: invalid transaction identity is ignored [90m(15.407923ms)[39m[39m
+[32m✔ FileProxy records remain navy until an actual ledger read confirms them [90m(1.932077ms)[39m[39m
+[32m✔ an ordinary cached row without publication has no ledger-authoritative color [90m(0.996615ms)[39m[39m
+[32m✔ the public state object remains writable and the store resets only its record fields [90m(1.700693ms)[39m[39m
+[32m✔ recent display snapshots preserve the existing cache schema without storing receipt authority [90m(5.004ms)[39m[39m
+[32m✔ the caller controls snapshot priority and reset retains an in-memory snapshot without a write [90m(7.69823ms)[39m[39m
+[32m✔ unavailable or malformed storage does not prevent reading records and failed saves keep the prior snapshot [90m(4.674231ms)[39m[39m
+[32m✔ the browser entry loads the store before Portal with relative script paths [90m(67.748924ms)[39m[39m
+[32m✔ UTXO reads advance in configured order after HTTP/JSON failures and stop at success [90m(250.127ms)[39m[39m
+[32m✔ a stalled first provider is aborted and the coin GUI bridge automatically uses the next [90m(148.90577ms)[39m[39m
+[32m✔ unknown providers, wrong networks, missing methods, and invalid UTXO payloads fall through [90m(31.841616ms)[39m[39m
+[32m✔ an empty but valid UTXO list is a successful result, and explicit cross-checks still query every provider [90m(21.744923ms)[39m[39m
+[32m✔ transaction lookups skip failed/stalled providers and return immediately on success [90m(30.032077ms)[39m[39m
+[32m✔ broadcast failures try the next provider with exactly the same signed bytes [90m(19.900769ms)[39m[39m
+[32m✔ a broadcast timeout advances to the next provider and passes cancellation to native fetch [90m(29.834077ms)[39m[39m
+[32m✔ broadcast stops at first acceptance; total failure retains each attempt and uncertain outcome [90m(26.210769ms)[39m[39m
+[32m✔ explicit caller cancellation stops the list instead of starting another provider [90m(11.110462ms)[39m[39m
+[32m✔ Blockchair can supply normalized UTXOs and accept the same raw transaction as a final fallback [90m(41.412308ms)[39m[39m
+[32m✔ Blockchair truncation and malformed acceptance responses are failures, not successful fallbacks [90m(14.647ms)[39m[39m
+[32m✔ raw previous-transaction lookups reject wrong hashes and fall through to verified bytes [90m(72.445615ms)[39m[39m
+[32m✔ BlockCypher and Blockchair raw adapters preserve the configured provider order [90m(85.222461ms)[39m[39m
+[32m✔ normal scanner start requests the rear camera instead of camera zero [90m(19.565538ms)[39m[39m
+[32m✔ scanner handoff carries the public address and returns to Etch [90m(4.390539ms)[39m[39m
+[32m✔ Etch exposes the derived address and an explicit thunderword search [90m(3.506462ms)[39m[39m
+[32m✔ Etch loads its local QR library before the app, regardless of cache revision [90m(119.763692ms)[39m[39m
+[32m✔ scanner handoff refreshes an already-current personal stream [90m(45.992153ms)[39m[39m
+[32m✔ manual search refreshes an already-current personal stream [90m(13.453076ms)[39m[39m
+[32m✔ restoring the same personal stream can skip a redundant network load [90m(12.234692ms)[39m[39m
+[32m✔ empty handoffs do nothing and explorer failures reach the status message [90m(15.273615ms)[39m[39m
+[32m✔ public QR renders only the receiving address, with phone-sized dimensions and medium correction [90m(5.356923ms)[39m[39m
+[32m✔ an empty address or QR rendering failure reports an error without leaving a blank dialog open [90m(6.714692ms)[39m[39m
+[32m✔ hosted Recast files match the recorded Mogwai distribution [90m(115.324308ms)[39m[39m
+[32m✔ Recast runtime assets are self-contained and the tool is linked from Chisel [90m(89.500847ms)[39m[39m
+[32m✔ BlockCypher OP_RETURN script text appears in closed records even with a generic saved title [90m(283.574846ms)[39m[39m
+[32m✔ all decoded OP_RETURN outputs remain visible as literal text beside media metadata [90m(75.475154ms)[39m[39m
+[32m✔ cached OP_RETURN notes display in full before raw data loads without repeating the title [90m(19.362ms)[39m[39m
+[32m✔ binary OP_RETURN has a lossless encoding selector and no corrupted text in either view [90m(276.178462ms)[39m[39m
+[32m✔ saved asset pictures use ordinary HTTP paths in closed and expanded records [90m(44.315ms)[39m[39m
+[32m✔ transaction-note metadata supplies the same media description and picture to both views [90m(30.752308ms)[39m[39m
+[32m✔ rich record parsing binds metadata to the exact shared text and rejects malformed or oversized records [90m(5.732923ms)[39m[39m
+[32m✔ ledger preview uses form values and exact outgoing bytes, while imported metadata supplies display fields only [90m(12.085154ms)[39m[39m
+[32m✔ editing text or switching to HEX removes the previous record's title, picture and metadata [90m(5.567308ms)[39m[39m
+[32m✔ preview matches Send normalization and rejects conflicting or invalid payload fields [90m(6.511384ms)[39m[39m
+[32m✔ unsafe media links are inert and invalid metadata cannot break the working text draft [90m(5.75177ms)[39m[39m
+[32m✔ the actual Portal renderer shows one image and full metadata, expands independently, and never inserts the draft into its live stream [90m(45.361077ms)[39m[39m
+[32m✔ a sent record changes ledger color without changing visible content or layout, and survives refresh [90m(129.208385ms)[39m[39m
+[32m✔ a fetched ledger result replaces the submitted data in the same row and later receipt updates retain it [90m(48.549154ms)[39m[39m
+[32m✔ cached and submitted UTXO copies share chain/TXID identity while mainnet and testnet stay distinct [90m(24.869462ms)[39m[39m
+[32m✔ closed Netflix rows show saved title, description and a small picture; expanded records put that picture first [90m(18.958461ms)[39m[39m
+[32m✔ legacy Netflix preview metadata supplies the same picture to the closed and expanded views [90m(16.836308ms)[39m[39m
+[32m✔ captured media titles remain visible without a local annotation and unsafe picture sources stay inert [90m(12.582231ms)[39m[39m
+[32m✔ record mode accepts one whole ID and hands it to catalog lookup without key derivation [90m(51.859231ms)[39m[39m
+[32m✔ record mode rejects a full key; key4 still needs four distinct stickers [90m(16.853461ms)[39m[39m
+[32m✔ artifact mode retains its chain address derivation path [90m(6.797231ms)[39m[39m
+[32m✔ all scanner modes extract the same ID from a sticker URL without navigating to its host [90m(27.737846ms)[39m[39m
+[32m✔ a sticker used publicly is rejected by the private scanner, while public lookup still works [90m(9.044077ms)[39m[39m
+[32m✔ a scanned ID only navigates automatically to a previously selected private service [90m(20.960769ms)[39m[39m
+[32m✔ launcher validates the endpoint and preserves a reverse proxy prefix [90m(17.017ms)[39m[39m
+[32m✔ DER round-trip preserves a compact 64-byte signature [90m(27.583616ms)[39m[39m
+[32m✔ DER encoder adds a positive sign byte when scalar high bit is set [90m(2.951231ms)[39m[39m
+[32m✔ DER encoder removes redundant scalar leading zeros [90m(3.17977ms)[39m[39m
+[32m✔ DER decoder rejects non-minimal integers and trailing bytes [90m(13.049538ms)[39m[39m
+[32m✔ backend boundary enforces 32-byte private keys and digests [90m(4.288846ms)[39m[39m
+[32m✔ declining the actual send review prevents signing and broadcast [90m(20.541846ms)[39m[39m
+[32m✔ an accepted transaction is signed and broadcast only after its review [90m(4.994538ms)[39m[39m
+[32m✔ malicious minimum-fee response cannot change the fee or trigger a second signing flow [90m(6.975538ms)[39m[39m
+[32m✔ manual signing also requires the audited review before invoking the signer [90m(5.029616ms)[39m[39m
+[32m✔ accepted broadcasts insert their public Portal receipt and navigate to Portal [90m(8.125231ms)[39m[39m
+[32m✔ rejected broadcasts create no optimistic Portal record and do not redirect [90m(3.158923ms)[39m[39m
+[32m✔ a shared video fills ASCII, clears conflicting hex, and opens Send without accessing keys or recipients [90m(50.369539ms)[39m[39m
+[32m✔ query-based URL openers preserve complete URL text including ampersands and fragments [90m(9.398539ms)[39m[39m
+[32m✔ missing, empty, and oversized handoffs leave the previous draft untouched [90m(25.296308ms)[39m[39m
+[32m✔ a rich handoff goes to the preview only, preserves the text-only draft boundary, and is consumed once [90m(19.181077ms)[39m[39m
+[32m✔ invalid rich metadata leaves the shared text usable and reports the preview error [90m(10.753231ms)[39m[39m
+[32m✔ the exact currency directory is an HTTP source with FileProxy paths mapped to ordinary URLs [90m(44.656154ms)[39m[39m
+[32m✔ directory listings add files omitted by an older portable index [90m(9.128154ms)[39m[39m
+[32m✔ a directory alone is sufficient, including Chisel Base58 transaction filenames [90m(6.352385ms)[39m[39m
+[32m✔ relative manifest bases stay under their HTTP/IPFS origin, with a fallback for legacy manifests [90m(5.769462ms)[39m[39m
+[32m✔ hash validation uses the same manifest-relative paths [90m(47.301615ms)[39m[39m
+[32m✔ wrong transaction data is rejected while another static source can supply the correct JSON [90m(5.789385ms)[39m[39m
+[32m✔ a hung reader cannot hold fallback open even if fetch ignores abort [90m(5.752538ms)[39m[39m
+[32m✔ eight-byte sticker links round-trip, keep the ID out of the request, and accept legacy raw hex [90m(18.556769ms)[39m[39m
+[32m✔ main-page entry sends only a validated sticker and currency to the local landing page [90m(8.949539ms)[39m[39m
+[32m✔ opening the public page persists the exclusion, and later visits cannot start a private scan [90m(12.266077ms)[39m[39m
+[32m✔ continuing a private scan carries only the first fragment and does not mark it public [90m(6.196ms)[39m[39m
+[32m✔ invalid links and failed public-use storage stay on the landing page [90m(7.509385ms)[39m[39m
+[32m✔ known transaction signatures remain byte-for-byte compatible [90m(1012.516ms)[39m[39m
+[32m✔ CompactSize input/output/script lengths handle the 252/253 boundary [90m(77.337077ms)[39m[39m
+[32m✔ malformed, duplicate, unsafe, and nonminimal transaction encodings fail closed [90m(5.053693ms)[39m[39m
+[32m✔ previous witness transaction IDs exclude witness data; legacy signing rejects witness [90m(15.312692ms)[39m[39m
+[32m✔ decimal amounts are exact and reject hex, exponent, rounding, and unsafe values [90m(3.035923ms)[39m[39m
+[32m✔ input selection uses verified values, leaves unused coins alone, and rejects duplicates or large batches [90m(47.414846ms)[39m[39m
+[32m✔ previous transaction hash, ownership, outpoint and local fee bounds are enforced [90m(16.818077ms)[39m[39m
+[32m✔ raw audit catches explorer under-reporting, RPC output replacement and wrong fees before signing [90m(29.188ms)[39m[39m
+[32m✔ web URL allowlist rejects executable schemes, credentials and control-character evasions [90m(3.118154ms)[39m[39m
+[34mℹ tests 286[39m
+[34mℹ suites 0[39m
+[34mℹ pass 281[39m
+[34mℹ fail 5[39m
+[34mℹ cancelled 0[39m
+[34mℹ skipped 0[39m
+[34mℹ todo 0[39m
+[34mℹ duration_ms 12274.185847[39m
+
+[31m✖ failing tests:[39m
+
+test at tests/ecash-etch.test.mjs:1:1
+[31m✖ /home/john/chisel/tests/ecash-etch.test.mjs [90m(1311.891462ms)[39m[39m
+  [32m'test failed'[39m
+
+test at tests/keeper-signing.test.mjs:1:1
+[31m✖ /home/john/chisel/tests/keeper-signing.test.mjs [90m(1012.768462ms)[39m[39m
+  [32m'test failed'[39m
+
+test at file:/home/john/chisel/tests/m64.test.mjs:204:1
+[31m✖ M64 v3 publishes and hydrates JavaScript through a resolver without embedding dictionary terms [90m(8.534154ms)[39m[39m
+  Error: Web Crypto SHA-256 is required for M64 v3
+      at sha256HexUtf8 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:14:30[90m)[39m
+      at Object.buildJavascriptArtifactV3 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:37:22[90m)[39m
+      at async TestContext.<anonymous> [90m(file:///home/john/chisel/[39mtests/m64.test.mjs:207:17[90m)[39m
+  [90m    at async Test.run (node:internal/test_runner/test:632:9)[39m
+  [90m    at async Test.processPendingSubtests (node:internal/test_runner/test:374:7)[39m
+
+test at file:/home/john/chisel/tests/m64.test.mjs:227:1
+[31m✖ M64 v3 hydration rejects the wrong dictionary and tampered integrity metadata [90m(2.512231ms)[39m[39m
+  Error: Web Crypto SHA-256 is required for M64 v3
+      at sha256HexUtf8 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:14:30[90m)[39m
+      at Object.buildJavascriptArtifactV3 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:37:22[90m)[39m
+      at async TestContext.<anonymous> [90m(file:///home/john/chisel/[39mtests/m64.test.mjs:229:17[90m)[39m
+  [90m    at async Test.run (node:internal/test_runner/test:632:9)[39m
+  [90m    at async Test.processPendingSubtests (node:internal/test_runner/test:374:7)[39m
+
+test at file:/home/john/chisel/tests/m64.test.mjs:248:1
+[31m✖ Dark Star completes the M64 v3 canonicalize-resolve-hydrate integrity loop [90m(57.893769ms)[39m[39m
+  Error: Web Crypto SHA-256 is required for M64 v3
+      at sha256HexUtf8 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:14:30[90m)[39m
+      at Object.buildJavascriptArtifactV3 [90m(file:///home/john/chisel/[39mtools/m64Artifact/m64.v3.js:37:22[90m)[39m
+      at async TestContext.<anonymous> [90m(file:///home/john/chisel/[39mtests/m64.test.mjs:251:17[90m)[39m
+  [90m    at async Test.run (node:internal/test_runner/test:632:9)[39m
+  [90m    at async Test.processPendingSubtests (node:internal/test_runner/test:374:7)[39m
+evm.html: 1 inline script(s) parsed
+[?2004h]0;john@penguin: ~/chisel-->> pwd
+[?2004l/home/john/chisel
+[?2004h]0;john@penguin: ~/chisel-->> 0xit[K[K[K[Kexit
+[?2004lexit
+
+Script done on 2026-11-03 12:06:45-07:00 [COMMAND_EXIT_CODE="0"]
