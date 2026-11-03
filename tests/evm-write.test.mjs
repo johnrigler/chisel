@@ -17,11 +17,18 @@ const ethers = {
   getAddress(address) { return address; },
   keccak256(value) { return "hash:" + value; },
   Interface: class {
-    constructor(abi) { assert.ok(abi.some(x => x.startsWith("function mapArtifact("))); }
+    constructor(abi) {
+      assert.ok(abi.some(x => x.startsWith("function mapArtifact(") || x.startsWith("function tell(")));
+    }
     encodeFunctionData(name, args) {
-      assert.equal(name, "mapArtifact");
-      assert.equal(args.length, 2);
-      return "0x12345678" + Buffer.from(JSON.stringify(args)).toString("hex");
+      if (name === "mapArtifact") {
+        assert.equal(args.length, 2);
+        return "0x12345678" + Buffer.from(JSON.stringify(args)).toString("hex");
+      }
+      assert.equal(name, "tell");
+      assert.equal(args.length, 9);
+      return "0x87654321" + Buffer.from(JSON.stringify(args.map(value =>
+        typeof value === "bigint" ? value.toString() : value))).toString("hex");
     }
   }
 };
@@ -69,9 +76,58 @@ test("Jethro calldata retains exact Unicode and never signs or sends in the buil
   assert.equal(encoded.to,CONTRACT);
   assert.equal(encoded.value,"0x0");
   assert.equal(encoded.data.slice(10),Buffer.from(JSON.stringify(["Café","Hi\n☃"])).toString("hex"));
-  assert.throws(() => REG.buildCall(ethers,"gomez.polygon.137","tell",["x"]),/Only Jethro/);
+  assert.throws(() => REG.buildCall(ethers,"gomez.polygon.137","tell",["x"]),/four address\/amount pairs/);
   assert.throws(() => REG.buildCall(ethers,"jethro.polygon.137","mapArtifact",["",""]),/Enter/);
   assert.throws(() => REG.buildCall(ethers,"jethro.polygon.137","mapArtifact",["x".repeat(65537),""]),/64 KiB/);
+});
+
+
+const ZERO = "0x" + "00".repeat(20);
+const GOMEZ = REG.deployments["gomez.polygon.137"].address;
+const RECEIVER = "0x" + "12".repeat(20);
+function gomezArgs(message = "Gomez on Chisel") {
+  return [message, RECEIVER, "42", ZERO, "0", ZERO, "0", ZERO, "0"];
+}
+function gomezParams(args = gomezArgs()) {
+  return {deploymentId: "gomez.polygon.137", functionName: "tell", args};
+}
+
+test("Gomez registry encodes four address/uint256 pairs with exact, decimal-string amounts", () => {
+  const payload = REG.buildCall(ethers,"gomez.polygon.137","tell",gomezArgs("Map 🧭"));
+  assert.equal(payload.to,GOMEZ);
+  assert.equal(payload.chainId,137);
+  assert.equal(payload.functionSignature,"tell(string,address,uint256,address,uint256,address,uint256,address,uint256)");
+  assert.equal(payload.message,"Map 🧭");
+  assert.deepEqual(Array.from(payload.receivers),[RECEIVER,ZERO,ZERO,ZERO]);
+  assert.deepEqual(Array.from(payload.amounts),["42","0","0","0"]);
+  assert.equal(payload.byteLength,new TextEncoder().encode("Map 🧭").length);
+  assert.equal(payload.data.slice(0,10),"0x87654321");
+  assert.deepEqual(JSON.parse(Buffer.from(payload.data.slice(10),"hex").toString()),
+    ["Map 🧭",RECEIVER,"42",ZERO,"0",ZERO,"0",ZERO,"0"]);
+  assert.equal(payload.value,"0x0", "Gomez write must not attach native POL");
+  assert.equal(payload.interfaceId,REG.descriptor("gomez.polygon.137").contractInterface.id);
+});
+
+test("Gomez rejects malformed input before wallet interaction", () => {
+  const bad = (args,pattern) => assert.throws(() => REG.buildCall(ethers,
+    "gomez.polygon.137","tell",args),pattern);
+  bad(gomezArgs(""),/Enter a Gomez message/);
+  bad(gomezArgs("x".repeat(65537)),/64 KiB/);
+  bad(gomezArgs().slice(0,-1),/four address\/amount pairs/);
+  const invalid = (index,value,pattern) => {
+    const args=gomezArgs();
+    args[index]=value;
+    bad(args,pattern);
+  };
+  invalid(1,"not a wallet",/20-byte EVM address/);
+  invalid(2,"-10",/unsigned decimal/);
+  invalid(2,"1.2",/unsigned decimal/);
+  invalid(2,"1e18",/unsigned decimal/);
+  invalid(2,"01",/unsigned decimal/);
+  invalid(2,0,/unsigned decimal/);
+  invalid(2,(1n<<256n).toString(),/exceeds uint256/);
+  invalid(1,ZERO,/must be zero when receiver/);
+  assert.throws(() => REG.buildCall(ethers,"gomez.polygon.137","mapArtifact",gomezArgs()),/not enabled/);
 });
 
 test("wallet connect, simulation and gas review never send a transaction", async () => {
@@ -89,6 +145,48 @@ test("wallet connect, simulation and gas review never send a transaction", async
   assert.equal(simulation.params[0].from, ACCOUNT);
   assert.equal(simulation.params[0].data, review.data);
   assert.equal(simulation.params[0].value,"0x0");
+  assert.equal(methodCount(m,"eth_sendTransaction"),0);
+});
+
+
+test("Gomez wallet review simulates tell, checks code, and sends only approved calldata", async () => {
+  const m=mock(), w=writer();
+  await w.connect(m.provider);
+  const review=await w.prepare(m.provider,gomezParams());
+  assert.equal(review.to,GOMEZ);
+  assert.equal(review.functionName,"tell");
+  assert.deepEqual(Array.from(review.amounts),["42","0","0","0"]);
+  assert.equal(methodCount(m,"eth_call"),1);
+  assert.equal(methodCount(m,"eth_estimateGas"),1);
+  assert.equal(methodCount(m,"eth_sendTransaction"),0);
+  assert.equal(m.calls.find(x => x.method === "eth_call").params[0].data,review.data);
+  const sent=await w.submit(m.provider,review);
+  assert.equal(sent.to,GOMEZ);
+  assert.equal(sent.hash,HASH);
+  assert.equal(methodCount(m,"eth_call"),2,"re-simulate before sending");
+  assert.equal(methodCount(m,"eth_sendTransaction"),1);
+  const tx=m.calls.find(x => x.method === "eth_sendTransaction").params[0];
+  assert.deepEqual(Object.keys(tx).sort(),["data","from","to","value"]);
+  assert.equal(tx.data,review.data);
+  assert.equal(tx.value,"0x0");
+  await assert.rejects(w.submit(m.provider,review),/stale/);
+});
+
+test("Gomez owner-only revert, wrong chain, missing code and stale review prevent sends", async () => {
+  const cases=[
+    {set:m => m.setSimulationError('execution reverted: "Only the contract owner can run this"'),message:/Only the contract owner/},
+    {set:m => m.setChain("0x1"),message:/Wrong wallet chain/},
+    {set:m => m.setCode("0x"),message:/No usable contract bytecode/}
+  ];
+  for(const entry of cases) {
+    const m=mock(),w=writer();
+    entry.set(m);
+    await assert.rejects(w.prepare(m.provider,gomezParams()),entry.message);
+    assert.equal(methodCount(m,"eth_sendTransaction"),0);
+  }
+  const m=mock(),w=writer(),review=await w.prepare(m.provider,gomezParams());
+  w.invalidate();
+  await assert.rejects(w.submit(m.provider,review),/stale/);
   assert.equal(methodCount(m,"eth_sendTransaction"),0);
 });
 
@@ -175,4 +273,12 @@ test("EVM workbench includes the writer scripts and explicit review and send con
   assert.match(html,/id="jethroReviewBtn"/);
   assert.match(html,/id="jethroReceiptBtn"[^>]+disabled/);
   assert.match(html,/id="jethroContractLink"/);
+  assert.match(html,/id="gomezSendBtn"[^>]+disabled/);
+  assert.match(html,/id="gomezReviewBtn"/);
+  assert.match(html,/id="gomezReceiptBtn"[^>]+disabled/);
+  assert.match(html,/id="gomezContractLink"/);
+  for(let n=1;n<=4;n++) {
+    assert.match(html,new RegExp('id="gomezReceiver'+n+'"'));
+    assert.match(html,new RegExp('id="gomezAmount'+n+'"'));
+  }
 });
