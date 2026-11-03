@@ -1,7 +1,7 @@
-# EVM workbench: Jethro write path
+# EVM workbench: Gomez and Jethro write paths
 
 The standalone [evm.html](../evm.html) remains Chisel's EVM import/recovery
-workbench. It now contains a **Jethro · Write Contract** panel. The Portal
+workbench. It contains separate **Gomez · Write Contract** and **Jethro · Write Contract** panels, sharing the same wallet-discovery, review, and submission code. The Portal
 remains a read-only presentation and verification surface; writing does not
 depend on FileProxy, Etherscan, or the Portal's caches.
 
@@ -28,6 +28,46 @@ a verified explorer ABI or Solidity source unless independently retrieved.
 
 The existing EVM reader now derives Gomez/Jethro addresses and ABI fragments
 from this registry rather than carrying a second, incompatible set.
+
+## Writing Gomez
+
+The **Gomez · Write Contract** panel targets `0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2`
+on Polygon mainnet (chain ID 137). Its bundled interface contains:
+
+```solidity
+function tell(
+  string message,
+  address receiver1, uint256 amount1,
+  address receiver2, uint256 amount2,
+  address receiver3, uint256 amount3,
+  address receiver4, uint256 amount4
+);
+```
+
+1. Select a wallet, connect it, and use **Switch to Polygon** if needed.
+2. Enter the message and four receiver/amount pairs. All four pairs start
+   with the zero address and zero amount. Use explicit 20-byte EVM addresses
+   for receiver fields and unsigned decimal integers for the amounts.
+3. Amounts are **raw uint256 values**, not assumed to be POL or token units.
+   Their meaning depends on the actual deployed Solidity. Chisel does not
+   infer or perform four independent transfers from the ABI.
+4. Click **Review and simulate** to inspect the exact encoded `tell`
+   calldata, chain, address, sender, arguments and gas estimate.
+5. Once the simulation succeeds, click **Send via wallet** and approve it
+   independently through your wallet. **Check receipt** distinguishes pending,
+   successful execution, and a mined revert.
+
+The editor rejects malformed addresses, negative/non-integer values,
+overflows past uint256, overly large messages, and nonzero amounts paired
+with an all-zero receiver address. This last condition is a conservative
+interface guard rather than a Solidity ABI rule; adjust it only with
+contract-specific evidence.
+
+The actual deployed Gomez permissions are not yet independently verified
+here. If the sender is not the required contract owner, the RPC preflight
+may return an `Only the contract owner can run this` revert. Chisel reports
+that error rather than bypassing authorization or submitting a known
+reverting transaction.
 
 ## Writing Jethro
 
@@ -65,9 +105,9 @@ Submissions cannot replay the same review through Chisel.
 
 ## Scope and limitations
 
-- This first writer is restricted to the bundled Jethro contract at
-  `0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0` on chain 137 and the
-  `mapArtifact(string,string)` function.
+- Writes are explicitly allowlisted to Gomez `tell(...)` and Jethro
+  `mapArtifact(string,string)` at their respective bundled Polygon chain-137
+  deployments. Arbitrary ABI methods are not exposed as write operations.
 - Etherscan authentication in the legacy read/import panel is separate from
   wallet authorization and is not used to sign.
 - Real transaction fees are paid through the wallet. Chisel never attempts
@@ -84,7 +124,7 @@ Submissions cannot replay the same review through Chisel.
 ## Verification
 
 ```sh
-node --test tests/evm-write.test.mjs
+node --test tests/evm-write.test.mjs tests/evm-write-ui.test.mjs
 node --test tests/*.test.mjs
 node --check chisel.evm.contracts.js
 node --check chisel.evm.write.js
