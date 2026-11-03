@@ -201,7 +201,7 @@ function uiFixture(options = {}) {
   const f = fixture(options), nodes = new Map(), intervals = new Map(), opens = [];
   const doc = {hidden: false, downloads: [], createElement: tag => new Node(tag, doc), getElementById: name => nodes.get(name) || null, addEventListener() {}};
   doc.body = doc.createElement("body"); doc.body.dataset.mode = "portal";
-  for (const name of ["portalViewingNow", "portalInteractionHistory", "portalInteractionStatus", "portalInteractionEnabled", "portalInteractionRefresh", "portalInteractionExport", "portalInteractionClear"]) {
+  for (const name of ["portalViewingNow", "portalInteractionLatest", "portalInteractionHistory", "portalInteractionStatus", "portalInteractionEnabled", "portalInteractionRefresh", "portalInteractionExport", "portalInteractionClear"]) {
     const node = doc.createElement(name.includes("Enabled") ? "input" : "div"); node.id = name; nodes.set(name, node); doc.body.appendChild(node);
   }
   context.setInterval = callback => { const id = intervals.size + 1; intervals.set(id, callback); return id; };
@@ -212,6 +212,21 @@ function uiFixture(options = {}) {
   const comments = doc.createElement("div"); doc.body.appendChild(comments); view.comments(comments, record);
   return {...f, view, doc, nodes, intervals, opens, comments};
 }
+
+test("Viewing now starts collapsed and the one-line summary follows the latest activity", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(html, /<details id="portalInteractionDisclosure">/);
+  assert.match(html, /<summary class="portalViewingNowSummary">/);
+  assert.doesNotMatch(html, /<details id="portalInteractionDisclosure"[^>]*\\sopen(?:\\s|=|>)/);
+  const f = uiFixture(), latest = f.nodes.get("portalInteractionLatest");
+  assert.match(latest.textContent, /Arrived · Chisel/);
+  await f.client.record("select", record, {action: "expand", at: "2026-11-01T12:00:01.000Z"});
+  assert.equal(latest.textContent, "Selected · A video to revisit");
+  assert.match(latest.title, /What this record explains/);
+  await f.client.record("engage", record, {action: "open_media", at: "2026-11-01T12:00:02.000Z"});
+  assert.equal(latest.textContent, "Opened media · A video to revisit");
+  assert.equal(walk(f.nodes.get("portalInteractionHistory")).filter(node => node.classList.contains("portalHistoryEntry")).length, 3);
+});
 
 test("Viewing now links its dated synopsis back to the selected record and polls the shared API", async () => {
   const f = uiFixture(); await f.client.record("select", record, {action: "expand"}); await f.client.flush(); await flush();
