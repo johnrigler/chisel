@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: http: wss: ws:; img-src 'self' data:; base-uri 'self'; form-action 'none'">
+<title>Chisel · EVM Contract Factory</title>
+<style>
+:root{color-scheme:dark;--bg:#101214;--panel:#181c20;--ink:#e8edf2;--muted:#a1b1be;--line:#3b4550;--primary:#263c51}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+main{max-width:950px;margin:auto;padding:20px}
+header{border-bottom:1px solid var(--line);padding-bottom:14px}
+h1{font-size:23px;margin:0 0 7px}
+h2{font-size:17px;margin:0 0 8px}
+p{color:var(--muted);margin:6px 0 12px}
+a{color:#a5c8ed}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px;margin:14px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:block;color:var(--muted);font-size:13px;margin:8px 0 4px}
+select,input,textarea,button{font:inherit}
+input,select,textarea{width:100%;background:#101419;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
+textarea{font:12px/1.4 ui-monospace,monospace;resize:vertical;min-height:125px}
+button{background:#27323d;color:var(--ink);border:1px solid #526070;border-radius:6px;padding:9px 13px;margin:10px 8px 0 0;cursor:pointer}
+button.primary{background:var(--primary);border-color:#729bc5}
+button:disabled{opacity:.5;cursor:not-allowed}
+pre{background:#101419;padding:12px;border:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;font:12px/1.55 ui-monospace,monospace}
+small{color:var(--muted)}
+details{margin-top:12px}
+summary{cursor:pointer}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+<script src="./factory.js" defer></script>
+<script src="./app.js" defer></script>
+</head>
+<body><main>
+<header>
+<h1>Chisel · EVM Contract Factory</h1>
+<p>Compiled Solidity artifact → inspect → estimate gas → review → wallet deployment. Vanilla JavaScript, static hosting, no Hardhat or npm runtime.</p>
+<p><a href="../../evm.html">Gomez/Jethro transaction workbench</a> · <a href="../m64Artifact/index.html">M64 artifact workbench</a> · <a href="./README.md">Toolchain notes</a></p>
+</header>
+<section class="panel">
+<h2>1. Choose compiled contract</h2>
+<p>Compile Solidity using <code>solc --standard-json</code> or an equivalent compiler. This page does not compile source code. Import a compiler-output JSON file or a single contract artifact. Files stay in the browser.</p>
+<label for="file">Compiler output / artifact JSON</label>
+<input id="file" type="file" accept=".json,application/json">
+<button id="bundled" type="button">Load bundled M64 Dictionary</button>
+<div class="grid">
+<div><label for="contract">Contract</label><select id="contract" disabled><option>No artifact loaded</option></select></div>
+<div><label for="chain">Expected EVM chain ID (decimal)</label><input id="chain" inputmode="numeric" value="137" spellcheck="false" aria-describedby="chainHelp"><small id="chainHelp">137 = Polygon mainnet; 80002 = Polygon Amoy; 11155111 = Sepolia. Verify other chain IDs independently.</small></div>
+</div>
+<pre id="artifactStatus">No compiled artifact loaded.</pre>
+<details><summary>Full creation bytecode</summary><textarea readonly id="bytecode" aria-label="Full contract creation bytecode"></textarea></details>
+</section>
+<section class="panel">
+<h2>2. Connect and review</h2>
+<p>Choose an injected wallet. No wallet keys are read or stored. Chain and sender must match at review and again immediately before submission.</p>
+<label for="wallet">EIP-1193 wallet</label>
+<select id="wallet"><option value="">Detecting wallets...</option></select>
+<button id="refresh" type="button">Refresh wallet list</button>
+<button id="connect" type="button">Connect wallet</button>
+<button id="review" type="button">Review and estimate gas</button>
+<pre id="walletStatus">Not connected.</pre>
+<pre id="reviewStatus">Nothing reviewed. No network transaction has been requested.</pre>
+</section>
+<section class="panel">
+<h2>3. Deploy through wallet</h2>
+<p>Deployment uses <code>eth_sendTransaction</code> with creation bytecode and no <code>to</code> address. Only zero-argument constructors are supported. Gas is paid by the selected wallet; no transaction is sent until explicit approval.</p>
+<button id="deploy" class="primary" type="button" disabled>Deploy reviewed contract</button>
+<button id="receipt" type="button" disabled>Check transaction receipt</button>
+<pre id="deploymentStatus">Nothing submitted.</pre>
+</section>
+</main></body>
+</html>
