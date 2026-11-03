@@ -56,29 +56,76 @@
     return {deployment, implementation, contractInterface};
   }
 
+  const ZERO_ADDRESS = "0x" + "00".repeat(20);
+  const UINT256_MAX = (1n << 256n) - 1n;
+  const GOMEZ_SIGNATURE = "tell(string,address,uint256,address,uint256,address,uint256,address,uint256)";
+
+  // Keep writing restricted to specifically configured contracts/functions.
+  // The full ABI may contain additional methods, but that does not make all
+  // those methods safe for generic UI generation.
   function buildCall(ethersLib, deploymentId, functionName, args) {
     if (!ethersLib || typeof ethersLib.Interface !== "function") throw new Error("ethers ABI encoder is unavailable.");
     const info = descriptor(deploymentId);
-    if (deploymentId !== "jethro.polygon.137" || functionName !== "mapArtifact") {
-      throw new Error("Only Jethro mapArtifact writes are enabled in this version.");
+    let details;
+    if (deploymentId === "jethro.polygon.137" && functionName === "mapArtifact") {
+      if (!Array.isArray(args) || args.length !== 2 || args.some(value => typeof value !== "string")) {
+        throw new Error("Jethro mapArtifact requires two strings.");
+      }
+      if (!args[0].length && !args[1].length) throw new Error("Enter an artifact or body.");
+      const bytes = args.reduce((sum, value) => sum + new TextEncoder().encode(value).length, 0);
+      if (bytes > 65536) throw new Error("Combined UTF-8 payload exceeds the 64 KiB safety limit.");
+      details = {
+        abiArgs: args, functionSignature: "mapArtifact(string,string)",
+        artifact: args[0], body: args[1], byteLength: bytes
+      };
+    } else if (deploymentId === "gomez.polygon.137" && functionName === "tell") {
+      if (!Array.isArray(args) || args.length !== 9 || typeof args[0] !== "string") {
+        throw new Error("Gomez tell requires a message and four address/amount pairs.");
+      }
+      const message = args[0];
+      if (!message.length) throw new Error("Enter a Gomez message.");
+      const bytes = new TextEncoder().encode(message).length;
+      if (bytes > 65536) throw new Error("Gomez message exceeds the 64 KiB safety limit.");
+      const receivers = [], amounts = [], abiArgs = [message];
+      for (let i = 0; i < 4; i += 1) {
+        const receiver = args[1 + i * 2];
+        const amount = args[2 + i * 2];
+        if (typeof receiver !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(receiver)) {
+          throw new Error("Gomez receiver " + (i + 1) + " must be a 20-byte EVM address.");
+        }
+        if (typeof ethersLib.getAddress !== "function") throw new Error("ethers address validation is unavailable.");
+        let checked;
+        try { checked = ethersLib.getAddress(receiver); }
+        catch (_) { throw new Error("Gomez receiver " + (i + 1) + " has an invalid EVM checksum."); }
+        if (typeof amount !== "string" || !/^(0|[1-9][0-9]*)$/.test(amount)) {
+          throw new Error("Gomez amount " + (i + 1) + " must be an unsigned decimal uint256 integer (raw units).");
+        }
+        const integer = BigInt(amount);
+        if (integer > UINT256_MAX) throw new Error("Gomez amount " + (i + 1) + " exceeds uint256.");
+        if (checked.toLowerCase() === ZERO_ADDRESS && integer !== 0n) {
+          throw new Error("Gomez amount " + (i + 1) + " must be zero when receiver " + (i + 1) + " is the zero address.");
+        }
+        receivers.push(checked);
+        amounts.push(amount);
+        abiArgs.push(checked, integer);
+      }
+      details = {
+        abiArgs, functionSignature: GOMEZ_SIGNATURE,
+        message, receivers, amounts, byteLength: bytes
+      };
+    } else {
+      throw new Error("The requested contract function is not enabled for writing.");
     }
-    if (!Array.isArray(args) || args.length !== 2 || args.some(value => typeof value !== "string")) {
-      throw new Error("Jethro mapArtifact requires two strings.");
-    }
-    if (!args[0].length && !args[1].length) throw new Error("Enter an artifact or body.");
-    const bytes = args.reduce((sum, value) => sum + new TextEncoder().encode(value).length, 0);
-    if (bytes > 65536) throw new Error("Combined UTF-8 payload exceeds the 64 KiB safety limit.");
     const abi = new ethersLib.Interface(info.contractInterface.abi);
-    const data = abi.encodeFunctionData(functionName, args);
+    const data = abi.encodeFunctionData(functionName, details.abiArgs);
     if (!/^0x[0-9a-f]+$/i.test(data) || data.length < 10 || data.length % 2 !== 0) {
       throw new Error("The ABI encoder did not produce valid calldata.");
     }
+    const {abiArgs, ...publicDetails} = details;
     return Object.freeze({
       deploymentId, chainId: info.deployment.chainId, to: info.deployment.address,
       interfaceId: info.contractInterface.id, implementationId: info.implementation.id,
-      functionName, functionSignature: "mapArtifact(string,string)",
-      artifact: args[0], body: args[1], byteLength: bytes, data,
-      value: "0x0"
+      functionName, ...publicDetails, data, value: "0x0"
     });
   }
 
