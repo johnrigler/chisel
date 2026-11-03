@@ -142,10 +142,10 @@
     });
 
     get("ConnectBtn").addEventListener("click", async function () {
-      const wallet = selectedWallet();
-      disconnect();
-      const token = revision;
       try {
+        const wallet = selectedWallet();
+        disconnect();
+        const token = revision;
         const connected = await writer.connect(wallet.provider);
         if (token !== revision || selectedWallet() !== wallet) return;
         connection = {wallet, from: connected.from, chainId: connected.chainId};
