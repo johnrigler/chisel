@@ -5039,8 +5039,9 @@
     item.dataset.key = row.key;
     if (ledgerState) {
       item.dataset.ledgerState = ledgerState;
-      item.setAttribute("aria-label", ledgerState === "seen"
-        ? "Transaction confirmed by ledger read" : "Saved transaction; not yet confirmed by ledger read");
+      item.setAttribute("aria-label", row.publication
+        ? (ledgerState === "seen" ? "Transaction observed by ledger" : "Transaction awaiting ledger read")
+        : (ledgerState === "seen" ? "Transaction confirmed by ledger read" : "Saved transaction; not yet confirmed by ledger read"));
     } else {
       delete item.dataset.ledgerState;
       item.removeAttribute("aria-label");
