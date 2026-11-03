@@ -98,6 +98,17 @@
     const globalView = makeFeed(historyContainer, {}, false);
     function paint() {
       globalView.paint();
+      const latest = doc.getElementById("portalInteractionLatest");
+      if (latest) {
+        const recent = client.feed({}).items[0], activity = recent && recent.document.payload;
+        const kind = activity ? ({
+          visit: "Arrived", select: "Selected", engage: "Engaged", comment: "Comment",
+          open_media: "Opened media", run_function: "Run requested", function_drawn: "Drew function"
+        }[activity.action] || {visit: "Arrived", select: "Selected", engage: "Engaged", comment: "Comment"}[activity.kind] || "Activity") : "";
+        const label = activity ? kind + " · " + (activity.title || "Chisel") : "No recent activity";
+        if (latest.textContent !== label) latest.textContent = label;
+        latest.title = activity ? [label, activity.synopsis, stamp(recent)].filter(Boolean).join("\n") : label;
+      }
       const state = client.state, pending = state.outbox.length;
       const status = doc.getElementById("portalInteractionStatus");
       if (status) {
