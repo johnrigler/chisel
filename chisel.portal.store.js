@@ -236,9 +236,11 @@
       // Never trust a cached record's ledgerObserved claim. The Portal must
       // pass this option only after it has actually queried a ledger provider.
       const ledgerObserved = !!(existing && existing.ledgerObserved) || !!(opts && opts.ledgerObserved === true);
+      const safeRow = Object.assign({}, row);
+      delete safeRow.ledgerObserved;
       const previousRowTime = existing ? extractBlockTime(existing) : 0;
       const incomingRowTime = extractBlockTime(row);
-      const merged = existing ? Object.assign(existing, row, {
+      const merged = existing ? Object.assign(existing, safeRow, {
         summary: publicationUpdate ? mergeSummary(row.summary, existing.summary) : mergeSummary(existing.summary, row.summary),
         blockTime: incomingRowTime || previousRowTime || 0,
         confirmed: typeof row.confirmed === "boolean" ? row.confirmed : existing.confirmed,
@@ -253,9 +255,9 @@
         staticRemoteBaseUrls: row.staticRemoteBaseUrls || existing.staticRemoteBaseUrls,
         staticSource: row.staticSource || existing.staticSource,
         sourceId: row.sourceId || existing.sourceId,
-        discoverySource: publicationUpdate ? existing.discoverySource || row.discoverySource : row.discoverySource || existing.discoverySource,
-        ledgerObserved: ledgerObserved
-      }) : Object.assign({}, row, { key: key, ledgerObserved: ledgerObserved });
+        discoverySource: publicationUpdate ? existing.discoverySource || row.discoverySource : row.discoverySource || existing.discoverySource
+      }) : Object.assign({}, safeRow, { key: key });
+      if (ledgerObserved) merged.ledgerObserved = true;
 
       // Locally reviewed media is display data. Retain it as normal discovery
       // replaces this same chain/TXID row, without letting a cache mark it seen.
