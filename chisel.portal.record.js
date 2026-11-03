@@ -77,9 +77,10 @@
       current.row = row;
       const content = get("portalRecordContent"), source = deps.sourceUrl(row);
       const page = get("portalRecordPage");
-      if (page) page.classList.toggle("isAwaitingLedger", !!row.publication && row.publication.ledgerState !== "seen");
+      if (page) page.classList.toggle("isAwaitingLedger", root.CHISEL_PORTAL_STORE.ledgerDisplayState(row) === "awaiting-ledger");
       const url = recordUrl(row, root.location.href, source);
-      const signature = [row, row.raw, row.summary, row.loadError, row.publication && row.publication.ledgerState, row.annotationRevision];
+      const signature = [row, row.raw, row.summary, row.loadError, row.publication && row.publication.ledgerState,
+        row.ledgerObserved, row.annotationRevision];
       if (content && (force || !lastRender || signature.some(function (value, i) { return value !== lastRender[i]; }))) {
         try { deps.render(content, row); }
         catch (error) {
