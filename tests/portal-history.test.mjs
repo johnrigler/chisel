@@ -118,6 +118,29 @@ test("new transactions stream into Portal before older pages finish, with pendin
   assert.equal(publication.ledgerState, "awaiting-ledger", "address discovery cannot validate a sent-byte receipt");
 });
 
+test("a FileProxy record is navy until ledger history confirms the same transaction", async () => {
+  const f = fixture(url => {
+    if (url.includes("/fileproxy/tx-index")) return json({ok: true, transactions: [{
+      txid: id(1), coin: "litecoin", path: "transactions/litecoin/" + id(1) + ".json",
+      summary: {title: "Cached FileProxy record", blockHeight: 999}, confirmed: true
+    }]});
+    if (url.includes("blockcypher")) return json({n_tx: 1, hasMore: false, txs: [bc(1)]});
+    throw new Error("Unexpected request " + url);
+  });
+  const rows = await f.portal.listLocalTransactions();
+  assert.equal(rows.length, 1);
+  const row = rows[0], status = f.context.CHISEL_PORTAL_STORE.ledgerDisplayState;
+  assert.equal(row.discoverySource, "fileProxy");
+  assert.equal(status(row), "awaiting-ledger", "saved confirmation data is not ledger evidence");
+  await f.portal.loadAddressIndex(f.entry, address, {background: true});
+  assert.equal(f.portal.state.portalRows.length, 1);
+  assert.equal(f.portal.state.portalRows[0], row, "ledger refresh updates the same mounted record");
+  assert.equal(row.ledgerObserved, true);
+  assert.equal(status(row), "seen");
+  await f.portal.listLocalTransactions();
+  assert.equal(status(row), "seen", "FileProxy refresh must not revert a verified record to navy");
+});
+
 test("only a complete history permits refresh to stop at a previously known confirmed transaction", async () => {
   let refresh = false;
   const f = fixture(url => {
