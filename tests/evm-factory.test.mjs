@@ -51,6 +51,13 @@ test("accepts minimal artifact and solc Standard JSON, rejects unlinked bytecode
   assert.throws(() => api.collectArtifacts({errors:[{severity:"error"}],...SAMPLE}),/Solidity errors/);
 });
 
+test("rejects an artifact with a mismatched declared creation hash", async () => {
+  const provider = mockedProvider();
+  const bad = api.collectArtifacts({...SAMPLE,bytecodeSha256:"0".repeat(64)})[0];
+  await assert.rejects(api.reviewDeployment(provider,bad,"137"),/SHA-256 does not match/);
+  assert.ok(!provider.calls.includes("eth_sendTransaction"));
+});
+
 test("enforces chain selection, no implicit connect and no constructor args", async () => {
   const provider = mockedProvider();
   const artifact = api.collectArtifacts(SAMPLE)[0];
