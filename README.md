@@ -12,6 +12,8 @@
 
 Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts. **Portal** is the primary public reader; **Send**, **Review**, **Examples**, and **Tools** expose other workflows. It is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
 
+**EVM contracts:** [Open the browser-native Contract Factory](tools/evmFactory/index.html) to inspect a compiled Solidity JSON artifact, estimate deployment gas, and deploy through an injected wallet. Source compilation uses standalone `solc`/`solc-js` outside the page; Hardhat and npm are not browser runtime requirements. See the [factory guide](tools/evmFactory/README.md). Existing Gomez/Jethro reads and writes remain in [evm.html](evm.html).
+
 ## Open and share a record
 
 Each record has a freeform **Note** and optional **Metadata** JSON object.
