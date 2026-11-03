@@ -192,8 +192,11 @@
         border: 0;
         display: block;
     }
-    .jethroWriteFields textarea { min-height: 96px; }
-    .jethroWriteFields .payloadBox { max-height: 360px; }
+    .contractWriteFields textarea, .jethroWriteFields textarea { min-height: 96px; }
+    .contractWriteFields .payloadBox, .jethroWriteFields .payloadBox { max-height: 360px; }
+    .gomezPairs { margin: 10px 0 18px; }
+    .gomezPairs .profileCard input { font-size: 13px; }
+    .gomezPairs .profileCard b { display:block; padding-bottom: 3px; }
     button:disabled { opacity: .5; cursor: not-allowed; }
     @media (max-width: 820px) {
         .grid, .row { grid-template-columns: 1fr; }
@@ -275,6 +278,70 @@
         <div class="profileStatus" id="profileStatus"></div>
     </section>
 
+    <section class="panel contractWriteFields" id="gomezWriteWorkbench">
+        <h2>Gomez · Write Contract</h2>
+        <p>Use <code>tell(string,address,uint256,address,uint256,address,uint256,address,uint256)</code> at the existing Gomez deployment on Polygon mainnet. The ABI is bundled; this page does not independently establish the deployed Solidity. <a id="gomezContractLink">Inspect Gomez on PolygonScan</a>.</p>
+        <div class="grid">
+            <div>
+                <label for="gomezInterface">Interface (ABI)</label>
+                <input id="gomezInterface" readonly>
+                <label for="gomezDeployment">Deployment (chain and contract)</label>
+                <input id="gomezDeployment" readonly>
+            </div>
+            <div>
+                <label for="gomezWallet">Injected wallet</label>
+                <select id="gomezWallet"><option value="">Detecting wallet...</option></select>
+                <button id="gomezRefreshWalletsBtn" type="button">Refresh wallets</button>
+                <button id="gomezConnectBtn" type="button">Connect wallet</button>
+                <button id="gomezSwitchChainBtn" type="button">Switch to Polygon</button>
+                <p class="status" id="gomezWalletStatus">Wallet not connected. Etherscan API key is not used for signing.</p>
+            </div>
+        </div>
+        <label for="gomezMessage">tell · message (string)</label>
+        <textarea id="gomezMessage" spellcheck="false" placeholder="Exact text to encode in the transaction"></textarea>
+        <p>Four receiver/amount pairs are ABI arguments, not automatically four Polygon transfers. Amounts are raw uint256 integers and their meaning depends on the deployed Solidity. All four pairs default to the zero address and zero amount. Set an explicit receiver before using a nonzero amount.</p>
+        <div class="grid gomezPairs">
+            <div class="profileCard">
+                <b>Receiver 1</b>
+                <label for="gomezReceiver1">receiver1 · EVM address (20 bytes)</label>
+                <input id="gomezReceiver1" spellcheck="false" value="0x0000000000000000000000000000000000000000">
+                <label for="gomezAmount1">amount1 · unsigned uint256 (raw integer)</label>
+                <input id="gomezAmount1" inputmode="numeric" spellcheck="false" value="0">
+            </div>
+            <div class="profileCard">
+                <b>Receiver 2</b>
+                <label for="gomezReceiver2">receiver2 · EVM address (20 bytes)</label>
+                <input id="gomezReceiver2" spellcheck="false" value="0x0000000000000000000000000000000000000000">
+                <label for="gomezAmount2">amount2 · unsigned uint256 (raw integer)</label>
+                <input id="gomezAmount2" inputmode="numeric" spellcheck="false" value="0">
+            </div>
+            <div class="profileCard">
+                <b>Receiver 3</b>
+                <label for="gomezReceiver3">receiver3 · EVM address (20 bytes)</label>
+                <input id="gomezReceiver3" spellcheck="false" value="0x0000000000000000000000000000000000000000">
+                <label for="gomezAmount3">amount3 · unsigned uint256 (raw integer)</label>
+                <input id="gomezAmount3" inputmode="numeric" spellcheck="false" value="0">
+            </div>
+            <div class="profileCard">
+                <b>Receiver 4</b>
+                <label for="gomezReceiver4">receiver4 · EVM address (20 bytes)</label>
+                <input id="gomezReceiver4" spellcheck="false" value="0x0000000000000000000000000000000000000000">
+                <label for="gomezAmount4">amount4 · unsigned uint256 (raw integer)</label>
+                <input id="gomezAmount4" inputmode="numeric" spellcheck="false" value="0">
+            </div>
+        </div>
+        <p>The contract may require its owner as the caller. Review and simulation will report an authorization revert; Chisel does not bypass contract permissions.</p>
+        <div>
+            <button id="gomezReviewBtn" class="primary" type="button">Review and simulate</button>
+            <button id="gomezSendBtn" class="primary" type="button" disabled>Send via wallet</button>
+            <button id="gomezReceiptBtn" type="button" disabled>Check receipt</button>
+        </div>
+        <label for="gomezReview">Transaction review (read-only, generated calldata)</label>
+        <pre class="payloadBox mono" id="gomezReview">No reviewed calldata.</pre>
+        <p class="status" id="gomezWriteStatus" role="status">Select a wallet, enter a Gomez message, then review. Nothing is sent without separate wallet approval.</p>
+        <p><a id="gomezTxLink" hidden target="_blank" rel="noopener noreferrer"></a></p>
+    </section>
+
     <section class="panel jethroWriteFields" id="jethroWriteWorkbench">
         <h2>Jethro · Write Contract</h2>
         <p>Write to the known Jethro deployment on Polygon mainnet. The ABI describes the call, while the deployment identifies the contract address. This interface is bundled with Chisel; the deployed Solidity implementation has not been independently verified by this page. <a id="jethroContractLink">Inspect contract on PolygonScan</a>.</p>
@@ -348,9 +415,9 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.16.0/dist/ethers.umd.min.js"></script>
-<script src="chisel.evm.contracts.js?rev=20261103-jethro-v1"></script>
-<script src="chisel.evm.write.js?rev=20261103-jethro-v1"></script>
-<script src="chisel.evm.write.ui.js?rev=20261103-jethro-v1"></script>
+<script src="chisel.evm.contracts.js?rev=20261103-gomez-v2"></script>
+<script src="chisel.evm.write.js?rev=20261103-gomez-v2"></script>
+<script src="chisel.evm.write.ui.js?rev=20261103-gomez-v2"></script>
 <script>
 (function () {
     "use strict";
