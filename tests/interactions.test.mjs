@@ -219,6 +219,7 @@ test("Viewing now starts collapsed and the one-line summary follows the latest a
   assert.match(html, /<summary class="portalViewingNowSummary">/);
   assert.doesNotMatch(html, /<details id="portalInteractionDisclosure"[^>]*\\sopen(?:\\s|=|>)/);
   const f = uiFixture(), latest = f.nodes.get("portalInteractionLatest");
+  await flush();
   assert.match(latest.textContent, /Arrived · Chisel/);
   await f.client.record("select", record, {action: "expand", at: "2026-11-01T12:00:01.000Z"});
   assert.equal(latest.textContent, "Selected · A video to revisit");
