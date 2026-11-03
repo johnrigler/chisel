@@ -40,10 +40,12 @@ test("accepts minimal artifact and solc Standard JSON, rejects unlinked bytecode
   const output = {
     contracts: {
       "contracts/Tiny.sol": {
-        Tiny: {abi:[],evm:{bytecode:{object:"60006000"},deployedBytecode:{object:"6000"}}}
+        Tiny: {abi:[],evm:{bytecode:{object:"60006000"},deployedBytecode:{object:"6000"}}},
+        IEmpty: {abi:[],evm:{bytecode:{object:""},deployedBytecode:{object:""}}}
       }
     }
   };
+  assert.equal(api.collectArtifacts(output).length,1);
   assert.equal(api.collectArtifacts(output)[0].name,"contracts/Tiny.sol:Tiny");
   assert.throws(() => api.collectArtifacts({...SAMPLE,bytecode:"0x__$unlinked$__"}),/Invalid or unlinked/);
   assert.throws(() => api.collectArtifacts({errors:[{severity:"error"}],...SAMPLE}),/Solidity errors/);
