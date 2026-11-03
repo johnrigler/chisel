@@ -45,6 +45,7 @@
         deployedBytecode: normalizedHex(
           source.deployedBytecode || (source.evm && source.evm.deployedBytecode), false),
         constructorInputs,
+        declaredCreationSha256: typeof source.bytecodeSha256 === "string" ? source.bytecodeSha256.toLowerCase() : null,
         compiler: typeof input.compiler === "string" ? input.compiler :
           (input.compiler && input.compiler.version) || null
       }));
@@ -129,6 +130,9 @@
       method: "eth_estimateGas", params: [transaction]
     }));
     const creationSha256 = await sha256(artifact.bytecode);
+    if (artifact.declaredCreationSha256 && artifact.declaredCreationSha256 !== creationSha256) {
+      throw new Error("Creation bytecode SHA-256 does not match the imported artifact manifest.");
+    }
     return Object.freeze({
       artifact, from, chainId, gasEstimate, creationSha256,
       byteLength: (artifact.bytecode.length - 2) / 2,
