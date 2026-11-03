@@ -77,6 +77,9 @@
         "Compiler label (unverified): " + (selected.compiler || "not supplied"),
         "Creation bytes: " + ((selected.bytecode.length - 2) / 2),
         "Creation SHA-256: " + digest,
+        "Manifest SHA-256: " + (selected.declaredCreationSha256 || "not supplied"),
+        "Manifest comparison: " + (selected.declaredCreationSha256 ?
+          (selected.declaredCreationSha256 === digest ? "MATCH" : "MISMATCH - deployment blocked") : "not applicable"),
         "Constructor arguments: " + selected.constructorInputs,
         "Compiled runtime: " + (selected.deployedBytecode ? "provided" : "not provided"),
         selected.constructorInputs ? "DEPLOYMENT BLOCKED: constructor arguments are not supported." :
@@ -102,20 +105,24 @@
   $("file").addEventListener("change", async () => {
     const file = $("file").files && $("file").files[0];
     invalidate();
+    const token = revision;
     if (!file) return;
     try {
       if (file.size > 8 * 1024 * 1024) throw new Error("Compiler JSON exceeds 8 MiB.");
-      loadJSON(JSON.parse(await file.text()));
-    } catch (err) { artifacts = []; $("contract").disabled = true; error("artifactStatus", err); }
+      const data = JSON.parse(await file.text());
+      if (revision === token) loadJSON(data);
+    } catch (err) { if (revision === token) { artifacts = []; $("contract").disabled = true; error("artifactStatus", err); } }
   });
 
   $("bundled").addEventListener("click", async () => {
     invalidate();
+    const token = revision;
     try {
       const response = await fetch("../m64Artifact/contracts/M64Dictionary.compiled.json", {cache: "no-store"});
       if (!response.ok) throw new Error("Bundled artifact unavailable: HTTP " + response.status);
-      loadJSON(await response.json());
-    } catch (err) { error("artifactStatus", err); }
+      const data = await response.json();
+      if (revision === token) loadJSON(data);
+    } catch (err) { if (revision === token) error("artifactStatus", err); }
   });
 
   $("contract").addEventListener("change", renderArtifact);
