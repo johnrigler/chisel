@@ -36,7 +36,8 @@
       const ctor = source.abi.find(fragment => fragment && fragment.type === "constructor");
       const constructorInputs = ctor && Array.isArray(ctor.inputs) ? ctor.inputs.length : 0;
       const bytecode = source.bytecode || (source.evm && source.evm.bytecode);
-      if (!bytecode) return; // interfaces and abstract contracts lack deployment bytecode
+      const raw = typeof bytecode === "string" ? bytecode : bytecode && bytecode.object;
+      if (!raw || raw === "0x") return; // interfaces and abstract contracts lack deployment bytecode
       entries.push(Object.freeze({
         name,
         abi: source.abi,
