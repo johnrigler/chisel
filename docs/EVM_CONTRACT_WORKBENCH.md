@@ -188,3 +188,103 @@ node tests/check-inline-scripts.mjs evm.html
 ```
 
 The tests use an injected wallet stub, not a live private key or transaction.
+
+## Mogwai v1 EVM kernel and factory (draft, not deployed)
+
+**Status, 2026-11-03:** [Mogwai.sol](../contracts/Mogwai.sol) is a new
+standalone Solidity implementation. It does not replace Gomez, Jethro,
+JethroV2 or M64Dictionary. The existing Polygon writer remains allowlisted
+to its current deployments. No Mogwai deployment address, deployment bytecode,
+ABI verification, wallet authorization or live transaction is implied.
+
+Mogwai combines six features without one giant arbitrary-call executor:
+
+1. **Jethro-style dictionary.** `mapArtifact(string,string)` writes a current
+   value under `(msg.sender, keccak256(bytes(artifact)))`. Permissionless
+   callers cannot overwrite each other's namespaces. `getArtifact(writer,key)`
+   returns body and revision (0 means absent). Every successful revision
+   produces `ArtifactMapped` with the complete body.
+2. **Structured log carrier.** `logRecord(bytes32 format,bytes data)` emits
+   `RecordLogged`. Each writer has a monotonically increasing sequence shared
+   by log and Thunderword publications. Only dictionary *latest values* are
+   stored; event payloads persist in transaction receipts/logs.
+3. **Variable-length atomic batch.** `execute((uint8 kind,bytes data)[])`
+   accepts 1 to 32 operations. Kinds: 1 = `(string artifact,string body)`;
+   2 = `(bytes32 format,bytes data)`; 3 =
+   `(address thunderword,bytes32 format,bytes data)`; 4 =
+   `(address peer,bytes32 format,bytes data)`. All use Solidity ABI tuple
+   encoding. Any failure reverts the entire transaction. Each body or payload
+   is capped at 24,576 bytes. There is **no arbitrary delegatecall, native-token
+   transfer, proxy upgrade or owner-only write gate**.
+4. **Peer messaging.** `sendToPeer` calls `receiveFromPeer` on another
+   compatible contract. The receiver proves the *immediate sending contract*
+   using `msg.sender`. `claimedWriter` is explicitly untrusted, because a
+   peer contract can claim any origin; it is never used to authorize a
+   dictionary mutation. Chisel must not label claimed origins as verified
+   signers without checking the sending contract's own event/call context.
+5. **CREATE2 contract factory.** `deployChild(bytes32 userSalt)` deploys
+   an EIP-1167 minimal-proxy Mogwai, initializes its creator to the external
+   caller in the same transaction and emits `ChildDeployed`. `creator` is a
+   display/canonical namespace convention, not a write gate. Child instances
+   can create more instances using the immutable full-code root. User salts
+   are wallet-namespaced; `predictChildAddress(author,salt)` predicts the
+   address for the *instance being called*, not a global registry.
+6. **EVM Thunderwords.** `thunderwordAddress(string)` interprets 1 to 20
+   printable ASCII bytes, case-sensitively, and right-pads with zero bytes to
+   fill a 20-byte EVM address. Example `westend` =
+   `0x77657374656e64000000000000000000000000`. This is a **v1 proposed
+   encoding convention**, not an established cross-chain standard.
+   No Base58Check, address hashing, or private-key derivation occurs.
+   `decodeThunderword` reverses only valid ASCII/right-zero-padded words.
+   `publishThunderword` and `publishThunderwordText` emit indexed
+   `ThunderwordPublished(writer,thunderword,format,sequence,data)`.
+   The `thunderwordCount` mapping exposes a numeric count per subject.
+
+### Retrieval and safety boundaries
+
+- Find Thunderword records with `eth_getLogs` for the known Mogwai contract
+  address and `ThunderwordPublished` indexed topics (writer, subject, format).
+  Chisel or another indexer must page event ranges, track log index and block
+  hash, and handle chain reorganizations. Neither contract storage nor ordinary
+  **recipient address history** can enumerate these logs. No dust/zero-value
+  transfer is made to a Thunderword address, so a block explorer's address
+  transaction list is not a discovery guarantee.
+- Addresses produced from readable bytes are **not provably unspendable**.
+  They could collide with a spendable address. Do not send assets to them.
+- A Mogwai clone delegates execution to its root. A malicious or mutable
+  implementation outside this audited template would change its trust model;
+  use explicit code/implementation checks at registration time.
+- Peer calls are synchronous, can revert, and could re-enter public
+  permissionless operations. No external authorization or accounting depends
+  on a peer's untrusted writer claim. Batch atomicity applies across peer calls.
+- ABI encoding, contract deployment and smart-contract calls happen inside
+  a user-initiated transaction. A contract does **not** originate independently
+  signed EOA transactions. Solidity cannot query historical events internally.
+- This code is **not audited**. It requires local compilation, tests, a
+  security review and chain-specific deployment verification before Chisel
+  enables it in the wallet workbench.
+
+### Chisel / testing
+
+`chisel.evm.mogwai.js` provides a static browser adapter
+`CHISEL_EVM_MOGWAI`: human-readable v1 ABI, `KINDS`, client-side
+`thunderwordAddress/decodeThunderword`, and `operation()/batch()` helpers
+using the existing ethers v6 `AbiCoder`. It deliberately has **no address,
+signer, deployment or transaction-send side effects**. Browser code may load it
+from IPFS alongside the current EVM workbench; registering an actual deployment
+must remain an explicit separate action after verification.
+
+`tests/mogwai-browser.test.mjs` checks browser encoding and input bounds.
+`tools/m64Artifact/test/Mogwai.ts` compiles the root Solidity with pinned
+`solc 0.8.30` and exercises multi-wallet dictionary isolation, log batches,
+rollback, peer provenance and deterministic factory clones in Hardhat's local
+EVM. The existing Hardhat CI job discovers this test, without deploying to a
+public chain.
+
+Local verification from the repository root:
+
+```sh
+node --test tests/mogwai-browser.test.mjs
+node --check chisel.evm.mogwai.js
+cd tools/m64Artifact && npm install && npm test
+```
