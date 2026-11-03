@@ -8,13 +8,11 @@ tools/m64Artifact/
 
 Open `tools/m64Artifact/index.html` for the staging workbench.
 
-## Toolchain note: no Hardhat
+## Toolchain note: no Hardhat requirement
 
-Hardhat is intentionally **not** part of the M64 Artifact toolchain. Do not add or look for a Hardhat project/configuration as a missing dependency.
+The preferred path is deliberately small and browser-oriented: use direct `solc`/`solc-js` when Solidity compilation is needed, vanilla JavaScript for artifact construction and EIP-1193 wallet/RPC interaction, and Chisel's transaction/crypto utilities where appropriate. The [EVM Contract Factory](evmFactory/index.html) deploys compiled Solidity artifacts from a static/IPFS page without a Hardhat or npm runtime.
 
-The preferred path is deliberately small and browser-oriented: use direct `solc`/`solc-js` when Solidity compilation is actually needed, use vanilla JavaScript for artifact construction and EIP-1193 wallet/RPC interaction, and reuse Chisel's transaction/crypto utilities where appropriate. Hardhat is optional ecosystem tooling, not part of the M64 protocol or runtime architecture.
-
-Keeping this boundary explicit avoids coupling M64 to Hardhat's larger dependency graph and keeps generated artifacts independent of a Node/Hardhat runtime.
+**Historical clarification:** a Hardhat 3 workspace was later added under `tools/m64Artifact/` for optional Solidity tests and development demos. It still exists, but is not a protocol requirement, compilation requirement, or deployment/runtime prerequisite. See [HARDHAT.md](m64Artifact/HARDHAT.md) only if you intentionally want that optional development environment. Generated artifacts remain independent of Node and Hardhat.
 
 It supports:
 
