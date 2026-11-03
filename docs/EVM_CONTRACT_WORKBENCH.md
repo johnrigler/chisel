@@ -297,7 +297,7 @@ cd tools/m64Artifact && npm install && npm test
 artifact and an injected EIP-1193 wallet. The page is vanilla JavaScript and
 can be served directly from static hosting or IPFS. Hardhat, npm, ethers, and
 a backend are not runtime requirements. It supports Solidity Standard JSON
-output from direct \`solc\` / \`solc-js\` compilation and previously compiled
+output from direct `solc` / `solc-js` compilation and previously compiled
 single-contract artifacts. Compilation itself happens outside this page.
 
 The workflow is **import → inspect exact creation bytecode + SHA-256 →
