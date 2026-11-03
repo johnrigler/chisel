@@ -1937,6 +1937,15 @@
     .portalStreamItem .portalStreamRow :is(.portalStreamTitle, .portalStreamTitle a, .portalStreamMetadata, .portalStreamMetadata a, .portalStreamTime, .portalStreamCoin, .portalStreamFinance, .portalStreamFinanceAmount, .portalStreamFinanceFee),
     .portalStreamItem .portalInlineDetails,
     .portalStreamItem .portalInlineDetails :is(.portalInlineHeader h4, .portalInlineHeader code, .portalInlineHeader .muted, .portalEvmMediaBody, .portalEvmMediaBody .muted, .portalTransactionQrInfo, .portalTransactionQrInfo code) { color: var(--publication-text); }
+    .portalViewingNowSummary { display:flex; align-items:center; gap:10px; min-width:0; cursor:pointer; list-style:none; font-size:13px; }
+    .portalViewingNowSummary::-webkit-details-marker { display:none; }
+    .portalViewingNowSummary::marker { content:""; }
+    .portalViewingNowSummary strong { flex:none; font-size:16px; }
+    .portalViewingNowLatest { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#b7c9dd; }
+    .portalViewingNowToggle { flex:none; font-size:11px; color:#b7d7ff; }
+    .portalViewingNowToggle::after { content:"EXPAND"; }
+    #portalInteractionDisclosure[open] .portalViewingNowToggle::after { content:"COLLAPSE"; }
+    .portalViewingNowExpanded { margin-top:12px; }
     .portalHistoryHeading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
     .portalHistoryHeading h3 { margin:0; font-size:17px; }
     .portalHistoryHeading .secondaryButton { margin-left:auto; font-size:11px; }
@@ -2403,20 +2412,28 @@
 
     <section class="modePanel" data-mode-panel="portal">
       <section id="portalViewingNow" class="panel portalViewingNow" aria-labelledby="portalViewingNowHeading" hidden>
-        <div class="portalHistoryHeading">
-          <h3 id="portalViewingNowHeading">Viewing now</h3>
-          <span id="portalInteractionStatus" class="muted" role="status">Loading history…</span>
-          <button id="portalInteractionRefresh" class="secondaryButton" type="button">REFRESH HISTORY</button>
-        </div>
-        <div id="portalInteractionHistory"></div>
-        <details class="portalHistorySettings">
-          <summary>History controls</summary>
-          <label class="inlineOption"><input id="portalInteractionEnabled" type="checkbox" checked> Log page visits, selections and engagements</label>
-          <div class="actions">
-            <button id="portalInteractionExport" class="secondaryButton" type="button">EXPORT LOADED HISTORY</button>
-            <button id="portalInteractionClear" class="secondaryButton" type="button">CLEAR LOCAL / UNSENT HISTORY</button>
+        <details id="portalInteractionDisclosure">
+          <summary class="portalViewingNowSummary">
+            <strong id="portalViewingNowHeading">Viewing now</strong>
+            <span id="portalInteractionLatest" class="portalViewingNowLatest" aria-live="polite">Loading recent activity…</span>
+            <span class="portalViewingNowToggle" aria-hidden="true"></span>
+          </summary>
+          <div class="portalViewingNowExpanded">
+            <div class="portalHistoryHeading">
+              <span id="portalInteractionStatus" class="muted" role="status">Loading history…</span>
+              <button id="portalInteractionRefresh" class="secondaryButton" type="button">REFRESH HISTORY</button>
+            </div>
+            <div id="portalInteractionHistory"></div>
+            <details class="portalHistorySettings">
+              <summary>History controls</summary>
+              <label class="inlineOption"><input id="portalInteractionEnabled" type="checkbox" checked> Log page visits, selections and engagements</label>
+              <div class="actions">
+                <button id="portalInteractionExport" class="secondaryButton" type="button">EXPORT LOADED HISTORY</button>
+                <button id="portalInteractionClear" class="secondaryButton" type="button">CLEAR LOCAL / UNSENT HISTORY</button>
+              </div>
+              <p class="muted">Shared on this FileProxy. Entries are dated and older entries remain. Clearing local history does not remove shared entries. Browser-only notes, key fields and keystrokes are excluded.</p>
+            </details>
           </div>
-          <p class="muted">Shared on this FileProxy. Entries are dated and older entries remain. Clearing local history does not remove shared entries. Browser-only notes, key fields and keystrokes are excluded.</p>
         </details>
       </section>
       <section id="portalRecordPage" class="panel portalRecordPage" hidden>
@@ -3027,7 +3044,7 @@
   <script src="chisel.portal.note-function.js?rev=20261101-history-v2828"></script>
   <script src="chisel.portal.record.js?rev=20261101-history-v2828"></script>
   <script src="chisel.interactions.js?rev=20261101-history-v2828"></script>
-  <script src="chisel.interactions.ui.js?rev=20261101-history-v2828b"></script>
+  <script src="chisel.interactions.ui.js?rev=20261103-viewing-summary-v2829"></script>
   <script src="chisel.portal.js?rev=20261101-history-v2828b"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261031-errors-v2817"></script>
