@@ -21,6 +21,11 @@ class Element {
     this.hidden = true;
   }
   addEventListener(name, callback) { this.handlers.set(name, callback); }
+  appendChild(child) {
+    this.children.push(child);
+    if (this.children.length === 1) this.value = child.value || "";
+    return child;
+  }
   replaceChildren(...children) {
     this.children = [...children];
     this.value = children[0]?.value || "";
