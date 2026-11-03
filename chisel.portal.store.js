@@ -93,6 +93,15 @@
     return "other";
   }
 
+  // A FileProxy/static copy (even one claiming a block height) is not proof.
+  // Only a successful ledger provider read or a byte-matched publication receipt
+  // can turn the record black. This is display state, not an on-chain field.
+  function ledgerDisplayState(row) {
+    if (!row || row.draftRecord) return "";
+    if (row.publication) return row.publication.ledgerState === "seen" ? "seen" : "awaiting-ledger";
+    return row.ledgerObserved === true ? "seen" : "awaiting-ledger";
+  }
+
   function normalizeUnixTime(value) {
     if (value === undefined || value === null || value === "") return 0;
     let n = Number(value);
@@ -224,6 +233,9 @@
       row.summary = mergeSummary(readRecentPortalSummaries().get(key), row.summary);
       const existing = records.portalRowKeys[key];
       const publicationUpdate = !!(opts && opts.publicationUpdate);
+      // Never trust a cached record's ledgerObserved claim. The Portal must
+      // pass this option only after it has actually queried a ledger provider.
+      const ledgerObserved = !!(existing && existing.ledgerObserved) || !!(opts && opts.ledgerObserved === true);
       const previousRowTime = existing ? extractBlockTime(existing) : 0;
       const incomingRowTime = extractBlockTime(row);
       const merged = existing ? Object.assign(existing, row, {
@@ -241,8 +253,9 @@
         staticRemoteBaseUrls: row.staticRemoteBaseUrls || existing.staticRemoteBaseUrls,
         staticSource: row.staticSource || existing.staticSource,
         sourceId: row.sourceId || existing.sourceId,
-        discoverySource: publicationUpdate ? existing.discoverySource || row.discoverySource : row.discoverySource || existing.discoverySource
-      }) : Object.assign({}, row, { key: key });
+        discoverySource: publicationUpdate ? existing.discoverySource || row.discoverySource : row.discoverySource || existing.discoverySource,
+        ledgerObserved: ledgerObserved
+      }) : Object.assign({}, row, { key: key, ledgerObserved: ledgerObserved });
 
       // Locally reviewed media is display data. Retain it as normal discovery
       // replaces this same chain/TXID row, without letting a cache mark it seen.
@@ -279,6 +292,7 @@
     tickerForCoin: tickerForCoin,
     canonicalCoinForRow: canonicalCoinForRow,
     sourceIdForRow: sourceIdForRow,
+    ledgerDisplayState: ledgerDisplayState,
     rowKey: rowKey,
     normalizeUnixTime: normalizeUnixTime,
     createStore: createStore
