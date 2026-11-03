@@ -378,6 +378,30 @@ test("an unrelated history update preserves mounted rows, an open editor, caret,
   assert.match(neighbor.textContent, /Updated neighbor/); assert.equal(row.annotationDraft.dirty, true);
 });
 
+test("unverified saved rows are navy; ledger-observed rows become black without replacing the row", () => {
+  const f = streamFixture(), list = f.nodes.get("portalTransactionList");
+  const row = f.portal.state.portalRows[0], item = list.children[0];
+  assert.equal(row.ledgerObserved, undefined);
+  assert.equal(item.classList.contains("isAwaitingLedger"), true);
+  assert.equal(item.dataset.ledgerState, "awaiting-ledger");
+  assert.match(item.getAttribute("aria-label"), /not yet confirmed/);
+  row.ledgerObserved = true; // the store/ledger adapter tests cover who may establish this flag
+  refreshStream(f);
+  assert.equal(list.children[0], item);
+  assert.equal(item.classList.contains("isAwaitingLedger"), false);
+  assert.equal(item.classList.contains("isLedgerSeen"), true);
+  assert.equal(item.dataset.ledgerState, "seen");
+});
+
+test("direct record pages use the same navy-to-black ledger display rule", async () => {
+  const f = fixture(), row = addRow(f), page = f.nodes.get("portalRecordPage");
+  await f.portal.openRecord(row.key);
+  assert.equal(page.classList.contains("isAwaitingLedger"), true);
+  row.ledgerObserved = true;
+  await f.portal.openRecord(row.key);
+  assert.equal(page.classList.contains("isAwaitingLedger"), false);
+});
+
 test("a changed transaction updates its own date, ledger state and amounts without replacing its editor", async () => {
   const f = streamFixture(), list = f.nodes.get("portalTransactionList"), row = f.portal.state.portalRows[0], item = list.children[0];
   row.publication = {ledgerState: "awaiting", submittedAt: 1700000001, summary: {}, metadata: {}}; refreshStream(f);
