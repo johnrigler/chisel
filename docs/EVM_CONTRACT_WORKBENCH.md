@@ -103,6 +103,61 @@ Edits to either payload field, a provider selection, wallet account, or chain
 invalidate the reviewed calldata. A changed code hash also blocks sending.
 Submissions cannot replay the same review through Chisel.
 
+## Proposed Jethro v2: permissionless address-scoped dictionary (next implementation)
+
+**Status: design plus [draft Solidity](../contracts/JethroV2.sol), NOT deployed or connected to the Chisel writer.** The deployed legacy Jethro at
+`0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0` has a bundled
+`mapArtifact(string,string)` ABI, but its verified source/upgradeability is
+not established here. Editing local Solidity does **not** change that
+deployed contract. A newly deployed instance, verified ABI/source, and
+an explicit Chisel deployment registration are required before use.
+
+Jethro's central behavior is dictionary lookup, distinct from Gomez's
+`tell(...)` message path. The next Jethro implementation should act like
+a database with a composite unique key **(EVM writer address, artifact key)**:
+
+- **Permissionless write:** Every caller may submit `mapArtifact(artifact, body)`.
+  The contract uses `msg.sender` to select the namespace, not a caller-supplied
+  address or a user-declared identity. No global owner-only write gate.
+- **Isolated lookup:** `getArtifact(writer, artifact)` returns the latest body
+  and a revision number. Two different wallets can use the same artifact key
+  without overwriting each other. A writer may update only its own current
+  value. `revision == 0` distinguishes an absent entry from an empty body.
+- **Canonical creator view:** `creator` records the deploying account.
+  Chisel can show `getArtifact(creator, artifact)` as the creator's canonical
+  entry while presenting other writers' namespaces as contributions.
+  This is a **UI convention**, not a claim that contributor entries are untrusted
+  or that the creator may alter them. If a factory deploys the contract,
+  the factory itself becomes `creator`; a factory-aware variant would need
+  an explicitly authenticated constructor value.
+- **Address identity:** Use the EVM address directly as the first mapping key.
+  Solidity hashes the artifact string to `bytes32` internally for the second
+  mapping key. Hashing the writer address separately is unnecessary; the chain
+  authenticates the caller as `msg.sender`. A contract wallet writes under
+  its contract address, not the externally owned signer behind it.
+- **Write history:** Each update emits
+  `ArtifactMapped(writer, artifactKeyHash, revision, artifact, body)`.
+  Lookup provides the current value, while ordered transaction receipts/logs
+  preserve all successful writes. The event includes the body to permit
+  historical reconstruction without relying on mutable storage or a
+  particular address-history API.
+- **Compatibility boundary:** The draft retains the existing
+  `mapArtifact(string,string)` selector, but legacy and v2 deployments are
+  separate implementations. Do not silently redirect the current Chisel
+  workbench to v2; register a new deployment/interface and verify chain ID,
+  bytecode, permissions, source, reads, and events first.
+
+The [draft Solidity](../contracts/JethroV2.sol) implements these semantics
+without modifying the separate `M64Dictionary` contract. Event history is
+append-only, **not** the current mapping value, which is deliberately
+replaceable by its own writer. Storage and duplicate event data cost gas.
+
+**Before deploying:** Compile and test with at least two wallets writing the
+same artifact key, attempts to overwrite the creator's namespace, multiple
+revisions by one writer, empty bodies, absence detection, event-based history,
+and factory/contract-wallet authorship. The draft has not been compiled,
+audited, or deployed as part of this design update.
+
 ## Scope and limitations
 
 - Writes are explicitly allowlisted to Gomez `tell(...)` and Jethro
