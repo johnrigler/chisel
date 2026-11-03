@@ -172,6 +172,7 @@
   const canonicalCoinForRow = storeApi.canonicalCoinForRow;
   const sourceIdForRow = storeApi.sourceIdForRow;
   const rowKey = storeApi.rowKey;
+  const ledgerDisplayState = storeApi.ledgerDisplayState;
   const normalizeUnixTime = storeApi.normalizeUnixTime;
   const transactionStore = storeApi.createStore({
     records: state,
@@ -4503,7 +4504,7 @@
 
   function portalDisplayStamp(row) {
     return JSON.stringify([row.raw, row.summary, row.publication, row.index, row.localPath,
-      row.rawSourceUrl, row.blockTime, row.confirmed, row.loadError, row.dateLookupError,
+      row.rawSourceUrl, row.blockTime, row.confirmed, row.ledgerObserved, row.loadError, row.dateLookupError,
       getPortalAnnotation(row), state.personalAccount, !!state.pendingHydration[row.key],
       !!state.pendingDateLookup[row.key], !!state.attemptedFinanceLookup[row.key],
       rowExplorerUrl(row), portalRecordUrl(row),
@@ -4933,7 +4934,14 @@
       row.localPath = loaded.path || row.localPath;
       row.summary = mergePortalSummary(row.summary, extractSummary(loaded.json, rowIndexEntry(row)));
       row.blockTime = row.summary.blockTime || row.blockTime || 0;
-      upsertPortalRow(row, { silent: true, deferSort: !!(opts && opts.deferSort) });
+      // Local JSON may contain reported confirmations, but only a direct
+      // ledger provider response can establish this display transition.
+      const liveTx = loaded.source === "live" && extractTxid(loaded.json).toLowerCase() === String(row.txid).toLowerCase();
+      const tx = loaded.json && (loaded.json.tx || loaded.json) || {};
+      const confirmed = !!(tx.status && tx.status.confirmed === true || tx.confirmed === true ||
+        Number(tx.confirmations) > 0 || Number(tx.block_height || tx.blockHeight) > 0);
+      upsertPortalRow(row, { silent: true, deferSort: !!(opts && opts.deferSort),
+        ledgerObserved: liveTx && confirmed });
       if (loaded.cachePromise) {
         loaded.cachePromise.then(function (saved) {
           if (saved && state.portalRowKeys[key] === row) row.localPath = saved.path || row.localPath;
@@ -5022,16 +5030,17 @@
     const isPersonal = personalAccountMatchesRow(row);
     const recordBehavior = portalRecordBehaviorForRow(row);
     const item = opts.item || document.createElement("div");
+    const ledgerState = ledgerDisplayState(row);
     item.className = "portalStreamItem" +
       (expanded ? " isExpanded" : "") +
-      (row.publication ? (row.publication.ledgerState === "seen" ? " isLedgerSeen" : " isAwaitingLedger") : "") +
+      (ledgerState === "seen" ? " isLedgerSeen" : ledgerState === "awaiting-ledger" ? " isAwaitingLedger" : "") +
       (isPersonal ? " isPersonal" : "") +
       (recordBehavior ? " hasInterpretedRecord behavior-" + recordBehavior.behavior.id : "");
     item.dataset.key = row.key;
-    if (row.publication) {
-      item.dataset.ledgerState = row.publication.ledgerState;
-      item.setAttribute("aria-label", row.publication.ledgerState === "seen"
-        ? "Transaction observed by ledger" : "Transaction awaiting ledger read");
+    if (ledgerState) {
+      item.dataset.ledgerState = ledgerState;
+      item.setAttribute("aria-label", ledgerState === "seen"
+        ? "Transaction confirmed by ledger read" : "Saved transaction; not yet confirmed by ledger read");
     } else {
       delete item.dataset.ledgerState;
       item.removeAttribute("aria-label");
@@ -6077,7 +6086,8 @@
           receivedTime: tx.receivedTime,
           streamLabel: result.index.label || result.index.address,
           discoverySource: "live-search"
-        }, { silent: true });
+        }, { silent: true, ledgerObserved: tx.confirmed === true ||
+          (tx.confirmed !== false && Number(tx.blockHeight) > 0) });
       });
     } finally {
       endPortalBatch();
