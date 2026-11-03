@@ -74,7 +74,11 @@
       invalidate();
       const token = revision;
       const input = params || {};
-      const call = registry.buildCall(ethersLib, input.deploymentId, "mapArtifact", [input.artifact, input.body]);
+      // Preserve the original Jethro caller shape while supporting explicit
+      // ABI-function and positional argument sets for additional contracts.
+      const functionName = input.functionName || (input.deploymentId === "jethro.polygon.137" ? "mapArtifact" : "");
+      const args = Array.isArray(input.args) ? input.args : [input.artifact, input.body];
+      const call = registry.buildCall(ethersLib, input.deploymentId, functionName, args);
       const from = await accountFromWallet(provider);
       await requireChain(provider, call.chainId);
       const codeHash = deployedCode(await provider.request({method: "eth_getCode", params: [call.to, "latest"]}), ethersLib);
