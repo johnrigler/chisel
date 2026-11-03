@@ -40,6 +40,33 @@ for (const scenario of fixture.scenarios) {
   });
 }
 
+test("FileProxy records remain navy until an actual ledger read confirms them", () => {
+  const store = createStore();
+  const initial = store.upsert({coin: "litecoin", txid, discoverySource: "fileProxy",
+    confirmed: true, ledgerObserved: true, summary: {title: "Cached from FileProxy"}});
+  assert.equal(S.ledgerDisplayState(initial), "awaiting-ledger");
+  assert.equal(initial.ledgerObserved, undefined, "off-chain data cannot claim ledger verification");
+  const confirmed = store.upsert({coin: "litecoin", txid, discoverySource: "live-search",
+    confirmed: true}, {ledgerObserved: true});
+  assert.equal(confirmed, initial, "keep the original row and notes mounted");
+  assert.equal(S.ledgerDisplayState(confirmed), "seen");
+  store.upsert({coin: "litecoin", txid, discoverySource: "fileProxy", summary: {title: "Refreshed cache"}});
+  assert.equal(S.ledgerDisplayState(initial), "seen", "subsequent cache updates cannot remove actual ledger evidence");
+  initial.publication = {ledgerState: "awaiting-ledger", summary: {}};
+  assert.equal(S.ledgerDisplayState(initial), "awaiting-ledger", "an unverified publication still requires byte matching");
+  initial.publication.ledgerState = "seen";
+  assert.equal(S.ledgerDisplayState(initial), "seen");
+});
+
+test("an ordinary cached row without publication has no ledger-authoritative color", () => {
+  const store = createStore();
+  const pending = store.upsert({coin: "litecoin", txid, discoverySource: "fileProxy",
+    summary: {title: "Stored copy", blockHeight: 1000}, confirmed: true});
+  assert.equal(S.ledgerDisplayState(pending), "awaiting-ledger");
+  assert.equal(S.ledgerDisplayState({draftRecord: {}}), "");
+  assert.equal(pending.ledgerObserved, undefined);
+});
+
 test("the public state object remains writable and the store resets only its record fields", () => {
   const expanded = {["litecoin:" + txid]: true};
   const records = {portalRows: [], portalRowKeys: Object.create(null),
