@@ -288,3 +288,27 @@ node --test tests/mogwai-browser.test.mjs
 node --check chisel.evm.mogwai.js
 cd tools/m64Artifact && npm install && npm test
 ```
+
+
+## Browser-native compiled-contract factory (2026-11-03)
+
+[Open the EVM Contract Factory](../tools/evmFactory/index.html) to deploy a
+**new** zero-constructor-argument contract using a compiled Solidity JSON
+artifact and an injected EIP-1193 wallet. The page is vanilla JavaScript and
+can be served directly from static hosting or IPFS. Hardhat, npm, ethers, and
+a backend are not runtime requirements. It supports Solidity Standard JSON
+output from direct \`solc\` / \`solc-js\` compilation and previously compiled
+single-contract artifacts. Compilation itself happens outside this page.
+
+The workflow is **import → inspect exact creation bytecode + SHA-256 →
+select expected chain + wallet → estimate gas and review → explicitly deploy
+→ inspect receipt and runtime code**. Chain ID, account, and gas are rechecked
+before wallet submission. No existing Gomez or Jethro deployment is replaced,
+and no new deployment is registered in Chisel automatically.
+
+For compiler input examples, unsupported constructor/linking cases, runtime
+comparison caveats, and testing, see
+[factory README](../tools/evmFactory/README.md). Hardhat remains an optional
+M64 development/test workspace, not a requirement for this deployment path.
+The new Mogwai source remains undeployed until a separately verified live
+deployment is completed.
