@@ -356,8 +356,9 @@
     "use strict";
 
     const ETHERSCAN_V2 = "https://api.etherscan.io/v2/api";
-    const GOMEZ = "0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2";
-    const JETHRO = "0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0";
+    const registry = window.CHISEL_EVM_CONTRACTS;
+    const GOMEZ = registry.deployments["gomez.polygon.137"].address;
+    const JETHRO = registry.deployments["jethro.polygon.137"].address;
     const EVM_THUNDERWORD = "0x1111111111111111111111111111111111111111";
 
     const CONTRACT_PROFILES = {
@@ -365,21 +366,23 @@
             key: "gomez",
             label: "Gomez",
             name: "gomez",
-            chainId: "137",
+            chainId: String(registry.deployments["gomez.polygon.137"].chainId),
             address: GOMEZ
         },
         jethro: {
             key: "jethro",
             label: "Jethro",
             name: "jethro",
-            chainId: "137",
+            chainId: String(registry.deployments["jethro.polygon.137"].chainId),
             address: JETHRO
         }
     };
 
+    // Both the legacy decoder and new writer consume the same interface
+    // definitions, independent of the Solidity implementation or deployment.
     const EVM_ABI = [
-        "function tell(string message,address receiver1,uint256 amount1,address receiver2,uint256 amount2,address receiver3,uint256 amount3,address receiver4,uint256 amount4)",
-        "function mapArtifact(string artifact,string body)"
+        ...registry.interfaces["gomez.tell.v1"].abi,
+        ...registry.interfaces["jethro.mapArtifact.v1"].abi
     ];
 
     const evmIface = new ethers.Interface(EVM_ABI);
