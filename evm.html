@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chisel EVM / Gomez + Jethro Etherscan v2 Reader</title>
+<title>Chisel EVM Workbench · Gomez + Jethro</title>
 <style>
     :root {
         --bg: #101214;
@@ -192,6 +192,9 @@
         border: 0;
         display: block;
     }
+    .jethroWriteFields textarea { min-height: 96px; }
+    .jethroWriteFields .payloadBox { max-height: 360px; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
     @media (max-width: 820px) {
         .grid, .row { grid-template-columns: 1fr; }
     }
@@ -199,7 +202,7 @@
 </head>
 <body>
 <header>
-    <h1>Chisel EVM / Gomez + Jethro Reader</h1>
+    <h1>Chisel EVM Workbench · Gomez + Jethro</h1>
     <p>Static Etherscan v2 account fetcher for Polygon. Checks saved split archives, starts after the newest local block, and writes new EVM transactions into persistent Chisel data.</p>
 </header>
 <main>
@@ -272,6 +275,40 @@
         <div class="profileStatus" id="profileStatus"></div>
     </section>
 
+    <section class="panel jethroWriteFields" id="jethroWriteWorkbench">
+        <h2>Jethro · Write Contract</h2>
+        <p>Write to the known Jethro deployment on Polygon mainnet. The ABI describes the call, while the deployment identifies the contract address. This interface is bundled with Chisel; the deployed Solidity implementation has not been independently verified by this page. <a id="jethroContractLink">Inspect contract on PolygonScan</a>.</p>
+        <div class="grid">
+            <div>
+                <label for="jethroInterface">Interface (ABI)</label>
+                <input id="jethroInterface" readonly>
+                <label for="jethroDeployment">Deployment (chain and contract)</label>
+                <input id="jethroDeployment" readonly>
+            </div>
+            <div>
+                <label for="jethroWallet">Injected wallet</label>
+                <select id="jethroWallet"><option value="">Detecting wallet...</option></select>
+                <button id="jethroRefreshWalletsBtn" type="button">Refresh wallets</button>
+                <button id="jethroConnectBtn" type="button">Connect wallet</button>
+                <button id="jethroSwitchChainBtn" type="button">Switch to Polygon</button>
+                <p class="status" id="jethroWalletStatus">Wallet not connected. Etherscan API key is not used for signing.</p>
+            </div>
+        </div>
+        <label for="jethroArtifact">mapArtifact · artifact (string)</label>
+        <textarea id="jethroArtifact" spellcheck="false" placeholder="Artifact identifier or text"></textarea>
+        <label for="jethroBody">mapArtifact · body (string)</label>
+        <textarea id="jethroBody" spellcheck="false" placeholder="Artifact body, exactly as it should appear in calldata"></textarea>
+        <div>
+            <button id="jethroReviewBtn" class="primary" type="button">Review and simulate</button>
+            <button id="jethroSendBtn" class="primary" type="button" disabled>Send via wallet</button>
+            <button id="jethroReceiptBtn" type="button" disabled>Check receipt</button>
+        </div>
+        <label for="jethroReview">Transaction review (read-only, generated calldata)</label>
+        <pre class="payloadBox mono" id="jethroReview">No reviewed calldata.</pre>
+        <p class="status" id="jethroWriteStatus" role="status">Select a wallet, enter an artifact and body, then review. Nothing is sent without a separate wallet approval.</p>
+        <p><a id="jethroTxLink" hidden target="_blank" rel="noopener noreferrer"></a></p>
+    </section>
+
     <section class="panel">
         <h2>Legacy Gomez image recovery</h2>
         <p>Imports the old easyBase Gomez image files named <span class="mono">137_block_pos</span> into the persistent Chisel data catalog. This preserves the quirky C2/C3 repair path, but stores the result as normal image assets from then on.</p>
@@ -311,6 +348,9 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.16.0/dist/ethers.umd.min.js"></script>
+<script src="chisel.evm.contracts.js?rev=20261103-jethro-v1"></script>
+<script src="chisel.evm.write.js?rev=20261103-jethro-v1"></script>
+<script src="chisel.evm.write.ui.js?rev=20261103-jethro-v1"></script>
 <script>
 (function () {
     "use strict";
