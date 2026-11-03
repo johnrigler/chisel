@@ -20,8 +20,9 @@ if (!artifact) throw new Error("Mogwai was not compiled");
 const { ethers } = await network.create();
 const fmt = ethers.encodeBytes32String("TEXT");
 
-async function deploy(signer = (await ethers.getSigners())[0]) {
-  const factory = new ethers.ContractFactory(artifact.abi, artifact.evm.bytecode.object, signer);
+async function deploy(signer?: (Awaited<ReturnType<typeof ethers.getSigners>>)[number]) {
+  const deployer = signer ?? (await ethers.getSigners())[0];
+  const factory = new ethers.ContractFactory(artifact.abi, artifact.evm.bytecode.object, deployer);
   const instance = await factory.deploy();
   await instance.waitForDeployment();
   return instance;
