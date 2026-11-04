@@ -190,7 +190,7 @@ contract Mogwai {
             if (c < 0x20 || c > 0x7e) revert InvalidThunderword();
             packed = (packed << 8) | uint160(c);
         }
-        return address(packed << (8 * (20 - raw.length)));
+        return address(uint160(uint256(packed) << (8 * (20 - raw.length))));
     }
 
     function decodeThunderword(address subject) external pure returns (string memory) {
