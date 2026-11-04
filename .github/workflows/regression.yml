@@ -126,13 +126,13 @@ jobs:
         run: npm run compile:standalone
 
       - name: Compile reusable Chisel artifact with pinned standalone solc
-        run: SOLC=./node_modules/.bin/solcjs python3 ../../contracts/build-chisel.py
+        run: SOLC=./node_modules/.bin/solcjs python3 ../../Solidity/build-chisel.py
 
       - name: Upload compiled Chisel ABI and creation bytecode
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: chisel-evm-deployment-artifact
-          path: contracts/compiled/Chisel.json
+          path: Solidity/compiled/Chisel.json
 
       - name: Run Hardhat contract tests
         run: npm test
@@ -152,7 +152,7 @@ jobs:
 
       - name: Verify exact deployment bytecode across compiler paths
         run: |
-          node -e "const fs=require('fs');const h=JSON.parse(fs.readFileSync('artifacts/contracts/M64Dictionary.sol/M64Dictionary.json'));const s=JSON.parse(fs.readFileSync('.standalone-artifacts/M64Dictionary.json'));const c=JSON.parse(fs.readFileSync('contracts/M64Dictionary.compiled.json'));if(h.bytecode!==s.bytecode)throw Error('Hardhat and standalone solc creation bytecode differ');if(h.bytecode!==c.bytecode)throw Error('captured browser deployment bytecode is stale');if(h.deployedBytecode!==s.deployedBytecode)throw Error('Hardhat and standalone solc runtime bytecode differ')"
+          node -e "const fs=require('fs');const h=JSON.parse(fs.readFileSync('artifacts/contracts/M64Dictionary.sol/M64Dictionary.json'));const s=JSON.parse(fs.readFileSync('.standalone-artifacts/M64Dictionary.json'));const c=JSON.parse(fs.readFileSync('../../Solidity/compiled/M64Dictionary.json'));if(h.bytecode!==s.bytecode)throw Error('Hardhat and standalone solc creation bytecode differ');if(h.bytecode!==c.bytecode)throw Error('captured browser deployment bytecode is stale');if(h.deployedBytecode!==s.deployedBytecode)throw Error('Hardhat and standalone solc runtime bytecode differ')"
 
   publish-chisel:
     # The write token is available only after trusted main-branch CI succeeds.
@@ -177,8 +177,8 @@ jobs:
           python3 - <<'PY'
           import hashlib, json
           from pathlib import Path
-          source = Path("contracts/Chisel.sol").read_bytes()
-          artifact = json.loads(Path("contracts/compiled/Chisel.json").read_text())
+          source = Path("Solidity/Chisel.sol").read_bytes()
+          artifact = json.loads(Path("Solidity/compiled/Chisel.json").read_text())
           assert artifact["sourceSha256"] == hashlib.sha256(source).hexdigest()
           assert artifact["bytecodeSha256"] == hashlib.sha256(bytes.fromhex(artifact["bytecode"][2:])).hexdigest()
           assert artifact["contractName"] == "Chisel"
@@ -188,7 +188,7 @@ jobs:
 
       - name: Commit compiled Chisel artifact to main if changed
         run: |
-          git add contracts/compiled/Chisel.json
+          git add Solidity/compiled/Chisel.json
           if git diff --cached --quiet; then
             echo "Chisel artifact already matches tracked version."
             exit 0

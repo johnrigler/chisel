@@ -34,17 +34,19 @@ Run this from the repository root with Python 3 and a native `solc` supporting
 `^0.8.24`:
 
 ```sh
-python3 contracts/build-chisel.py
-git add contracts/compiled/Chisel.json
+python3 Solidity/build-chisel.py
+git add Solidity/compiled/Chisel.json
 git commit -m "Compile Chisel deployment artifact"
 ```
 
-The script compiles `contracts/Chisel.sol:Chisel` using Solidity Standard JSON
+The script compiles `Solidity/Chisel.sol:Chisel` using Solidity Standard JSON
 and writes exactly one reusable file:
 
-`contracts/compiled/Chisel.json`
+`Solidity/compiled/Chisel.json`
 
-On a successful trusted `main` build, GitHub Actions also compiles the same\nartifact with the pinned `solc` 0.8.30 dependency and commits the generated\nJSON to `main` (when changed). Pull again if CI has just updated the artifact.\n\nIt contains the ABI, creation bytecode, compiled runtime, Solidity compiler
+On a successful trusted `main` build, GitHub Actions also compiles the same 
+artifact with the pinned `solc` 0.8.30 dependency and commits the generated 
+JSON to `main` (when changed). Pull again if CI has just updated the artifact.\n\nIt contains the ABI, creation bytecode, compiled runtime, Solidity compiler
 version, explicit optimizer and EVM target, and SHA-256 digests of the source
 and creation bytecode. Compilation is not performed by the browser. The
 `solc --bin --abi` console headings are not included in this JSON.
@@ -53,7 +55,7 @@ To verify that the committed artifact matches the current source and local
 compiler settings:
 
 ```sh
-python3 contracts/build-chisel.py --check
+python3 Solidity/build-chisel.py --check
 ```
 
 `solc` defaults to the executable on `PATH`; set `SOLC=/path/to/solc` to
@@ -84,7 +86,7 @@ M64 Dictionary.
 ### Existing M64 dictionary
 
 Click **Load bundled M64 Dictionary** to review the previously compiled
-artifact at `../m64Artifact/contracts/M64Dictionary.compiled.json`. Its
+artifact at `../../Solidity/compiled/M64Dictionary.json`. Its
 existing browser deployment page remains available. This factory doesn't
 compile or regenerate M64, and selecting it does not deploy anything.
 
