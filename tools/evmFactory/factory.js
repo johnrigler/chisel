@@ -46,6 +46,8 @@
           source.deployedBytecode || (source.evm && source.evm.deployedBytecode), false),
         constructorInputs,
         declaredCreationSha256: typeof source.bytecodeSha256 === "string" ? source.bytecodeSha256.toLowerCase() : null,
+        declaredSourceSha256: typeof source.sourceSha256 === "string" ? source.sourceSha256.toLowerCase() : null,
+        evmVersion: source.settings && source.settings.evmVersion || null,
         compiler: typeof input.compiler === "string" ? input.compiler :
           (input.compiler && input.compiler.version) || null
       }));
