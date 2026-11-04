@@ -125,6 +125,15 @@ jobs:
       - name: Compile with standalone solc Standard JSON
         run: npm run compile:standalone
 
+      - name: Compile reusable Chisel artifact with pinned standalone solc
+        run: SOLC=./node_modules/.bin/solcjs python3 ../../contracts/build-chisel.py
+
+      - name: Upload compiled Chisel ABI and creation bytecode
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: chisel-evm-deployment-artifact
+          path: contracts/compiled/Chisel.json
+
       - name: Run Hardhat contract tests
         run: npm test
 
