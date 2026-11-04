@@ -44,7 +44,7 @@ and writes exactly one reusable file:
 
 `contracts/compiled/Chisel.json`
 
-It contains the ABI, creation bytecode, compiled runtime, Solidity compiler
+On a successful trusted `main` build, GitHub Actions also compiles the same\nartifact with the pinned `solc` 0.8.30 dependency and commits the generated\nJSON to `main` (when changed). Pull again if CI has just updated the artifact.\n\nIt contains the ABI, creation bytecode, compiled runtime, Solidity compiler
 version, explicit optimizer and EVM target, and SHA-256 digests of the source
 and creation bytecode. Compilation is not performed by the browser. The
 `solc --bin --abi` console headings are not included in this JSON.
