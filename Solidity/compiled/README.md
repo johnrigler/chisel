@@ -9,10 +9,13 @@ a relative path, and the connected browser wallet signs the deployment
 transaction on the selected EVM chain.
 
 There is intentionally **no placeholder bytecode** in this directory.
-Do not mistake historical `contracts/Mogwai.bin` or `Mogwai.txt` for
+Do not mistake historical `Solidity/archive/Mogwai.bin` or `Mogwai.txt` for
 the current Chisel contract. No keys or deployment addresses belong here.
 
-After successful main-branch CI, the publish job automatically commits the\ncompiled `Chisel.json` from its pinned Solidity compiler. This is a public\ndeployment artifact; it contains no wallet secrets or private keys.\n
+After successful main-branch CI, the publish job automatically commits the 
+compiled `Chisel.json` from its pinned Solidity compiler. This is a public 
+deployment artifact; it contains no wallet secrets or private keys. 
+
 The M64 vocabulary source is `../M64Dictionary.sol`, with its compiled
 manifest `M64Dictionary.json` and ABI `M64Dictionary.abi.json` alongside
 `Chisel.json`. Both contracts can be loaded from the EVM Contract Factory.
