@@ -2,7 +2,7 @@
 """Compile Solidity/Chisel.sol into a reusable EVM JSON deployment artifact.
 
 Requires native solc >=0.8.24 and Python 3 standard library only.
-Run from anywhere: python3 contracts/build-chisel.py
+Run from anywhere: python3 Solidity/build-chisel.py
 Generated Solidity/compiled/Chisel.json is meant to be committed to git.
 """
 import hashlib
@@ -99,7 +99,7 @@ def main():
         print("Artifact matches:", DEST.relative_to(ROOT))
         return
     if len(sys.argv) > 1:
-        raise SystemExit("Usage: python3 contracts/build-chisel.py [--check]")
+        raise SystemExit("Usage: python3 Solidity/build-chisel.py [--check]")
     DEST.parent.mkdir(parents=True, exist_ok=True)
     DEST.write_bytes(payload)
     print("Compiled", SOURCE_NAME + ":" + CONTRACT_NAME)
