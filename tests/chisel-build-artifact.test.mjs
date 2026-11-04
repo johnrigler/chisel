@@ -7,7 +7,7 @@ import {spawnSync} from "node:child_process";
 import {createHash, webcrypto} from "node:crypto";
 import vm from "node:vm";
 
-const SCRIPT = readFileSync(new URL("../contracts/build-chisel.py", import.meta.url), "utf8");
+const SCRIPT = readFileSync(new URL("../Solidity/build-chisel.py", import.meta.url), "utf8");
 const INDEX = readFileSync(new URL("../tools/evmFactory/index.html", import.meta.url), "utf8");
 const APP = readFileSync(new URL("../tools/evmFactory/app.js", import.meta.url), "utf8");
 const FACTORY = readFileSync(new URL("../tools/evmFactory/factory.js", import.meta.url), "utf8");
@@ -23,7 +23,7 @@ test("the contract factory can load the canonical Chisel artifact from the repos
 test("native solc build writes a deterministic, checked, cross-chain artifact", () => {
   const root = mkdtempSync(join(tmpdir(), "chisel-compiler-"));
   try {
-    const dir = join(root, "contracts");
+    const dir = join(root, "Solidity");
     mkdirSync(dir);
     const src = join(dir, "Chisel.sol");
     const builder = join(dir, "build-chisel.py");
@@ -38,10 +38,10 @@ if "--version" in sys.argv:
     sys.exit(0)
 request = json.load(sys.stdin)
 assert request["language"] == "Solidity"
-assert "contracts/Chisel.sol" in request["sources"]
+assert "Solidity/Chisel.sol" in request["sources"]
 assert request["settings"]["evmVersion"] == "paris"
 assert request["settings"]["metadata"]["appendCBOR"] == False
-print(json.dumps({"contracts":{"contracts/Chisel.sol":{"Chisel":{
+print(json.dumps({"Solidity":{"Solidity/Chisel.sol":{"Chisel":{
     "abi":[{"type":"constructor","inputs":[]}],
     "evm":{"bytecode":{"object":"60006000"},"deployedBytecode":{"object":"6000"}}
 }}}}))
@@ -55,7 +55,7 @@ print(json.dumps({"contracts":{"contracts/Chisel.sol":{"Chisel":{
     const file = join(dir,"compiled","Chisel.json");
     const artifact = JSON.parse(readFileSync(file, "utf8"));
     assert.equal(artifact.contractName,"Chisel");
-    assert.equal(artifact.sourceName,"contracts/Chisel.sol");
+    assert.equal(artifact.sourceName,"Solidity/Chisel.sol");
     assert.equal(artifact.compiler,"solc, version 0.8.30");
     assert.equal(artifact.bytecode,"0x60006000");
     assert.equal(artifact.deployedBytecode,"0x6000");
@@ -80,7 +80,7 @@ test("the existing deployment engine accepts that manifest and preserves chain s
   const sample = {
     compiler:"solc, version 0.8.30",
     contractName:"Chisel",
-    sourceName:"contracts/Chisel.sol",
+    sourceName:"Solidity/Chisel.sol",
     sourceSha256:"a".repeat(64),
     settings:{evmVersion:"paris"},
     abi:[{type:"constructor",inputs:[]}],
