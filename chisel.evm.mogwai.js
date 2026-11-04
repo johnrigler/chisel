@@ -1,34 +1,30 @@
 (function (root) {
   "use strict";
-  // Draft-only client adapter. No deployment is assumed or enabled for writes.
-  // Works from a static file/IPFS page with an injected ethers v6 object.
-  const KINDS = Object.freeze({ ARTIFACT: 1, LOG: 2, THUNDERWORD: 3, PEER: 4 });
+  // Static/IPFS-friendly Mogwai V3 client. This module does not connect or
+  // send transactions. Review encoded calldata and native value in Chisel.
   const ABI = Object.freeze([
     "function creator() view returns (address)",
-    "function implementation() view returns (address)",
-    "function mogwaiProtocol() pure returns (bytes32)",
     "function mapArtifact(string artifact,string body)",
     "function getArtifact(address writer,string artifact) view returns (string body,uint64 revision)",
     "function logRecord(bytes32 format,bytes data)",
-    "function publishThunderword(address subject,bytes32 format,bytes data)",
-    "function publishThunderwordText(string text,bytes32 format,bytes data)",
-    "function thunderwordAddress(string text) pure returns (address)",
-    "function decodeThunderword(address subject) pure returns (string)",
-    "function thunderwordCount(address subject) view returns (uint64)",
-    "function writerSequence(address writer) view returns (uint64)",
-    "function sendToPeer(address peer,bytes32 format,bytes data)",
-    "function receiveFromPeer(address claimedWriter,bytes32 format,bytes data)",
-    "function execute((uint8 kind,bytes data)[] operations)",
-    "function predictChildAddress(address author,bytes32 userSalt) view returns (address)",
-    "function deployChild(bytes32 userSalt) returns (address)",
+    "function distribute((address recipient,uint256 amount)[] payments) payable",
+    "function distributeChecked((address recipient,uint256 amount)[] payments) payable",
+    "function execute(string artifact,string body,(address recipient,uint256 amount)[] payments,bytes32 logFormat,bytes logData) payable",
+    "function pendingRefunds(address writer) view returns (uint256)",
+    "function withdrawRefund()",
     "event ArtifactMapped(address indexed writer,bytes32 indexed artifactKeyHash,uint64 revision,string artifact,string body)",
-    "event RecordLogged(address indexed writer,bytes32 indexed format,uint64 sequence,bytes data)",
-    "event ThunderwordPublished(address indexed writer,address indexed thunderword,bytes32 indexed format,uint64 sequence,bytes data)",
-    "event PeerMessageSent(address indexed writer,address indexed peer,bytes32 indexed format,bytes32 dataHash)",
-    "event PeerMessageReceived(address indexed peer,address indexed claimedWriter,bytes32 indexed format,bytes data)",
-    "event ChildDeployed(address indexed creator,address indexed child,bytes32 indexed derivedSalt,bytes32 userSalt)"
+    "event RecordLogged(address indexed writer,bytes32 indexed format,bytes data)",
+    "event TransferResult(address indexed writer,address indexed recipient,uint256 indexed index,uint256 amount,uint8 status)",
+    "event RefundCredited(address indexed writer,uint256 amount)",
+    "event RefundWithdrawn(address indexed writer,uint256 amount)"
   ]);
+  const TRANSFER_STATUS = Object.freeze({
+    UNFUNDED: 0, FAILED_CALL: 1, SUCCEEDED: 2
+  });
+  const ZERO_FORMAT = "0x" + "00".repeat(32);
   const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+  const BYTES32 = /^0x[0-9a-fA-F]{64}$/;
+  const UINT256_MAX = (1n << 256n) - 1n;
 
   function thunderwordAddress(text) {
     if (typeof text !== "string" || !/^[\x20-\x7e]{1,20}$/.test(text)) {
@@ -54,48 +50,91 @@
     return result;
   }
 
-  function bytes(value) {
+  function byteString(value) {
     if (typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{2})*$/.test(value)) {
-      throw new Error("Payload must be even-length 0x-prefixed hexadecimal bytes.");
-    }
-    if ((value.length - 2) / 2 > 24576) throw new Error("Payload exceeds 24 KiB.");
-    return value;
-  }
-
-  function address(value) {
-    if (typeof value !== "string" || !ADDRESS.test(value) || /^0x0{40}$/i.test(value)) {
-      throw new Error("A nonzero 20-byte EVM address is required.");
+      throw new Error("Log data must be even-length 0x-prefixed hexadecimal bytes.");
     }
     return value;
   }
 
-  function operation(ethersLib, kind, params) {
-    const coder = ethersLib && ethersLib.AbiCoder && ethersLib.AbiCoder.defaultAbiCoder();
-    if (!coder) throw new Error("ethers v6 AbiCoder is required.");
-    if (!params || typeof params !== "object") throw new Error("Missing operation parameters.");
-    if (kind === KINDS.ARTIFACT) {
-      if (typeof params.artifact !== "string" || !params.artifact ||
-          typeof params.body !== "string") throw new Error("Expected artifact and body strings.");
-      return { kind, data: coder.encode(["string", "string"], [params.artifact, params.body]) };
+  function uint256(value) {
+    if (typeof value !== "bigint" &&
+        (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value))) {
+      throw new Error("Amount must be a nonnegative integer in wei (decimal string or BigInt).");
     }
-    if (kind === KINDS.LOG) {
-      return { kind, data: coder.encode(["bytes32", "bytes"], [params.format, bytes(params.data)]) };
-    }
-    if (kind === KINDS.THUNDERWORD || kind === KINDS.PEER) {
-      const target = address(kind === KINDS.PEER ? params.peer : (params.thunderword || thunderwordAddress(params.text)));
-      return { kind, data: coder.encode(["address", "bytes32", "bytes"], [target, params.format, bytes(params.data)]) };
-    }
-    throw new Error("Unsupported Mogwai operation kind.");
+    const number = BigInt(value);
+    if (number < 0n || number > UINT256_MAX) throw new Error("Amount exceeds uint256 bounds.");
+    return number;
   }
 
-  function batch(ethersLib, operations) {
-    if (!Array.isArray(operations) || operations.length < 1 || operations.length > 32) {
-      throw new Error("Mogwai batch requires 1-32 operations.");
+  function payments(value, strict) {
+    if (!Array.isArray(value)) throw new Error("Payments must be an array of recipient/amount pairs.");
+    return value.map((item, index) => {
+      if (!item || typeof item !== "object" || !ADDRESS.test(item.recipient)) {
+        throw new Error("Payment " + index + " requires a 20-byte recipient address.");
+      }
+      const amount = uint256(item.amountWei === undefined ? item.amount : item.amountWei);
+      if (strict && (item.recipient.toLowerCase() === "0x" + "00".repeat(20) || amount === 0n)) {
+        throw new Error("Checked payments require a nonzero address and amount.");
+      }
+      return Object.freeze({recipient: item.recipient, amount});
+    });
+  }
+
+  function prepare(functionName, params = {}) {
+    const artifact = params.artifact === undefined ? "" : params.artifact;
+    const body = params.body === undefined ? "" : params.body;
+    if (typeof artifact !== "string" || typeof body !== "string") {
+      throw new Error("Artifact and body must be strings.");
     }
-    return operations.map(entry => operation(ethersLib, entry.kind, entry));
+    const logFormat = params.logFormat === undefined ? ZERO_FORMAT : params.logFormat;
+    const logData = byteString(params.logData === undefined ? "0x" : params.logData);
+    if (!BYTES32.test(logFormat)) throw new Error("Log format must be a bytes32 hex value.");
+    const strict = functionName === "distributeChecked";
+    const entries = payments(params.payments === undefined ? [] : params.payments, strict);
+    const total = entries.reduce((sum, entry) => sum + entry.amount, 0n);
+    const supplied = params.valueWei === undefined ? total : uint256(params.valueWei);
+    if (strict && total !== supplied) {
+      throw new Error("Checked transfer value must equal the sum of payment amounts.");
+    }
+    let args, valueWei;
+    if (functionName === "execute") {
+      args = [artifact, body, entries, logFormat, logData];
+      valueWei = supplied;
+    } else if (functionName === "distribute" || strict) {
+      args = [entries];
+      valueWei = supplied;
+    } else if (functionName === "mapArtifact") {
+      args = [artifact, body];
+      valueWei = 0n;
+    } else if (functionName === "logRecord") {
+      args = [logFormat, logData];
+      valueWei = 0n;
+    } else if (functionName === "withdrawRefund") {
+      args = [];
+      valueWei = 0n;
+    } else {
+      throw new Error("Unsupported Mogwai write method.");
+    }
+    return Object.freeze({
+      functionName, args, valueWei,
+      value: "0x" + valueWei.toString(16),
+      paymentTotalWei: total,
+      payments: entries
+    });
+  }
+
+  function encode(ethersLib, functionName, params) {
+    if (!ethersLib || typeof ethersLib.Interface !== "function") {
+      throw new Error("ethers v6 Interface is required to encode Mogwai calldata.");
+    }
+    const prepared = prepare(functionName, params);
+    const data = new ethersLib.Interface(ABI).encodeFunctionData(functionName, prepared.args);
+    return Object.freeze({...prepared, data});
   }
 
   root.CHISEL_EVM_MOGWAI = Object.freeze({
-    ABI, KINDS, thunderwordAddress, decodeThunderword, operation, batch
+    ABI, TRANSFER_STATUS, ZERO_FORMAT,
+    thunderwordAddress, decodeThunderword, payments, prepare, encode
   });
 }(typeof window !== "undefined" ? window : globalThis));
