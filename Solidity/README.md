@@ -1,4 +1,22 @@
-# Chisel: minimal composable EVM publisher
+# Solidity contracts: Chisel and M64
+
+This language-specific directory is the source of truth for EVM Solidity
+contracts. The Chisel project may also support contracts or scripts written
+in other languages. The browser interfaces and tools remain under `tools/`.
+
+- [Chisel.sol](Chisel.sol): permissionless writer-scoped artifact mapping,
+  native-token recipient arrays, event logs, and composite `execute()`.
+- [M64Dictionary.sol](M64Dictionary.sol): separate append-only vocabulary
+  with stable numeric term IDs and an indexed `Packet` log carrier.
+- [Chisel compiled JSON](compiled/Chisel.json) and
+  [M64 dictionary compiled JSON](compiled/M64Dictionary.json): deployment
+  ABI and bytecode for compatible EVM networks.
+- [M64 dictionary design](M64Dictionary.md) and
+  [M64 browser workbench](../tools/m64Artifact/index.html).
+- [Browse tools and deploy](index.html) or use the
+  [EVM Contract Factory](../tools/evmFactory/index.html).
+
+## Chisel: composable EVM publisher
 
 The current `Chisel.sol` combines three *optional* on-chain behaviors:
 a writer-scoped dictionary (Jethro), an array of native-token payments (Gomez),
@@ -89,9 +107,9 @@ Create the canonical, versioned deployment artifact with native `solc` and
 Python standard library:
 
 ```sh
-python3 contracts/build-chisel.py
-python3 contracts/build-chisel.py --check
-git add contracts/compiled/Chisel.json
+python3 Solidity/build-chisel.py
+python3 Solidity/build-chisel.py --check
+git add Solidity/compiled/Chisel.json
 git commit -m "Compile Chisel deployment artifact"
 ```
 
@@ -106,7 +124,7 @@ requires a separate signed deployment and receipt/code verification. Its
 `creator` immutable records that deployment's actual sender; a compiled
 runtime comparison may differ because immutables are patched in the constructor.
 
-The historical `Mogwai.bin` and `Mogwai.txt` files were generated from
+The historical `archive/Mogwai.bin` and `archive/Mogwai.txt` files were generated from
 an earlier, incompatible contract. Do not deploy them.
 
 `solc --bin --abi Chisel.sol` remains a useful inspection command but its

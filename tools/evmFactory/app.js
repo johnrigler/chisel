@@ -130,10 +130,10 @@
   }
 
   $("bundledChisel").addEventListener("click", () => {
-    void loadBundled("../../contracts/compiled/Chisel.json", "Chisel compiled artifact");
+    void loadBundled("../../Solidity/compiled/Chisel.json", "Chisel compiled artifact");
   });
   $("bundled").addEventListener("click", () => {
-    void loadBundled("../m64Artifact/contracts/M64Dictionary.compiled.json", "M64 Dictionary");
+    void loadBundled("../../Solidity/compiled/M64Dictionary.json", "M64 Dictionary");
   });
 
   $("contract").addEventListener("change", renderArtifact);

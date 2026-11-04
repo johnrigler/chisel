@@ -8,7 +8,7 @@ See [`CARRIER_MODEL.md`](CARRIER_MODEL.md) for the broader rule: Chisel defines 
 
 ## Dictionary behavior
 
-`contracts/M64Dictionary.sol` is intentionally permissionless and append-only.
+`../../Solidity/M64Dictionary.sol` is intentionally permissionless and append-only.
 
 There is no owner or administrator. There are no edit, delete, renumber, moderation, or packet-removal methods.
 
@@ -103,7 +103,7 @@ The browser adapter uses the vendored ethers v6 build only for ABI/RPC/signing m
 
 The canonical development/deployment compiler path is now Hardhat 3.16.0 using Solidity 0.8.30. Solidity's appended CBOR metadata trailer is disabled so path-dependent compiler metadata cannot make the browser and Hardhat routes produce different creation bytes.
 
-CI compiles `contracts/M64Dictionary.sol` twice with the same Solidity settings:
+CI compiles `../../Solidity/M64Dictionary.sol` twice with the same Solidity settings:
 
 1. through Hardhat;
 2. directly through the pinned `solc` 0.8.30 Standard JSON API.
@@ -111,7 +111,7 @@ CI compiles `contracts/M64Dictionary.sol` twice with the same Solidity settings:
 CI requires exact equality of creation bytecode and runtime bytecode between those paths. It also requires the Hardhat creation bytecode to exactly match the committed browser deployment artifact:
 
 ```text
-contracts/M64Dictionary.compiled.json
+../../Solidity/compiled/M64Dictionary.json
 ```
 
 The current pre-deployment capture records:

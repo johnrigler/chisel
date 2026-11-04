@@ -60,7 +60,7 @@ test('permissionless-style EVM resolver appends missing terms and reuses duplica
 });
 
 test('Solidity dictionary exposes append-only vocabulary plus generic log-only packets',async()=>{
-  const source=await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.sol',import.meta.url),'utf8');
+  const source=await readFile(new URL('../Solidity/M64Dictionary.sol',import.meta.url),'utf8');
   for(const name of ['language','dictionaryVersion','termCount','lookupTerm','lookupId','addTerm','addTerms','publishPacket'])assert.match(source,new RegExp('function\\s+'+name+'\\s*\\('));
   assert.match(source,/event\s+TermAdded/);
   assert.match(source,/event\s+Packet\s*\(/);
@@ -75,7 +75,7 @@ test('Solidity dictionary exposes append-only vocabulary plus generic log-only p
 });
 
 test('hand-auditable ABI contains the carrier-neutral Packet surface',async()=>{
-  const abi=JSON.parse(await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.abi.json',import.meta.url),'utf8'));
+  const abi=JSON.parse(await readFile(new URL('../Solidity/compiled/M64Dictionary.abi.json',import.meta.url),'utf8'));
   const packet=abi.find(x=>x.type==='event'&&x.name==='Packet');
   assert.ok(packet);
   assert.deepEqual(packet.inputs.map(x=>[x.name,x.type,x.indexed]),[
@@ -92,7 +92,7 @@ test('hand-auditable ABI contains the carrier-neutral Packet surface',async()=>{
 });
 
 test('captured deployment artifact matches its reproducible Hardhat bytecode hash and includes Packet ABI',async()=>{
-  const artifact=JSON.parse(await readFile(new URL('../tools/m64Artifact/contracts/M64Dictionary.compiled.json',import.meta.url),'utf8'));
+  const artifact=JSON.parse(await readFile(new URL('../Solidity/compiled/M64Dictionary.json',import.meta.url),'utf8'));
   assert.equal(artifact.kind,'chisel-solidity-artifact');
   assert.equal(artifact.contractName,'M64Dictionary');
   assert.equal(artifact.compiler,'Hardhat 3.16.0 / solc 0.8.30');

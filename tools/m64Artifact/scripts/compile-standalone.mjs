@@ -1,13 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import solc from "solc";
 
-const sourcePath = new URL("../contracts/M64Dictionary.sol", import.meta.url);
+const sourcePath = new URL("../../../Solidity/M64Dictionary.sol", import.meta.url);
 const source = await readFile(sourcePath, "utf8");
 
 const input = {
   language: "Solidity",
   sources: {
-    "contracts/M64Dictionary.sol": { content: source },
+    "Solidity/M64Dictionary.sol": { content: source },
   },
   settings: {
     metadata: {
@@ -33,13 +33,13 @@ if (errors.some((diagnostic) => diagnostic.severity === "error")) {
   throw new Error("Solidity compilation failed");
 }
 
-const contract = output.contracts?.["contracts/M64Dictionary.sol"]?.M64Dictionary;
+const contract = output.contracts?.["Solidity/M64Dictionary.sol"]?.M64Dictionary;
 if (!contract) throw new Error("M64Dictionary compiler output missing");
 
 const artifact = {
   compiler: solc.version(),
   contractName: "M64Dictionary",
-  sourceName: "contracts/M64Dictionary.sol",
+  sourceName: "Solidity/M64Dictionary.sol",
   metadataAppendCBOR: false,
   abi: contract.abi,
   bytecode: `0x${contract.evm.bytecode.object}`,

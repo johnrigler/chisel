@@ -181,8 +181,8 @@ eip155:137:0x<contract-address>
 
 Operational files:
 
-- `tools/m64Artifact/contracts/M64Dictionary.sol`
-- `tools/m64Artifact/contracts/M64Dictionary.compiled.json`
+- `Solidity/M64Dictionary.sol`
+- `Solidity/compiled/M64Dictionary.json`
 - `tools/m64Artifact/m64.dictionary.evm.js`
 - `tools/m64Artifact/deploy-dictionary-polygon.html`
 - `tools/m64Artifact/dictionary-polygon.html`

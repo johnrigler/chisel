@@ -1,3 +1,5 @@
+# Historical compiler-input scratchpad for the superseded Mogwai.sol.
+# Not an active Chisel build script. See ../build-chisel.py instead.
 import json, pathlib, sys
 source = pathlib.Path("contracts/Mogwai.sol").read_text()
 json.dump({

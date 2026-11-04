@@ -4,8 +4,8 @@ import solc from "solc";
 import { network } from "hardhat";
 
 // Optional local EVM tests; browser runtime needs no Hardhat.
-const sourcePath = "contracts/Chisel.sol";
-const source = readFileSync(new URL("../../../contracts/Chisel.sol", import.meta.url), "utf8");
+const sourcePath = "Solidity/Chisel.sol";
+const source = readFileSync(new URL("../../../Solidity/Chisel.sol", import.meta.url), "utf8");
 const rejectPath = "tests/RejectEther.sol";
 const rejectSource = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;

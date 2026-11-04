@@ -105,7 +105,7 @@ Submissions cannot replay the same review through Chisel.
 
 ## Proposed Jethro v2: permissionless address-scoped dictionary (next implementation)
 
-**Status: design plus [draft Solidity](../contracts/JethroV2.sol), NOT deployed or connected to the Chisel writer.** The deployed legacy Jethro at
+**Status: design plus [draft Solidity](../Solidity/JethroV2.sol), NOT deployed or connected to the Chisel writer.** The deployed legacy Jethro at
 `0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0` has a bundled
 `mapArtifact(string,string)` ABI, but its verified source/upgradeability is
 not established here. Editing local Solidity does **not** change that
@@ -147,7 +147,7 @@ a database with a composite unique key **(EVM writer address, artifact key)**:
   workbench to v2; register a new deployment/interface and verify chain ID,
   bytecode, permissions, source, reads, and events first.
 
-The [draft Solidity](../contracts/JethroV2.sol) implements these semantics
+The [draft Solidity](../Solidity/JethroV2.sol) implements these semantics
 without modifying the separate `M64Dictionary` contract. Event history is
 append-only, **not** the current mapping value, which is deliberately
 replaceable by its own writer. Storage and duplicate event data cost gas.
@@ -189,106 +189,35 @@ node tests/check-inline-scripts.mjs evm.html
 
 The tests use an injected wallet stub, not a live private key or transaction.
 
-## Mogwai v1 EVM kernel and factory (draft, not deployed)
+## Chisel Solidity publisher and M64 dictionary (not yet deployed)
 
-**Status, 2026-11-03:** [Mogwai.sol](../contracts/Mogwai.sol) is a new
-standalone Solidity implementation. It does not replace Gomez, Jethro,
-JethroV2 or M64Dictionary. The existing Polygon writer remains allowlisted
-to its current deployments. No Mogwai deployment address, deployment bytecode,
-ABI verification, wallet authorization or live transaction is implied.
+The [Chisel Solidity contract](../Solidity/Chisel.sol) combines the
+permissionless, address-scoped Jethro-style mapping with optional native-token
+distribution and event logging. `execute(artifact,body,payments,logFormat,logData)`
+runs any combination. The `distribute` path is best-effort with individual
+transfer-result events; `distributeChecked` is a separate atomic option.
 
-Mogwai combines six features without one giant arbitrary-call executor:
+The [M64Dictionary Solidity contract](../Solidity/M64Dictionary.sol) is a
+distinct permissionless **append-only numeric vocabulary** and log-only packet
+carrier. Its term IDs cannot be rewritten. M64 compression and hydration remain
+in browser JavaScript under [the M64 workbench](../tools/m64Artifact/index.html).
 
-1. **Jethro-style dictionary.** `mapArtifact(string,string)` writes a current
-   value under `(msg.sender, keccak256(bytes(artifact)))`. Permissionless
-   callers cannot overwrite each other's namespaces. `getArtifact(writer,key)`
-   returns body and revision (0 means absent). Every successful revision
-   produces `ArtifactMapped` with the complete body.
-2. **Structured log carrier.** `logRecord(bytes32 format,bytes data)` emits
-   `RecordLogged`. Each writer has a monotonically increasing sequence shared
-   by log and Thunderword publications. Only dictionary *latest values* are
-   stored; event payloads persist in transaction receipts/logs.
-3. **Variable-length atomic batch.** `execute((uint8 kind,bytes data)[])`
-   accepts 1 to 32 operations. Kinds: 1 = `(string artifact,string body)`;
-   2 = `(bytes32 format,bytes data)`; 3 =
-   `(address thunderword,bytes32 format,bytes data)`; 4 =
-   `(address peer,bytes32 format,bytes data)`. All use Solidity ABI tuple
-   encoding. Any failure reverts the entire transaction. Each body or payload
-   is capped at 24,576 bytes. There is **no arbitrary delegatecall, native-token
-   transfer, proxy upgrade or owner-only write gate**.
-4. **Peer messaging.** `sendToPeer` calls `receiveFromPeer` on another
-   compatible contract. The receiver proves the *immediate sending contract*
-   using `msg.sender`. `claimedWriter` is explicitly untrusted, because a
-   peer contract can claim any origin; it is never used to authorize a
-   dictionary mutation. Chisel must not label claimed origins as verified
-   signers without checking the sending contract's own event/call context.
-5. **CREATE2 contract factory.** `deployChild(bytes32 userSalt)` deploys
-   an EIP-1167 minimal-proxy Mogwai, initializes its creator to the external
-   caller in the same transaction and emits `ChildDeployed`. `creator` is a
-   display/canonical namespace convention, not a write gate. Child instances
-   can create more instances using the immutable full-code root. User salts
-   are wallet-namespaced; `predictChildAddress(author,salt)` predicts the
-   address for the *instance being called*, not a global registry.
-6. **EVM Thunderwords.** `thunderwordAddress(string)` interprets 1 to 20
-   printable ASCII bytes, case-sensitively, and right-pads with zero bytes to
-   fill a 20-byte EVM address. Example `westend` =
-   `0x77657374656e64000000000000000000000000`. This is a **v1 proposed
-   encoding convention**, not an established cross-chain standard.
-   No Base58Check, address hashing, or private-key derivation occurs.
-   `decodeThunderword` reverses only valid ASCII/right-zero-padded words.
-   `publishThunderword` and `publishThunderwordText` emit indexed
-   `ThunderwordPublished(writer,thunderword,format,sequence,data)`.
-   The `thunderwordCount` mapping exposes a numeric count per subject.
+Both Solidity sources, their ABI and deployment bytecode are cataloged under
+[Solidity/](../Solidity/index.html). The compiled Chisel artifact is
+[Chisel.json](../Solidity/compiled/Chisel.json), and the separate M64 deployment
+artifact is [M64Dictionary.json](../Solidity/compiled/M64Dictionary.json).
+The browser factory offers both bundles for wallet-reviewed deployment to a
+compatible EVM chain.
 
-### Retrieval and safety boundaries
+Existing Polygon Gomez and Jethro deployments and their allowlisted Chisel
+write tools are **not** replaced or silently redirected. Neither new contract
+is registered as an actual deployed address here.
 
-- Find Thunderword records with `eth_getLogs` for the known Mogwai contract
-  address and `ThunderwordPublished` indexed topics (writer, subject, format).
-  Chisel or another indexer must page event ranges, track log index and block
-  hash, and handle chain reorganizations. Neither contract storage nor ordinary
-  **recipient address history** can enumerate these logs. No dust/zero-value
-  transfer is made to a Thunderword address, so a block explorer's address
-  transaction list is not a discovery guarantee.
-- Addresses produced from readable bytes are **not provably unspendable**.
-  They could collide with a spendable address. Do not send assets to them.
-- A Mogwai clone delegates execution to its root. A malicious or mutable
-  implementation outside this audited template would change its trust model;
-  use explicit code/implementation checks at registration time.
-- Peer calls are synchronous, can revert, and could re-enter public
-  permissionless operations. No external authorization or accounting depends
-  on a peer's untrusted writer claim. Batch atomicity applies across peer calls.
-- ABI encoding, contract deployment and smart-contract calls happen inside
-  a user-initiated transaction. A contract does **not** originate independently
-  signed EOA transactions. Solidity cannot query historical events internally.
-- This code is **not audited**. It requires local compilation, tests, a
-  security review and chain-specific deployment verification before Chisel
-  enables it in the wallet workbench.
-
-### Chisel / testing
-
-`chisel.evm.mogwai.js` provides a static browser adapter
-`CHISEL_EVM_MOGWAI`: human-readable v1 ABI, `KINDS`, client-side
-`thunderwordAddress/decodeThunderword`, and `operation()/batch()` helpers
-using the existing ethers v6 `AbiCoder`. It deliberately has **no address,
-signer, deployment or transaction-send side effects**. Browser code may load it
-from IPFS alongside the current EVM workbench; registering an actual deployment
-must remain an explicit separate action after verification.
-
-`tests/mogwai-browser.test.mjs` checks browser encoding and input bounds.
-`tools/m64Artifact/test/Mogwai.ts` compiles the root Solidity with pinned
-`solc 0.8.30` and exercises multi-wallet dictionary isolation, log batches,
-rollback, peer provenance and deterministic factory clones in Hardhat's local
-EVM. The existing Hardhat CI job discovers this test, without deploying to a
-public chain.
-
-Local verification from the repository root:
-
-```sh
-node --test tests/mogwai-browser.test.mjs
-node --check chisel.evm.mogwai.js
-cd tools/m64Artifact && npm install && npm test
-```
-
+`chisel.evm.chisel.js` provides the Chisel client ABI and preparation
+helpers. Browser and EVM tests are in `tests/chisel-contract-browser.test.mjs`,
+`tests/chisel-build-artifact.test.mjs`, and
+`tools/m64Artifact/test/Chisel.ts`. No on-chain deployment is implied by
+the committed compiler artifacts.
 
 ## Browser-native compiled-contract factory (2026-11-03)
 
@@ -310,5 +239,5 @@ For compiler input examples, unsupported constructor/linking cases, runtime
 comparison caveats, and testing, see
 [factory README](../tools/evmFactory/README.md). Hardhat remains an optional
 M64 development/test workspace, not a requirement for this deployment path.
-The new Mogwai source remains undeployed until a separately verified live
+The new Chisel source remains undeployed until a separately verified live
 deployment is completed.

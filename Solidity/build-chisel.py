@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Compile contracts/Chisel.sol into a reusable EVM JSON deployment artifact.
+"""Compile Solidity/Chisel.sol into a reusable EVM JSON deployment artifact.
 
 Requires native solc >=0.8.24 and Python 3 standard library only.
-Run from anywhere: python3 contracts/build-chisel.py
-Generated contracts/compiled/Chisel.json is meant to be committed to git.
+Run from anywhere: python3 Solidity/build-chisel.py
+Generated Solidity/compiled/Chisel.json is meant to be committed to git.
 """
 import hashlib
 import json
@@ -13,9 +13,9 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "contracts" / "Chisel.sol"
-DEST = ROOT / "contracts" / "compiled" / "Chisel.json"
-SOURCE_NAME = "contracts/Chisel.sol"
+SOURCE = ROOT / "Solidity" / "Chisel.sol"
+DEST = ROOT / "Solidity" / "compiled" / "Chisel.json"
+SOURCE_NAME = "Solidity/Chisel.sol"
 CONTRACT_NAME = "Chisel"
 SETTINGS = {
     "optimizer": {"enabled": True, "runs": 200},
@@ -65,7 +65,7 @@ def main():
 
     contract = output.get("contracts", {}).get(SOURCE_NAME, {}).get(CONTRACT_NAME)
     if not contract:
-        raise SystemExit("Solidity output does not contain contracts/Chisel.sol:Chisel.")
+        raise SystemExit("Solidity output does not contain Solidity/Chisel.sol:Chisel.")
     evm = contract.get("evm", {})
     creation = evm.get("bytecode", {}).get("object", "")
     runtime = evm.get("deployedBytecode", {}).get("object", "")
@@ -99,7 +99,7 @@ def main():
         print("Artifact matches:", DEST.relative_to(ROOT))
         return
     if len(sys.argv) > 1:
-        raise SystemExit("Usage: python3 contracts/build-chisel.py [--check]")
+        raise SystemExit("Usage: python3 Solidity/build-chisel.py [--check]")
     DEST.parent.mkdir(parents=True, exist_ok=True)
     DEST.write_bytes(payload)
     print("Compiled", SOURCE_NAME + ":" + CONTRACT_NAME)

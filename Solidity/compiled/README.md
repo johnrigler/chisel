@@ -1,0 +1,21 @@
+# Compiled Chisel deployment artifact
+
+Run `python3 Solidity/build-chisel.py` from the repository root (requires
+native `solc`). This creates `Chisel.json` next to this README.
+
+Commit the generated `Chisel.json` so every IPFS/static deployment can
+load the same ABI and creation bytecode. The JavaScript factory reads it using
+a relative path, and the connected browser wallet signs the deployment
+transaction on the selected EVM chain.
+
+There is intentionally **no placeholder bytecode** in this directory.
+Do not mistake historical `Solidity/archive/Mogwai.bin` or `Mogwai.txt` for
+the current Chisel contract. No keys or deployment addresses belong here.
+
+After successful main-branch CI, the publish job automatically commits the 
+compiled `Chisel.json` from its pinned Solidity compiler. This is a public 
+deployment artifact; it contains no wallet secrets or private keys. 
+
+The M64 vocabulary source is `../M64Dictionary.sol`, with its compiled
+manifest `M64Dictionary.json` and ABI `M64Dictionary.abi.json` alongside
+`Chisel.json`. Both contracts can be loaded from the EVM Contract Factory.

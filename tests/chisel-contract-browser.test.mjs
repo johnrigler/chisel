@@ -115,7 +115,7 @@ test("adapter emits a reviewed-call payload, never sends or hardcodes a deployme
 });
 
 test("Solidity exposes the optional operations and limits spending to msg.value", async () => {
-  const source = await readFile(new URL("../contracts/Chisel.sol",import.meta.url),"utf8");
+  const source = await readFile(new URL("../Solidity/Chisel.sol",import.meta.url),"utf8");
   for(const signature of ["mapArtifact(", "logRecord(", "distribute(", "distributeChecked(", "execute(", "withdrawRefund("]) {
     assert.ok(source.includes("function " + signature),signature);
   }

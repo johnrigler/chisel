@@ -37,7 +37,7 @@ summary{cursor:pointer}
 <header>
 <h1>Chisel · EVM Contract Factory</h1>
 <p>Compiled Solidity artifact → inspect → estimate gas → review → wallet deployment. Vanilla JavaScript, static hosting, no Hardhat or npm runtime.</p>
-<p><a href="../../evm.html">Gomez/Jethro transaction workbench</a> · <a href="../m64Artifact/index.html">M64 artifact workbench</a> · <a href="./README.md">Toolchain notes</a></p>
+<p><a href="../../evm.html">Gomez/Jethro transaction workbench</a> · <a href="../m64Artifact/index.html">M64 artifact workbench</a> · <a href="./README.md">Toolchain notes</a> · <a href="../../Solidity/index.html">Solidity contract catalog</a></p>
 </header>
 <section class="panel">
 <h2>1. Choose compiled contract</h2>
@@ -46,7 +46,7 @@ summary{cursor:pointer}
 <input id="file" type="file" accept=".json,application/json">
 <button id="bundledChisel" type="button">Load Chisel from repository</button>
 <button id="bundled" type="button">Load bundled M64 Dictionary</button>
-<small>Bundled Chisel file: <code>contracts/compiled/Chisel.json</code>. Generate it with <code>python3 contracts/build-chisel.py</code> and commit it.</small>
+<small>Bundled Chisel file: <code>Solidity/compiled/Chisel.json</code>. Generate it with <code>python3 Solidity/build-chisel.py</code> and commit it.</small>
 <div class="grid">
 <div><label for="contract">Contract</label><select id="contract" disabled><option>No artifact loaded</option></select></div>
 <div><label for="chain">Expected EVM chain ID (decimal)</label><input id="chain" inputmode="numeric" value="137" spellcheck="false" aria-describedby="chainHelp"><small id="chainHelp">137 = Polygon mainnet; 80002 = Polygon Amoy; 11155111 = Sepolia. Verify other chain IDs independently.</small></div>

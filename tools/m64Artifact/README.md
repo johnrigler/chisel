@@ -1,5 +1,14 @@
 # Chisel M64 Artifact Workbench
 
+The canonical Solidity contract and compiled ABI/bytecode are now under
+[Solidity/](../../Solidity/index.html):
+[M64Dictionary.sol](../../Solidity/M64Dictionary.sol),
+[M64Dictionary.json](../../Solidity/compiled/M64Dictionary.json), and
+[Chisel.sol](../../Solidity/Chisel.sol). This directory contains the
+client-side JavaScript M64 codec, hydrator and EVM interfaces, not the
+canonical Solidity source.
+
+
 M64 is a compact transport for an abstract byte stream. It is not an image format and it is not inherently JavaScript-specific.
 
 The current pipeline is:
