@@ -78,6 +78,7 @@ jobs:
           node --input-type=module --check < tools/keyPrint/key-print.js
           node tests/check-inline-scripts.mjs tools/recorder/index.html tools/qrField/index.html records.html
           node tests/check-inline-scripts.mjs index.html evm.html qrScan.html tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html tools/m64Artifact/packet-polygon.html
+          node tests/check-inline-scripts.mjs Solidity/index.html
 
       - name: Check fileProxy Python syntax
         run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
@@ -170,7 +171,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: chisel-evm-deployment-artifact
-          path: contracts/compiled
+          path: Solidity/compiled
 
       - name: Verify artifact hashes before publishing
         run: |
