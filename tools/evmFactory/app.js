@@ -75,6 +75,8 @@
       show("artifactStatus", [
         "Contract: " + selected.name,
         "Compiler label (unverified): " + (selected.compiler || "not supplied"),
+        "EVM target: " + (selected.evmVersion || "not supplied"),
+        "Source SHA-256 (manifest, not source-verified): " + (selected.declaredSourceSha256 || "not supplied"),
         "Creation bytes: " + ((selected.bytecode.length - 2) / 2),
         "Creation SHA-256: " + digest,
         "Manifest SHA-256: " + (selected.declaredCreationSha256 || "not supplied"),
@@ -114,15 +116,24 @@
     } catch (err) { if (revision === token) { artifacts = []; $("contract").disabled = true; error("artifactStatus", err); } }
   });
 
-  $("bundled").addEventListener("click", async () => {
+  async function loadBundled(url, description) {
     invalidate();
     const token = revision;
+    show("artifactStatus", "Loading " + description + " from this repository...");
     try {
-      const response = await fetch("../m64Artifact/contracts/M64Dictionary.compiled.json", {cache: "no-store"});
-      if (!response.ok) throw new Error("Bundled artifact unavailable: HTTP " + response.status);
+      const response = await fetch(url, {cache: "no-store"});
+      if (!response.ok) throw new Error(description + " unavailable (HTTP " + response.status +
+        "). For Chisel, run: python3 contracts/build-chisel.py, then commit contracts/compiled/Chisel.json.");
       const data = await response.json();
       if (revision === token) loadJSON(data);
     } catch (err) { if (revision === token) error("artifactStatus", err); }
+  }
+
+  $("bundledChisel").addEventListener("click", () => {
+    void loadBundled("../../contracts/compiled/Chisel.json", "Chisel compiled artifact");
+  });
+  $("bundled").addEventListener("click", () => {
+    void loadBundled("../m64Artifact/contracts/M64Dictionary.compiled.json", "M64 Dictionary");
   });
 
   $("contract").addEventListener("change", renderArtifact);
