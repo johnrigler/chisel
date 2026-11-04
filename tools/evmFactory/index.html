@@ -41,10 +41,12 @@ summary{cursor:pointer}
 </header>
 <section class="panel">
 <h2>1. Choose compiled contract</h2>
-<p>Compile Solidity using <code>solc --standard-json</code> or an equivalent compiler. This page does not compile source code. Import a compiler-output JSON file or a single contract artifact. Files stay in the browser.</p>
+<p>Load the versioned Chisel ABI + creation bytecode from this repository, or import any Solidity compiler artifact. The browser does not compile Solidity. The same artifact can be reviewed for any compatible EVM chain.</p>
 <label for="file">Compiler output / artifact JSON</label>
 <input id="file" type="file" accept=".json,application/json">
+<button id="bundledChisel" type="button">Load Chisel from repository</button>
 <button id="bundled" type="button">Load bundled M64 Dictionary</button>
+<small>Bundled Chisel file: <code>contracts/compiled/Chisel.json</code>. Generate it with <code>python3 contracts/build-chisel.py</code> and commit it.</small>
 <div class="grid">
 <div><label for="contract">Contract</label><select id="contract" disabled><option>No artifact loaded</option></select></div>
 <div><label for="chain">Expected EVM chain ID (decimal)</label><input id="chain" inputmode="numeric" value="137" spellcheck="false" aria-describedby="chainHelp"><small id="chainHelp">137 = Polygon mainnet; 80002 = Polygon Amoy; 11155111 = Sepolia. Verify other chain IDs independently.</small></div>
