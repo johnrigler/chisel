@@ -1,0 +1,272 @@
+Script started on 2026-11-03 21:39:11-07:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="80" LINES="50"]
+[?2004h[0;32m~/.../chisel/contracts[0m [0;97m$[0m ls
+[?2004l[0m[01;32m20261103-W45-2-202731.unixTs[0m  [01;32mJethroV2.sol[0m  [01;32md.solc-02343555[0m
+[01;32m20261103-W45-2-213911.unixTs[0m  [01;32mMogwai.sol[0m
+[?2004h[0;32m~/.../chisel/contracts[0m [0;97m$[0m solc
+[?2004lsolc, the Solidity commandline compiler.
+
+This program comes with ABSOLUTELY NO WARRANTY. This is free software, and you
+are welcome to redistribute it under certain conditions. See 'solc --license'
+for details.
+
+Usage: solc [options] [input_file...]
+Compiles the given Solidity input files (or the standard input if "-" is
+used as a file name) and outputs the components specified in the options
+at standard output or in files in the output directory, if specified.
+Imports are automatically read from the filesystem, but it is also possible to
+remap paths using the context:prefix=path syntax.
+Example:
+solc --bin -o /tmp/solcoutput dapp-bin=/usr/local/lib/dapp-bin contract.sol
+
+General Information:
+  --help               Show help message and exit.
+  --version            Show version and exit.
+  --license            Show licensing information and exit.
+  --input-file arg     input file
+
+Input Options:
+  --base-path path     Use the given path as the root of the source tree 
+                       instead of the root of the filesystem.
+  --include-path path  Make an additional source directory available to the 
+                       default import callback. Use this option if you want to 
+                       import contracts whose location is not fixed in relation
+                       to your main source tree, e.g. third-party libraries 
+                       installed using a package manager. Can be used multiple 
+                       times. Can only be used if base path has a non-empty 
+                       value.
+  --allow-paths path(s)
+                       Allow a given path for imports. A list of paths can be 
+                       supplied by separating them with a comma.
+  --ignore-missing     Ignore missing files.
+  --no-import-callback 
+                       Disable the default import callback to prevent the 
+                       compiler from loading any source files not listed on the
+                       command line or given in the Standard JSON input.
+
+Output Options:
+  -o [ --output-dir ] path
+                       If given, creates one file per output component and 
+                       contract/file at the specified directory.
+  --overwrite          Overwrite existing files (used together with -o).
+  --evm-version version (=osaka)
+                       Select desired EVM version: homestead, tangerineWhistle,
+                       spuriousDragon, byzantium, constantinople, petersburg, 
+                       istanbul, berlin, london, paris, shanghai, cancun, 
+                       prague, osaka, or @future (experimental).
+  --experimental-eof-version [=version(=1)]
+                       (experimental) Select desired EOF version. Currently the
+                       only valid value is 1. If not specified, non-EOF 
+                       bytecode will be generated.
+  --experimental-via-ir 
+                       Deprecated synonym of --via-ir.
+  --via-ir             Turn on compilation via IR.
+  --via-ssa-cfg        (experimental) Turn on SSA CFG-based code generation. 
+                       Implies compilation via IR.
+  --revert-strings debug,default,strip,verboseDebug
+                       Strip revert (and require) reason strings or add 
+                       additional debugging information. Note that 'strip' does
+                       not remove custom errors.
+  --debug-info arg (=ast-id,location,snippet)
+                       Debug info components to be included in the produced EVM
+                       assembly and Yul code. Value can be 'all', 'none' or a 
+                       comma-separated list containing one or more of the 
+                       following components: ast-id, location, snippet, or 
+                       ethdebug (experimental). Note that 'all' does not 
+                       include experimental components.
+  --stop-after stage   Stop execution after the given compiler stage. Valid 
+                       options: "parsing".
+
+Alternative Input Modes:
+  --standard-json      Switch to Standard JSON input / output mode, ignoring 
+                       all options. It reads from standard input, if no input 
+                       file was given, otherwise it reads from the provided 
+                       input file. The result will be written to standard 
+                       output.
+  --link               Switch to linker mode, ignoring all options apart from 
+                       --libraries and modify binaries in place.
+  --strict-assembly    Switch to strict assembly mode and assume input is 
+                       strict assembly.
+  --import-ast         (experimental) Resume compilation from an abstract 
+                       syntax tree (AST) representing already parsed and 
+                       analyzed Solidity code. In this mode the compiler 
+                       expects exactly one input file, containing an AST in 
+                       compact JSON format, as produced by --ast-compact-json, 
+                       --ast ast or the 'ast' output in Standard JSON.
+  --import-asm-json    (experimental) Resume compilation from EVM assembly. In 
+                       this mode the compiler expects exactly one input file, 
+                       containing assembly in JSON format, as produced by 
+                       --import-asm-jsonor the 'evm.legacyAssembly' output in 
+                       Standard JSON. WARNING: --import-asm-json output is 
+                       already optimized according to settings stored in 
+                       metadata. Using --optimize in this mode is allowed, but 
+                       not necessary under normal circumstances. --optimize 
+                       forces the optimizer to run again and can produce 
+                       bytecode that is not reproducible from metadata.
+  --lsp                (experimental) Switch to the language server mode. 
+                       Allows the compiler to be used as an analysis backend 
+                       for your favourite IDE. In this mode no input files are 
+                       accepted and the compiler expects language server 
+                       protocol (LSP) messages on standard input.
+
+Assembly Mode Options:
+  --machine evm        Target machine in assembly or Yul mode.
+  --yul-dialect evm    Input dialect to use in assembly or yul mode.
+
+Linker Mode Options:
+  --libraries libs     Direct string or file containing library addresses. 
+                       Syntax: <libraryName>=<address> [, or whitespace] ...
+                       Address is interpreted as a hex string prefixed by 0x.
+
+Output Formatting:
+  --pretty-json        Output JSON in pretty format.
+  --json-indent N (=2) Indent pretty-printed JSON with N spaces. Enables 
+                       '--pretty-json' automatically.
+  --color              Force colored output.
+  --no-color           Explicitly disable colored output, disabling terminal 
+                       auto-detection.
+  --error-codes        Output error codes.
+
+Output Components:
+  --ast-compact-json   AST of all source files in a compact JSON format.
+  --asm                EVM assembly of the contracts.
+  --asm-json           EVM assembly of the contracts in JSON format.
+  --opcodes            Opcodes of the contracts.
+  --bin                Binary of the contracts in hex.
+  --bin-runtime        Binary of the runtime part of the contracts in hex.
+  --abi                ABI specification of the contracts.
+  --ir                 Intermediate Representation (IR) of all contracts.
+  --ir-ast-json        (experimental) AST of Intermediate Representation (IR) 
+                       of all contracts in a compact JSON format.
+  --ir-optimized       Optimized Intermediate Representation (IR) of all 
+                       contracts.
+  --ir-optimized-ast-json 
+                       (experimental) AST of optimized Intermediate 
+                       Representation (IR) of all contracts in a compact JSON 
+                       format.
+  --hashes             Function signature hashes of the contracts.
+  --userdoc            Natspec user documentation of all contracts.
+  --devdoc             Natspec developer documentation of all contracts.
+  --metadata           Combined Metadata JSON whose IPFS hash is stored 
+                       on-chain.
+  --storage-layout     Slots, offsets and types of the contract's state 
+                       variables located in storage.
+  --transient-storage-layout 
+                       Slots, offsets and types of the contract's state 
+                       variables located in transient storage.
+  --yul-cfg-json       (experimental) Control Flow Graph (CFG) of Yul code in 
+                       Static Single Assignment (SSA) form in JSON format.
+  --ethdebug-resources 
+                       (experimental) Global ethdebug output 
+                       (ethdebug/format/info/resources schema) containing 
+                       source list and compiler info.
+  --ethdebug-compilation 
+                       (experimental) Global ethdebug compilation output (the 
+                       'compilation' key from ethdebug/format/info/resources 
+                       schema).
+  --ethdebug-program   (experimental) Debug information in ethdebug format for 
+                       all contracts (ethdebug/format/program schema for 
+                       creation bytecode).
+  --ethdebug-program-runtime 
+                       (experimental) Debug information in ethdebug format for 
+                       the runtime part of all contracts 
+                       (ethdebug/format/program schema for deployed bytecode).
+
+Extra Output:
+  --gas                Print an estimate of the maximal gas usage for each 
+                       function.
+  --combined-json abi,asm,ast,bin,bin-runtime,devdoc,function-debug,function-debug-runtime,generated-sources,generated-sources-runtime,hashes,metadata,opcodes,srcmap,srcmap-runtime,storage-layout,transient-storage-layout,userdoc
+                       Output a single json document containing the specified 
+                       information.
+
+Metadata Options:
+  --no-cbor-metadata   Do not append CBOR metadata to the end of the bytecode.
+  --metadata-hash ipfs,none,swarm
+                       Choose hash method for the bytecode metadata or disable 
+                       it.
+  --metadata-literal   Store referenced sources as literal data in the metadata
+                       output.
+
+Optimizer Options:
+  --optimize           Enable optimizer.
+  --optimize-runs n (=200)
+                       The number of runs specifies roughly how often each 
+                       opcode of the deployed code will be executed across the 
+                       lifetime of the contract. Lower values will optimize 
+                       more for initial deployment cost, higher values will 
+                       optimize more for high-frequency usage.
+  --optimize-yul       Enable Yul optimizer (independently of the EVM assembly 
+                       optimizer). The general --optimize option automatically 
+                       enables this unless --no-optimize-yul is specified.
+  --no-optimize-yul    Disable Yul optimizer (independently of the EVM assembly
+                       optimizer).
+  --yul-optimizations steps
+                       Forces Yul optimizer to use the specified sequence of 
+                       optimization steps instead of the built-in one.
+
+Model Checker Options:
+  --model-checker-contracts default,<source>:<contract> (=default)
+                       Select which contracts should be analyzed using the form
+                       <source>:<contract>.Multiple pairs <source>:<contract> 
+                       can be selected at the same time, separated by a comma 
+                       and no spaces.
+  --model-checker-div-mod-no-slacks 
+                       Encode division and modulo operations with their precise
+                       operators instead of multiplication with slack 
+                       variables.
+  --model-checker-engine all,bmc,chc,none (=none)
+                       Select model checker engine.
+  --model-checker-ext-calls untrusted,trusted (=untrusted)
+                       Select whether to assume (trusted) that external calls 
+                       always invoke the code given by the type of the 
+                       contract, if that code is available.
+  --model-checker-invariants default,all,contract,reentrancy (=default)
+                       Select whether to report inferred contract inductive 
+                       invariants. Multiple types of invariants can be selected
+                       at the same time, separated by a comma and no spaces. By
+                       default no invariants are reported.
+  --model-checker-print-query 
+                       Print the queries created by the SMTChecker in the 
+                       SMTLIB2 format.
+  --model-checker-show-proved-safe 
+                       Show all targets that were proved safe separately.
+  --model-checker-show-unproved 
+                       Show all unproved targets separately.
+  --model-checker-show-unsupported 
+                       Show all unsupported language features separately.
+  --model-checker-solvers cvc5,eld,z3,smtlib2 (=z3)
+                       Select model checker solvers.
+  --model-checker-targets default,all,constantCondition,underflow,overflow,divByZero,balance,assert,popEmptyArray,outOfBounds (=default)
+                       Select model checker verification targets.Multiple 
+                       targets can be selected at the same time, separated by a
+                       comma and no spaces. By default all targets except 
+                       underflow and overflow are selected.
+  --model-checker-timeout ms
+                       Set model checker timeout per query in milliseconds.The 
+                       default is a deterministic resource limit.A timeout of 0
+                       means no resource/time restrictions for any query.
+  --model-checker-bmc-loop-iterations arg
+                       Set loop unrolling depth for BMC engine.Default is 1.
+
+Experimental options:
+  --experimental       Enable experimental mode. This flag does not activate 
+                       any experimental features on its own - it unlocks the 
+                       ability to use them through the usual flags and pragmas.
+[?2004h[0;32m~/.../chisel/contracts[0m [0;97m$[0m solc --abi Mogwai.sol 
+[?2004l[1m[33mWarning[0m[1m[37m: The result type of the shift operation is equal to the type of the first operand (uint160) ignoring the (larger) type of the second operand (uint256) which might be unexpected. Silence this warning by either converting the first or the second operand to the type of the other.
+[0m   [1m[34m-->[0m Mogwai.sol:193:24:
+    [1m[34m|[0m
+[1m[34m193 |[0m         return address([33mpacked << (8 * (20 - raw.length))[0m);
+    [1m[34m|[0m                        [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+
+======= Mogwai.sol:IMogwaiPeer =======
+Contract JSON ABI
+[{"inputs":[{"internalType":"address","name":"claimedWriter","type":"address"},{"internalType":"bytes32","name":"format","type":"bytes32"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"receiveFromPeer","outputs":[],"stateMutability":"nonpayable","type":"function"}]
+
+======= Mogwai.sol:Mogwai =======
+Contract JSON ABI
+[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[],"name":"AlreadyInitialized","type":"error"},{"inputs":[],"name":"DeploymentFailed","type":"error"},{"inputs":[],"name":"InvalidArtifact","type":"error"},{"inputs":[],"name":"InvalidBatch","type":"error"},{"inputs":[],"name":"InvalidCreator","type":"error"},{"inputs":[],"name":"InvalidPeer","type":"error"},{"inputs":[],"name":"InvalidThunderword","type":"error"},{"inputs":[],"name":"NotInitialized","type":"error"},{"inputs":[],"name":"PayloadTooLarge","type":"error"},{"inputs":[{"internalType":"uint8","name":"kind","type":"uint8"}],"name":"UnknownOperation","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"writer","type":"address"},{"indexed":true,"internalType":"bytes32","name":"artifactKeyHash","type":"bytes32"},{"indexed":false,"internalType":"uint64","name":"revision","type":"uint64"},{"indexed":false,"internalType":"string","name":"artifact","type":"string"},{"indexed":false,"internalType":"string","name":"body","type":"string"}],"name":"ArtifactMapped","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"creator","type":"address"},{"indexed":true,"internalType":"address","name":"child","type":"address"},{"indexed":true,"internalType":"bytes32","name":"derivedSalt","type":"bytes32"},{"indexed":false,"internalType":"bytes32","name":"userSalt","type":"bytes32"}],"name":"ChildDeployed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"peer","type":"address"},{"indexed":true,"internalType":"address","name":"claimedWriter","type":"address"},{"indexed":true,"internalType":"bytes32","name":"format","type":"bytes32"},{"indexed":false,"internalType":"bytes","name":"data","type":"bytes"}],"name":"PeerMessageReceived","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"writer","type":"address"},{"indexed":true,"internalType":"address","name":"peer","type":"address"},{"indexed":true,"internalType":"bytes32","name":"format","type":"bytes32"},{"indexed":false,"internalType":"bytes32","name":"dataHash","type":"bytes32"}],"name":"PeerMessageSent","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"writer","type":"address"},{"indexed":true,"internalType":"bytes32","name":"format","type":"bytes32"},{"indexed":false,"internalType":"uint64","name":"sequence","type":"uint64"},{"indexed":false,"internalType":"bytes","name":"data","type":"bytes"}],"name":"RecordLogged","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"writer","type":"address"},{"indexed":true,"internalType":"address","name":"thunderword","type":"address"},{"indexed":true,"internalType":"bytes32","name":"format","type":"bytes32"},{"indexed":false,"internalType":"uint64","name":"sequence","type":"uint64"},{"indexed":false,"internalType":"bytes","name":"data","type":"bytes"}],"name":"ThunderwordPublished","type":"event"},{"inputs":[],"name":"MAX_ARTIFACT_KEY_BYTES","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"MAX_BATCH_OPERATIONS","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"MAX_PAYLOAD_BYTES","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"OP_ARTIFACT","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"OP_LOG","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"OP_PEER","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"OP_THUNDERWORD","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"PROTOCOL_ID","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"creator","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"subject","type":"address"}],"name":"decodeThunderword","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"pure","type":"function"},{"inputs":[{"internalType":"bytes32","name":"userSalt","type":"bytes32"}],"name":"deployChild","outputs":[{"internalType":"address","name":"child","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"components":[{"internalType":"uint8","name":"kind","type":"uint8"},{"internalType":"bytes","name":"data","type":"bytes"}],"internalType":"struct Mogwai.Operation[]","name":"operations","type":"tuple[]"}],"name":"execute","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"writer","type":"address"},{"internalType":"string","name":"artifact","type":"string"}],"name":"getArtifact","outputs":[{"internalType":"string","name":"body","type":"string"},{"internalType":"uint64","name":"revision","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"implementation","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"designatedCreator","type":"address"}],"name":"initialize","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"format","type":"bytes32"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"logRecord","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"artifact","type":"string"},{"internalType":"string","name":"body","type":"string"}],"name":"mapArtifact","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"mogwaiProtocol","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"pure","type":"function"},{"inputs":[{"internalType":"address","name":"author","type":"address"},{"internalType":"bytes32","name":"userSalt","type":"bytes32"}],"name":"predictChildAddress","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"subject","type":"address"},{"internalType":"bytes32","name":"format","type":"bytes32"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"publishThunderword","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"text","type":"string"},{"internalType":"bytes32","name":"format","type":"bytes32"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"publishThunderwordText","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"claimedWriter","type":"address"},{"internalType":"bytes32","name":"format","type":"bytes32"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"receiveFromPeer","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"peer","type":"address"},{"internalType":"bytes32","name":"format","type":"bytes32"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"sendToPeer","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"text","type":"string"}],"name":"thunderwordAddress","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"pure","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"thunderwordCount","outputs":[{"internalType":"uint64","name":"","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"writerSequence","outputs":[{"internalType":"uint64","name":"","type":"uint64"}],"stateMutability":"view","type":"function"}]
+[?2004h[0;32m~/.../chisel/contracts[0m [0;97m$[0m exit
+[?2004lexit
+
+Script done on 2026-11-03 21:39:53-07:00 [COMMAND_EXIT_CODE="0"]
