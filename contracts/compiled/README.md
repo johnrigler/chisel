@@ -11,3 +11,5 @@ transaction on the selected EVM chain.
 There is intentionally **no placeholder bytecode** in this directory.
 Do not mistake historical `contracts/Mogwai.bin` or `Mogwai.txt` for
 the current Chisel contract. No keys or deployment addresses belong here.
+
+After successful main-branch CI, the publish job automatically commits the\ncompiled `Chisel.json` from its pinned Solidity compiler. This is a public\ndeployment artifact; it contains no wallet secrets or private keys.\n
