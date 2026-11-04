@@ -28,41 +28,58 @@ bundler, Hardhat, ethers or CDN dependency in the browser path.
   FileProxy, or Etherscan account key is required. The uploaded JSON is
   processed in memory. Only the wallet's provider sends transactions.
 
-### Compile `contracts/Chisel.sol` without npm
+### Build one Chisel artifact for multiple EVM chains
 
-From the Chisel repo root, install a **native** `solc` compiler separately
-that supports this source's Solidity pragma (`^0.8.24`). Then:
+Run this from the repository root with Python 3 and a native `solc` supporting
+`^0.8.24`:
 
 ```sh
-python3 - <<'PY' > /tmp/chisel-contract-input.json
-import json, pathlib, sys
-source = pathlib.Path("contracts/Chisel.sol").read_text()
-json.dump({
-  "language": "Solidity",
-  "sources": {"contracts/Chisel.sol": {"content": source}},
-  "settings": {
-    "metadata": {"appendCBOR": False},
-    "outputSelection": {"*": {"*": [
-      "abi", "evm.bytecode.object", "evm.deployedBytecode.object"
-    ]}}
-  }
-}, sys.stdout)
-PY
-
-solc --standard-json < /tmp/chisel-contract-input.json > /tmp/chisel-contract-output.json
+python3 contracts/build-chisel.py
+git add contracts/compiled/Chisel.json
+git commit -m "Compile Chisel deployment artifact"
 ```
 
-Import `/tmp/chisel-contract-output.json` into the factory page. Confirm the
-compiler version, selected contract, selected chain, initialization-code hash,
-gas estimate and wallet before approving deployment. The page deliberately
-does not pre-register an address. Verify the deployed source/ABI/runtime and
-receipt before adding an explicit deployment to
-`chisel.evm.contracts.js`.
+The script compiles `contracts/Chisel.sol:Chisel` using Solidity Standard JSON
+and writes exactly one reusable file:
 
-If you use standalone `solc-js` instead, the Standard JSON input/output
-contract is the same, but the `solcjs` CLI is *not* a drop-in substitute for
-every native `solc` flag. Keep compiler version and settings pinned for
-reproducibility.
+`contracts/compiled/Chisel.json`
+
+It contains the ABI, creation bytecode, compiled runtime, Solidity compiler
+version, explicit optimizer and EVM target, and SHA-256 digests of the source
+and creation bytecode. Compilation is not performed by the browser. The
+`solc --bin --abi` console headings are not included in this JSON.
+
+To verify that the committed artifact matches the current source and local
+compiler settings:
+
+```sh
+python3 contracts/build-chisel.py --check
+```
+
+`solc` defaults to the executable on `PATH`; set `SOLC=/path/to/solc` to
+choose another compiler. Commit only after inspecting the compiler version and
+diff. Building with a different `solc` release may change bytecode even if
+the Solidity source does not change. The build currently targets `evmVersion:
+paris` to avoid requiring Shanghai's PUSH0 instruction; this does not
+guarantee compatibility with every EVM chain.
+
+Then open [the Contract Factory](./index.html), click **Load Chisel from
+repository**, select an EVM chain ID and an injected browser-extension wallet,
+connect, review bytecode and gas, and explicitly click **Deploy reviewed
+contract**. The browser builds a contract-creation transaction with no `to`
+address, signs through the wallet, and checks the receipt when requested.
+
+**Important:** One compiled ABI/creation bytecode can be reused for deployments
+on many compatible EVM networks. Each deployment has its own transaction,
+chain ID, nonce, sender, gas, contract address, and native token. The
+`creator` immutable is initialized per deployment, so compiled runtime bytes
+may differ from deployed runtime even when the same creation bytecode was used.
+Record verified addresses separately by chain; none are bundled or guessed.
+No local private key or RPC secret is stored.
+
+You can still import any other manually compiled Standard JSON output or
+single-contract artifact using the file picker, or load the existing bundled
+M64 Dictionary.
 
 ### Existing M64 dictionary
 
