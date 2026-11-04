@@ -85,29 +85,36 @@ chosen function. Supported write methods are `execute`, `mapArtifact`,
 
 ## Build and deployment
 
-Recompile **the current** `contracts/Chisel.sol` before deploying. The
-historical `Mogwai.bin` and `Mogwai.txt` were committed from an older
-contract with a different ABI. **Do not deploy those old artifacts.**
-
-From the `contracts/` directory:
+Create the canonical, versioned deployment artifact with native `solc` and
+Python standard library:
 
 ```sh
-solc --bin --abi Chisel.sol
+python3 contracts/build-chisel.py
+python3 contracts/build-chisel.py --check
+git add contracts/compiled/Chisel.json
+git commit -m "Compile Chisel deployment artifact"
 ```
 
-Alternatively, use the Standard JSON recipe in
-`tools/evmFactory/README.md` to produce a deployable JSON artifact.
-Compile, deploy, check the receipt and deployed runtime bytecode before
-registering an address in Chisel. The repo does not assume a deployed
-instance or chain-specific address.
+The compiled JSON includes `abi`, `bytecode`, `deployedBytecode`,
+`compiler`, `settings`, `sourceSha256`, and `bytecodeSha256`. Deploy the
+**same exact creation bytecode** on supported EVM chains by choosing the chain
+ID and wallet in `tools/evmFactory/index.html`. No Solidity compiler runs
+in the browser; the wallet signs the creation transaction.
 
-To run the browser adapter's unit tests (Node is for tests only, not the
-IPFS runtime):
+Compilation uses optimizer runs=200 and `evmVersion=paris`. Each chain still
+requires a separate signed deployment and receipt/code verification. Its
+`creator` immutable records that deployment's actual sender; a compiled
+runtime comparison may differ because immutables are patched in the constructor.
+
+The historical `Mogwai.bin` and `Mogwai.txt` files were generated from
+an earlier, incompatible contract. Do not deploy them.
+
+`solc --bin --abi Chisel.sol` remains a useful inspection command but its
+header-wrapped console output is **not** the committed deployment manifest.
+For optional tests:
 
 ```sh
-node --test tests/chisel-contract-browser.test.mjs
+node --test tests/evm-factory.test.mjs tests/chisel-build-artifact.test.mjs tests/chisel-contract-browser.test.mjs
 ```
 
-These JavaScript tests do not simulate actual EVM execution. On-chain
-payment semantics and receipt traces must still be tested on a testnet
-with actual compiled bytecode.
+JavaScript tests do not replace real EVM execution and balance/receipt tests.
