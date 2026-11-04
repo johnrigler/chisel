@@ -61,6 +61,7 @@ jobs:
           node --check chisel.evm.write.ui.js
           node --check tools/evmFactory/factory.js
           node --check tools/evmFactory/app.js
+          node --check chisel.evm.chisel.js
           node --check chisel.record-preview.js
           node --check chisel.portal.publication.js
           node --check tools/recast/core.js
