@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; connect-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'self'; form-action 'none'">
+<title>Chisel · Solidity contracts</title>
+<style>
+:root{color-scheme:dark;--bg:#101214;--panel:#181c20;--ink:#e8edf2;--muted:#9aabb9;--line:#3b4550}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+main{max-width:950px;margin:auto;padding:20px}h1{font-size:24px}h2{font-size:18px;margin:0 0 6px}
+p{color:var(--muted)}a{color:#a5c8ed}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+article{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+article p{margin:5px 0 12px}nav{display:flex;gap:12px;flex-wrap:wrap}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#101419;border:1px solid var(--line);border-radius:6px;padding:9px;color:var(--muted);font:12px/1.5 ui-monospace,monospace}
+small{color:var(--muted)}
+</style>
+</head>
+<body><main>
+<header>
+<h1>Solidity contracts</h1>
+<p>Contract sources, compiled ABI and creation bytecode. One artifact may be deployed on multiple compatible EVM chains. Wallets sign the deployment transactions; there are no private keys or deployment addresses in this directory.</p>
+<nav aria-label="Navigation"><a href="../index.html?mode=tools">Chisel tools</a><a href="../tools/evmFactory/index.html">EVM Contract Factory</a><a href="../tools/m64Artifact/index.html">M64 workbench</a><a href="README.md">Solidity design notes</a></nav>
+</header>
+<section class="grid" aria-label="Available Solidity contracts">
+<article>
+<h2>Chisel</h2>
+<p>Writer-address-scoped dictionary, optional native-token distribution, event logging and one composite execute() call. Off-chain formatting and signing stay in JavaScript.</p>
+<nav><a href="Chisel.sol">Source</a><a href="compiled/Chisel.json">ABI + bytecode</a><a href="README.md">Behavior and build</a></nav>
+<pre id="chiselInfo">Reading local compiled manifest...</pre>
+</article>
+<article>
+<h2>M64Dictionary</h2>
+<p>Independent, permissionless, append-only vocabulary with stable numeric term IDs and generic indexed Packet logs. M64 encoding and hydration run outside Solidity.</p>
+<nav><a href="M64Dictionary.sol">Source</a><a href="compiled/M64Dictionary.json">ABI + bytecode</a><a href="compiled/M64Dictionary.abi.json">ABI only</a><a href="M64Dictionary.md">Design</a></nav>
+<pre id="m64Info">Reading local compiled manifest...</pre>
+</article>
+</section>
+<section>
+<h2>Related tools</h2>
+<nav><a href="../tools/evmFactory/index.html">Deploy with browser wallet</a><a href="../tools/m64Artifact/deploy-dictionary-polygon.html">M64 Polygon deployment</a><a href="../tools/m64Artifact/dictionary-polygon.html">M64 dictionary console</a><a href="../tools/m64Artifact/packet-polygon.html">M64 packet carrier</a></nav>
+<p><small>The separate `JethroV2.sol` remains available as an earlier draft. Historical compiler transcripts and obsolete Mogwai output are under `archive/`, not deployable artifacts.</small></p>
+</section>
+</main>
+<script>
+"use strict";
+async function inspect(path,id){
+  const node=document.getElementById(id);
+  try{
+    const response=await fetch(path,{cache:"no-store"});
+    if(!response.ok)throw new Error("HTTP "+response.status);
+    const artifact=await response.json();
+    const hex=String(artifact.bytecode||"");
+    if(!/^0x(?:[0-9a-fA-F]{2})+$/.test(hex)||!Array.isArray(artifact.abi))throw new Error("Invalid manifest");
+    const functions=artifact.abi.filter(x=>x.type==="function").length;
+    node.textContent="Contract: "+artifact.contractName+"\nCompiler: "+(artifact.compiler||artifact.solcVersion||"not stated")+
+      "\nCreation bytes: "+((hex.length-2)/2)+"\nABI functions: "+functions+
+      "\nCreation SHA-256: "+(artifact.bytecodeSha256||"not supplied");
+  }catch(error){node.textContent="Compiled manifest unavailable: "+error.message;}
+}
+void inspect("compiled/Chisel.json","chiselInfo");
+void inspect("compiled/M64Dictionary.json","m64Info");
+</script>
+</body>
+</html>
