@@ -1,0 +1,21 @@
+Script started on 2026-11-03 20:27:31-07:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="80" LINES="37"]
+[?2004h[0;32m~/.../chisel/contracts[0m [0;97m$[0m d.solc JethroV2.sol | jq .
+[?2004lNo command d.solc found, did you mean:
+ Command solc in package solidity
+[?2004h[0;32m~/.../chisel/contracts[0m [0;97m$[0m d.[K[K. d.solc-02343555 
+[?2004l[?2004h[0;32m~/.../chisel/contracts[0m [0;97m$[0m . d.solc-02343555 d.solc JethroV2.sol | jq .
+[?2004l[1;39m{[0m
+  [1;34m"errors"[0m[1;39m:[0m [1;39m[[0m
+    [1;39m{[0m
+      [1;34m"component"[0m[1;39m:[0m [0;32m"general"[0m[1;39m,[0m
+      [1;34m"formattedMessage"[0m[1;39m:[0m [0;32m"parse error at line 2, column 1: syntax error while parsing value - invalid literal; last read: '// SPDX-License-Identifier: MIT<U+000A>p'"[0m[1;39m,[0m
+      [1;34m"message"[0m[1;39m:[0m [0;32m"parse error at line 2, column 1: syntax error while parsing value - invalid literal; last read: '// SPDX-License-Identifier: MIT<U+000A>p'"[0m[1;39m,[0m
+      [1;34m"severity"[0m[1;39m:[0m [0;32m"error"[0m[1;39m,[0m
+      [1;34m"type"[0m[1;39m:[0m [0;32m"JSONError"[0m
+    [1;39m}[0m
+  [1;39m][0m
+[1;39m}[0m
+[?2004h[0;32m~/.../chisel/contracts[0m [0;97m$[0m exit
+[?2004lexit
+
+Script done on 2026-11-03 20:27:58-07:00 [COMMAND_EXIT_CODE="0"]
