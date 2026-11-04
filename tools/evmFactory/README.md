@@ -28,18 +28,18 @@ bundler, Hardhat, ethers or CDN dependency in the browser path.
   FileProxy, or Etherscan account key is required. The uploaded JSON is
   processed in memory. Only the wallet's provider sends transactions.
 
-### Compile `contracts/Mogwai.sol` without npm
+### Compile `contracts/Chisel.sol` without npm
 
 From the Chisel repo root, install a **native** `solc` compiler separately
 that supports this source's Solidity pragma (`^0.8.24`). Then:
 
 ```sh
-python3 - <<'PY' > /tmp/chisel-mogwai-input.json
+python3 - <<'PY' > /tmp/chisel-contract-input.json
 import json, pathlib, sys
-source = pathlib.Path("contracts/Mogwai.sol").read_text()
+source = pathlib.Path("contracts/Chisel.sol").read_text()
 json.dump({
   "language": "Solidity",
-  "sources": {"contracts/Mogwai.sol": {"content": source}},
+  "sources": {"contracts/Chisel.sol": {"content": source}},
   "settings": {
     "metadata": {"appendCBOR": False},
     "outputSelection": {"*": {"*": [
@@ -49,10 +49,10 @@ json.dump({
 }, sys.stdout)
 PY
 
-solc --standard-json < /tmp/chisel-mogwai-input.json > /tmp/chisel-mogwai-output.json
+solc --standard-json < /tmp/chisel-contract-input.json > /tmp/chisel-contract-output.json
 ```
 
-Import `/tmp/chisel-mogwai-output.json` into the factory page. Confirm the
+Import `/tmp/chisel-contract-output.json` into the factory page. Confirm the
 compiler version, selected contract, selected chain, initialization-code hash,
 gas estimate and wallet before approving deployment. The page deliberately
 does not pre-register an address. Verify the deployed source/ABI/runtime and
