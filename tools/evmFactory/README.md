@@ -65,7 +65,7 @@ guarantee compatibility with every EVM chain.
 
 Then open [the Contract Factory](./index.html), click **Load Chisel from
 repository**, select an EVM chain ID and an injected browser-extension wallet,
-connect, review bytecode and gas, and explicitly click **Deploy reviewed
+connect, click **Switch wallet to expected chain** if needed, review bytecode and gas, and explicitly click **Deploy reviewed
 contract**. The browser builds a contract-creation transaction with no `to`
 address, signs through the wallet, and checks the receipt when requested.
 
@@ -101,8 +101,10 @@ runtime choice documented in `tools/M64_ARTIFACT_WORKBENCH.md` is unchanged.
   a zero-argument constructor.
 - Only EIP-1193 injected wallets are supported. EIP-6963 discovery is used
   for multiple injected wallets, with `window.ethereum` fallback.
-- The chain ID is explicit. The wallet's selected chain must match; the
-  factory does **not** silently switch or add a chain.
+- The chain ID is explicit. Click **Switch wallet to expected chain** to
+  request an EIP-3326 network change in the selected injected wallet. Approve
+  in the wallet. The factory does **not** silently switch or add a chain.
+  Unknown chains must be added manually. Switching invalidates deployment review.
 - The standard library RPC supports only preflight gas estimation here.
   Deployment is a consequential transaction and can incur gas even if mined
   with failure.
