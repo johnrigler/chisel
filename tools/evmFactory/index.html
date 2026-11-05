@@ -30,8 +30,8 @@ details{margin-top:12px}
 summary{cursor:pointer}
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
-<script src="./factory.js" defer></script>
-<script src="./app.js" defer></script>
+<script src="./factory.js?rev=20261105-chain-switch" defer></script>
+<script src="./app.js?rev=20261105-chain-switch" defer></script>
 </head>
 <body><main>
 <header>
@@ -61,7 +61,9 @@ summary{cursor:pointer}
 <select id="wallet"><option value="">Detecting wallets...</option></select>
 <button id="refresh" type="button">Refresh wallet list</button>
 <button id="connect" type="button">Connect wallet</button>
+<button id="switchChain" type="button">Switch wallet to expected chain</button>
 <button id="review" type="button">Review and estimate gas</button>
+<small>Network switch requests use the selected wallet. Approve in the wallet; unknown networks must be added manually. Review again after switching.</small>
 <pre id="walletStatus">Not connected.</pre>
 <pre id="reviewStatus">Nothing reviewed. No network transaction has been requested.</pre>
 </section>
