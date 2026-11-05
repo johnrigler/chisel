@@ -8,6 +8,7 @@
   let pending = null;
   let revision = 0;
   let busy = false;
+  let walletStatusRequest = 0;
 
   function show(id, message) { $(id).textContent = String(message); }
   function error(id, err) { show(id, "ERROR: " + (err && err.message || String(err))); }
@@ -24,6 +25,24 @@
     }
     return wallets[n].provider;
   }
+  async function refreshWalletStatus(provider) {
+    const request = ++walletStatusRequest;
+    if (!provider) {
+      show("walletStatus", "Select an injected wallet.");
+      return;
+    }
+    try {
+      const chainId = api.chainNumber(await provider.request({method: "eth_chainId"}));
+      const accounts = await provider.request({method: "eth_accounts"});
+      if (request !== walletStatusRequest || provider !== activeWallet()) return;
+      const account = Array.isArray(accounts) && accounts[0] || "(not connected)";
+      show("walletStatus", "Wallet account: " + account +
+        "\nCurrent chain ID: " + chainId +
+        "\nExpected chain ID: " + ($("chain").value.trim() || "(enter chain ID)"));
+    } catch (err) {
+      if (request === walletStatusRequest && provider === activeWallet()) error("walletStatus", err);
+    }
+  }
   function addWallet(provider, name) {
     if (!provider || typeof provider.request !== "function" ||
       wallets.some(item => item.provider === provider)) return;
@@ -36,14 +55,17 @@
     if (wallets.length === 1) $("wallet").value = "0";
     if (typeof provider.on === "function") {
       provider.on("accountsChanged", () => {
-        if (provider === activeWallet()) invalidate();
-        show("walletStatus", "Wallet account changed. Reconnect and review.");
+        if (provider !== activeWallet()) return;
+        invalidate();
+        void refreshWalletStatus(provider);
       });
       provider.on("chainChanged", () => {
-        if (provider === activeWallet()) invalidate();
-        show("walletStatus", "Wallet network changed. Review again.");
+        if (provider !== activeWallet()) return;
+        invalidate();
+        void refreshWalletStatus(provider);
       });
     }
+    if (provider === activeWallet()) void refreshWalletStatus(provider);
   }
   function activeWallet() {
     const index = Number($("wallet").value);
@@ -137,8 +159,14 @@
   });
 
   $("contract").addEventListener("change", renderArtifact);
-  $("chain").addEventListener("input", invalidate);
-  $("wallet").addEventListener("change", invalidate);
+  $("chain").addEventListener("input", () => {
+    invalidate();
+    void refreshWalletStatus(activeWallet());
+  });
+  $("wallet").addEventListener("change", () => {
+    invalidate();
+    void refreshWalletStatus(activeWallet());
+  });
   $("refresh").addEventListener("click", discover);
   $("connect").addEventListener("click", async () => {
     invalidate();
@@ -146,9 +174,29 @@
       const provider = wallet();
       const accounts = await provider.request({method: "eth_requestAccounts"});
       if (!Array.isArray(accounts) || !accounts[0]) throw new Error("Wallet returned no account.");
-      const chain = api.chainNumber(await provider.request({method: "eth_chainId"}));
-      show("walletStatus", "Wallet account: " + accounts[0] + "\nCurrent chain ID: " + chain);
+      await refreshWalletStatus(provider);
     } catch (err) { error("walletStatus", err); }
+  });
+  $("switchChain").addEventListener("click", async () => {
+    if ($("switchChain").disabled) return;
+    invalidate();
+    let provider = null;
+    $("switchChain").disabled = true;
+    try {
+      provider = wallet();
+      const desired = api.expectedChain($("chain").value);
+      show("walletStatus", "Requesting chain " + desired + " in the selected wallet. Approve there.");
+      const result = await api.switchWalletChain(provider, String(desired));
+      if (provider !== activeWallet()) return;
+      await refreshWalletStatus(provider);
+      show("reviewStatus", result.switched ?
+        "Wallet switched to chain " + result.chainId + ". Review the contract again before deployment." :
+        "Wallet already on chain " + result.chainId + ". Review the contract before deployment.");
+    } catch (err) {
+      if (!provider || provider === activeWallet()) error("walletStatus", err);
+    } finally {
+      $("switchChain").disabled = false;
+    }
   });
   $("review").addEventListener("click", async () => {
     if (busy) return;
