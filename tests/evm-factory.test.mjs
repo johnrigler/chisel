@@ -14,14 +14,24 @@ const SAMPLE = {abi:[],bytecode:"0x60006000",deployedBytecode:"0x6000",contractN
 
 function mockedProvider() {
   const calls = [];
-  let chain = "0x89", accounts = [ACCOUNT], receipt = null;
+  let chain = "0x89", accounts = [ACCOUNT], receipt = null, switchError = null, ignoreSwitch = false;
   return {
     calls,
+    switchCalls: [],
     setChain(value) {chain = value;},
+    setSwitchError(value) {switchError = value;},
+    setIgnoreSwitch(value) {ignoreSwitch = value;},
     setAccounts(value) {accounts = value;},
     setReceipt(value) {receipt = value;},
-    async request({method}) {
+    async request({method,params}) {
       calls.push(method);
+      if (method === "wallet_switchEthereumChain") {
+        const requested = params[0].chainId;
+        this.switchCalls.push(requested);
+        if (switchError) throw switchError;
+        if (!ignoreSwitch) chain = requested;
+        return null;
+      }
       if (method === "eth_chainId") return chain;
       if (method === "eth_accounts") return accounts;
       if (method === "eth_estimateGas") return "0x5208";
@@ -98,4 +108,31 @@ test("receipt distinguishes pending, failed and mined with exact runtime match",
   assert.equal(final.runtimeMatch,true);
   provider.setChain("0x1");
   await assert.rejects(api.checkReceipt(provider,pending),/Switch to deployment chain/);
+});
+
+test("switches injected provider with hex chain ID and skips request when already selected", async () => {
+  const provider = mockedProvider();
+  provider.setChain("0x1");
+  const switched = await api.switchWalletChain(provider, "137");
+  assert.equal(switched.chainId, 137);
+  assert.equal(switched.switched, true);
+  assert.deepEqual(provider.switchCalls, ["0x89"]);
+  assert.ok(!provider.calls.includes("eth_sendTransaction"));
+  const again = await api.switchWalletChain(provider, "137");
+  assert.equal(again.switched, false);
+  assert.deepEqual(provider.switchCalls, ["0x89"]);
+});
+
+test("handles rejected, unknown, and ineffective chain-switch requests", async () => {
+  const provider = mockedProvider();
+  provider.setChain("0x1");
+  provider.setSwitchError({code: 4001});
+  await assert.rejects(api.switchWalletChain(provider, "137"), /rejected/);
+  provider.setSwitchError({code: 4902});
+  await assert.rejects(api.switchWalletChain(provider, "137"), /Add it manually/);
+  provider.setSwitchError(null);
+  provider.setIgnoreSwitch(true);
+  await assert.rejects(api.switchWalletChain(provider, "137"), /still on chain 1/);
+  await assert.rejects(api.switchWalletChain(provider, "invalid"), /positive decimal chain ID/);
+  assert.ok(!provider.calls.includes("eth_sendTransaction"));
 });
