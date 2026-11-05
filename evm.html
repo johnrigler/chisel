@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chisel EVM Workbench · Gomez + Jethro</title>
+<title>Chisel EVM Workbench · Gomez + Jethro + Polygon Thunderword</title>
 <style>
     :root {
         --bg: #101214;
@@ -205,8 +205,8 @@
 </head>
 <body>
 <header>
-    <h1>Chisel EVM Workbench · Gomez + Jethro</h1>
-    <p>Static Etherscan v2 account fetcher for Polygon. Checks saved split archives, starts after the newest local block, and writes new EVM transactions into persistent Chisel data.</p>
+    <h1>Chisel EVM Workbench · Gomez + Jethro + Polygon Thunderword</h1>
+    <p>Etherscan V2 address-history reader. Gomez, Jethro, and the all-ones main Thunderword are on Polygon mainnet (chain 137). Saved split archives go to the configured FileProxy.</p>
     <p><a href="tools/evmFactory/index.html">Open the EVM Contract Factory</a> for no-Hardhat artifact review and browser-wallet deployment.</p>
 </header>
 <main>
@@ -230,6 +230,7 @@
         <select id="contractProfile">
             <option value="gomez" selected>Gomez / 0x5a2220d56f56...</option>
             <option value="jethro">Jethro / 0x0076416C84c7...</option>
+            <option value="thunderword">Polygon main Thunderword / 0x111111...</option>
             <option value="custom">Custom / manual address</option>
         </select>
         <label for="address">Address to query</label>
@@ -265,9 +266,10 @@
         <button class="primary" id="checkSelectedBtn">Check selected + save new</button>
         <button id="checkGomezBtn">Check Gomez</button>
         <button id="checkJethroBtn">Check Jethro</button>
+        <button id="checkThunderwordBtn">Check Polygon Thunderword</button>
         <button id="refreshStatusBtn">Refresh saved status</button>
         <button id="fetchBtn">Fetch txlist only</button>
-        <button id="thunderBtn">Use EVM Thunderword</button>
+        <button id="thunderBtn">Use Polygon Thunderword</button>
         <button id="gomezBtn">Use Gomez</button>
         <button id="jethroBtn">Use Jethro</button>
         <button id="parseRawBtn">Parse raw textarea</button>
@@ -443,6 +445,13 @@
             name: "jethro",
             chainId: String(registry.deployments["jethro.polygon.137"].chainId),
             address: JETHRO
+        },
+        thunderword: {
+            key: "thunderword",
+            label: "Polygon main Thunderword",
+            name: "polygon-main-thunderword",
+            chainId: "137",
+            address: EVM_THUNDERWORD
         }
     };
 
@@ -773,7 +782,7 @@
         const a = String(address || "").toLowerCase();
         if (a === GOMEZ.toLowerCase()) return "gomez";
         if (a === JETHRO.toLowerCase()) return "jethro";
-        if (a === EVM_THUNDERWORD.toLowerCase()) return "evm-thunderword";
+        if (a === EVM_THUNDERWORD.toLowerCase()) return "polygon-main-thunderword";
         return "contract";
     }
 
@@ -1091,7 +1100,7 @@
 
     async function checkProfileForNewTransactions(key) {
         const profileKey = key || selectedProfileKey();
-        if (!CONTRACT_PROFILES[profileKey]) throw new Error("Choose Gomez or Jethro before checking for new transactions.");
+        if (!CONTRACT_PROFILES[profileKey]) throw new Error("Choose Gomez, Jethro, or Polygon main Thunderword before checking for new transactions.");
         setContractProfile(profileKey);
         setStatus("Checking local split archive for " + CONTRACT_PROFILES[profileKey].label + "…");
         const before = await loadNextStartBlockForProfile(profileKey);
@@ -1342,6 +1351,14 @@
         }
     });
 
+    el("checkThunderwordBtn").addEventListener("click", async function () {
+        try {
+            await checkProfileForNewTransactions("thunderword");
+        } catch (e) {
+            setStatus(e.message || String(e), "bad");
+        }
+    });
+
     el("refreshStatusBtn").addEventListener("click", async function () {
         try {
             await refreshProfileStatuses();
@@ -1370,8 +1387,14 @@
         try { localStorage.setItem("chisel.evm2.etherscanApiKey", this.value); } catch (e) {}
     });
 
-    el("thunderBtn").addEventListener("click", function () {
-        setAddressAndName(EVM_THUNDERWORD, "evm-thunderword");
+    el("thunderBtn").addEventListener("click", async function () {
+        try {
+            setContractProfile("thunderword");
+            await loadNextStartBlockForProfile("thunderword");
+            setStatus("Polygon main Thunderword selected on chain 137. Ready to fetch or check and save new records.", "ok");
+        } catch (e) {
+            setStatus("Polygon main Thunderword selected on chain 137; FileProxy status is unavailable: " + (e.message || String(e)), "warn");
+        }
     });
 
     el("gomezBtn").addEventListener("click", async function () {
@@ -1438,7 +1461,7 @@
             setContractProfile("gomez");
             await refreshProfileStatuses();
             await loadNextStartBlockForProfile("gomez");
-            setStatus("Loaded Gomez/Jethro profiles. Start block reflects the newest saved local split archive.", "ok");
+            setStatus("Loaded Gomez, Jethro and Polygon Thunderword profiles. Start block reflects the newest saved split archive.", "ok");
         } catch (e) {
             renderProfileStatuses();
             setStatus("Loaded profiles, but fileProxy status is unavailable: " + (e.message || String(e)), "warn");
