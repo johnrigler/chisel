@@ -99,6 +99,29 @@
     return provider;
   }
 
+  // EIP-3326: only call this on an explicit user action.
+  async function switchWalletChain(provider, chainInput) {
+    providerRequired(provider);
+    const desired = expectedChain(chainInput);
+    const before = chainNumber(await provider.request({method: "eth_chainId"}));
+    if (before !== desired) {
+      try {
+        await provider.request({
+          method: "wallet_switchEthereumChain",
+          params: [{chainId: "0x" + desired.toString(16)}]
+        });
+      } catch (err) {
+        const code = Number(err && err.code);
+        if (code === 4001) throw new Error("Wallet network switch rejected.");
+        if (code === 4902) throw new Error("Chain " + desired + " is not configured in this wallet. Add it manually, then retry.");
+        throw err;
+      }
+    }
+    const after = chainNumber(await provider.request({method: "eth_chainId"}));
+    if (after !== desired) throw new Error("Wallet is still on chain " + after + "; expected " + desired + ".");
+    return Object.freeze({chainId: after, switched: before !== after});
+  }
+
   async function walletState(provider, desiredChain) {
     providerRequired(provider);
     const chainId = chainNumber(await provider.request({method: "eth_chainId"}));
@@ -191,6 +214,6 @@
   }
 
   root.CHISEL_EVM_FACTORY = Object.freeze({
-    collectArtifacts, chainNumber, expectedChain, reviewDeployment, sendReviewed, checkReceipt, sha256
+    collectArtifacts, chainNumber, expectedChain, switchWalletChain, reviewDeployment, sendReviewed, checkReceipt, sha256
   });
 }(typeof window !== "undefined" ? window : globalThis));
