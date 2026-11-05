@@ -23,7 +23,7 @@
     const txid = String(params.get("txid") || "").replace(/^0x/i, "").toLowerCase();
     const coin = root.CHISEL_PORTAL_STORE.normalizeCoinName(params.get("coin"));
     if (!TXID.test(txid) || !COINS.includes(coin)) throw new Error("Record URL needs a supported currency and a 64-hex TXID.");
-    const source = coin === "evm" && /^(?:evmGomez|evmJethro|other)$/.test(params.get("source")) ? params.get("source") : "";
+    const source = coin === "evm" && /^(?:evmGomez|evmJethro|evmPolygonThunderword|other)$/.test(params.get("source")) ? params.get("source") : "";
     const chain = coin === "evm" && /^\d{1,15}$/.test(params.get("chain")) ? params.get("chain") : "";
     return {coin: coin, txid: txid, sourceId: source, chainId: chain, dataUrl: publicDataUrl(params.get("data"), url.href)};
   }
@@ -40,7 +40,7 @@
     url.searchParams.set("txid", txid);
     if (coin === "evm") {
       const source = store.sourceIdForRow(row), chain = String(row.index && row.index.chainId || "");
-      if (/^(?:evmGomez|evmJethro|other)$/.test(source)) url.searchParams.set("source", source);
+      if (/^(?:evmGomez|evmJethro|evmPolygonThunderword|other)$/.test(source)) url.searchParams.set("source", source);
       if (/^\d{1,15}$/.test(chain)) url.searchParams.set("chain", chain);
     }
     const source = publicDataUrl(dataUrl, base);
