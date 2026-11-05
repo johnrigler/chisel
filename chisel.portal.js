@@ -58,6 +58,7 @@
     inlineImageExpandedScale: 12,
     includeEvmGomez: false,
     includeEvmJethro: false,
+    includeEvmPolygonThunderword: false,
     autoLoadEvmCatalog: false,
     portalFilterDigibyte: true,
     portalFilterRavencoin: true,
@@ -67,6 +68,7 @@
     portalFilterEcash: true,
     portalFilterEvmGomez: true,
     portalFilterEvmJethro: true,
+    portalFilterEvmPolygonThunderword: true,
     portalFilterOther: true
   };
 
@@ -90,6 +92,16 @@
       chainName: "Polygon Mainnet",
       contractName: "jethro",
       contractAddress: "0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0"
+    },
+    {
+      id: "polygonThunderword",
+      label: "Polygon Thunderword",
+      coin: "evm",
+      ticker: "EVM",
+      chainId: "137",
+      chainName: "Polygon Mainnet",
+      contractName: "polygon-main-thunderword",
+      contractAddress: "0x1111111111111111111111111111111111111111"
     }
   ];
 
@@ -3170,7 +3182,7 @@
   }
 
   const PORTAL_FILTER_IDS = [
-    "digibyte", "ravencoin", "litecoin", "bitcoin", "dogecoin", "ecash", "evmGomez", "evmJethro", "other"
+    "digibyte", "ravencoin", "litecoin", "bitcoin", "dogecoin", "ecash", "evmGomez", "evmJethro", "evmPolygonThunderword", "other"
   ];
 
   function portalFilterConfigKey(id) {
@@ -5751,7 +5763,7 @@
     return EVM_PROFILES.filter(function (profile) {
       const box = evmCheckboxForProfile(profile);
       if (box) return !!box.checked;
-      return configBool(profile.id === "gomez" ? "includeEvmGomez" : "includeEvmJethro", false);
+      return configBool("includeEvm" + profile.label.replace(/[^A-Za-z0-9]/g, ""), false);
     });
   }
 
@@ -5759,7 +5771,7 @@
     EVM_PROFILES.forEach(function (profile) {
       const box = evmCheckboxForProfile(profile);
       if (!box) return;
-      const key = profile.id === "gomez" ? "includeEvmGomez" : "includeEvmJethro";
+      const key = "includeEvm" + profile.label.replace(/[^A-Za-z0-9]/g, "");
       box.checked = configBool(key, false);
     });
   }
@@ -5809,7 +5821,7 @@
   async function loadSelectedEvmCatalogs(opts) {
     const profiles = enabledEvmProfiles();
     if (!profiles.length) {
-      setStatus("Choose Gomez EVM, Jethro EVM, or both before loading the local EVM catalog.", true);
+      setStatus("Choose at least one EVM stream (Gomez, Jethro, or Polygon Thunderword) before loading the FileProxy catalog.", true);
       return [];
     }
 
