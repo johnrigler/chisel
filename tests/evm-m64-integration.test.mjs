@@ -44,7 +44,10 @@ test("M64 factory, original deploy page and optional Hardhat workspace use canon
   assert.match(evm,/id="m64ContractPanel"/);
   assert.match(evm,/no M64Dictionary Polygon deployment is registered/);
   assert.match(compile,/\.\.\/\.\.\/\.\.\/contracts\/M64Dictionary\.sol/);
-  assert.match(config,/sources:\s*"\.\.\/\.\.\/contracts"/);
+  assert.match(config,/sources:\s*"\.\/contracts"/);
+  const stage=await read("tools/m64Artifact/scripts/stage-contract.mjs");
+  assert.match(stage,/\.\.\/\.\.\/\.\.\/contracts\/M64Dictionary\.sol/);
+  assert.match(stage,/writeFile\(target,bytes\)/);
   assert.match(ci,/scripts\/verify-bytecode\.mjs/);
   for(const path of ["tools/m64Artifact/contracts/M64Dictionary.sol",
     "tools/m64Artifact/contracts/M64Dictionary.abi.json",

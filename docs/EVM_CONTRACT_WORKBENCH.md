@@ -38,7 +38,7 @@ M64 now uses the same source/interface/implementation separation as Chisel. It i
 - `contracts/compiled/M64Dictionary.json`: captured 4,002-byte creation bytecode and full ABI, retaining compiler/build provenance. Creation SHA-256: `f55001c8e085674028643483943f42363d913d172b328f7d10dc175d3419e051`.
 - `chisel.evm.contracts.js`: `m64.dictionary.v1` interface and implementation records, **no deployment record**.
 
-`evm.html` now links to the canonical files, the existing EVM Contract Factory and the M64-specific deploy/dictionary consoles. Both deployment paths load the same canonical compiled artifact. Optional Hardhat and M64 codec tools remain under `tools/m64Artifact/`; its compiler is pointed at the shared contract source. CI checks captured creation/runtime bytecode consistency against pinned standalone solc and Hardhat builds.
+`evm.html` now links to the canonical files, the existing EVM Contract Factory and the M64-specific deploy/dictionary consoles. Both deployment paths load the same canonical compiled artifact. Optional Hardhat and M64 codec tools remain under `tools/m64Artifact/`; its npm scripts stage a byte-for-byte, git-ignored copy of the shared contract for Hardhat 3 (which rejects sources outside the project root). CI checks captured creation/runtime bytecode consistency against pinned standalone solc and Hardhat builds.
 
 To publish on Polygon 137, explicitly deploy and verify the contract first. The user must approve in the wallet; a creation artifact does not establish an on-chain deployment. Once the address is known and checked, register that specific chain/address in Chisel for regular read/write access.
 

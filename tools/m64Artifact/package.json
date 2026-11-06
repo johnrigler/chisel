@@ -5,12 +5,18 @@
   "type": "module",
   "description": "Hardhat 3 development, test, and deployment workspace for Chisel M64 contracts.",
   "scripts": {
+    "precompile": "node scripts/stage-contract.mjs",
     "compile": "hardhat compile",
     "compile:standalone": "node scripts/compile-standalone.mjs",
+    "pretest": "node scripts/stage-contract.mjs",
     "test": "hardhat test mocha",
+    "pretest:all": "node scripts/stage-contract.mjs",
     "test:all": "hardhat test",
+    "predemo": "node scripts/stage-contract.mjs",
     "demo": "hardhat run scripts/demo.ts",
+    "predeploy:local": "node scripts/stage-contract.mjs",
     "deploy:local": "hardhat ignition deploy ignition/modules/M64Dictionary.ts",
+    "predeploy:polygon": "node scripts/stage-contract.mjs",
     "deploy:polygon": "hardhat ignition deploy ignition/modules/M64Dictionary.ts --network polygon",
     "clean": "hardhat clean"
   },

@@ -6,7 +6,7 @@ This directory remains an optional Hardhat 3 project. Its `paths.sources` settin
 ../../contracts/M64Dictionary.sol
 ```
 
-There is no copied Hardhat-only contract. The browser tools, captured deployment artifact, standalone compiler check, and Hardhat all work from the same Solidity source.
+There is no second **tracked** Solidity implementation. The browser tools, captured deployment artifact, standalone compiler check, and staged Hardhat input all derive from the same source. `npx hardhat ...` called directly requires first running `node scripts/stage-contract.mjs`; prefer the npm scripts.
 
 ## Why Hardhat is here
 

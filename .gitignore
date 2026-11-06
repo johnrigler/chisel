@@ -13,3 +13,6 @@ tools/m64Artifact/ignition/deployments/
 tools/m64Artifact/.env
 
 tools/secp256k1Migration/node_modules/
+
+# Temporary Hardhat compile input mirrored from canonical root Solidity
+/tools/m64Artifact/contracts/M64Dictionary.sol
