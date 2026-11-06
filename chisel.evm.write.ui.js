@@ -4,7 +4,7 @@
   const registry = root.CHISEL_EVM_CONTRACTS;
   const writerApi = root.CHISEL_EVM_WRITE;
   if (!registry || !writerApi || !root.ethers) {
-    for (const id of ["jethroWriteStatus", "gomezWriteStatus"]) {
+    for (const id of ["jethroWriteStatus", "gomezWriteStatus", "chiselWriteStatus"]) {
       const el = $(id);
       if (el) {
         el.textContent = "EVM writer unavailable. Check the local scripts and ethers library.";
@@ -17,6 +17,19 @@
   // One wallet discovery service and one panel controller per contract. The
   // same vetted writer handles preflight, account checks and wallet approval.
   const wallets = [], panels = [];
+  const CHISEL = root.CHISEL_EVM_CHISEL;
+
+  function parseChiselPayments(raw) {
+    return String(raw || "").split(/\r?\n/).map(function (line) { return line.trim(); })
+      .filter(Boolean).map(function (line, index) {
+        const pieces = line.split(/[\s,]+/).filter(Boolean);
+        if (pieces.length !== 2) {
+          throw new Error("Payment line " + (index + 1) + " must contain recipient,amountWei.");
+        }
+        return {recipient: pieces[0], amountWei: pieces[1]};
+      });
+  }
+
   const configurations = [
     {
       prefix: "jethro", deploymentId: "jethro.polygon.137",
@@ -26,6 +39,39 @@
           args: [get("Artifact").value, get("Body").value]};
       },
       display: function (review) { return {artifact: review.artifact, body: review.body}; }
+    },
+    {
+      prefix: "chisel", deploymentId: "chisel.polygon.137",
+      fields: ["Method", "Artifact", "Body", "LogFormat", "LogData", "Payments"],
+      parameters: function (get) {
+        const fn = get("Method").value;
+        const hasDictionary = fn === "mapArtifact" || fn === "execute";
+        const hasLog = fn === "logRecord" || fn === "execute";
+        const hasPayments = fn === "execute" || fn === "distribute" || fn === "distributeChecked";
+        return {
+          deploymentId: "chisel.polygon.137",
+          functionName: fn,
+          args: {
+            artifact: hasDictionary ? get("Artifact").value : "",
+            body: hasDictionary ? get("Body").value : "",
+            logFormat: hasLog ? get("LogFormat").value.trim() : CHISEL.ZERO_FORMAT,
+            logData: hasLog ? get("LogData").value.trim() : "0x",
+            payments: hasPayments ? parseChiselPayments(get("Payments").value) : []
+          }
+        };
+      },
+      display: function (review) {
+        return {
+          artifact: review.artifact, body: review.body,
+          logFormat: review.logFormat, logData: review.logData,
+          payments: review.payments, paymentTotalWei: review.paymentTotalWei,
+          paymentSemantics: review.functionName === "distributeChecked"
+            ? "Atomic: reverts all payments if any fails."
+            : ["distribute", "execute"].includes(review.functionName)
+              ? "Best effort: inspect TransferResult events per recipient; failure may refund."
+              : undefined
+        };
+      }
     },
     {
       prefix: "gomez", deploymentId: "gomez.polygon.137",
@@ -186,7 +232,7 @@
           chainId: review.chainId, contract: review.to, from: review.from,
           interface: review.interfaceId, implementation: review.implementationId,
           function: review.functionSignature, ...config.display(review),
-          nativeValueWei: "0", utf8Bytes: review.byteLength,
+          nativeValueWei: review.nativeValueWei || "0", utf8Bytes: review.byteLength,
           estimatedGasUnits: review.gasEstimate, calldata: review.data,
           deployedCodeHash: review.codeHash
         }, null, 2);
@@ -199,7 +245,7 @@
     });
 
     get("SendBtn").addEventListener("click", async function () {
-      this.disabled = true;
+      get("SendBtn").disabled = true;
       try {
         const wallet = selectedWallet();
         if (!connection || connection.wallet !== wallet || !writer.review) throw new Error("A new review is required.");
@@ -228,9 +274,41 @@
       } catch (error) { status(error.message || String(error), "bad"); }
     });
 
-    return Object.freeze({disconnect, renderWallets});
+    return Object.freeze({disconnect, renderWallets, invalidate});
   }
 
   configurations.forEach(function (config) { panels.push(createPanel(config)); });
+
+  function updateChiselFields() {
+    const method = $("chiselMethod").value;
+    $("chiselDictionaryFields").hidden = method !== "mapArtifact" && method !== "execute";
+    $("chiselLogFields").hidden = method !== "logRecord" && method !== "execute";
+    $("chiselPaymentsFields").hidden = !["distribute", "distributeChecked", "execute"].includes(method);
+    const preview = $("chiselValuePreview");
+    if ($("chiselPaymentsFields").hidden) {
+      preview.textContent = "Native value: 0 wei.";
+      return;
+    }
+    try {
+      const entries = parseChiselPayments($("chiselPayments").value);
+      if (entries.length > 32) throw new Error("Maximum 32 payments.");
+      let total = 0n;
+      entries.forEach(function (item, index) {
+        if (!/^(0|[1-9][0-9]*)$/.test(item.amountWei)) {
+          throw new Error("Payment line " + (index + 1) + " must contain decimal wei.");
+        }
+        total += BigInt(item.amountWei);
+      });
+      preview.textContent = "Native value: " + total.toString() + " wei (" +
+        entries.length + " payment" + (entries.length === 1 ? "" : "s") + ").";
+    } catch (error) { preview.textContent = error.message || String(error); }
+  }
+
+  $("chiselMethod").addEventListener("change", function () {
+    panels[0].invalidate("Chisel function changed. Review the new calldata before sending.");
+    updateChiselFields();
+  });
+  $("chiselPayments").addEventListener("input", updateChiselFields);
+  updateChiselFields();
   discover();
 }(window));
