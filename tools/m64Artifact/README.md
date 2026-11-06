@@ -1,5 +1,19 @@
 # Chisel M64 Artifact Workbench
 
+## Active M64 v3 workbench (2026-11-06)
+
+**M64 v3 is the only current user-facing artifact format.** `index.html` is now a thin host for `dark-star-z.html`, the standalone interactive Dark Star Z viewer. Chisel's Examples page can also embed the viewer as an iframe.
+
+- Without a CID, the viewer loads `examples/darkstar-core.js` and renders locally. Changing line, slope and color controls reruns the code without any transaction.
+- With `?cid=<artifact-cid>`, it fetches a v3 artifact JSON through a configured IPFS gateway, resolves its declared EVM dictionary through read-only JSON-RPC, checks canonical byte length and SHA-256, and **waits for the user's Render action** before running CID-supplied code.
+- To make a v3 artifact, set the address of an actual `M64Dictionary` contract and RPC chain. The builder checks missing terms, asks before any wallet-funded `addTerms` transaction, and generates a downloadable external-dictionary v3 artifact.
+- The same page can save the rendered PNG, save a parameter preset, or upload the v3 artifact JSON / PNG to **public IPFS** through Pinata's v3 API with a user-provided session-only JWT. Pinata credentials are not saved to localStorage, embedded into artifacts, or committed. A one-file upload does **not** by itself upload the entire interactive HTML application and its relative dependencies.
+- The page can draft the 72-byte `CT1|+|H|<sha256>` / `CT1|-|H|<sha256>` UTXO ASCII trust-warning convention, but no signatures or attestations are broadcast automatically. See [cross-chain thunder attestations](../../docs/CROSS_CHAIN_THUNDER_ATTESTATIONS.md).
+
+Historical `hydrate.html` and the older v2 artifact validator still exist as internal/archived code until their remaining dependencies and tests are retired. They are no longer the linked Workbench or recommended artifact format. Do not emit new v2 artifacts.
+
+**Note:** This browser UI is a prototype; it has passed static inline-JavaScript syntax checking, not a live wallet/IPFS/Pinata end-to-end test in this environment.
+
 M64 is a compact transport for an abstract byte stream. It is not an image format and it is not inherently JavaScript-specific.
 
 The current pipeline is:
