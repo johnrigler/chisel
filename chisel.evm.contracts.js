@@ -16,6 +16,26 @@
       id: "jethro.mapArtifact.v1",
       title: "Jethro mapArtifact",
       abi: Object.freeze(["function mapArtifact(string artifact,string body)"])
+    }),
+    "chisel.v1": Object.freeze({
+      id: "chisel.v1",
+      title: "Mogwai / Chisel v1",
+      abi: Object.freeze([
+        "function creator() view returns (address)",
+        "function mapArtifact(string artifact,string body)",
+        "function getArtifact(address writer,string artifact) view returns (string body,uint64 revision)",
+        "function logRecord(bytes32 format,bytes data)",
+        "function distribute((address recipient,uint256 amount)[] payments) payable",
+        "function distributeChecked((address recipient,uint256 amount)[] payments) payable",
+        "function execute(string artifact,string body,(address recipient,uint256 amount)[] payments,bytes32 logFormat,bytes logData) payable",
+        "function pendingRefunds(address writer) view returns (uint256)",
+        "function withdrawRefund()",
+        "event ArtifactMapped(address indexed writer,bytes32 indexed artifactKeyHash,uint64 revision,string artifact,string body)",
+        "event RecordLogged(address indexed writer,bytes32 indexed format,bytes data)",
+        "event TransferResult(address indexed writer,address indexed recipient,uint256 indexed index,uint256 amount,uint8 status)",
+        "event RefundCredited(address indexed writer,uint256 amount)",
+        "event RefundWithdrawn(address indexed writer,uint256 amount)"
+      ])
     })
   });
 
@@ -29,6 +49,11 @@
     "jethro.legacy.v1": Object.freeze({
       id: "jethro.legacy.v1", language: "Solidity",
       interfaceId: "jethro.mapArtifact.v1", source: null, runtimeBytecodeHash: null
+    }),
+    "chisel.v1": Object.freeze({
+      id: "chisel.v1", language: "Solidity",
+      interfaceId: "chisel.v1", source: "contracts/Chisel.sol",
+      compiledArtifact: "contracts/compiled/Chisel.json", runtimeBytecodeHash: null
     })
   });
 
@@ -42,6 +67,13 @@
       id: "jethro.polygon.137", name: "Jethro", chainId: 137,
       address: "0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0",
       implementationId: "jethro.legacy.v1", interfaceId: "jethro.mapArtifact.v1"
+    }),
+    "chisel.polygon.137": Object.freeze({
+      id: "chisel.polygon.137", name: "Mogwai / Chisel", chainId: 137,
+      address: "0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3",
+      deploymentTxHash: "0x5b398b46531cdc47eaed8cc3f28d2079f42d154effdd6c72712c51ea5e83a02d",
+      implementationId: "chisel.v1", interfaceId: "chisel.v1",
+      verificationStatus: "address-provided-by-deployer"
     })
   });
 
