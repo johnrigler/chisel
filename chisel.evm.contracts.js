@@ -145,6 +145,87 @@
         abiArgs, functionSignature: GOMEZ_SIGNATURE,
         message, receivers, amounts, byteLength: bytes
       };
+    } else if (deploymentId === "chisel.polygon.137") {
+      const client = root.CHISEL_EVM_CHISEL;
+      const allowed = ["mapArtifact", "logRecord", "execute", "distribute", "distributeChecked", "withdrawRefund"];
+      if (!allowed.includes(functionName)) throw new Error("Chisel function is not enabled for writing.");
+      if (!client || typeof client.prepare !== "function") throw new Error("Chisel browser adapter is not loaded.");
+      if (!args || typeof args !== "object" || Array.isArray(args)) {
+        throw new Error("Chisel write arguments must be a parameter object.");
+      }
+      const artifact = args.artifact === undefined ? "" : args.artifact;
+      const body = args.body === undefined ? "" : args.body;
+      if (typeof artifact !== "string" || typeof body !== "string") throw new Error("Chisel artifact and body must be text.");
+      const byteLength = new TextEncoder().encode(artifact).length + new TextEncoder().encode(body).length;
+      if (byteLength > 65536) throw new Error("Chisel artifact and body exceed the 64 KiB safety limit.");
+      if (functionName === "mapArtifact" && !artifact.length) throw new Error("Enter a Chisel artifact key.");
+      const logFormat = args.logFormat === undefined ? client.ZERO_FORMAT : args.logFormat;
+      const logData = args.logData === undefined ? "0x" : args.logData;
+      if (functionName === "logRecord" && logData === "0x") throw new Error("Enter nonempty Chisel log data.");
+      if (typeof logData !== "string" || logData.length > 131074) {
+        throw new Error("Chisel log data exceeds the 64 KiB safety limit.");
+      }
+      const payable = ["execute", "distribute", "distributeChecked"].includes(functionName);
+      const inputPayments = payable ? (args.payments === undefined ? [] : args.payments) : [];
+      if (!Array.isArray(inputPayments) || inputPayments.length > 32) {
+        throw new Error("Chisel supports at most 32 payments per reviewed transaction.");
+      }
+      const normalizedPayments = inputPayments.map(function (payment, index) {
+        if (!payment || typeof payment !== "object" || typeof payment.recipient !== "string") {
+          throw new Error("Payment " + (index + 1) + " requires an EVM recipient.");
+        }
+        let recipient;
+        try { recipient = ethersLib.getAddress(payment.recipient); }
+        catch (_) { throw new Error("Payment " + (index + 1) + " has an invalid EVM address/checksum."); }
+        if (recipient.toLowerCase() === ZERO_ADDRESS) {
+          throw new Error("Payment " + (index + 1) + " cannot target the zero address.");
+        }
+        const amountWei = payment.amountWei === undefined ? payment.amount : payment.amountWei;
+        if (typeof amountWei !== "string" || !/^(0|[1-9][0-9]*)$/.test(amountWei)) {
+          throw new Error("Payment " + (index + 1) + " must have a decimal integer amount in wei.");
+        }
+        const amount = BigInt(amountWei);
+        if (amount === 0n || amount > UINT256_MAX) {
+          throw new Error("Payment " + (index + 1) + " amount must be between 1 and uint256 maximum.");
+        }
+        return {recipient, amountWei};
+      });
+      if ((functionName === "distribute" || functionName === "distributeChecked") && !normalizedPayments.length) {
+        throw new Error("Enter at least one Chisel payment.");
+      }
+      const total = normalizedPayments.reduce(function (sum, payment) { return sum + BigInt(payment.amountWei); }, 0n);
+      if (total > UINT256_MAX) throw new Error("Payment total exceeds uint256.");
+      if (args.valueWei !== undefined && (typeof args.valueWei !== "string" ||
+          !/^(0|[1-9][0-9]*)$/.test(args.valueWei) || BigInt(args.valueWei) !== total)) {
+        throw new Error("Native wei value must exactly equal the sum of payments.");
+      }
+      if (functionName === "execute" && !artifact.length && logData === "0x" && !normalizedPayments.length) {
+        throw new Error("Chisel execute requires an artifact, log, or payment.");
+      }
+      const prepared = client.prepare(functionName, {
+        artifact, body, logFormat, logData, payments: normalizedPayments, valueWei: total.toString()
+      });
+      const functionSignatures = {
+        mapArtifact: "mapArtifact(string,string)",
+        logRecord: "logRecord(bytes32,bytes)",
+        execute: "execute(string,string,(address,uint256)[],bytes32,bytes)",
+        distribute: "distribute((address,uint256)[])",
+        distributeChecked: "distributeChecked((address,uint256)[])",
+        withdrawRefund: "withdrawRefund()"
+      };
+      details = {
+        abiArgs: prepared.args, functionSignature: functionSignatures[functionName],
+        artifact: ["mapArtifact", "execute"].includes(functionName) ? artifact : undefined,
+        body: ["mapArtifact", "execute"].includes(functionName) ? body : undefined,
+        logFormat: ["logRecord", "execute"].includes(functionName) ? logFormat : undefined,
+        logData: ["logRecord", "execute"].includes(functionName) ? logData : undefined,
+        payments: prepared.payments.map(function (payment) {
+          return {recipient: payment.recipient, amountWei: payment.amount.toString()};
+        }),
+        paymentTotalWei: prepared.paymentTotalWei.toString(),
+        nativeValueWei: prepared.valueWei.toString(),
+        byteLength, value: prepared.value
+      };
     } else {
       throw new Error("The requested contract function is not enabled for writing.");
     }
@@ -157,7 +238,7 @@
     return Object.freeze({
       deploymentId, chainId: info.deployment.chainId, to: info.deployment.address,
       interfaceId: info.contractInterface.id, implementationId: info.implementation.id,
-      functionName, ...publicDetails, data, value: "0x0"
+      functionName, ...publicDetails, data, value: details.value || "0x0"
     });
   }
 
