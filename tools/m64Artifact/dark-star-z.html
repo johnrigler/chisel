@@ -29,7 +29,7 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <div class="cols">
 <div>
 <section class="panel"><h2>Landscape controls</h2><div id="controls"></div>
-<div class="actions"><button id="reset">Reset</button><button id="rerun">Render</button><button id="png">Save PNG</button><button id="preset">Save parameters</button></div>
+<div class="actions"><button id="reset">Reset</button><button id="rerun">Render</button><button id="png">Save PNG</button><button id="preset">Save parameters</button><button id="savePage">Save standalone HTML</button></div>
 <div id="renderStatus" class="status">Loading local Dark Star Z source…</div></section>
 <section class="panel"><h2>IPFS artifact</h2><p class="small">Supply a CID to hydrate M64 v3. Without one, Chisel runs the local source; no ledger is needed just to draw.</p>
 <div class="row"><input id="cid" placeholder="bafy… artifact JSON CID" spellcheck="false"><button id="load">Load CID</button></div>
@@ -52,7 +52,7 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <section class="panel"><details><summary>Publish via Pinata</summary>
 <p class="small">Pinata v3 uses a JWT. This is a per-session field; Chisel does not save the token in localStorage, the artifact, the URL, or the repository. A browser page holding a JWT can still expose it if the page is compromised. For stronger isolation, use a short-lived signed upload URL or a local credential broker.</p>
 <label class="small" for="pinataJwt">Pinata JWT (session only)</label><input id="pinataJwt" type="password" autocomplete="off" placeholder="Bearer token content" style="width:100%">
-<div class="row"><select id="pinataWhat"><option value="artifact">M64 artifact JSON</option><option value="png">Rendered PNG</option></select><button id="pin">Publish to public IPFS</button></div>
+<div class="row"><select id="pinataWhat"><option value="artifact">M64 artifact JSON</option><option value="png">Rendered PNG</option><option value="page">Interactive HTML page</option></select><button id="pin">Publish to public IPFS</button></div>
 <div id="pinStatus" class="status">nothing uploaded</div>
 </details></section>
 <section class="panel"><details><summary>Thunder trust / warning draft</summary>
@@ -169,9 +169,42 @@ artifact=made.artifact;activeCode=restored.canonical;activeEntry=artifact.entry;
 S("metadata").value=JSON.stringify(artifact,null,2);S("saveArtifact").disabled=false;
 show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);render();
 }catch(e){show("dictStatus","M64 build failed: "+String(e.message||e),false)}}
+async function portablePageHtml(){
+  if(!source)throw Error("Dark Star Z source not loaded");
+  const copy=document.documentElement.cloneNode(true);
+  // Remove credentials and transient status before serializing a public file.
+  const secret=copy.querySelector("#pinataJwt");
+  if(secret){secret.value="";secret.removeAttribute("value");secret.setAttribute("autocomplete","off")}
+  for(const id of ["pinStatus","dictStatus","attestStatus","artifactStatus","renderStatus"]){
+    const el=copy.querySelector("#"+id);if(el)el.textContent="Standalone page loaded. No prior account credentials or transaction status exported.";
+  }
+  for(const id of ["cid","dictionary","chain"]){
+    const el=copy.querySelector("#"+id),original=S(id);
+    if(el&&original)el.setAttribute("value",original.value||"");
+  }
+  // All external script dependencies are same-origin assets bundled into this HTML.
+  // The resulting file can execute from a single IPFS CID or local filesystem.
+  for(const external of Array.from(copy.querySelectorAll("script[src]"))){
+    const src=external.getAttribute("src"),url=new URL(src,location.href);
+    if(url.origin!==location.origin)throw Error("Refusing to bundle a cross-origin script: "+src);
+    const response=await fetch(url,{cache:"no-store"});if(!response.ok)throw Error("Bundling "+src+": HTTP "+response.status);
+    const script=copy.ownerDocument.createElement("script");
+    script.textContent=(await response.text()).replace(/<\/script/gi,"<\\/script");
+    external.replaceWith(script);
+  }
+  // Embed the exact source used by the page without attempting to compile in EVM.
+  const bootScript=Array.from(copy.querySelectorAll("script")).at(-1);
+  for(const [id,value] of [["bundledDarkstarSource",source],["bundledDarkstarInput",params()]]){
+    const node=copy.ownerDocument.createElement("script");node.type="application/json";node.id=id;
+    node.textContent=JSON.stringify(value).replace(/</g,"\\u003c");
+    bootScript.before(node);
+  }
+  return "<!doctype html>\n"+copy.outerHTML;
+}
 async function publish(){const button=S("pin");button.disabled=true;try{
 const jwt=S("pinataJwt").value.trim();if(!jwt)throw Error("Provide a Pinata JWT for this session");
 let blob,name;if(S("pinataWhat").value==="artifact"){if(!artifact)throw Error("Build or load an M64 v3 artifact first");blob=new Blob([JSON.stringify(artifact,null,2)+"\n"],{type:"application/json"});name="dark-star-z.m64.json"}
+else if(S("pinataWhat").value==="page"){blob=new Blob([await portablePageHtml()],{type:"text/html"});name="dark-star-z.html"}
 else{blob=await pngBlob();name="dark-star-z.png"}
 const fd=new FormData();fd.append("file",new File([blob],name,{type:blob.type}));fd.append("network","public");fd.append("name",name);
 show("pinStatus","uploading "+name+" ("+blob.size+" bytes)…");
@@ -191,11 +224,12 @@ function wire(){makeControls();apply(DEFAULT);
 S("reset").onclick=()=>{apply(DEFAULT);render()};S("rerun").onclick=render;
 S("png").onclick=async()=>{try{download(await pngBlob(),"dark-star-z.png")}catch(e){show("renderStatus",String(e.message||e),false)}};
 S("preset").onclick=()=>download(new Blob([JSON.stringify({kind:"dark-star-z-input",version:1,input:params()},null,2)+"\n"],{type:"application/json"}),"dark-star-z-input.json");
+S("savePage").onclick=async()=>{try{show("renderStatus","bundling standalone page…");const html=await portablePageHtml();download(new Blob([html],{type:"text/html"}),"dark-star-z.html");show("renderStatus","Self-contained HTML saved; "+html.length+" characters.",true)}catch(e){show("renderStatus","HTML export failed: "+String(e.message||e),false)}};
 S("load").onclick=loadCid;S("inspect").onclick=inspect;S("build").onclick=build;S("pin").onclick=publish;
 S("draftAttest").onclick=draftTrust;S("copyAttest").onclick=copyTrust;S("useDigest").onclick=()=>{if(!artifact){show("attestStatus","Build or load an M64 v3 artifact first.",false);return}S("subjectDigest").value=artifact.sha256;draftTrust()};
 S("saveArtifact").onclick=()=>{if(artifact)download(new Blob([JSON.stringify(artifact,null,2)+"\n"],{type:"application/json"}),"dark-star-z.m64.json")};
 const q=new URLSearchParams(location.search);if(q.get("cid"))S("cid").value=q.get("cid");if(q.get("dictionary"))S("dictionary").value=q.get("dictionary");if(q.get("chain"))S("chain").value=q.get("chain");}
-async function boot(){wire();try{const r=await fetch("examples/darkstar-core.js");if(!r.ok)throw Error("HTTP "+r.status);source=await r.text();sourceFallback();await render();if(S("cid").value)await loadCid()}catch(e){show("renderStatus","Local source failed: "+String(e.message||e),false)}}
+async function boot(){wire();try{const embedded=S("bundledDarkstarSource");if(embedded){source=JSON.parse(embedded.textContent);const saved=S("bundledDarkstarInput");if(saved)apply(JSON.parse(saved.textContent))}else{const r=await fetch("examples/darkstar-core.js");if(!r.ok)throw Error("HTTP "+r.status);source=await r.text()}sourceFallback();await render();if(S("cid").value)await loadCid()}catch(e){show("renderStatus","Local source failed: "+String(e.message||e),false)}}
 boot();
 </script>
 </body>
