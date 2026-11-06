@@ -59,7 +59,7 @@ The broader ledger/dictionary/IPFS direction is recorded in:
 
 That document intentionally separates implemented M64 mechanics from architectural ideas that are not yet a frozen live protocol.
 
-## M64 v2 dictionary encoding
+## Historical M64 v2 dictionary encoding (legacy codec background)
 
 The original staging format had a hard ceiling of 64 profile tokens. That ceiling is removed.
 
@@ -138,9 +138,9 @@ reconstruct canonical source
 
 M64 itself does not care whether those lookups come from an EVM contract, a locally cached mirror, IPFS, DigiByte/Litecoin metadata, or another registry.
 
-## Current v2 artifact package
+## Retired v2 artifact package (historical)
 
-The workbench currently exports a self-contained version 2 artifact with an embedded dictionary snapshot so the artifact can still be tested without any network dependency:
+The former Workbench exported a self-contained version 2 artifact with an embedded dictionary snapshot. This historical format is no longer exposed by the active v3 Workbench:
 
 ```json
 {
@@ -315,12 +315,13 @@ They cover byte transport round trips, stage/hydrate equality, dictionary IDs ab
 - `m64.javascript.js` - conservative `js-canonical-v1` source adapter/preflight boundary
 - `m64.dictionary.js` - transport-neutral dictionary resolver plus in-memory reference provider
 - `m64.v3.js` - v3 JavaScript publish/hydrate/integrity orchestration
-- `index.html` - source -> dictionary -> M64 -> hydrate -> sandboxed test workbench
-- `hydrate.html` - standalone v2 artifact hydrator/tester
+- `index.html` - current v3 Workbench host embedding the standalone Dark Star Z viewer
+- `hydrate.html` - retired standalone v2 hydrator kept in tree for historical reference
 - `polygon.html` - browser EIP-1193 carrier for writing artifact text into Polygon transaction calldata
 - `LEDGER_IPFS_ARCHITECTURE.md` - design notes for ledger references, shared dictionaries, cross-ledger objects, and deterministic IPFS recovery
 - `SELF_REBUILD.md` - staged recursive Chisel recovery direction
-- `examples/` - Dark Star renderer staging material and earlier examples
+- `dark-star-z.html` - standalone interactive v3 viewer, self-contained HTML export, public IPFS publication, and thunder trust/warning drafts
+- `examples/` - Dark Star renderer source and earlier examples
 
 ## Polygon carrier
 
