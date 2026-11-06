@@ -8,8 +8,8 @@ This is the durable order of operations for the next Chisel work. The goal is to
 
 - Portal public reads are intended to survive without fileProxy. Static/bundled/public ledger sources are the public runtime path; fileProxy remains a local write/import/SQLite helper.
 - A small GitHub Actions regression floor is active. Do not broadly refactor signing, serialization, fee selection, UTXO selection, or broadcast until representative transaction fixtures exist.
-- M64 v2 remains supported for the existing workbench/hydrator.
-- M64 v3 now has an executable schema, external dictionary references, canonical byte count and SHA-256 integrity metadata.
+- M64 v3 is the only active user-facing artifact format. The old v2 staging UI was replaced by a v3 Dark Star Z host; historical v2 codec/validator and tests remain in source pending targeted removal.
+- M64 v3 now has an executable schema, external dictionary references, canonical byte count and SHA-256 integrity metadata. The standalone Dark Star Z viewer supports local graphics, read-only IPFS hydration and chain-aware dictionary reads, explicit execution, wallet-authorized vocabulary insertion, and session-only Pinata uploads. Its live browser integrations still need field testing.
 - `js-canonical-v1` is an explicit conservative JavaScript adapter. It rejects syntax the old mini-canonicalizer cannot safely handle instead of silently changing it.
 - `m64.dictionary.js` defines a transport-neutral resolver and append-only in-memory reference provider.
 - `m64.v3.js` proves JavaScript -> canonical source -> dictionary IDs -> M64 -> v3 artifact -> hydrate -> byte/hash verification, including Dark Star.
@@ -88,7 +88,7 @@ Protocol boundaries to preserve:
 - dictionary identity says which shared vocabulary an artifact uses;
 - artifact `languageVersion` and `canonicalizer` belong to the artifact, not the dictionary contract;
 - M64 transport remains independent of JavaScript, Polygon, ethers, IPFS, MacDougall, Ravencoin, or any one provider;
-- legacy v2 validation/hydration stays separate until explicitly migrated.
+- new artifacts are v3 with an external dictionary reference; no new v2 artifact packaging. Keep historical decoder code isolated until its remaining consumers and tests are removed.
 
 ## 3. JavaScript adapter
 
