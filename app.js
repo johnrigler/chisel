@@ -2280,21 +2280,22 @@ function onClickAddCommonAddressButton() {
   const MODE_HINTS = {
     send: "Send mode is the write/sign workbench. Identity can already be loaded from Portal before you come here.",
     review: "Review mode exposes the transaction spine: account, UTXOs, VIN, VOUT, raw hex, signed hex, and broadcast result.",
-    portal: "Portal is the default entry point: one public sticker opens a page; four private stickers establish control when you need to write.",
-    examples: "Examples now also holds the old Start/origin/demo material so it stays available without occupying primary navigation.",
-    tools: "Tools mode links to key capture, QR/WIF scanning, label generation, legacy decoding, and support utilities without crowding Send."
+    portal: "Portal is the home screen. Browse public ledger records, decode links, and select an artifact without signing in.",
+    about: "About explains Chisel, its author, the trust model, and ways to participate.",
+    examples: "Examples provides runnable experiments and self-tests, including Dark Star Z.",
+    tools: "Tools provides scanners, labels, importers, and support utilities."
   };
 
   function normalizeMode(value) {
     if (value === "origin" || value === "start") {
-      return "examples";
+      return "about";
     }
 
     if (value === "broadcast" || value === "etch" || value === "send") {
       return "send";
     }
 
-    if (value === "review" || value === "portal" || value === "examples" || value === "tools") {
+    if (value === "review" || value === "portal" || value === "about" || value === "examples" || value === "tools") {
       return value;
     }
 
@@ -2323,8 +2324,12 @@ function onClickAddCommonAddressButton() {
 
     try {
       const url = new URL(window.location.href);
-      url.searchParams.set("mode", normalizedMode);
-      window.history.replaceState(window.history.state, "", url.toString());
+      // A bare /chisel/ URL is the canonical Portal entry point.
+      // Keep it clean instead of inserting ?mode=portal on initial load.
+      if (!(normalizedMode === "portal" && !url.searchParams.has("mode"))) {
+        url.searchParams.set("mode", normalizedMode);
+        window.history.replaceState(window.history.state, "", url.toString());
+      }
     } catch (error) {
       // Non-fatal. Some local/file contexts may not allow URL mutation.
     }
