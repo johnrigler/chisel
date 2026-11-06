@@ -40,16 +40,21 @@ if "--version" in sys.argv:
     sys.exit(0)
 request = json.load(sys.stdin)
 assert request["language"] == "Solidity"
-assert "contracts/Chisel.sol" in request["sources"]
+source_name = next(iter(request["sources"]))
+assert source_name.startswith("contracts/") and source_name.endswith(".sol")
+contract_name = ("Actual" if source_name.endswith("Wrapper.sol") else source_name.rsplit("/", 1)[-1][:-4])
 assert request["settings"]["evmVersion"] == "paris"
 assert request["settings"]["metadata"]["appendCBOR"] == False
-print(json.dumps({"contracts":{"contracts/Chisel.sol":{"Chisel":{
+print(json.dumps({"contracts":{source_name:{contract_name:{
     "abi":[{"type":"constructor","inputs":[]}],
     "evm":{"bytecode":{"object":"60006000"},"deployedBytecode":{"object":"6000"}}
 }}}}))
 `);
     chmodSync(fakeSolc, 0o755);
     const run = (...args) => spawnSync("python3", [builder, ...args], {
+      encoding:"utf8", env:{...process.env, SOLC:fakeSolc}
+    });
+    const runGeneric = (...args) => spawnSync("python3", [join(dir,"build-solidity.py"), ...args], {
       encoding:"utf8", env:{...process.env, SOLC:fakeSolc}
     });
     const built = run();
@@ -70,6 +75,22 @@ print(json.dumps({"contracts":{"contracts/Chisel.sol":{"Chisel":{
     const changed = run("--check");
     assert.notEqual(changed.status,0,"modified source must invalidate compiled artifact");
     assert.match(changed.stderr,/missing or stale/);
+
+    writeFileSync(join(dir,"M64Dictionary.sol"), "pragma solidity ^0.8.24; contract M64Dictionary {}\\n");
+    const other = runGeneric("M64Dictionary.sol");
+    assert.equal(other.status, 0, other.stderr);
+    const otherArtifact = JSON.parse(readFileSync(join(dir,"compiled","M64Dictionary.json"),"utf8"));
+    assert.equal(otherArtifact.contractName, "M64Dictionary");
+    assert.equal(otherArtifact.sourceName, "contracts/M64Dictionary.sol");
+    assert.equal(runGeneric("M64Dictionary.sol","--check").status, 0);
+
+    writeFileSync(join(dir,"Wrapper.sol"), "pragma solidity ^0.8.24; contract Actual {}\\n");
+    const ambiguous = runGeneric("Wrapper.sol");
+    assert.notEqual(ambiguous.status, 0);
+    assert.match(ambiguous.stderr, /Use --contract/);
+    const explicit = runGeneric("Wrapper.sol","--contract","Actual");
+    assert.equal(explicit.status, 0, explicit.stderr);
+    assert.equal(JSON.parse(readFileSync(join(dir,"compiled","Actual.json"),"utf8")).contractName, "Actual");
   } finally {
     rmSync(root,{recursive:true,force:true});
   }
