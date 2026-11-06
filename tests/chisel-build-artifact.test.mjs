@@ -76,7 +76,7 @@ print(json.dumps({"contracts":{source_name:{contract_name:{
     assert.notEqual(changed.status,0,"modified source must invalidate compiled artifact");
     assert.match(changed.stderr,/missing or stale/);
 
-    writeFileSync(join(dir,"M64Dictionary.sol"), "pragma solidity ^0.8.24; contract M64Dictionary {}\\n");
+    writeFileSync(join(dir,"M64Dictionary.sol"), "pragma solidity ^0.8.24; contract M64Dictionary {}\n");
     const other = runGeneric("M64Dictionary.sol");
     assert.equal(other.status, 0, other.stderr);
     const otherArtifact = JSON.parse(readFileSync(join(dir,"compiled","M64Dictionary.json"),"utf8"));
@@ -84,7 +84,7 @@ print(json.dumps({"contracts":{source_name:{contract_name:{
     assert.equal(otherArtifact.sourceName, "contracts/M64Dictionary.sol");
     assert.equal(runGeneric("M64Dictionary.sol","--check").status, 0);
 
-    writeFileSync(join(dir,"Wrapper.sol"), "pragma solidity ^0.8.24; contract Actual {}\\n");
+    writeFileSync(join(dir,"Wrapper.sol"), "pragma solidity ^0.8.24; contract Actual {}\n");
     const ambiguous = runGeneric("Wrapper.sol");
     assert.notEqual(ambiguous.status, 0);
     assert.match(ambiguous.stderr, /Use --contract/);
