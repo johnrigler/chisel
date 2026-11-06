@@ -286,11 +286,11 @@
 
     <section class="panel" id="chiselDeploymentPanel">
         <h2>Mogwai / Chisel · Polygon deployment</h2>
-        <p>The contract previously called Mogwai is now named <code>Chisel</code> in source and ABI. Its Polygon mainnet deployment transaction is recorded in <code>contracts/deployed.txt</code>. The live contract address is read from the successful chain-137 transaction receipt, not inferred from a name or invented.</p>
+        <p>The contract previously called Mogwai is now named <code>Chisel</code> in source and ABI. Its deployment address was supplied by the deployer for Polygon mainnet (chain 137). The deployment transaction is recorded in <code>contracts/deployed.txt</code>. Receipt verification is optional and does not block transaction imports.</p>
         <p><a href="https://polygonscan.com/tx/0x5b398b46531cdc47eaed8cc3f28d2079f42d154effdd6c72712c51ea5e83a02d" target="_blank" rel="noopener noreferrer">Polygon deployment transaction</a> · <a href="contracts/compiled/Chisel.json">Chisel compiled ABI / artifact</a></p>
-        <button id="resolveChiselBtn" type="button">Resolve deployed address</button>
-        <p class="status" id="chiselDeploymentStatus" role="status">Contract address awaiting Polygon receipt. Read-only lookup; no wallet approval or transaction.</p>
-        <p><a id="chiselContractLink" hidden target="_blank" rel="noopener noreferrer">Inspect deployed Chisel on PolygonScan</a></p>
+        <button id="resolveChiselBtn" type="button">Verify on-chain deployment</button>
+        <p class="status" id="chiselDeploymentStatus" role="status">Registered address: 0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3 (deployer supplied; receipt verification not yet confirmed here).</p>
+        <p><a id="chiselContractLink" href="https://polygonscan.com/address/0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3" target="_blank" rel="noopener noreferrer">Inspect deployed Chisel on PolygonScan</a></p>
         <p>Supported contract methods include <code>mapArtifact</code>, <code>logRecord</code>, <code>distribute</code>, <code>distributeChecked</code>, <code>execute</code>, and <code>withdrawRefund</code>. This panel reads and decodes contract transactions; it does not send new transactions.</p>
     </section>
 
@@ -444,7 +444,8 @@
     const GOMEZ = registry.deployments["gomez.polygon.137"].address;
     const JETHRO = registry.deployments["jethro.polygon.137"].address;
     const EVM_THUNDERWORD = "0x1111111111111111111111111111111111111111";
-    const CHISEL_DEPLOY_TX = "0x5b398b46531cdc47eaed8cc3f28d2079f42d154effdd6c72712c51ea5e83a02d";
+    const CHISEL_DEPLOY_TX = registry.deployments["chisel.polygon.137"].deploymentTxHash;
+    const CHISEL_ADDRESS = registry.deployments["chisel.polygon.137"].address;
 
     const CONTRACT_PROFILES = {
         gomez: {
@@ -465,8 +466,8 @@
             key: "chisel",
             label: "Mogwai / Chisel",
             name: "chisel",
-            chainId: "137",
-            address: "",
+            chainId: String(registry.deployments["chisel.polygon.137"].chainId),
+            address: CHISEL_ADDRESS,
             deploymentTxHash: CHISEL_DEPLOY_TX
         },
         thunderword: {
@@ -857,11 +858,19 @@
 
 
     let chiselResolution = null;
-    async function resolveChiselAddress() {
-        if (CONTRACT_PROFILES.chisel.address) return CONTRACT_PROFILES.chisel.address;
-        if (chiselResolution) return chiselResolution;
+    async function resolveChiselAddress(verifyReceipt = false) {
         const status = el("chiselDeploymentStatus");
-        status.textContent = "Resolving Polygon chain-137 contract-creation receipt…";
+        const configured = CONTRACT_PROFILES.chisel.address;
+        if (configured && !verifyReceipt) {
+            const link = el("chiselContractLink");
+            link.href = "https://polygonscan.com/address/" + configured;
+            link.hidden = false;
+            status.textContent = "Registered Polygon 137 address: " + configured + " (provided by deployer; receipt verification available).";
+            status.className = "status";
+            return configured;
+        }
+        if (chiselResolution) return chiselResolution;
+        status.textContent = "Verifying Polygon chain-137 contract-creation receipt…";
         status.className = "status";
         chiselResolution = (async function () {
             const errors = [];
@@ -926,12 +935,15 @@
                     } catch (error) { errors.push(url + ": " + (error.message || String(error))); address = ""; }
                 }
             }
-            if (!address) throw new Error("Unable to resolve the deployment receipt on Polygon 137. " + errors.join("; "));
+            if (!address) throw new Error("Unable to verify the deployment receipt on Polygon 137. " + errors.join("; "));
+            if (configured && address.toLowerCase() !== configured.toLowerCase()) {
+                throw new Error("Deployment receipt address " + address + " differs from the registered address " + configured + ".");
+            }
             CONTRACT_PROFILES.chisel.address = address;
             const link = el("chiselContractLink");
             link.href = "https://polygonscan.com/address/" + address;
             link.hidden = false;
-            status.textContent = "Polygon 137 deployment receipt confirmed: " + address + ". Source/ABI verification is separate.";
+            status.textContent = "Polygon 137 deployment receipt confirmed: " + address + ". Deployed source and ABI verification remain separate.";
             status.className = "status ok";
             renderProfileStatuses();
             if (el("contractProfile").value === "chisel") el("address").value = address;
@@ -939,7 +951,8 @@
         }());
         try { return await chiselResolution; }
         catch (error) {
-            status.textContent = error.message || String(error);
+            status.textContent = "Receipt verification failed: " + (error.message || String(error)) +
+                ". The deployer-provided address remains registered for import.";
             status.className = "status warn";
             throw error;
         } finally { chiselResolution = null; }
@@ -1506,7 +1519,7 @@
 
     el("resolveChiselBtn").addEventListener("click", async function () {
         try {
-            await resolveChiselAddress();
+            await resolveChiselAddress(true);
             await loadNextStartBlockForProfile("chisel");
         } catch (e) { setStatus(e.message || String(e), "warn"); }
     });
@@ -1630,7 +1643,7 @@
             setContractProfile("gomez");
             await refreshProfileStatuses();
             await loadNextStartBlockForProfile("gomez");
-            setStatus("Loaded Gomez, Jethro and Polygon Thunderword; Mogwai/Chisel resolves from its Polygon deployment receipt. Start block reflects saved split archives.", "ok");
+            setStatus("Loaded Gomez, Jethro, Mogwai/Chisel and Polygon Thunderword on chain 137. Chisel address is registered; receipt verification is optional.", "ok");
             resolveChiselAddress().then(function () { return loadEvmStreamStatusForProfile("chisel"); })
                 .then(renderProfileStatuses)
                 .catch(function () { renderProfileStatuses(); });
