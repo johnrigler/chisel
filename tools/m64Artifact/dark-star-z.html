@@ -145,7 +145,8 @@ const response=await fetch(url,{cache:"no-store"});if(!response.ok)throw Error("
 const a=M.validateArtifactV3(await response.json());configureDictionary(a);const resolver=await readonlyResolver(a.dictionary.ref);const hydrated=await M.hydrateArtifactV3(a,resolver);
 artifact=a;activeCode=hydrated.canonical;activeEntry=a.entry;S("metadata").value=JSON.stringify(a,null,2);S("saveArtifact").disabled=false;
 if(a.input&&typeof a.input==="object")apply(a.input);
-show("artifactStatus","M64 v3 hydrated from "+cid+"\ncanonical bytes: "+hydrated.canonicalBytes+"\nSHA-256: "+hydrated.sha256,true);render();
+show("artifactStatus","M64 v3 hydrated from "+cid+"\ncanonical bytes: "+hydrated.canonicalBytes+"\nSHA-256: "+hydrated.sha256+"\nPublisher trust not yet evaluated. Select Render to execute.",true);
+const canvas=S("canvas");canvas.width=1;canvas.height=1;show("renderStatus","IPFS program verified at the M64 canonical-byte layer. Awaiting explicit Render.");
 }catch(e){show("artifactStatus","CID load failed; existing program retained.\n"+String(e.message||e),false)}}
 async function inspect(){try{const d=dictionarySelection(),r=await readonlyResolver(d.ref),info=await r.inspectContract();show("dictStatus","dictionary "+d.ref+"\nterms: "+info.termCount+"\nversion: "+info.version,true)}
 catch(e){show("dictStatus","inspect failed: "+String(e.message||e),false)}}
