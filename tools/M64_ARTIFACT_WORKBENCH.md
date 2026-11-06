@@ -9,7 +9,7 @@ The standalone viewer renders directly from the checked-in Dark Star source when
 
 For a new v3 artifact, enter a real `M64Dictionary` contract address and correct chain/RPC. Term lookups are read-only, while appending new terms requires an explicit wallet-approved transaction. The current deployed Chisel contract is not implicitly an M64 dictionary.
 
-The reader can save a PNG, save input parameters, download a v3 artifact JSON, or explicitly publish PNG/artifact JSON to **public IPFS** through Pinata v3. Upload requires a user-supplied JWT in a session-only field. This does not yet publish the entire HTML page with its dependent JavaScript files; a self-contained site or deterministic directory/CAR publishing path is still required for that.
+The reader can save a PNG, save input parameters, download a v3 artifact JSON, or explicitly publish PNG/artifact JSON to **public IPFS** through Pinata v3. Upload requires a user-supplied JWT in a session-only field. The **Save standalone HTML** and **Interactive HTML page** upload options bundle the page's same-origin JavaScript dependencies and the Dark Star source into a single HTML file. The Pinata credential is cleared before export. A reproducible deterministic directory/CAR packaging path remains useful as a separate future improvement.
 
 The interface can also draft positive and negative 72-byte cross-chain thunder attestations using `CT1|+|H|<sha256>` or `CT1|-|H|<sha256>`. It does not yet sign or broadcast those attestations. See [Cross-chain Thunder Attestations](../docs/CROSS_CHAIN_THUNDER_ATTESTATIONS.md).
 
