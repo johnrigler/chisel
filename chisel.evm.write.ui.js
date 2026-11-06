@@ -305,7 +305,8 @@
   }
 
   $("chiselMethod").addEventListener("change", function () {
-    panels[0].invalidate("Chisel function changed. Review the new calldata before sending.");
+    panels[configurations.findIndex(function (config) { return config.prefix === "chisel"; })]
+      .invalidate("Chisel function changed. Review the new calldata before sending.");
     updateChiselFields();
   });
   $("chiselPayments").addEventListener("input", updateChiselFields);
