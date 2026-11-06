@@ -6,9 +6,9 @@ Show that Chisel opens as a reader, not as a wallet asking for a private key.
 
 Explain that a transaction can be read as ordered outputs, OP_RETURN data, amount-level codes, and readable unspendable address lines.
 
-## 2. Show Start
+## 2. Show About
 
-Use Start for the conceptual bridge: vanilla JavaScript, local signing, the 2020 linguistic system, Portal, and the split between core and satellites.
+Use the About tab for the public purpose of Chisel, the author's background and vision, and a direct invitation to collaborate. Explain readable ledger publications, M64 v3/interactive Dark Star Z reconstruction, IPFS portability, and the relationship between QR identity, signed attestations, and local decisions to trust or avoid code. Distinguish currently working features from proposals.
 
 ## 3. Open Etch
 
