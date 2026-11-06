@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dark Star Z | Chisel</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0c10;--p:#171921;--line:#343948;--ink:#edf0f7;--muted:#afb8ca;--good:#a4dcb6;--bad:#ffacac}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--bg);font:14px/1.45 system-ui,sans-serif}
+main{max-width:1420px;padding:14px;margin:auto}header{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}h1{font-size:21px;margin:0}h2{font-size:15px;margin:0 0 8px}
+a{color:#b7cdfd}button,input,select{font:inherit;border:1px solid var(--line);color:var(--ink);background:#0e111a;border-radius:5px;padding:7px}
+button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}input[type=range]{padding:0;accent-color:#a2bdfa}
+.cols{display:grid;grid-template-columns:minmax(300px,380px) minmax(400px,1fr);gap:12px;margin-top:12px}
+.panel{background:var(--p);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px}
+.control{display:grid;grid-template-columns:98px 1fr 76px;gap:8px;align-items:center;margin:6px 0}
+.control label{font-size:12px;color:var(--muted)}.control input[type=number]{width:100%;font:12px ui-monospace,monospace}
+canvas{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;background:#000;border:1px solid var(--line)}
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}p{margin:5px 0 10px}.small{font-size:12px;color:var(--muted)}
+.status{font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word;color:var(--muted)}.status.good{color:var(--good)}.status.bad{color:var(--bad)}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.row input{flex:1;min-width:170px}
+details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110px;background:#090b10;color:var(--ink);border:1px solid var(--line);font:12px/1.4 ui-monospace,monospace}
+@media(max-width:840px){.cols{grid-template-columns:1fr}.control{grid-template-columns:85px 1fr 68px}}
+</style>
+</head>
+<body>
+<main>
+<header><div><h1>Dark Star Z</h1><div class="small">Chisel · interactive executable artifact · M64 v3 / IPFS</div></div>
+<nav><a href="../../index.html?mode=examples">Chisel</a> · <a href="index.html">M64 Workbench</a></nav></header>
+<div class="cols">
+<div>
+<section class="panel"><h2>Landscape controls</h2><div id="controls"></div>
+<div class="actions"><button id="reset">Reset</button><button id="rerun">Render</button><button id="png">Save PNG</button><button id="preset">Save parameters</button></div>
+<div id="renderStatus" class="status">Loading local Dark Star Z source…</div></section>
+<section class="panel"><h2>IPFS artifact</h2><p class="small">Supply a CID to hydrate M64 v3. Without one, Chisel runs the local source; no ledger is needed just to draw.</p>
+<div class="row"><input id="cid" placeholder="bafy… artifact JSON CID" spellcheck="false"><button id="load">Load CID</button></div>
+<label class="small" for="gateway">Gateway prefix</label><input id="gateway" value="https://ipfs.io/ipfs/" spellcheck="false" style="width:100%">
+<div class="actions"><button id="saveArtifact" disabled>Save M64 artifact JSON</button></div>
+<div id="artifactStatus" class="status">local source; no IPFS artifact loaded</div></section>
+</div>
+<div>
+<section class="panel"><h2>Rendered output</h2><canvas id="canvas" width="1400" height="900" aria-label="Dark Star Z rendered landscape"></canvas>
+<p class="small">Image is computed in a restricted iframe from the active program. Parameter changes re-run the same hydrated source.</p></section>
+<section class="panel"><details><summary>M64 v3 dictionary and publishing</summary>
+<p class="small">Enter the address of an actual <code>M64Dictionary</code> contract, not the general Chisel contract. Reads use RPC; new dictionary terms require a wallet-approved transaction.</p>
+<label class="small" for="dictionary">Dictionary address</label><input id="dictionary" placeholder="0x… (M64Dictionary deployed contract)" style="width:100%" spellcheck="false">
+<label class="small" for="chain">EVM chain ID</label><input id="chain" type="number" min="1" value="137" style="width:100%">
+<label class="small" for="rpc">Public JSON-RPC URL (for read-only hydration)</label><input id="rpc" value="https://polygon-bor-rpc.publicnode.com" style="width:100%" spellcheck="false">
+<div class="actions"><button id="inspect">Inspect dictionary</button><button id="build">Build M64 v3 (wallet approval if needed)</button></div>
+<p class="small">Building only sends an on-chain transaction if the dictionary lacks terms, after showing and confirming the missing-term count. The image itself is always rendered locally.</p>
+<div id="dictStatus" class="status">no dictionary selected</div>
+</details></section>
+<section class="panel"><details><summary>Publish via Pinata</summary>
+<p class="small">Pinata v3 uses a JWT. This is a per-session field; Chisel does not save the token in localStorage, the artifact, the URL, or the repository. A browser page holding a JWT can still expose it if the page is compromised. For stronger isolation, use a short-lived signed upload URL or a local credential broker.</p>
+<label class="small" for="pinataJwt">Pinata JWT (session only)</label><input id="pinataJwt" type="password" autocomplete="off" placeholder="Bearer token content" style="width:100%">
+<div class="row"><select id="pinataWhat"><option value="artifact">M64 artifact JSON</option><option value="png">Rendered PNG</option></select><button id="pin">Publish to public IPFS</button></div>
+<div id="pinStatus" class="status">nothing uploaded</div>
+</details></section>
+<section class="panel"><details><summary>Artifact metadata / provenance</summary>
+<textarea id="metadata" readonly aria-label="Artifact JSON metadata"></textarea>
+<p class="small">Publication and safety attestations are separate signed records. Contract deployment does not endorse an artifact; the publisher or an independent signer does.</p>
+</details></section>
+</div>
+</div></main>
+<script src="../../vendor/ethers-6.6.0.umd.min.js"></script>
+<script src="m64.js"></script>
+<script src="m64.artifact.js"></script>
+<script src="m64.javascript.js"></script>
+<script src="m64.dictionary.js"></script>
+<script src="m64.dictionary.evm.js"></script>
+<script src="m64.v3.js"></script>
+<script>
+"use strict";
+const S=id=>document.getElementById(id),M=ChiselM64;
+const DEFAULT={width:1400,height:900,lines:1600,yLeft:120,yRight:160,dyLeft:1,dyRight:2,slopeEvery:73,ddyLeft:0,ddyRight:-1,r:24,g:98,b:180,dr:1,dg:2,db:-1,colorEvery:137,ddr:1,ddg:-1,ddb:1,seed:124771};
+const SPEC=[
+ ["width",240,2200,20],["height",160,1600,20],["lines",10,4500,10],
+ ["yLeft",-800,1600,1],["yRight",-800,1600,1],
+ ["dyLeft",-12,12,1],["dyRight",-12,12,1],["slopeEvery",0,350,1],
+ ["ddyLeft",-5,5,1],["ddyRight",-5,5,1],
+ ["r",0,255,1],["g",0,255,1],["b",0,255,1],
+ ["dr",-12,12,1],["dg",-12,12,1],["db",-12,12,1],
+ ["colorEvery",0,350,1],["ddr",-5,5,1],["ddg",-5,5,1],["ddb",-5,5,1]
+];
+const MAP="darkStar=a\nmod=m\nputPixel=q\ndrawLine=l";
+const maxPixels=3500000;
+let source="",activeCode="",activeEntry="darkStar",artifact=null,lastPng=null,renderTimer=0,runNumber=0;
+function show(id,value,state){const el=S(id);el.textContent=value;el.className="status"+(state===true?" good":state===false?" bad":"")}
+function params(){const p={seed:DEFAULT.seed};for(const [key] of SPEC)p[key]=Number(S("p_"+key).value);return p}
+function apply(p){for(const [key,min,max] of SPEC){const n=Number(p[key]);S("p_"+key).value=Number.isFinite(n)?Math.min(max,Math.max(min,Math.round(n))):DEFAULT[key];S("r_"+key).value=S("p_"+key).value}}
+function makeControls(){for(const [key,min,max,step] of SPEC){const div=document.createElement("div");div.className="control";const lab=document.createElement("label");lab.textContent=key;lab.htmlFor="r_"+key;
+const range=document.createElement("input");range.type="range";range.id="r_"+key;range.min=min;range.max=max;range.step=step;range.value=DEFAULT[key];
+const num=document.createElement("input");num.type="number";num.id="p_"+key;num.min=min;num.max=max;num.step=step;num.value=DEFAULT[key];div.append(lab,range,num);S("controls").append(div);
+range.addEventListener("input",()=>{num.value=range.value;schedule()});
+num.addEventListener("change",()=>{let v=Number(num.value);if(!Number.isFinite(v))v=DEFAULT[key];v=Math.max(min,Math.min(max,Math.round(v)));num.value=range.value=v;schedule()})}}
+function schedule(){clearTimeout(renderTimer);renderTimer=setTimeout(render,180)}
+function sandbox(code,entry,arg){return new Promise((resolve,reject)=>{
+const f=document.createElement("iframe");f.setAttribute("sandbox","allow-scripts");f.style.display="none";
+const request=Math.random().toString(36).slice(2);const finish=()=>{clearTimeout(timer);removeEventListener("message",message);f.remove()};
+const timer=setTimeout(()=>{finish();reject(Error("10-second execution limit exceeded"))},10000);
+function message(e){if(e.source!==f.contentWindow||!e.data)return;const d=e.data;if(d.kind==="ready"){f.contentWindow.postMessage({kind:"run",request,code,entry,arg},"*")}
+if(d.kind==="result"&&d.request===request){finish();d.ok?resolve(d.value):reject(Error(d.error))}}
+addEventListener("message",message);
+f.srcdoc=[
+ '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' \'unsafe-eval\'; connect-src \'none\'; img-src \'none\';">',
+ "<script>",
+ "window.addEventListener('message',function(e){const d=e.data;if(!d||d.kind!=='run')return;try{if(!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(d.entry))throw Error('Bad entry');const fn=new Function('input',d.code+'\\n;return '+d.entry+'(input)');const value=fn(d.arg);parent.postMessage({kind:'result',request:d.request,ok:true,value},'*')}catch(err){parent.postMessage({kind:'result',request:d.request,ok:false,error:String(err)},'*')}});",
+ "parent.postMessage({kind:'ready'},'*');",
+ "</scr"+"ipt>"
+].join("");
+document.body.appendChild(f)})}
+async function render(){if(!activeCode)return;const seq=++runNumber;try{
+const p=params();if(!Number.isInteger(p.width)||!Number.isInteger(p.height)||p.width*p.height>maxPixels||p.width*p.height<1)throw Error("Invalid or excessive image dimensions");
+show("renderStatus","rendering "+p.width+" × "+p.height+"…");
+const result=await sandbox(activeCode,activeEntry,p);if(seq!==runNumber)return;
+const data=result instanceof Uint8Array?result:result instanceof ArrayBuffer?new Uint8Array(result):null;
+if(!data||data.length!==p.width*p.height*3)throw Error("Program did not return expected RGB bytes");
+const c=S("canvas");c.width=p.width;c.height=p.height;
+const rgba=new Uint8ClampedArray(p.width*p.height*4);for(let i=0,j=0;i<data.length;i+=3,j+=4){rgba[j]=data[i];rgba[j+1]=data[i+1];rgba[j+2]=data[i+2];rgba[j+3]=255}
+c.getContext("2d").putImageData(new ImageData(rgba,p.width,p.height),0,0);
+lastPng=null;show("renderStatus","rendered "+p.width+" × "+p.height+" / "+p.lines+" lines",true);
+}catch(e){if(seq===runNumber)show("renderStatus","Render failed: "+String(e.message||e),false)}}
+function sourceFallback(){artifact=null;activeEntry="darkStar";activeCode=source;S("metadata").value=JSON.stringify({status:"local source",entry:"darkStar",source:"examples/darkstar-core.js",input:params()},null,2);S("saveArtifact").disabled=true;show("artifactStatus","local executable source; CID not loaded")}
+function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
+async function pngBlob(){return new Promise((resolve,reject)=>S("canvas").toBlob(b=>b?resolve(b):reject(Error("Unable to produce PNG")),"image/png"))}
+function rpcUrl(){const s=S("rpc").value.trim();const u=new URL(s);if(u.protocol!=="https:"&&u.hostname!=="localhost"&&u.hostname!=="127.0.0.1")throw Error("RPC must be HTTPS or loopback");if(u.username||u.password)throw Error("RPC URL must not contain credentials");return s}
+function dictionarySelection(){const addr=S("dictionary").value.trim(),chain=Number(S("chain").value);if(!ethers.isAddress(addr))throw Error("Provide an M64Dictionary contract address");if(!Number.isSafeInteger(chain)||chain<=0)throw Error("Invalid chain ID");return{address:addr,chainId:chain,ref:M.eip155DictionaryRef(chain,addr)}}
+async function readonlyResolver(ref){const parsed=M.parseEip155DictionaryRef(ref);const provider=new ethers.JsonRpcProvider(rpcUrl());const actual=Number(BigInt(await provider.send("eth_chainId",[])));if(actual!==parsed.chainId)throw Error("RPC chain "+actual+" != dictionary chain "+parsed.chainId);
+const contract=new ethers.Contract(parsed.address,M.M64_DICTIONARY_EVM_ABI,provider);const resolver=M.createEvmDictionaryResolver({contract,ref:parsed.ref});await resolver.inspectContract();return resolver}
+function configureDictionary(artifact){const parsed=M.parseEip155DictionaryRef(artifact.dictionary.ref);S("dictionary").value=parsed.address;S("chain").value=parsed.chainId}
+function cidValue(){const cid=S("cid").value.trim();if(!/^(?:b[a-z2-7]{20,}|Qm[1-9A-HJ-NP-Za-km-z]{40,})$/.test(cid))throw Error("Enter a valid-looking CIDv0 or CIDv1");return cid}
+async function loadCid(){try{const cid=cidValue();const prefix=new URL(S("gateway").value.trim());if(!["http:","https:"].includes(prefix.protocol)||prefix.username||prefix.password)throw Error("Invalid IPFS gateway URL");
+const url=prefix.href.replace(/\/?$/,"/")+cid;show("artifactStatus","fetching "+url);
+const response=await fetch(url,{cache:"no-store"});if(!response.ok)throw Error("IPFS gateway HTTP "+response.status);
+const a=M.validateArtifactV3(await response.json());configureDictionary(a);const resolver=await readonlyResolver(a.dictionary.ref);const hydrated=await M.hydrateArtifactV3(a,resolver);
+artifact=a;activeCode=hydrated.canonical;activeEntry=a.entry;S("metadata").value=JSON.stringify(a,null,2);S("saveArtifact").disabled=false;
+if(a.input&&typeof a.input==="object")apply(a.input);
+show("artifactStatus","M64 v3 hydrated from "+cid+"\ncanonical bytes: "+hydrated.canonicalBytes+"\nSHA-256: "+hydrated.sha256,true);render();
+}catch(e){show("artifactStatus","CID load failed; existing program retained.\n"+String(e.message||e),false)}}
+async function inspect(){try{const d=dictionarySelection(),r=await readonlyResolver(d.ref),info=await r.inspectContract();show("dictStatus","dictionary "+d.ref+"\nterms: "+info.termCount+"\nversion: "+info.version,true)}
+catch(e){show("dictStatus","inspect failed: "+String(e.message||e),false)}}
+async function build(){try{
+if(!source)throw Error("Local source unavailable");const d=dictionarySelection(),read=await readonlyResolver(d.ref);
+const canonical=M.canonicalizeJavascriptV1(source,MAP),terms=M.collectDictionaryTerms(canonical,[]),missing=[];
+show("dictStatus","checking "+terms.length+" terms on "+d.ref+"…");
+for(const term of terms){if(await read.idForTerm(term)===null)missing.push(term)}
+let resolver=read;
+if(missing.length){const ok=confirm(missing.length+" missing dictionary terms. Adding them requires an on-chain transaction (gas paid by your wallet). Continue?");if(!ok){show("dictStatus","cancelled; "+missing.length+" missing terms");return}
+if(!window.ethereum?.request)throw Error("No injected EVM wallet for dictionary writes");
+const actual=Number(BigInt(await window.ethereum.request({method:"eth_chainId"})));
+if(actual!==d.chainId)throw Error("Wallet chain is "+actual+"; switch to "+d.chainId+" and retry");
+await window.ethereum.request({method:"eth_requestAccounts"});
+resolver=await M.createEip1193Dictionary({eip1193:window.ethereum,address:d.address,chainId:d.chainId,writable:true,verify:true});}
+show("dictStatus","encoding program against "+d.ref+"…");
+const made=await M.buildJavascriptArtifactV3(source,{resolver,entry:"darkStar",identifierMap:MAP,input:params()});
+const restored=await M.hydrateArtifactV3(made.artifact,read);
+artifact=made.artifact;activeCode=restored.canonical;activeEntry=artifact.entry;
+S("metadata").value=JSON.stringify(artifact,null,2);S("saveArtifact").disabled=false;
+show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);render();
+}catch(e){show("dictStatus","M64 build failed: "+String(e.message||e),false)}}
+async function publish(){const button=S("pin");button.disabled=true;try{
+const jwt=S("pinataJwt").value.trim();if(!jwt)throw Error("Provide a Pinata JWT for this session");
+let blob,name;if(S("pinataWhat").value==="artifact"){if(!artifact)throw Error("Build or load an M64 v3 artifact first");blob=new Blob([JSON.stringify(artifact,null,2)+"\n"],{type:"application/json"});name="dark-star-z.m64.json"}
+else{blob=await pngBlob();name="dark-star-z.png"}
+const fd=new FormData();fd.append("file",new File([blob],name,{type:blob.type}));fd.append("network","public");fd.append("name",name);
+show("pinStatus","uploading "+name+" ("+blob.size+" bytes)…");
+const response=await fetch("https://uploads.pinata.cloud/v3/files",{method:"POST",headers:{Authorization:"Bearer "+jwt},body:fd});
+const result=await response.json();if(!response.ok)throw Error("Pinata HTTP "+response.status+": "+JSON.stringify(result).slice(0,600));
+const cid=result?.data?.cid;if(typeof cid!=="string"||!cid)throw Error("Upload succeeded but no CID was returned");
+if(S("pinataWhat").value==="artifact"){S("cid").value=cid;history.replaceState(null,"",location.pathname+"?cid="+encodeURIComponent(cid))}
+show("pinStatus","PUBLISHED "+name+"\nCID: "+cid+"\nGateway: "+S("gateway").value.replace(/\/?$/,"/")+cid,true);
+}catch(e){show("pinStatus","Publish failed: "+String(e.message||e),false)}finally{button.disabled=false}}
+function wire(){makeControls();apply(DEFAULT);
+S("reset").onclick=()=>{apply(DEFAULT);render()};S("rerun").onclick=render;
+S("png").onclick=async()=>{try{download(await pngBlob(),"dark-star-z.png")}catch(e){show("renderStatus",String(e.message||e),false)}};
+S("preset").onclick=()=>download(new Blob([JSON.stringify({kind:"dark-star-z-input",version:1,input:params()},null,2)+"\n"],{type:"application/json"}),"dark-star-z-input.json");
+S("load").onclick=loadCid;S("inspect").onclick=inspect;S("build").onclick=build;S("pin").onclick=publish;
+S("saveArtifact").onclick=()=>{if(artifact)download(new Blob([JSON.stringify(artifact,null,2)+"\n"],{type:"application/json"}),"dark-star-z.m64.json")};
+const q=new URLSearchParams(location.search);if(q.get("cid"))S("cid").value=q.get("cid");if(q.get("dictionary"))S("dictionary").value=q.get("dictionary");if(q.get("chain"))S("chain").value=q.get("chain");}
+async function boot(){wire();try{const r=await fetch("examples/darkstar-core.js");if(!r.ok)throw Error("HTTP "+r.status);source=await r.text();sourceFallback();await render();if(S("cid").value)await loadCid()}catch(e){show("renderStatus","Local source failed: "+String(e.message||e),false)}}
+boot();
+</script>
+</body>
+</html>
