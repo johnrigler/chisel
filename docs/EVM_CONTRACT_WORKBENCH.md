@@ -314,16 +314,21 @@ The subsequent `Chisel` contract (`contracts/Chisel.sol`, formerly named
 Mogwai during development) has a Polygon mainnet deployment transaction
 recorded in [`contracts/deployed.txt`](../contracts/deployed.txt):
 [`0x5b398b...83a02d`](https://polygonscan.com/tx/0x5b398b46531cdc47eaed8cc3f28d2079f42d154effdd6c72712c51ea5e83a02d).
-It is **not** correct to call this latest contract undeployed. The transaction
-link itself does not contain the creation address; the deployed address and
-successful status must be read from the chain-137 receipt.
+The deployer provided the contract address
+[`0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3`](https://polygonscan.com/address/0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3)
+for Polygon mainnet (chain ID 137). Both the address and the transaction are
+now recorded in [`contracts/deployed.txt`](../contracts/deployed.txt) and
+the shared `chisel.evm.contracts.js` registry (`chisel.polygon.137`).
+This address is user-provided; independent receipt/bytecode verification has
+not been completed by the assistant.
 
-[`evm.html`](../evm.html) now includes a **Mogwai / Chisel** Polygon-137
+[`evm.html`](../evm.html) includes a **Mogwai / Chisel** Polygon-137
 profile, alongside Gomez, Jethro, and the all-ones Polygon Thunderword.
-The workbench resolves the address using the deployment transaction receipt
-and checks for contract bytecode using a Polygon RPC when one is available.
-The verified address then becomes an ordinary Etherscan V2 transaction-import
-profile with FileProxy split-archive support. Failed or unavailable receipt
-lookups do not silently invent a deployment address. This is a **read/inspect
-integration**, not a new wallet-write panel or independent Solidity source
-verification; Gomez and Jethro write interfaces remain unchanged.
+The address is usable immediately for Etherscan V2 transaction imports and
+FileProxy split-archive operations, without requiring a receipt lookup.
+The **Verify on-chain deployment** action separately checks the recorded
+deployment transaction receipt using a Polygon-137 RPC or Etherscan proxy and
+rejects an address mismatch. Failure to reach an RPC does not remove the
+registered address. This is a **read/inspect integration**, not a new
+wallet-write panel or independent Solidity source verification. Gomez and
+Jethro write interfaces remain unchanged.
