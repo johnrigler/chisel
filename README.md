@@ -6,11 +6,11 @@
   <a href="https://johnrigler.github.io/chisel/"><img src="docs/chisel-readme-preview.svg" alt="Representative preview of the Chisel Portal interface, showing navigation and an artifact search field" width="800"></a>
 </p>
 
-<p align="center"><a href="https://johnrigler.github.io/chisel/"><strong>▶ OPEN CHISEL</strong></a> · <a href="https://johnrigler.github.io/chisel/?mode=portal">Explore the Portal</a></p>
+<p align="center"><a href="https://johnrigler.github.io/chisel/"><strong>▶ OPEN THE PORTAL</strong></a> · <a href="https://johnrigler.github.io/chisel/?mode=about">About Chisel and its author</a></p>
 
 *Illustrative interface preview, not a live screenshot. Open the hosted Chisel application for the actual interface.*
 
-Chisel is a browser-first toolkit for reading and preserving small blockchain artifacts. **Portal** is the primary public reader; **Send**, **Review**, **Examples**, and **Tools** expose other workflows. It is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
+Chisel is a browser-first toolkit for readable ledger records, signed publication, and recoverable software artifacts. The **bare site URL always opens Portal**. The top navigation is **Portal / Send / Review / About**; **Examples** and **Tools** remain in the menu. [About](https://johnrigler.github.io/chisel/?mode=about) explains the system, the author, and how to collaborate. Chisel is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
 
 **EVM contracts:** [Open the browser-native Contract Factory](tools/evmFactory/index.html) to inspect a compiled Solidity JSON artifact, estimate deployment gas, and deploy through an injected wallet. Source compilation uses standalone `solc`/`solc-js` outside the page; Hardhat and npm are not browser runtime requirements. See the [factory guide](tools/evmFactory/README.md). Existing Gomez/Jethro reads and writes remain in [evm.html](evm.html).
 
@@ -186,9 +186,11 @@ The migration keeps Chisel's transaction formats, WIF handling, address derivati
 
 The normal browser path still retains the vendored `elliptic` signer as the legacy/default compatibility path and parity guard. It should not be deleted until a pinned standalone browser build of Noble is wired into the ordinary static/file:// distribution and the main path no longer loads or calls elliptic. See `docs/SECP256K1_MIGRATION.md`.
 
-## Orientation for colleagues
+## About and orientation for colleagues
 
-Start with the origin bridge before touring the code:
+Start with the **About** tab in the live Chisel application. It explains the project's present purpose: independently readable ledger publications, browser-local signing, M64 v3 program reconstruction, IPFS recovery, physical QR identity, and cross-chain trust attestations. It also introduces John Rigler and offers a public GitHub collaboration link. The bare URL opens **Portal** first so a visitor can begin by reading records.
+
+Follow the technical references for more detail:
 
 - `docs/origin.md` explains the vanilla-JS signing decision, the historical elliptic bridge, and the current move to Noble, then maps the 2020 white paper into the current Chisel implementation.
 - `docs/SECP256K1_MIGRATION.md` documents the Noble boundary, parity tests, browser test harness, and remaining production cutover gate.
@@ -202,7 +204,7 @@ Portal is now static-first: `data-bundled/portal-starter.js` preloads the known 
 
 ## Current development direction
 
-Do not treat general cleanup as the main project. Put a small fixture-driven regression floor under existing behavior, then make M64 a stable language-neutral protocol. M64 v2 is the implemented staging format; v3 should replace embedded dictionary snapshots with durable dictionary references while preserving v2 hydration compatibility.
+Do not treat general cleanup as the main project. Keep a small fixture-driven regression floor under existing behavior, then grow M64 v3 as a stable reconstruction protocol. The active M64 Workbench uses v3 external dictionary references and Dark Star Z as its first interactive program. Historical v2 code remains internally until its last consumers and tests can be retired; it is no longer an intended artifact format.
 
 The intended order is documented in `docs/NEXT_DEVELOPMENT.md`. In particular, avoid broad changes to signing, serialization, fee selection, UTXO selection, or broadcast behavior until known-value fixtures cover those paths.
 
