@@ -392,6 +392,64 @@
         <p><a id="jethroTxLink" hidden target="_blank" rel="noopener noreferrer"></a></p>
     </section>
 
+    <section class="panel contractWriteFields" id="chiselWriteWorkbench">
+        <h2>Chisel · Write Contract</h2>
+        <p>Write to the Mogwai / Chisel deployment on Polygon mainnet (137). This writer uses the registered deployment address and bundled ABI. Deployed Solidity has not been independently verified against the bundled source; confirm the contract before signing.
+        <a id="chiselWriteContractLink" href="https://polygonscan.com/address/0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3" target="_blank" rel="noopener noreferrer">Inspect Chisel on PolygonScan</a>.</p>
+        <div class="grid">
+            <div>
+                <label for="chiselInterface">Interface (ABI)</label>
+                <input id="chiselInterface" readonly>
+                <label for="chiselDeployment">Deployment (chain and contract)</label>
+                <input id="chiselDeployment" readonly>
+            </div>
+            <div>
+                <label for="chiselWallet">Injected wallet</label>
+                <select id="chiselWallet"><option value="">Detecting wallets...</option></select>
+                <button id="chiselRefreshWalletsBtn" type="button">Refresh wallets</button>
+                <button id="chiselConnectBtn" type="button">Connect wallet</button>
+                <button id="chiselSwitchChainBtn" type="button">Switch to Polygon</button>
+                <p class="status" id="chiselWalletStatus">Wallet not connected. Etherscan API key is not used for signing.</p>
+            </div>
+        </div>
+        <label for="chiselMethod">Contract method</label>
+        <select id="chiselMethod">
+            <option value="mapArtifact" selected>mapArtifact · writer-scoped artifact</option>
+            <option value="logRecord">logRecord · publish receipt bytes</option>
+            <option value="execute">execute · artifact + log + optional payments</option>
+            <option value="distributeChecked">distributeChecked · atomic payments</option>
+            <option value="distribute">distribute · best-effort payments</option>
+            <option value="withdrawRefund">withdrawRefund · claim outstanding refund</option>
+        </select>
+        <div id="chiselDictionaryFields">
+            <label for="chiselArtifact">Artifact key (string, case-sensitive)</label>
+            <input id="chiselArtifact" spellcheck="false" placeholder="Artifact identifier">
+            <label for="chiselBody">Artifact body (string)</label>
+            <textarea id="chiselBody" spellcheck="false" placeholder="Text to store under your connected wallet's namespace"></textarea>
+            <p>The mapping is keyed by the calling wallet and artifact key. Empty body is allowed; a nonempty key is required to write an entry.</p>
+        </div>
+        <div id="chiselLogFields" hidden>
+            <label for="chiselLogFormat">Log format (bytes32, 0x plus 64 hex characters)</label>
+            <input id="chiselLogFormat" spellcheck="false" value="0x0000000000000000000000000000000000000000000000000000000000000000">
+            <label for="chiselLogData">Log data (0x-prefixed, even-length hex bytes)</label>
+            <textarea id="chiselLogData" spellcheck="false" placeholder="0x68656c6c6f">0x</textarea>
+            <p>Logs persist in transaction receipts, not contract dictionary storage. Empty log data is permitted only in <code>execute</code> when another operation is present.</p>
+        </div>
+        <div id="chiselPaymentsFields" hidden>
+            <label for="chiselPayments">One recipient,amountWei pair per line</label>
+            <textarea id="chiselPayments" spellcheck="false" placeholder="0x1234567890123456789012345678901234567890,1000000000000000"></textarea>
+            <p>Amounts are decimal native-token <strong>wei</strong> on Polygon (POL), not POL units. The transaction value is calculated as the exact sum; it is never entered independently. Max 32 payments. <code>distributeChecked</code> reverts all transfers if any fails. <code>distribute</code> and <code>execute</code> are best-effort; a confirmed transaction does not mean every payment succeeded. Inspect <code>TransferResult</code> events.</p>
+        </div>
+        <p class="status mono" id="chiselValuePreview">Native value: 0 wei.</p>
+        <button id="chiselReviewBtn" class="primary" type="button">Review and simulate</button>
+        <button id="chiselSendBtn" class="primary" type="button" disabled>Send via wallet</button>
+        <button id="chiselReceiptBtn" type="button" disabled>Check receipt</button>
+        <label for="chiselReview">Transaction review (generated calldata, native wei and gas)</label>
+        <pre class="payloadBox mono" id="chiselReview">No reviewed calldata.</pre>
+        <p class="status" id="chiselWriteStatus" role="status">Connect an injected wallet on Polygon 137 and review the exact transaction before sending. No transaction is sent without a separate wallet approval.</p>
+        <p><a id="chiselTxLink" hidden target="_blank" rel="noopener noreferrer"></a></p>
+    </section>
+
     <section class="panel">
         <h2>Legacy Gomez image recovery</h2>
         <p>Imports the old easyBase Gomez image files named <span class="mono">137_block_pos</span> into the persistent Chisel data catalog. This preserves the quirky C2/C3 repair path, but stores the result as normal image assets from then on.</p>
@@ -431,10 +489,10 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.16.0/dist/ethers.umd.min.js"></script>
-<script src="chisel.evm.contracts.js?rev=20261103-gomez-v2"></script>
+<script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
 <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
 <script src="chisel.evm.write.js?rev=20261103-gomez-v2"></script>
-<script src="chisel.evm.write.ui.js?rev=20261103-gomez-v2"></script>
+<script src="chisel.evm.write.ui.js?rev=20261105-chisel-write"></script>
 <script>
 (function () {
     "use strict";
