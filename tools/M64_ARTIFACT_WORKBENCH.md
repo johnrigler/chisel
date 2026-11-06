@@ -6,7 +6,7 @@ The generic M64/Crusher/Hydrator work is in:
 tools/m64Artifact/
 ```
 
-Open `tools/m64Artifact/index.html` for the staging workbench.
+Open `tools/m64Artifact/index.html` for the staging workbench. The M64 Solidity and compiled artifact have moved to `contracts/M64Dictionary.sol` and `contracts/compiled/M64Dictionary.json`, alongside the separate Chisel contract.
 
 ## Toolchain note: no Hardhat requirement
 

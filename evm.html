@@ -294,6 +294,14 @@
         <p>Supported contract methods include <code>mapArtifact</code>, <code>logRecord</code>, <code>distribute</code>, <code>distributeChecked</code>, <code>execute</code>, and <code>withdrawRefund</code>. This panel reads and decodes contract transactions; it does not send new transactions.</p>
     </section>
 
+    <section class="panel" id="m64ContractPanel">
+        <h2>M64 Dictionary · compiled contract</h2>
+        <p>M64 is a separate permissionless append-only vocabulary and log-only Packet carrier, not a function on deployed Chisel. Its Solidity source, ABI and 4,002-byte compiled creation bytecode now live in the common contracts catalog. Recorded bytecode SHA-256: <code>f55001c8e085674028643483943f42363d913d172b328f7d10dc175d3419e051</code>.</p>
+        <p><a href="contracts/M64Dictionary.sol">Solidity source</a> · <a href="contracts/compiled/M64Dictionary.abi.json">ABI JSON</a> · <a href="contracts/compiled/M64Dictionary.json">Compiled bytecode artifact</a></p>
+        <p><a href="tools/evmFactory/index.html">EVM Contract Factory (load bundled M64)</a> · <a href="tools/m64Artifact/deploy-dictionary-polygon.html">M64 Polygon deployment tool</a> · <a href="tools/m64Artifact/dictionary-polygon.html">M64 dictionary reader/writer</a> · <a href="tools/m64Artifact/index.html">M64 codec workbench</a></p>
+        <p><strong>Deployment:</strong> no M64Dictionary Polygon deployment is registered here. Bytecode alone is not a deployment. Deploy using the explicit wallet-reviewed factory, verify the receipt and dictionary metadata, then register its address before attaching it to the regular contract read/write menus.</p>
+    </section>
+
     <section class="panel contractWriteFields" id="gomezWriteWorkbench">
         <h2>Gomez · Write Contract</h2>
         <p>Use <code>tell(string,address,uint256,address,uint256,address,uint256,address,uint256)</code> at the existing Gomez deployment on Polygon mainnet. The ABI is bundled; this page does not independently establish the deployed Solidity. <a id="gomezContractLink">Inspect Gomez on PolygonScan</a>.</p>

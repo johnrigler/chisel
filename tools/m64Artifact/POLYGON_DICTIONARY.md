@@ -8,7 +8,7 @@ See [`CARRIER_MODEL.md`](CARRIER_MODEL.md) for the broader rule: Chisel defines 
 
 ## Dictionary behavior
 
-`contracts/M64Dictionary.sol` is intentionally permissionless and append-only.
+`../../contracts/M64Dictionary.sol` is intentionally permissionless and append-only.
 
 There is no owner or administrator. There are no edit, delete, renumber, moderation, or packet-removal methods.
 
@@ -111,7 +111,7 @@ CI compiles `contracts/M64Dictionary.sol` twice with the same Solidity settings:
 CI requires exact equality of creation bytecode and runtime bytecode between those paths. It also requires the Hardhat creation bytecode to exactly match the committed browser deployment artifact:
 
 ```text
-contracts/M64Dictionary.compiled.json
+../../contracts/compiled/M64Dictionary.json
 ```
 
 The current pre-deployment capture records:

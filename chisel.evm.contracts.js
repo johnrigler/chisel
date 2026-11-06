@@ -17,6 +17,23 @@
       title: "Jethro mapArtifact",
       abi: Object.freeze(["function mapArtifact(string artifact,string body)"])
     }),
+    "m64.dictionary.v1": Object.freeze({
+      id: "m64.dictionary.v1",
+      title: "M64 Dictionary and Packet carrier",
+      abi: Object.freeze([
+        "function language() view returns (string)",
+        "function dictionaryVersion() view returns (uint256)",
+        "function termCount() view returns (uint256)",
+        "function lookupTerm(uint256 id) view returns (string)",
+        "function lookupId(string term) view returns (uint256)",
+        "function addTerm(string term) returns (uint256)",
+        "function addTerms(string[] batch) returns (uint256[])",
+        "function publishPacket(bytes32 namespace,bytes32 objectId,uint256 part,bytes data)",
+        "event TermAdded(uint256 indexed id,string term,address indexed payer)",
+        "event Packet(bytes32 indexed namespace,bytes32 indexed objectId,uint256 indexed part,address publisher,bytes data)",
+        "error EmptyTerm()"
+      ])
+    }),
     "chisel.v1": Object.freeze({
       id: "chisel.v1",
       title: "Mogwai / Chisel v1",
@@ -49,6 +66,16 @@
     "jethro.legacy.v1": Object.freeze({
       id: "jethro.legacy.v1", language: "Solidity",
       interfaceId: "jethro.mapArtifact.v1", source: null, runtimeBytecodeHash: null
+    }),
+    "m64.dictionary.v1": Object.freeze({
+      id: "m64.dictionary.v1", language: "Solidity",
+      interfaceId: "m64.dictionary.v1",
+      source: "contracts/M64Dictionary.sol",
+      compiledArtifact: "contracts/compiled/M64Dictionary.json",
+      abiArtifact: "contracts/compiled/M64Dictionary.abi.json",
+      creationBytecodeSha256: "f55001c8e085674028643483943f42363d913d172b328f7d10dc175d3419e051",
+      runtimeBytecodeHash: null,
+      deploymentStatus: "not-registered"
     }),
     "chisel.v1": Object.freeze({
       id: "chisel.v1", language: "Solidity",

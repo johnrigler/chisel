@@ -29,6 +29,19 @@ a verified explorer ABI or Solidity source unless independently retrieved.
 The existing EVM reader now derives Gomez/Jethro addresses and ABI fragments
 from this registry rather than carrying a second, incompatible set.
 
+## M64 Dictionary in the shared EVM catalog (2026-11-05)
+
+M64 now uses the same source/interface/implementation separation as Chisel. It is an independent contract, not a feature added to the deployed Chisel instance.
+
+- `contracts/M64Dictionary.sol`: unchanged, canonical permissionless vocabulary and generic Packet log carrier, previously at `tools/m64Artifact/contracts/`.
+- `contracts/compiled/M64Dictionary.abi.json`: hand-auditable ABI.
+- `contracts/compiled/M64Dictionary.json`: captured 4,002-byte creation bytecode and full ABI, retaining compiler/build provenance. Creation SHA-256: `f55001c8e085674028643483943f42363d913d172b328f7d10dc175d3419e051`.
+- `chisel.evm.contracts.js`: `m64.dictionary.v1` interface and implementation records, **no deployment record**.
+
+`evm.html` now links to the canonical files, the existing EVM Contract Factory and the M64-specific deploy/dictionary consoles. Both deployment paths load the same canonical compiled artifact. Optional Hardhat and M64 codec tools remain under `tools/m64Artifact/`; its compiler is pointed at the shared contract source. CI checks captured creation/runtime bytecode consistency against pinned standalone solc and Hardhat builds.
+
+To publish on Polygon 137, explicitly deploy and verify the contract first. The user must approve in the wallet; a creation artifact does not establish an on-chain deployment. Once the address is known and checked, register that specific chain/address in Chisel for regular read/write access.
+
 ## Writing Gomez
 
 The **Gomez · Write Contract** panel targets `0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2`

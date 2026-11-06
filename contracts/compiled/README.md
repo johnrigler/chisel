@@ -1,15 +1,11 @@
-# Compiled Chisel deployment artifact
+# EVM deployment artifacts
 
-Run `python3 contracts/build-chisel.py` from the repository root (requires
-native `solc`). This creates `Chisel.json` next to this README.
+This directory contains browser-loadable compiled Solidity artifacts.
 
-Commit the generated `Chisel.json` so every IPFS/static deployment can
-load the same ABI and creation bytecode. The JavaScript factory reads it using
-a relative path, and the connected browser wallet signs the deployment
-transaction on the selected EVM chain.
+- `Chisel.json`: generated from `contracts/Chisel.sol` with `python3 contracts/build-chisel.py`; pinned solc CI publishes updates. Chisel has a deployer-supplied Polygon 137 address, with verification separate.
+- `M64Dictionary.json`: captured Hardhat 3.16.0 / solc 0.8.30 creation bytecode and full ABI for the separate `contracts/M64Dictionary.sol`; 4,002-byte creation-code SHA-256 `f55001c8e085674028643483943f42363d913d172b328f7d10dc175d3419e051`.
+- `M64Dictionary.abi.json`: human-auditable interface including the `Packet` event.
 
-There is intentionally **no placeholder bytecode** in this directory.
-Do not mistake historical `contracts/Mogwai.bin` or `Mogwai.txt` for
-the current Chisel contract. No keys or deployment addresses belong here.
+M64's `sourcePath` and `compiledFromCommit` fields preserve **historical provenance** from the original `tools/m64Artifact/contracts/` location, while `canonicalSourcePath` gives the new source path. The bytecode is copied unchanged, not silently recompiled. CI checks Hardhat, standalone solc, captured creation code and runtime hashes.
 
-After successful main-branch CI, the publish job automatically commits the\ncompiled `Chisel.json` from its pinned Solidity compiler. This is a public\ndeployment artifact; it contains no wallet secrets or private keys.\n
+Use [EVM Contract Factory](../../tools/evmFactory/index.html) to review and optionally deploy from static/IPFS hosting. **No M64 contract address is registered or assumed.** All deployments require explicit wallet approval and independent receipt/code checks. No private keys or secrets belong here.

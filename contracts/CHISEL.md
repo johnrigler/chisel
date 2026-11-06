@@ -1,5 +1,7 @@
 # Chisel: minimal composable EVM publisher
 
+M64 Dictionary is a separate [Solidity contract](M64Dictionary.sol), with its [ABI](compiled/M64Dictionary.abi.json) and [captured deployment bytecode](compiled/M64Dictionary.json) in this catalog. M64 is not an additional function on the deployed Chisel contract.
+
 The current `Chisel.sol` combines three *optional* on-chain behaviors:
 a writer-scoped dictionary (Jethro), an array of native-token payments (Gomez),
 and receipt logs. `execute` can perform any combination in one transaction.

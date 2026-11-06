@@ -84,7 +84,7 @@ M64 Dictionary.
 ### Existing M64 dictionary
 
 Click **Load bundled M64 Dictionary** to review the previously compiled
-artifact at `../m64Artifact/contracts/M64Dictionary.compiled.json`. Its
+artifact at `../../contracts/compiled/M64Dictionary.json`. Its
 existing browser deployment page remains available. This factory doesn't
 compile or regenerate M64, and selecting it does not deploy anything.
 

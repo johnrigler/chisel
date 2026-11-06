@@ -1,9 +1,9 @@
 # Chisel M64 with Hardhat 3
 
-This directory is also a standalone Hardhat 3 project. The canonical Solidity remains:
+This directory remains an optional Hardhat 3 project. Its `paths.sources` setting points to the shared repository `../../contracts/` directory, so there is no duplicate Solidity source. The canonical source is:
 
 ```text
-contracts/M64Dictionary.sol
+../../contracts/M64Dictionary.sol
 ```
 
 There is no copied Hardhat-only contract. The browser tools, captured deployment artifact, standalone compiler check, and Hardhat all work from the same Solidity source.
@@ -58,14 +58,14 @@ The deployment build uses Solidity 0.8.30 with the compiler CBOR metadata traile
 metadata.appendCBOR = false
 ```
 
-This avoids source-path/compiler-metadata differences producing different creation bytes for otherwise identical executable code. Provenance is retained explicitly in `contracts/M64Dictionary.compiled.json` instead.
+This avoids source-path/compiler-metadata differences producing different creation bytes for otherwise identical executable code. Provenance is retained explicitly in `../../contracts/compiled/M64Dictionary.json` instead.
 
 CI compiles the same source two ways:
 
 1. through Hardhat 3;
 2. directly through the pinned `solc` 0.8.30 Standard JSON interface.
 
-CI requires exact equality of both creation bytecode and runtime bytecode. It then requires the Hardhat creation bytecode to equal the bytecode captured in `contracts/M64Dictionary.compiled.json`.
+CI requires exact equality of both creation bytecode and runtime bytecode. It then requires the Hardhat creation bytecode to equal the bytecode captured in `../../contracts/compiled/M64Dictionary.json`.
 
 The current pre-deployment capture is 4,002 creation bytes with decoded-byte SHA-256:
 
