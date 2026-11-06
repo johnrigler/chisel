@@ -125,7 +125,9 @@
   });
 
   function createPanel(config) {
-    const get = function (suffix) { return $(config.prefix + suffix); };
+    const get = function (suffix) {
+      return $(config.prefix + (config.prefix === "chisel" && suffix === "ContractLink" ? "WriteContractLink" : suffix));
+    };
     const profile = registry.descriptor(config.deploymentId);
     const writer = writerApi.createWriter({registry, ethers: root.ethers});
     let connection = null, latest = null, revision = 0;
