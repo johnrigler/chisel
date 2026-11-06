@@ -1,1 +1,5 @@
 https://polygonscan.com/tx/0x5b398b46531cdc47eaed8cc3f28d2079f42d154effdd6c72712c51ea5e83a02d
+chainId=137
+contractName=Chisel
+contractAddress=0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3
+https://polygonscan.com/address/0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3
