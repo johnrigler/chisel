@@ -8,6 +8,7 @@ import {createHash, webcrypto} from "node:crypto";
 import vm from "node:vm";
 
 const SCRIPT = readFileSync(new URL("../contracts/build-chisel.py", import.meta.url), "utf8");
+const GENERIC_SCRIPT = readFileSync(new URL("../contracts/build-solidity.py", import.meta.url), "utf8");
 const INDEX = readFileSync(new URL("../tools/evmFactory/index.html", import.meta.url), "utf8");
 const APP = readFileSync(new URL("../tools/evmFactory/app.js", import.meta.url), "utf8");
 const FACTORY = readFileSync(new URL("../tools/evmFactory/factory.js", import.meta.url), "utf8");
@@ -31,6 +32,7 @@ test("native solc build writes a deterministic, checked, cross-chain artifact", 
     const source = "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24; contract Chisel {}\n";
     writeFileSync(src, source);
     writeFileSync(builder, SCRIPT);
+    writeFileSync(join(dir, "build-solidity.py"), GENERIC_SCRIPT);
     writeFileSync(fakeSolc, `#!/usr/bin/env python3
 import json, sys
 if "--version" in sys.argv:
