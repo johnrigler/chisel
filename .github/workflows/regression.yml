@@ -146,13 +146,13 @@ jobs:
         with:
           name: m64-dictionary-hardhat
           path: |
-            tools/m64Artifact/artifacts/contracts/M64Dictionary.sol/M64Dictionary.json
+            tools/m64Artifact/artifacts/**/M64Dictionary.json
             tools/m64Artifact/.standalone-artifacts/M64Dictionary.json
             tools/m64Artifact/package-lock.json
 
       - name: Verify exact deployment bytecode across compiler paths
         run: |
-          node -e "const fs=require('fs');const h=JSON.parse(fs.readFileSync('artifacts/contracts/M64Dictionary.sol/M64Dictionary.json'));const s=JSON.parse(fs.readFileSync('.standalone-artifacts/M64Dictionary.json'));const c=JSON.parse(fs.readFileSync('contracts/M64Dictionary.compiled.json'));if(h.bytecode!==s.bytecode)throw Error('Hardhat and standalone solc creation bytecode differ');if(h.bytecode!==c.bytecode)throw Error('captured browser deployment bytecode is stale');if(h.deployedBytecode!==s.deployedBytecode)throw Error('Hardhat and standalone solc runtime bytecode differ')"
+          node scripts/verify-bytecode.mjs
 
   publish-chisel:
     # The write token is available only after trusted main-branch CI succeeds.

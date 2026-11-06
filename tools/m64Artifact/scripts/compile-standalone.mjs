@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import solc from "solc";
 
-const sourcePath = new URL("../contracts/M64Dictionary.sol", import.meta.url);
+const sourcePath = new URL("../../../contracts/M64Dictionary.sol", import.meta.url);
 const source = await readFile(sourcePath, "utf8");
 
 const input = {

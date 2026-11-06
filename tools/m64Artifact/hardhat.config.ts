@@ -2,6 +2,8 @@ import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-et
 import { configVariable, defineConfig } from "hardhat/config";
 
 export default defineConfig({
+  // Optional Hardhat tests compile the shared, canonical Solidity sources.
+  paths: { sources: "../../contracts" },
   plugins: [hardhatToolboxMochaEthers],
   solidity: {
     version: "0.8.30",

@@ -155,7 +155,7 @@
     void loadBundled("../../contracts/compiled/Chisel.json", "Chisel compiled artifact");
   });
   $("bundled").addEventListener("click", () => {
-    void loadBundled("../m64Artifact/contracts/M64Dictionary.compiled.json", "M64 Dictionary");
+    void loadBundled("../../contracts/compiled/M64Dictionary.json", "M64 Dictionary");
   });
 
   $("contract").addEventListener("change", renderArtifact);
