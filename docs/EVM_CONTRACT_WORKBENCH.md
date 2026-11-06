@@ -158,11 +158,55 @@ revisions by one writer, empty bodies, absence detection, event-based history,
 and factory/contract-wallet authorship. The draft has not been compiled,
 audited, or deployed as part of this design update.
 
+## Chisel · Write Contract (Polygon 137, 2026-11-05)
+
+The deployed-address profile for Mogwai / Chisel is
+[`0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3`](https://polygonscan.com/address/0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3).
+This is the deployer-supplied address. Independent deployed-code/source comparison
+has **not** been completed here; the browser checks the presence and stable hash
+of deployed bytecode at review time, but that is not an ABI audit.
+
+[`evm.html`](../evm.html) now has **Chisel · Write Contract**, alongside Gomez
+and Jethro. It reuses the same injected-wallet discovery, Polygon chain-ID
+preflight, `eth_getCode` hashing, `eth_call` simulation, gas estimate, explicit
+Send via wallet approval, and subsequent receipt status check. The static page
+runs from regular hosting or IPFS; no application server signs transactions.
+No new Solidity contract is deployed by the write panel.
+
+**Allowlisted write methods and inputs:**
+
+- `mapArtifact(artifact,body)`: writer-scoped dictionary entry. A nonempty
+  key is required; empty body is permitted. UTF-8 input is capped at 64 KiB.
+- `logRecord(format,data)`: `bytes32` format and nonempty even-length hex
+  bytes. Emits an event only; does not store a dictionary entry.
+- `execute(artifact,body,payments,format,data)`: optional combined write,
+  log and native payments, requiring at least one operation.
+- `distributeChecked(payments)`: atomic native payments. A failed recipient
+  causes all payments to revert.
+- `distribute(payments)`: best-effort native payments, including per-recipient
+  result events and possible refunds on failure.
+- `withdrawRefund()`: claims a pending refund for the connected caller.
+
+Payment input uses one comma-separated `recipient,amountWei` pair per line.
+Amounts are exact nonnegative decimal integers in **wei**, not floating-point
+POL amounts. This interface deliberately requires nonzero recipients and
+positive amounts, max 32 payments, and calculates the transaction's native
+value as exactly the sum of payments. The contract itself accepts more
+best-effort edge cases than the writer UI exposes. `distribute` and `execute`
+can succeed while individual payments fail; check `TransferResult` logs and
+refunds, not only the outer transaction status.
+
+Every input change or method switch invalidates reviewed calldata.
+An account or chain change requires reconnection and review. Simulation
+and gas estimation do **not** send. Only clicking Send initiates a wallet
+transaction request; the wallet then separately asks the user to approve.
+The Etherscan API key is never used for signing.
+
 ## Scope and limitations
 
-- Writes are explicitly allowlisted to Gomez `tell(...)` and Jethro
-  `mapArtifact(string,string)` at their respective bundled Polygon chain-137
-  deployments. Arbitrary ABI methods are not exposed as write operations.
+- Writes are explicitly allowlisted to Gomez `tell(...)`, Jethro
+  `mapArtifact(string,string)`, and the six Chisel write methods above at their
+  registered Polygon chain-137 deployments. Arbitrary ABI methods are not exposed.
 - Etherscan authentication in the legacy read/import panel is separate from
   wallet authorization and is not used to sign.
 - Real transaction fees are paid through the wallet. Chisel never attempts
@@ -179,7 +223,7 @@ audited, or deployed as part of this design update.
 ## Verification
 
 ```sh
-node --test tests/evm-write.test.mjs tests/evm-write-ui.test.mjs
+node --test tests/evm-write.test.mjs tests/evm-write-ui.test.mjs tests/evm-chisel-write.test.mjs
 node --test tests/*.test.mjs
 node --check chisel.evm.contracts.js
 node --check chisel.evm.write.js
