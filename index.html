@@ -435,11 +435,33 @@
       display: none;
     }
 
+    /* About is a public project overview, separate from the transaction tools. */
+    .aboutHero { gap: 16px; padding: clamp(18px, 3vw, 32px); background: linear-gradient(135deg,#132231,#11161c 60%); }
+    .aboutEyebrow { color:#9cc8ff; letter-spacing:.09em; font-weight:700; text-transform:uppercase; font-size:11px; }
+    .aboutHeadline { max-width:24ch; font-size:clamp(23px,3vw,35px); line-height:1.16; letter-spacing:-.035em; }
+    .aboutLead { color:#c1d1df; max-width:76ch; line-height:1.65; }
+    .aboutActions { display:flex; flex-wrap:wrap; gap:10px; }
+    .aboutAction { display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:10px 14px; border-radius:8px; border:1px solid #49638a; background:#192b40; color:#ecf4ff; font-weight:700; text-decoration:none; font-size:13px; }
+    .aboutAction:hover,.aboutAction:focus-visible { background:#2b4160; outline:2px solid #8baded; outline-offset:2px; }
+    .aboutAction.secondary { background:transparent; border-color:#465562; }
+    .aboutSection { display:grid; gap:12px; }
+    .aboutSection h2 { font-size:19px; }
+    .aboutSection p { color:#b9c8d6; line-height:1.7; }
+    .aboutGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .aboutTile { border:1px solid #33404f; border-radius:9px; padding:15px; background:#0a1018; display:grid; gap:8px; }
+    .aboutTile strong { color:#e3efff; }
+    .aboutTile p { font-size:13px; }
+    .aboutList { margin:0; padding-left:20px; display:grid; gap:8px; color:#b9c8d6; line-height:1.6; }
+    .aboutSection a:not(.aboutAction) { color:#b5d7ff; }
+    .aboutMeta { color:#91a4b7; font-size:12px; }
+    @media(max-width:760px){.aboutGrid{grid-template-columns:1fr}.aboutActions{display:grid}.aboutAction{width:100%}}
+
     body[data-mode="send"] .modePanel[data-mode-panel="etch"],
     body[data-mode="etch"] .modePanel[data-mode-panel="etch"],
     body[data-mode="broadcast"] .modePanel[data-mode-panel="etch"],
     body[data-mode="review"] .modePanel[data-mode-panel="review"],
     body[data-mode="portal"] .modePanel[data-mode-panel="portal"],
+    body[data-mode="about"] .modePanel[data-mode-panel="about"],
     body[data-mode="examples"] .modePanel[data-mode-panel="examples"],
     body[data-mode="tools"] .modePanel[data-mode-panel="tools"] {
       display: grid;
@@ -2049,51 +2071,83 @@
         <button class="modeButton active" type="button" data-mode-target="portal">Portal</button>
         <button class="modeButton" type="button" data-mode-target="send">Send</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
+        <button class="modeButton" type="button" data-mode-target="about">About</button>
       </div>
       <div class="compactHint" id="modeHint">Portal is the default entry point. Scan one public page sticker to open a page; scan the four private stickers only when you want to act as its owner.</div>
     </section>
 
 
+    <section class="modePanel" data-mode-panel="about" aria-label="About Chisel">
+      <section class="panel aboutHero">
+        <span class="aboutEyebrow">About Chisel</span>
+        <h2 class="aboutHeadline">Readable records. Recoverable software. Trust that travels with the person.</h2>
+        <p class="aboutLead">Chisel is an open-source, browser-first Web3 workbench for making public-ledger data understandable and useful. It reads transactions as records, supports locally signed publication, and explores how executable software can be rebuilt from independently stored artifacts instead of depending on a particular website or server.</p>
+        <div class="aboutActions">
+          <a class="aboutAction" href="?mode=portal">Explore the Portal</a>
+          <a class="aboutAction secondary" href="?mode=examples">See running examples</a>
+          <a class="aboutAction secondary" href="https://github.com/johnrigler/chisel">Read the source</a>
+        </div>
+        <span class="aboutMeta">Runs as vanilla JavaScript from a static web server, GitHub Pages, or IPFS. A wallet is not required for public reading.</span>
+      </section>
+
+      <section class="panel aboutSection">
+        <h2>Why this project exists</h2>
+        <p>Blockchains are usually presented as balances, trades, and contracts. But their durable fields can also represent publications, references, structured claims, dated records, and relationships between people and artifacts. Those records should remain readable even if a particular application, gateway, or company disappears.</p>
+        <p>Chisel separates the <strong>record</strong> from the site displaying it, the <strong>identity</strong> from the service holding it, and the <strong>code</strong> from the server delivering it. A transaction, CID, digest, or signed statement can be independently inspected, copied, indexed, and reconstructed.</p>
+      </section>
+
+      <section class="panel aboutSection">
+        <h2>What Chisel does</h2>
+        <div class="aboutGrid">
+          <article class="aboutTile"><strong>Portal: read what is on the ledger</strong><p>Browse and interpret transactions, ASCII OP_RETURN, MacDougall-readable address lines, amount tags, QR references, media previews, and locally annotated records.</p><a href="?mode=portal">Open Portal</a></article>
+          <article class="aboutTile"><strong>Send and Review: inspect before publishing</strong><p>Construct UTXO transactions and sign locally in the browser. Review selected inputs, outputs, raw bytes, and intended publication before broadcast.</p><a href="?mode=send">Open Send</a></article>
+          <article class="aboutTile"><strong>M64: reconstruct executable artifacts</strong><p>Dark Star Z demonstrates interactive JavaScript reconstructed using a referenced dictionary. The emerging design uses IPFS and public ledgers as interchangeable recovery surfaces.</p><a href="tools/m64Artifact/dark-star-z.html">Run Dark Star Z</a></article>
+          <article class="aboutTile"><strong>Identity and trust: people make the claims</strong><p>QR stickers connect physical encounters with self-sovereign identities. Signed attestations can endorse or warn against exact artifact bytes across chains; the reader decides whom to trust.</p><a href="docs/WEB3_TRUST_AND_EXECUTABLE_ARTIFACTS.md">Read the trust model</a></article>
+        </div>
+        <p class="aboutMeta">The Portal and transaction workbench are implemented features. Cross-chain trust and recursive IPFS reconstruction are active prototypes and architectural work, not finished universal services.</p>
+      </section>
+
+      <section class="panel aboutSection">
+        <h2>A portable trust model</h2>
+        <ol class="aboutList">
+          <li>Meet someone, scan a public QR identifier, and establish a relationship with their public cryptographic identity. A sticker is an index, not a private key or a proof by itself.</li>
+          <li>Publish an artifact or sign an assertion about its exact digest. The author, publisher, reviewer, contract deployer, and reader may all be different people.</li>
+          <li>Retrieve the same bytes from a ledger, IPFS, or another carrier, reconstruct and check them locally, and evaluate the relevant endorsements or warnings.</li>
+          <li>Choose locally whether to trust the issuer and what an executable artifact is permitted to do. Attestations are evidence of claims, not automatic judgments of truth.</li>
+        </ol>
+        <p>Chisel's proposed thunder-address conventions make this legible: EVM <code>0x1111…1111</code> denotes broadcast and <code>0x2222…2222</code> denotes avoidance or warning. UTXO attestations can carry compact ASCII claims in OP_RETURN, including hash-only warnings that do not republish the subject.</p>
+        <p><a href="docs/CROSS_CHAIN_THUNDER_ATTESTATIONS.md">Cross-chain attestation design</a> · <a href="tools/m64Artifact/README.md">M64 protocol and workbench</a></p>
+      </section>
+
+      <section class="panel aboutSection">
+        <h2>About the author</h2>
+        <p><strong>John Rigler</strong> describes his work as systems hacking: finding useful primitives in existing systems and combining them in ways the original interfaces do not anticipate. His background bridges enterprise computing, UNIX and infrastructure work, blockchain development, and humanities research into identity and community.</p>
+        <p>Chisel grows out of a crypto-linguistic proposal he developed in 2020: a payment transaction can also be a readable, structured publication using ordered outputs, intentionally unspendable addresses, amounts, and optional data fields. Today that idea is expanding into Web3 identity, physically exchanged QR records, recoverable software, M64 dictionaries, IPFS, and user-directed trust.</p>
+        <p>The long-term vision is a web of verifiable artifacts that can be followed across chains and reconstructed without requiring a privileged host. Chisel is intended to give individuals and communities more control over what they publish, how it is preserved, and whose assertions they accept.</p>
+        <p><a href="docs/origin.md">Project origins and technical background</a> · <a href="docs/WHAT_CHISEL_PROVES.md">What Chisel demonstrates</a></p>
+      </section>
+
+      <section class="panel aboutSection">
+        <h2>Get involved</h2>
+        <p>I am interested in hearing from developers, infrastructure engineers, digital archivists, researchers, educators, artists, and people working on self-sovereign identity or open records. Useful contributions include protocol criticism, interoperability tests, source reviews, live demonstrations, documentation, and collaborative experiments.</p>
+        <div class="aboutActions">
+          <a class="aboutAction" href="https://github.com/johnrigler/chisel/issues/new">Start a conversation or propose a collaboration</a>
+          <a class="aboutAction secondary" href="https://github.com/johnrigler">John's GitHub profile</a>
+          <a class="aboutAction secondary" href="https://github.com/johnrigler/chisel">Fork or inspect the repository</a>
+        </div>
+        <p class="aboutMeta">GitHub issues are public. Do not include private keys, credentials, or confidential personal records. For a private discussion, request a private contact channel without posting sensitive details.</p>
+      </section>
+    </section>
+
     <section class="modePanel" data-mode-panel="examples">
       <section class="panel hero">
-        <h2>Start: what Chisel proves</h2>
-        <p class="muted">This is the colleague-facing bridge between the older signing conversation, the 2020 crypto-linguistic white paper, and the current Chisel implementation. It now starts with the practical reason Chisel is vanilla JavaScript: elliptic gives the browser enough secp256k1 machinery to sign locally without turning the main app into a Node stack dependency tour.</p>
+        <h2>Examples and diagnostics</h2>
+        <p class="muted">Runnable artifacts and technical self-tests. For a project overview, the author, and collaboration opportunities, use the About tab. The origin documents remain available below.</p>
         <div class="toolGrid">
-          <a class="toolCard" href="docs/origin.md">
-            <strong>Read origin bridge</strong>
-            <span>Starts with vanilla JS, elliptic, local signing, QR stickers, mundane transaction UX, then maps the white paper kernel to Portal, MacDougall, ASC, and the current refactor boundary.</span>
-          </a>
-          <a class="toolCard" href="docs/origin-print.html">
-            <strong>Printable HTML</strong>
-            <span>Letter-friendly review copy with a print button and explicit page-break behavior.</span>
-          </a>
-          <a class="toolCard" href="docs/refactor-phases.md">
-            <strong>Refactor phases</strong>
-            <span>Low-risk sequence for cleaning up Chisel before touching signing, fees, UTXO selection, or broadcast code.</span>
-          </a>
-          <a class="toolCard" href="docs/WHAT_CHISEL_PROVES.md">
-            <strong>What Chisel proves</strong>
-            <span>Short colleague-facing claim: local signing, ordered outputs, explorer/node resources, static graph, and satellite tools.</span>
-          </a>
-          <a class="toolCard" href="docs/ARCHITECTURE.md">
-            <strong>Architecture</strong>
-            <span>Core driver, Etch workbench, Review microscope, Portal reader, and satellites.</span>
-          </a>
-          <a class="toolCard" href="docs/DEMO_SCRIPT.md">
-            <strong>Demo script</strong>
-            <span>Portal first, Start second, Etch third, Review fourth, Tools last.</span>
-          </a>
+          <a class="toolCard" href="docs/origin.md"><strong>Project origin and design</strong><span>The crypto-linguistic proposal, browser signing, QR identifiers, transaction records, and IPFS recovery direction.</span></a>
+          <a class="toolCard" href="docs/ARCHITECTURE.md"><strong>Technical architecture</strong><span>Chisel core, Portal, Send, Review, local data sources, and satellite tools.</span></a>
+          <a class="toolCard" href="docs/DEMO_SCRIPT.md"><strong>Guided demo notes</strong><span>A practical tour of the Portal, transaction mechanics, and tools.</span></a>
         </div>
-      </section>
-
-      <section class="panel">
-        <div class="stepTitle">Current boundary</div>
-        <p class="help">Core builds, signs, serializes, decodes, and explains meaningful UTXO transactions. The main app remains plain browser JavaScript. elliptic is part of the core signing path. Portal displays and filters transaction artifacts. Data is a static or local snapshot. fileProxy, bunOven, keeperBun, scanners, label tools, and importers are satellites.</p>
-      </section>
-
-      <section class="panel">
-        <div class="stepTitle">First demo path</div>
-        <p class="help">Start with why local browser signing matters, then open Portal, load a local or bundled transaction fixture, inspect ordered outputs, read MacDougall address lines, inspect OP_RETURN if present, treat amount codes as optional binders, then verify the raw JSON. Do not start with every historical experiment.</p>
       </section>
 
       <section class="panel" id="demoModePanel">
