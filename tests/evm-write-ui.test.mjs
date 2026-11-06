@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 const code = await Promise.all([
-  "chisel.evm.contracts.js", "chisel.evm.write.js", "chisel.evm.write.ui.js"
+  "chisel.evm.contracts.js", "chisel.evm.chisel.js", "chisel.evm.write.js", "chisel.evm.write.ui.js"
 ].map(name => readFile(new URL("../" + name, import.meta.url), "utf8")));
 const ZERO = "0x" + "0".repeat(40);
 const ACCOUNT = "0x" + "12".repeat(20);
@@ -42,11 +42,20 @@ function fixture() {
   const suffixes = ["WriteStatus","Interface","Deployment","ContractLink","Wallet","WalletStatus",
     "RefreshWalletsBtn","ConnectBtn","SwitchChainBtn","ReviewBtn","SendBtn","ReceiptBtn",
     "Review","TxLink"];
-  for (const prefix of ["gomez","jethro"]) {
+  for (const prefix of ["gomez","jethro","chisel"]) {
     for (const suffix of suffixes) nodes.set(prefix+suffix,new Element(prefix+suffix));
   }
   for (const suffix of ["Artifact","Body"]) nodes.set("jethro"+suffix,new Element("jethro"+suffix));
   nodes.set("gomezMessage",new Element("gomezMessage"));
+  for (const suffix of ["Method","Artifact","Body","LogFormat","LogData","Payments"]) {
+    nodes.set("chisel"+suffix,new Element("chisel"+suffix));
+  }
+  nodes.get("chiselMethod").value="mapArtifact";
+  nodes.get("chiselLogFormat").value="0x"+"0".repeat(64);
+  nodes.get("chiselLogData").value="0x";
+  for (const id of ["chiselDictionaryFields","chiselLogFields","chiselPaymentsFields","chiselValuePreview"]) {
+    nodes.set(id,new Element(id));
+  }
   for (let i=1;i<=4;i++) {
     const receiver=new Element("gomezReceiver"+i);
     receiver.value=ZERO;
@@ -94,7 +103,7 @@ function fixture() {
         constructor(abi){ assert.ok(abi.some(line=>line.startsWith("function "))); }
         encodeFunctionData(fn,args) {
           return (fn==="tell"?"0x87654321":"0x12345678")+
-            Buffer.from(JSON.stringify(args.map(v=>typeof v==="bigint"?v.toString():v))).toString("hex");
+            Buffer.from(JSON.stringify(args,(_key,v)=>typeof v==="bigint"?v.toString():v)).toString("hex");
         }
       }
     }
@@ -170,4 +179,61 @@ test("editing Gomez fields invalidates approved calldata", async () => {
   await f.get("gomezMessage").fire("input");
   assert.equal(f.get("gomezSendBtn").disabled,true);
   assert.equal(f.get("gomezReview").textContent,"No reviewed calldata.");
+});
+
+test("Chisel wallet writer renders, reviews and changes methods without sending", async () => {
+  const f=fixture();
+  assert.equal(f.get("chiselWallet").value,"injected");
+  assert.equal(f.get("chiselDictionaryFields").hidden,false);
+  assert.equal(f.get("chiselLogFields").hidden,true);
+  f.get("chiselArtifact").value="SB Shell";
+  f.get("chiselBody").value="Signed artifact";
+  await f.get("chiselConnectBtn").fire("click");
+  await f.get("chiselReviewBtn").fire("click");
+  assert.equal(f.get("chiselSendBtn").disabled,false);
+  const mapped=JSON.parse(f.get("chiselReview").textContent);
+  assert.equal(mapped.function,"mapArtifact(string,string)");
+  assert.equal(mapped.nativeValueWei,"0");
+  assert.equal(mapped.contract,"0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3");
+  assert.equal(f.calls.filter(x=>x.method==="eth_sendTransaction").length,0);
+
+  f.get("chiselMethod").value="logRecord";
+  await f.get("chiselMethod").fire("change");
+  assert.equal(f.get("chiselSendBtn").disabled,true,"method switch invalidates review");
+  assert.equal(f.get("chiselLogFields").hidden,false);
+  assert.equal(f.get("chiselDictionaryFields").hidden,true);
+  f.get("chiselLogData").value="0x68656c6c6f";
+  await f.get("chiselReviewBtn").fire("click");
+  assert.equal(JSON.parse(f.get("chiselReview").textContent).function,"logRecord(bytes32,bytes)");
+  assert.equal(f.calls.filter(x=>x.method==="eth_sendTransaction").length,0);
+
+  f.get("chiselMethod").value="distributeChecked";
+  await f.get("chiselMethod").fire("change");
+  f.get("chiselPayments").value="0x"+"34".repeat(20)+",11\n0x"+"56".repeat(20)+",19";
+  await f.get("chiselPayments").fire("input");
+  assert.match(f.get("chiselValuePreview").textContent,/30 wei/);
+  await f.get("chiselReviewBtn").fire("click");
+  const paymentReview=JSON.parse(f.get("chiselReview").textContent);
+  assert.equal(paymentReview.nativeValueWei,"30");
+  assert.equal(paymentReview.paymentTotalWei,"30");
+  assert.equal(paymentReview.function,"distributeChecked((address,uint256)[])");
+  assert.equal(f.calls.filter(x=>x.method==="eth_sendTransaction").length,0);
+  await f.get("chiselSendBtn").fire("click");
+  const sends=f.calls.filter(x=>x.method==="eth_sendTransaction");
+  assert.equal(sends.length,1);
+  assert.equal(sends[0].params[0].value,"0x1e");
+  assert.equal(sends[0].params[0].to,paymentReview.contract);
+  assert.equal(f.get("chiselReceiptBtn").disabled,false);
+});
+
+test("Chisel invalid amounts fail before simulation and sending", async () => {
+  const f=fixture();
+  await f.get("chiselConnectBtn").fire("click");
+  f.get("chiselMethod").value="distribute";
+  await f.get("chiselMethod").fire("change");
+  f.get("chiselPayments").value="0x"+"12".repeat(20)+",1e18";
+  await f.get("chiselReviewBtn").fire("click");
+  assert.equal(f.get("chiselSendBtn").disabled,true);
+  assert.match(f.get("chiselWriteStatus").textContent,/decimal integer|decimal wei/);
+  assert.equal(f.calls.filter(x=>x.method==="eth_sendTransaction").length,0);
 });
