@@ -55,6 +55,16 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <div class="row"><select id="pinataWhat"><option value="artifact">M64 artifact JSON</option><option value="png">Rendered PNG</option></select><button id="pin">Publish to public IPFS</button></div>
 <div id="pinStatus" class="status">nothing uploaded</div>
 </details></section>
+<section class="panel"><details><summary>Thunder trust / warning draft</summary>
+<p class="small">This prepares 72-byte ASCII for a future UTXO OP_RETURN or a cross-chain attestation. It is not signed and does not send a transaction. A publisher's signed provenance must be established separately.</p>
+<div class="small">BROADCAST: <code>0x1111111111111111111111111111111111111111</code></div>
+<div class="small">AVOID: <code>0x2222222222222222222222222222222222222222</code></div>
+<div class="row" style="margin:10px 0"><select id="verdict"><option value="+">+ Encourage / endorse</option><option value="-">- Discourage / warn</option></select><button id="useDigest">Use M64 program digest</button></div>
+<input id="subjectDigest" placeholder="64-character SHA-256 subject digest" spellcheck="false" style="width:100%">
+<div class="actions"><button id="draftAttest">Draft attestation</button><button id="copyAttest">Copy ASCII</button></div>
+<textarea id="attestText" readonly aria-label="Thunder attestation ASCII"></textarea>
+<div id="attestStatus" class="status">No claim drafted.</div>
+</details></section>
 <section class="panel"><details><summary>Artifact metadata / provenance</summary>
 <textarea id="metadata" readonly aria-label="Artifact JSON metadata"></textarea>
 <p class="small">Publication and safety attestations are separate signed records. Contract deployment does not endorse an artifact; the publisher or an independent signer does.</p>
@@ -68,6 +78,7 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <script src="m64.dictionary.js"></script>
 <script src="m64.dictionary.evm.js"></script>
 <script src="m64.v3.js"></script>
+<script src="../../chisel.thunder-attest.js"></script>
 <script>
 "use strict";
 const S=id=>document.getElementById(id),M=ChiselM64;
@@ -169,11 +180,18 @@ const cid=result?.data?.cid;if(typeof cid!=="string"||!cid)throw Error("Upload s
 if(S("pinataWhat").value==="artifact"){S("cid").value=cid;history.replaceState(null,"",location.pathname+"?cid="+encodeURIComponent(cid))}
 show("pinStatus","PUBLISHED "+name+"\nCID: "+cid+"\nGateway: "+S("gateway").value.replace(/\/?$/,"/")+cid,true);
 }catch(e){show("pinStatus","Publish failed: "+String(e.message||e),false)}finally{button.disabled=false}}
+function draftTrust(){try{
+const ascii=ChiselThunderAttest.create({claim:S("verdict").value,digest:S("subjectDigest").value});
+const claim=ChiselThunderAttest.parse(ascii);S("attestText").value=ascii;
+show("attestStatus",(claim.claim==="warn"?"AVOID / WARNING":"BROADCAST / ENDORSE")+"\nMarker: "+claim.marker+"\nOP_RETURN: "+claim.bytes+" ASCII bytes\nUnsigned draft only; no chain attribution or author identity yet.",true);
+}catch(e){show("attestStatus",String(e.message||e),false)}}
+async function copyTrust(){try{const str=S("attestText").value;if(!str)throw Error("Draft an attestation first");await navigator.clipboard.writeText(str);show("attestStatus","ASCII draft copied. This remains unsigned.",true)}catch(e){show("attestStatus","Copy unavailable: "+String(e.message||e),false)}}
 function wire(){makeControls();apply(DEFAULT);
 S("reset").onclick=()=>{apply(DEFAULT);render()};S("rerun").onclick=render;
 S("png").onclick=async()=>{try{download(await pngBlob(),"dark-star-z.png")}catch(e){show("renderStatus",String(e.message||e),false)}};
 S("preset").onclick=()=>download(new Blob([JSON.stringify({kind:"dark-star-z-input",version:1,input:params()},null,2)+"\n"],{type:"application/json"}),"dark-star-z-input.json");
 S("load").onclick=loadCid;S("inspect").onclick=inspect;S("build").onclick=build;S("pin").onclick=publish;
+S("draftAttest").onclick=draftTrust;S("copyAttest").onclick=copyTrust;S("useDigest").onclick=()=>{if(!artifact){show("attestStatus","Build or load an M64 v3 artifact first.",false);return}S("subjectDigest").value=artifact.sha256;draftTrust()};
 S("saveArtifact").onclick=()=>{if(artifact)download(new Blob([JSON.stringify(artifact,null,2)+"\n"],{type:"application/json"}),"dark-star-z.m64.json")};
 const q=new URLSearchParams(location.search);if(q.get("cid"))S("cid").value=q.get("cid");if(q.get("dictionary"))S("dictionary").value=q.get("dictionary");if(q.get("chain"))S("chain").value=q.get("chain");}
 async function boot(){wire();try{const r=await fetch("examples/darkstar-core.js");if(!r.ok)throw Error("HTTP "+r.status);source=await r.text();sourceFallback();await render();if(S("cid").value)await loadCid()}catch(e){show("renderStatus","Local source failed: "+String(e.message||e),false)}}
