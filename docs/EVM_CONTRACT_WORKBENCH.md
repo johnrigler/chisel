@@ -1,7 +1,7 @@
 # EVM workbench: Gomez and Jethro write paths
 
 The standalone [evm.html](../evm.html) remains Chisel's EVM import/recovery
-workbench. It contains separate **Gomez · Write Contract** and **Jethro · Write Contract** panels, sharing the same wallet-discovery, review, and submission code. The Portal
+workbench, now including the Mogwai/Chisel deployment profile on Polygon 137. It contains separate **Gomez · Write Contract** and **Jethro · Write Contract** panels, sharing the same wallet-discovery, review, and submission code. The Portal
 remains a read-only presentation and verification surface; writing does not
 depend on FileProxy, Etherscan, or the Portal's caches.
 
@@ -189,7 +189,7 @@ node tests/check-inline-scripts.mjs evm.html
 
 The tests use an injected wallet stub, not a live private key or transaction.
 
-## Mogwai v1 EVM kernel and factory (draft, not deployed)
+## Mogwai v1 EVM kernel and factory (historical 2026-11-03 draft)
 
 **Status, 2026-11-03:** [Mogwai.sol](../contracts/Mogwai.sol) is a new
 standalone Solidity implementation. It does not replace Gomez, Jethro,
@@ -310,5 +310,20 @@ For compiler input examples, unsupported constructor/linking cases, runtime
 comparison caveats, and testing, see
 [factory README](../tools/evmFactory/README.md). Hardhat remains an optional
 M64 development/test workspace, not a requirement for this deployment path.
-The new Mogwai source remains undeployed until a separately verified live
-deployment is completed.
+The subsequent `Chisel` contract (`contracts/Chisel.sol`, formerly named
+Mogwai during development) has a Polygon mainnet deployment transaction
+recorded in [`contracts/deployed.txt`](../contracts/deployed.txt):
+[`0x5b398b...83a02d`](https://polygonscan.com/tx/0x5b398b46531cdc47eaed8cc3f28d2079f42d154effdd6c72712c51ea5e83a02d).
+It is **not** correct to call this latest contract undeployed. The transaction
+link itself does not contain the creation address; the deployed address and
+successful status must be read from the chain-137 receipt.
+
+[`evm.html`](../evm.html) now includes a **Mogwai / Chisel** Polygon-137
+profile, alongside Gomez, Jethro, and the all-ones Polygon Thunderword.
+The workbench resolves the address using the deployment transaction receipt
+and checks for contract bytecode using a Polygon RPC when one is available.
+The verified address then becomes an ordinary Etherscan V2 transaction-import
+profile with FileProxy split-archive support. Failed or unavailable receipt
+lookups do not silently invent a deployment address. This is a **read/inspect
+integration**, not a new wallet-write panel or independent Solidity source
+verification; Gomez and Jethro write interfaces remain unchanged.
