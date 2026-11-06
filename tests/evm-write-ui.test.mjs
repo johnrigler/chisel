@@ -45,6 +45,7 @@ function fixture() {
   for (const prefix of ["gomez","jethro","chisel"]) {
     for (const suffix of suffixes) nodes.set(prefix+suffix,new Element(prefix+suffix));
   }
+  nodes.set("chiselWriteContractLink",new Element("chiselWriteContractLink"));
   for (const suffix of ["Artifact","Body"]) nodes.set("jethro"+suffix,new Element("jethro"+suffix));
   nodes.set("gomezMessage",new Element("gomezMessage"));
   for (const suffix of ["Method","Artifact","Body","LogFormat","LogData","Payments"]) {
