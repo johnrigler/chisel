@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chisel EVM Workbench · Gomez + Jethro + Polygon Thunderword</title>
+<title>Chisel EVM Workbench · Gomez + Jethro + Mogwai/Chisel + Polygon Thunderword</title>
 <style>
     :root {
         --bg: #101214;
@@ -205,8 +205,8 @@
 </head>
 <body>
 <header>
-    <h1>Chisel EVM Workbench · Gomez + Jethro + Polygon Thunderword</h1>
-    <p>Etherscan V2 address-history reader. Gomez, Jethro, and the all-ones main Thunderword are on Polygon mainnet (chain 137). Saved split archives go to the configured FileProxy.</p>
+    <h1>Chisel EVM Workbench · Gomez + Jethro + Mogwai/Chisel + Polygon Thunderword</h1>
+    <p>Etherscan V2 address-history reader. Gomez, Jethro, Mogwai/Chisel, and the all-ones main Thunderword use Polygon mainnet (chain 137). Mogwai/Chisel's address is resolved from its recorded deployment transaction. Saved split archives go to the configured FileProxy.</p>
     <p><a href="tools/evmFactory/index.html">Open the EVM Contract Factory</a> for no-Hardhat artifact review and browser-wallet deployment.</p>
 </header>
 <main>
@@ -230,6 +230,7 @@
         <select id="contractProfile">
             <option value="gomez" selected>Gomez / 0x5a2220d56f56...</option>
             <option value="jethro">Jethro / 0x0076416C84c7...</option>
+            <option value="chisel">Mogwai / Chisel · Polygon 137</option>
             <option value="thunderword">Polygon main Thunderword / 0x111111...</option>
             <option value="custom">Custom / manual address</option>
         </select>
@@ -266,12 +267,14 @@
         <button class="primary" id="checkSelectedBtn">Check selected + save new</button>
         <button id="checkGomezBtn">Check Gomez</button>
         <button id="checkJethroBtn">Check Jethro</button>
+        <button id="checkChiselBtn">Check Mogwai / Chisel</button>
         <button id="checkThunderwordBtn">Check Polygon Thunderword</button>
         <button id="refreshStatusBtn">Refresh saved status</button>
         <button id="fetchBtn">Fetch txlist only</button>
         <button id="thunderBtn">Use Polygon Thunderword</button>
         <button id="gomezBtn">Use Gomez</button>
         <button id="jethroBtn">Use Jethro</button>
+        <button id="chiselBtn">Use Mogwai / Chisel</button>
         <button id="parseRawBtn">Parse raw textarea</button>
         <button id="saveSplitBtn">Save split tx files to data/</button>
         <button id="saveRawBtn">Save raw JSON</button>
@@ -279,6 +282,16 @@
         <button id="clearBtn">Clear</button>
         <p class="status" id="status">Idle.</p>
         <div class="profileStatus" id="profileStatus"></div>
+    </section>
+
+    <section class="panel" id="chiselDeploymentPanel">
+        <h2>Mogwai / Chisel · Polygon deployment</h2>
+        <p>The contract previously called Mogwai is now named <code>Chisel</code> in source and ABI. Its Polygon mainnet deployment transaction is recorded in <code>contracts/deployed.txt</code>. The live contract address is read from the successful chain-137 transaction receipt, not inferred from a name or invented.</p>
+        <p><a href="https://polygonscan.com/tx/0x5b398b46531cdc47eaed8cc3f28d2079f42d154effdd6c72712c51ea5e83a02d" target="_blank" rel="noopener noreferrer">Polygon deployment transaction</a> · <a href="contracts/compiled/Chisel.json">Chisel compiled ABI / artifact</a></p>
+        <button id="resolveChiselBtn" type="button">Resolve deployed address</button>
+        <p class="status" id="chiselDeploymentStatus" role="status">Contract address awaiting Polygon receipt. Read-only lookup; no wallet approval or transaction.</p>
+        <p><a id="chiselContractLink" hidden target="_blank" rel="noopener noreferrer">Inspect deployed Chisel on PolygonScan</a></p>
+        <p>Supported contract methods include <code>mapArtifact</code>, <code>logRecord</code>, <code>distribute</code>, <code>distributeChecked</code>, <code>execute</code>, and <code>withdrawRefund</code>. This panel reads and decodes contract transactions; it does not send new transactions.</p>
     </section>
 
     <section class="panel contractWriteFields" id="gomezWriteWorkbench">
@@ -419,6 +432,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.16.0/dist/ethers.umd.min.js"></script>
 <script src="chisel.evm.contracts.js?rev=20261103-gomez-v2"></script>
+<script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
 <script src="chisel.evm.write.js?rev=20261103-gomez-v2"></script>
 <script src="chisel.evm.write.ui.js?rev=20261103-gomez-v2"></script>
 <script>
@@ -430,6 +444,7 @@
     const GOMEZ = registry.deployments["gomez.polygon.137"].address;
     const JETHRO = registry.deployments["jethro.polygon.137"].address;
     const EVM_THUNDERWORD = "0x1111111111111111111111111111111111111111";
+    const CHISEL_DEPLOY_TX = "0x5b398b46531cdc47eaed8cc3f28d2079f42d154effdd6c72712c51ea5e83a02d";
 
     const CONTRACT_PROFILES = {
         gomez: {
@@ -445,6 +460,14 @@
             name: "jethro",
             chainId: String(registry.deployments["jethro.polygon.137"].chainId),
             address: JETHRO
+        },
+        chisel: {
+            key: "chisel",
+            label: "Mogwai / Chisel",
+            name: "chisel",
+            chainId: "137",
+            address: "",
+            deploymentTxHash: CHISEL_DEPLOY_TX
         },
         thunderword: {
             key: "thunderword",
@@ -463,6 +486,7 @@
     ];
 
     const evmIface = new ethers.Interface(EVM_ABI);
+    const chiselIface = new ethers.Interface(window.CHISEL_EVM_CHISEL.ABI);
 
     let rawResponse = null;
     let normalized = [];
@@ -698,6 +722,31 @@
             return { kind: "empty", message: "", words: [], binary: null, text: "" };
         }
 
+        if (CONTRACT_PROFILES.chisel.address &&
+            String(tx.to || "").toLowerCase() === CONTRACT_PROFILES.chisel.address.toLowerCase()) {
+            try {
+                const parsedChisel = chiselIface.parseTransaction({data: input, value: tx.value || 0});
+                if (parsedChisel) {
+                    const method = parsedChisel.name;
+                    if (method === "mapArtifact" || method === "execute") {
+                        const artifact = String(parsedChisel.args[0]);
+                        const body = String(parsedChisel.args[1]);
+                        const text = artifact + (body ? "\n" + body : "");
+                        return {kind: "chisel." + method, artifact, body, text, message: body,
+                            words: [artifact], mime: magicMime(new TextEncoder().encode(body || artifact)),
+                            amounts: [], binary: null};
+                    }
+                    if (method === "logRecord") {
+                        const data = parsedChisel.args[1];
+                        return {kind: "chisel.logRecord", words: [], amounts: [], text: data,
+                            message: data, mime: "", binary: null, format: parsedChisel.args[0]};
+                    }
+                    return {kind: "chisel." + method, words: [], amounts: [], text: method,
+                        message: method, mime: "", binary: null};
+                }
+            } catch (_) {}
+        }
+
         try {
             const parsed = evmIface.parseTransaction({ data: input, value: tx.value || 0 });
             if (parsed && parsed.name === "tell") {
@@ -782,6 +831,7 @@
         const a = String(address || "").toLowerCase();
         if (a === GOMEZ.toLowerCase()) return "gomez";
         if (a === JETHRO.toLowerCase()) return "jethro";
+        if (CONTRACT_PROFILES.chisel.address && a === CONTRACT_PROFILES.chisel.address.toLowerCase()) return "chisel";
         if (a === EVM_THUNDERWORD.toLowerCase()) return "polygon-main-thunderword";
         return "contract";
     }
@@ -789,7 +839,7 @@
     function profileForAddress(address) {
         const a = String(address || "").toLowerCase();
         return Object.values(CONTRACT_PROFILES).find(function (profile) {
-            return profile.address.toLowerCase() === a;
+            return !!profile.address && profile.address.toLowerCase() === a;
         }) || null;
     }
 
@@ -803,6 +853,96 @@
         }
         el("address").value = address;
         el("contractName").value = name || inferContractName(address);
+    }
+
+
+    let chiselResolution = null;
+    async function resolveChiselAddress() {
+        if (CONTRACT_PROFILES.chisel.address) return CONTRACT_PROFILES.chisel.address;
+        if (chiselResolution) return chiselResolution;
+        const status = el("chiselDeploymentStatus");
+        status.textContent = "Resolving Polygon chain-137 contract-creation receipt…";
+        status.className = "status";
+        chiselResolution = (async function () {
+            const errors = [];
+            const validate = function (receipt) {
+                if (!receipt) throw new Error("Deployment receipt is missing or pending.");
+                if (String(receipt.status).toLowerCase() !== "0x1" && receipt.status !== 1) {
+                    throw new Error("Deployment transaction did not succeed.");
+                }
+                if (!ethers.isAddress(receipt.contractAddress || "")) {
+                    throw new Error("Receipt does not contain a valid contract-creation address.");
+                }
+                return ethers.getAddress(receipt.contractAddress);
+            };
+            const requestRpc = async function (url, method, params) {
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: {"content-type": "application/json"},
+                    body: JSON.stringify({jsonrpc: "2.0", id: 1, method, params}),
+                    signal: AbortSignal.timeout(8500)
+                });
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                const data = await response.json();
+                if (data.error) throw new Error(data.error.message || "RPC error");
+                return data.result;
+            };
+            let address = "";
+            const wallet = window.ethereum;
+            if (wallet && typeof wallet.request === "function") {
+                try {
+                    const chain = await wallet.request({method: "eth_chainId"});
+                    if (BigInt(chain) === 137n) {
+                        address = validate(await wallet.request({
+                            method: "eth_getTransactionReceipt", params: [CHISEL_DEPLOY_TX]
+                        }));
+                        const code = await wallet.request({method: "eth_getCode", params: [address, "latest"]});
+                        if (!code || code === "0x") throw new Error("No deployed bytecode found.");
+                    }
+                } catch (error) { errors.push("wallet: " + (error.message || String(error))); address = ""; }
+            }
+            if (!address && el("apiKey").value.trim()) {
+                try {
+                    const params = new URLSearchParams({
+                        chainid: "137", module: "proxy", action: "eth_getTransactionReceipt",
+                        txhash: CHISEL_DEPLOY_TX, apikey: el("apiKey").value.trim()
+                    });
+                    const response = await fetch(ETHERSCAN_V2 + "?" + params);
+                    if (!response.ok) throw new Error("HTTP " + response.status);
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error.message || "Etherscan proxy error");
+                    address = validate(data.result);
+                } catch (error) { errors.push("Etherscan: " + (error.message || String(error))); address = ""; }
+            }
+            if (!address) {
+                for (const url of ["https://polygon-bor-rpc.publicnode.com", "https://polygon.drpc.org"]) {
+                    try {
+                        const chain = await requestRpc(url, "eth_chainId", []);
+                        if (BigInt(chain) !== 137n) throw new Error("RPC chain ID is not 137.");
+                        address = validate(await requestRpc(url, "eth_getTransactionReceipt", [CHISEL_DEPLOY_TX]));
+                        const code = await requestRpc(url, "eth_getCode", [address, "latest"]);
+                        if (!code || code === "0x") throw new Error("No deployed bytecode found.");
+                        break;
+                    } catch (error) { errors.push(url + ": " + (error.message || String(error))); address = ""; }
+                }
+            }
+            if (!address) throw new Error("Unable to resolve the deployment receipt on Polygon 137. " + errors.join("; "));
+            CONTRACT_PROFILES.chisel.address = address;
+            const link = el("chiselContractLink");
+            link.href = "https://polygonscan.com/address/" + address;
+            link.hidden = false;
+            status.textContent = "Polygon 137 deployment receipt confirmed: " + address + ". Source/ABI verification is separate.";
+            status.className = "status ok";
+            renderProfileStatuses();
+            if (el("contractProfile").value === "chisel") el("address").value = address;
+            return address;
+        }());
+        try { return await chiselResolution; }
+        catch (error) {
+            status.textContent = error.message || String(error);
+            status.className = "status warn";
+            throw error;
+        } finally { chiselResolution = null; }
     }
 
     function setContractProfile(key) {
@@ -975,6 +1115,7 @@
     async function loadEvmStreamStatusForProfile(key) {
         const profile = CONTRACT_PROFILES[key];
         if (!profile) return null;
+        if (!profile.address) throw new Error("Contract address not resolved; use the deployment receipt first.");
         const status = await fileProxyGetJson("/evm-stream-status", {
             chainId: profile.chainId,
             contractName: profile.name,
@@ -989,6 +1130,10 @@
         const out = {};
         for (const key of keys) {
             try {
+                if (!CONTRACT_PROFILES[key].address) {
+                    out[key] = {ok: false, error: "Awaiting Polygon deployment receipt"};
+                    continue;
+                }
                 out[key] = await loadEvmStreamStatusForProfile(key);
             } catch (e) {
                 out[key] = { ok: false, error: e.message || String(e), contractName: key };
@@ -1010,7 +1155,7 @@
             const next = Number(status.nextStartBlock || 0);
             html += `<div class="profileCard">`;
             html += `<b>${escapeHtml(profile.label)}</b><br>`;
-            html += `<span class="mono">${escapeHtml(profile.address)}</span><br>`;
+            html += `<span class="mono">${escapeHtml(profile.address || "Awaiting chain-137 receipt")}</span><br>`;
             if (status.ok === false) {
                 html += `<span class="bad">status unavailable: ${escapeHtml(status.error || "unknown")}</span>`;
             } else {
@@ -1024,6 +1169,7 @@
     }
 
     async function loadNextStartBlockForProfile(key) {
+        if (key === "chisel" && !CONTRACT_PROFILES.chisel.address) await resolveChiselAddress();
         const status = await loadEvmStreamStatusForProfile(key);
         renderProfileStatuses();
         const next = Number(status && status.nextStartBlock ? status.nextStartBlock : 0);
@@ -1100,7 +1246,8 @@
 
     async function checkProfileForNewTransactions(key) {
         const profileKey = key || selectedProfileKey();
-        if (!CONTRACT_PROFILES[profileKey]) throw new Error("Choose Gomez, Jethro, or Polygon main Thunderword before checking for new transactions.");
+        if (!CONTRACT_PROFILES[profileKey]) throw new Error("Choose Gomez, Jethro, Mogwai/Chisel, or Polygon main Thunderword before checking for new transactions.");
+        if (profileKey === "chisel") await resolveChiselAddress();
         setContractProfile(profileKey);
         setStatus("Checking local split archive for " + CONTRACT_PROFILES[profileKey].label + "…");
         const before = await loadNextStartBlockForProfile(profileKey);
@@ -1125,9 +1272,10 @@
         const totalBytes = normalized.reduce((n, tx) => n + tx.inputBytes, 0);
         const gomezCount = normalized.filter(tx => tx.decoded.kind === "gomez.tell").length;
         const jethroCount = normalized.filter(tx => tx.decoded.kind === "jethro.mapArtifact").length;
+        const chiselCount = normalized.filter(tx => tx.decoded.kind.startsWith("chisel.")).length;
         const imageCount = normalized.filter(tx => tx.decoded.mime && tx.decoded.mime.indexOf("image/") === 0).length;
 
-        el("summary").innerHTML = `<p><span class="ok">${normalized.length}</span> txs, <span class="ok">${gomezCount}</span> Gomez calls, <span class="ok">${jethroCount}</span> Jethro maps, <span class="warn">${imageCount}</span> image-like payloads, <span class="mono">${totalBytes}</span> input bytes.</p>`;
+        el("summary").innerHTML = `<p><span class="ok">${normalized.length}</span> txs, <span class="ok">${gomezCount}</span> Gomez calls, <span class="ok">${jethroCount}</span> Jethro maps, <span class="ok">${chiselCount}</span> Chisel calls, <span class="warn">${imageCount}</span> image-like payloads, <span class="mono">${totalBytes}</span> input bytes.</p>`;
 
         let html = "<table><thead><tr><th>Block</th><th>Hash</th><th>Kind</th><th>Words</th><th>Bytes</th><th>Date</th></tr></thead><tbody>";
         normalized.forEach(tx => {
@@ -1169,7 +1317,7 @@
             html += "</tbody></table>";
         }
 
-        if (d.kind === "jethro.mapArtifact") {
+        if (d.kind === "jethro.mapArtifact" || d.kind === "chisel.mapArtifact" || d.kind === "chisel.execute") {
             html += `<p><b>Jethro artifact</b><br><span class="mono">${escapeHtml(d.artifact || "")}</span></p>`;
             html += `<p><b>Jethro body</b></p><div class="payloadBox mono">${escapeHtml(d.body || "")}</div>`;
         }
@@ -1351,6 +1499,18 @@
         }
     });
 
+    el("checkChiselBtn").addEventListener("click", async function () {
+        try { await checkProfileForNewTransactions("chisel"); }
+        catch (e) { setStatus(e.message || String(e), "bad"); }
+    });
+
+    el("resolveChiselBtn").addEventListener("click", async function () {
+        try {
+            await resolveChiselAddress();
+            await loadNextStartBlockForProfile("chisel");
+        } catch (e) { setStatus(e.message || String(e), "warn"); }
+    });
+
     el("checkThunderwordBtn").addEventListener("click", async function () {
         try {
             await checkProfileForNewTransactions("thunderword");
@@ -1374,6 +1534,7 @@
         try {
             const key = this.value;
             if (CONTRACT_PROFILES[key]) {
+                if (key === "chisel") await resolveChiselAddress();
                 setContractProfile(key);
                 await loadNextStartBlockForProfile(key);
                 setStatus("Loaded " + CONTRACT_PROFILES[key].label + " profile. Start block is the next unsaved block.", "ok");
@@ -1413,6 +1574,14 @@
         } catch (e) {
             setStatus(e.message || String(e), "bad");
         }
+    });
+
+    el("chiselBtn").addEventListener("click", async function () {
+        try {
+            await resolveChiselAddress();
+            setContractProfile("chisel");
+            await loadNextStartBlockForProfile("chisel");
+        } catch (e) { setStatus(e.message || String(e), "warn"); }
     });
 
     el("parseRawBtn").addEventListener("click", function () {
@@ -1461,7 +1630,10 @@
             setContractProfile("gomez");
             await refreshProfileStatuses();
             await loadNextStartBlockForProfile("gomez");
-            setStatus("Loaded Gomez, Jethro and Polygon Thunderword profiles. Start block reflects the newest saved split archive.", "ok");
+            setStatus("Loaded Gomez, Jethro and Polygon Thunderword; Mogwai/Chisel resolves from its Polygon deployment receipt. Start block reflects saved split archives.", "ok");
+            resolveChiselAddress().then(function () { return loadEvmStreamStatusForProfile("chisel"); })
+                .then(renderProfileStatuses)
+                .catch(function () { renderProfileStatuses(); });
         } catch (e) {
             renderProfileStatuses();
             setStatus("Loaded profiles, but fileProxy status is unavailable: " + (e.message || String(e)), "warn");
@@ -1479,6 +1651,7 @@
         fetchTxList,
         checkProfileForNewTransactions,
         refreshProfileStatuses,
+        resolveChiselAddress,
         loadEvmStreamStatusForProfile,
         parseRawTextarea,
         splitEtherscanFeed,
