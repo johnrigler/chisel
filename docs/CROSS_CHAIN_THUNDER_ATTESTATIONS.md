@@ -130,6 +130,6 @@ The standalone viewer is \`tools/m64Artifact/dark-star-z.html\`, suitable for li
 - EVM marker writer and indexed event reader, with zero-value review before send and no special interpretation of arbitrary payments.
 - UTXO reader across supported chains for OP_RETURN plus thunder-address discovery.
 - Publisher/subject views, user-controlled issuer trust decisions, warning/endorsement overlays, withdrawal records, and filterable claim timelines.
-- Optional signed Pinata uploads through a user-selected local broker; later IPFS-native fetch and CID verification independent of a single gateway.
+- Optional signed Pinata uploads through a user-selected local broker; later IPFS-native fetch and CID verification independent of a single gateway. The current Dark Star Z viewer can export and pin a self-contained interactive HTML file using a session-only JWT, but a deterministic multi-file CAR publisher and gateway-independent CID verification are still future work.
 
 No new Solidity contract is required just to express these conventions.
