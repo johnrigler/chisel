@@ -1,32 +1,18 @@
 # M64 Artifact Workbench
 
-The generic M64/Crusher/Hydrator work is in:
+The current user interface is **M64 v3 only**, with an external dictionary and local browser execution. The workbench URL remains:
 
-```text
-tools/m64Artifact/
-```
+- `tools/m64Artifact/index.html` - v3 host, embedding the first program.
+- `tools/m64Artifact/dark-star-z.html` - standalone Dark Star Z viewer, suitable for linking or embedding from Chisel.
 
-Open `tools/m64Artifact/index.html` for the staging workbench. The M64 Solidity and compiled artifact have moved to `contracts/M64Dictionary.sol` and `contracts/compiled/M64Dictionary.json`, alongside the separate Chisel contract.
+The standalone viewer renders directly from the checked-in Dark Star source when no CID is supplied, with interactive controls for line geometry and color. A CID can identify a v3 artifact JSON on IPFS. The client reads its declared dictionary through an EVM JSON-RPC endpoint, hydrates and validates the canonical source, then waits for an explicit Render action. The browser executes the recovered program in a restricted iframe, not inside the EVM.
 
-## Toolchain note: no Hardhat requirement
+For a new v3 artifact, enter a real `M64Dictionary` contract address and correct chain/RPC. Term lookups are read-only, while appending new terms requires an explicit wallet-approved transaction. The current deployed Chisel contract is not implicitly an M64 dictionary.
 
-The preferred path is deliberately small and browser-oriented: use direct `solc`/`solc-js` when Solidity compilation is needed, vanilla JavaScript for artifact construction and EIP-1193 wallet/RPC interaction, and Chisel's transaction/crypto utilities where appropriate. The [EVM Contract Factory](evmFactory/index.html) deploys compiled Solidity artifacts from a static/IPFS page without a Hardhat or npm runtime.
+The reader can save a PNG, save input parameters, download a v3 artifact JSON, or explicitly publish PNG/artifact JSON to **public IPFS** through Pinata v3. Upload requires a user-supplied JWT in a session-only field. This does not yet publish the entire HTML page with its dependent JavaScript files; a self-contained site or deterministic directory/CAR publishing path is still required for that.
 
-**Historical clarification:** a Hardhat 3 workspace was later added under `tools/m64Artifact/` for optional Solidity tests and development demos. It still exists, but is not a protocol requirement, compilation requirement, or deployment/runtime prerequisite. See [HARDHAT.md](m64Artifact/HARDHAT.md) only if you intentionally want that optional development environment. Generated artifacts remain independent of Node and Hardhat.
+The interface can also draft positive and negative 72-byte cross-chain thunder attestations using `CT1|+|H|<sha256>` or `CT1|-|H|<sha256>`. It does not yet sign or broadcast those attestations. See [Cross-chain Thunder Attestations](../docs/CROSS_CHAIN_THUNDER_ATTESTATIONS.md).
 
-It supports:
+No new M64 v2 artifacts are intended or supported by the active UI. Older codec, v2 validator, and historical hydrator code still remain under `tools/m64Artifact/` until targeted cleanup.
 
-- controlled JavaScript canonicalization and identifier crushing
-- 64-entry token profiles
-- M64 transport encoding and exact hydration
-- self-contained `chisel-m64-artifact` JSON packages
-- `CHISEL-PURE1` execution using `entry(input)`
-- isolated browser testing in a sandboxed iframe
-- a non-image text example
-- the Dark Star deterministic raster example and known SHA-256 test vector
-- a standalone hydrator
-- a Polygon EIP-1193 calldata carrier for MetaMask, Backpack, and other injected wallets
-
-The Polygon carrier waits for a receipt and reports the mined block and transaction position. It stores exact UTF-8 artifact text in transaction calldata and does not require a smart contract.
-
-See `tools/m64Artifact/README.md` for the current artifact model and cross-ledger direction.
+The toolchain remains vanilla JavaScript and direct Solidity/solc compilation. Neither a Node runtime nor Hardhat is required to use the browser reader or write an M64 artifact.
