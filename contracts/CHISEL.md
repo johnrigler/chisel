@@ -91,13 +91,13 @@ Create the canonical, versioned deployment artifact with native `solc` and
 Python standard library:
 
 ```sh
-python3 contracts/build-chisel.py
-python3 contracts/build-chisel.py --check
+python3 contracts/build-solidity.py Chisel.sol
+python3 contracts/build-solidity.py Chisel.sol --check
 git add contracts/compiled/Chisel.json
 git commit -m "Compile Chisel deployment artifact"
 ```
 
-The compiled JSON includes `abi`, `bytecode`, `deployedBytecode`,
+The source filename determines the contract name and artifact path, so\n`M64Dictionary.sol` produces `contracts/compiled/M64Dictionary.json` and\n`JethroV2.sol` produces `contracts/compiled/JethroV2.json`. The builder can\nrun from any working directory. Select a differently named Solidity contract\nwith `--contract NAME` and optionally choose `--output PATH`. The old\n`python3 contracts/build-chisel.py` command remains an alias that defaults\nto `Chisel.sol`; `--check` works through either entry point.\n\nThe compiled JSON includes `abi`, `bytecode`, `deployedBytecode`,
 `compiler`, `settings`, `sourceSha256`, and `bytecodeSha256`. Deploy the
 **same exact creation bytecode** on supported EVM chains by choosing the chain
 ID and wallet in `tools/evmFactory/index.html`. No Solidity compiler runs
