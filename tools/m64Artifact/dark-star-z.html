@@ -48,8 +48,14 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <label class="small" for="dictionary">M64Dictionary contract address (Polygon 137, symbol resolver)</label>
 <input id="dictionary" style="width:100%" value="0x522afe4f086da1df80531dea1e8793b05cace9cf" placeholder="0x… deployed M64Dictionary contract" spellcheck="false">
 <p class="small">Existing deployment reported with 51 Dark Star Z symbols. Inspect live term count and contract metadata before publishing. This address is part of the M64 artifact identity; it must match the dictionary reference embedded in the Chisel program record.</p>
-<div class="actions"><button id="inspect">Inspect M64Dictionary on Polygon</button><button id="build">Encode artifact using this dictionary</button></div>
+<div class="actions"><button id="inspect">Inspect dictionary terms (read-only)</button><button id="dictNext" disabled>Next 64 symbols</button></div>
+<details><summary>Dictionary term list and permanent IDs</summary>
+<textarea id="dictEntries" readonly style="min-height:160px" spellcheck="false" aria-label="On-chain M64 dictionary term IDs"></textarea>
+<p class="small">All entries are retrieved from the selected contract. IDs 0–63 use one-byte references; higher IDs use an extension byte. Additional pages are read on demand.</p>
+</details>
+<div class="actions"><button id="build">Inspect and compress (no dictionary write)</button><button id="extendDictionary">Add missing terms to dictionary (wallet)</button></div>
 <div id="dictStatus" class="status">Dictionary address set; on-chain state not yet inspected in this session.</div>
+<div id="termUsage" class="status">No compression analysis yet.</div>
 <p class="small"><strong>Renderer transaction:</strong> Chisel-only log of reusable HTML. <strong>Program transaction:</strong> Chisel log of exact M64 text, referring to the M64Dictionary address and the renderer-template transaction. Preview buttons prepare unsigned data; publishing requires wallet approval.</p>
 <div class="actions"><button id="prepareTemplateTx">Preview renderer transaction (Chisel only)</button><button id="prepareProgramTx">Preview program transaction (Chisel + M64 reference)</button></div>
 <details><summary>Unsigned Polygon transaction data (read-only)</summary><textarea id="unsignedTx" readonly spellcheck="false" aria-label="Unsigned Polygon transaction JSON" style="min-height:150px"></textarea><button id="copyUnsignedTx">Copy unsigned transaction JSON</button></details>
@@ -61,11 +67,11 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <label class="small" for="programTx">M64 program transaction hash</label>
 <input id="programTx" style="width:100%" placeholder="0x… Chisel program log tx" spellcheck="false">
 <div class="actions"><button id="rebuildLedger">3. Rebuild HTML from ledger</button><button id="saveLedgerPage" disabled>Save ledger-rebuilt HTML</button></div>
-<div id="compressionStatus" class="status">Build M64 v3 to measure compression.</div>
+<div id="compressionStatus" class="status">Click "Inspect and compress" for actual byte counts, including the full Chisel record envelope. A negative percentage means expansion, not savings.</div>
 <div id="ledgerStatus" class="status">No ledger program or renderer template published.</div>
 </section>
 <section class="panel"><details><summary>Polygon RPC / dictionary settings</summary>
-<p class="small">The M64Dictionary address and inspect/encode actions are in the main publishing section above. Reads use RPC; encoding adds terms only when missing, after explicit wallet approval.</p>
+<p class="small">The M64Dictionary address and inspect/encode actions are in the main publishing section above. Reads use RPC; inspection and compression are read-only. Appending new terms is a separate wallet-approved action, never required just to compress or reconstruct a program.</p>
 <label class="small" for="chain">EVM chain ID</label><input id="chain" type="number" min="1" value="137" style="width:100%">
 <label class="small" for="rpc">Public JSON-RPC URL (for read-only hydration)</label><input id="rpc" value="https://polygon-bor-rpc.publicnode.com" style="width:100%" spellcheck="false">
 <p class="small">The image renders locally without ledger publication. The dictionary is never replaced silently during reconstruction.</p>
@@ -171,27 +177,79 @@ if(a.input&&typeof a.input==="object")apply(a.input);
 show("artifactStatus","M64 v3 hydrated from "+cid+"\ncanonical bytes: "+hydrated.canonicalBytes+"\nSHA-256: "+hydrated.sha256+"\nPublisher trust not yet evaluated. Select Render to execute.",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurementSource=hydrated.canonical;measurementSourceType="verified canonical source";measurement();
 const canvas=S("canvas");canvas.width=1;canvas.height=1;show("renderStatus","IPFS program verified at the M64 canonical-byte layer. Awaiting explicit Render.");
 }catch(e){show("artifactStatus","CID load failed; existing program retained.\n"+String(e.message||e),false)}}
-async function inspect(){try{const d=dictionarySelection(),r=await readonlyResolver(d.ref),info=await r.inspectContract();show("dictStatus","dictionary "+d.ref+"\nterms: "+info.termCount+"\nversion: "+info.version,true)}
-catch(e){show("dictStatus","inspect failed: "+String(e.message||e),false)}}
-async function build(){try{
-if(!source)throw Error("Local source unavailable");const d=dictionarySelection(),read=await readonlyResolver(d.ref);
-const canonical=M.canonicalizeJavascriptV1(source,MAP),terms=M.collectDictionaryTerms(canonical,[]),missing=[];
-show("dictStatus","checking "+terms.length+" terms on "+d.ref+"…");
-for(const term of terms){if(await read.idForTerm(term)===null)missing.push(term)}
-let resolver=read;
-if(missing.length){const ok=confirm(missing.length+" missing dictionary terms. Adding them requires an on-chain transaction (gas paid by your wallet). Continue?");if(!ok){show("dictStatus","cancelled; "+missing.length+" missing terms");return}
-if(!window.ethereum?.request)throw Error("No injected EVM wallet for dictionary writes");
-const actual=Number(BigInt(await window.ethereum.request({method:"eth_chainId"})));
-if(actual!==d.chainId)throw Error("Wallet chain is "+actual+"; switch to "+d.chainId+" and retry");
-await window.ethereum.request({method:"eth_requestAccounts"});
-resolver=await M.createEip1193Dictionary({eip1193:window.ethereum,address:d.address,chainId:d.chainId,writable:true,verify:true});}
-show("dictStatus","encoding program against "+d.ref+"…");
-const made=await M.buildJavascriptArtifactV3(source,{resolver,entry:"darkStar",identifierMap:MAP,input:params()});
-const restored=await M.hydrateArtifactV3(made.artifact,read);
-artifact=made.artifact;activeCode=restored.canonical;activeEntry=artifact.entry;
-S("metadata").value=JSON.stringify(artifact,null,2);S("saveArtifact").disabled=false;
-show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncurrent on-chain terms: "+await read.termCount()+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurementSource=source;measurementSourceType="local source";measurement();render();
-}catch(e){show("dictStatus","M64 build failed: "+String(e.message||e),false)}}
+let dictionaryViewRef="",dictionaryViewCount=0,dictionaryViewNext=0,dictionaryViewLines=[];
+async function inspect(loadMore=false){
+ try{
+  const d=dictionarySelection(),rpc=rpcUrl();
+  const fingerprint=d.ref+"|"+rpc;
+  if(!loadMore||fingerprint!==dictionaryViewRef){
+    dictionaryViewRef=fingerprint;dictionaryViewCount=0;dictionaryViewNext=0;dictionaryViewLines=[];
+  }
+  const r=await readonlyResolver(d.ref),info=await r.inspectContract();
+  dictionaryViewCount=info.termCount;
+  const stop=Math.min(info.termCount,dictionaryViewNext+64);
+  show("dictStatus","Reading dictionary "+d.ref+" ("+dictionaryViewNext+"–"+(stop-1)+" of "+info.termCount+")…");
+  for(let i=dictionaryViewNext;i<stop;i+=8){
+    const ids=Array.from({length:Math.min(8,stop-i)},(_,j)=>i+j);
+    const terms=await Promise.all(ids.map(id=>r.termForId(id)));
+    for(let j=0;j<ids.length;j++)dictionaryViewLines.push(String(ids[j]).padStart(5)+"  "+JSON.stringify(terms[j])+
+      (ids[j]<64?"  [one-byte ID]":"  [extended ID]"));
+  }
+  dictionaryViewNext=stop;
+  S("dictEntries").value=dictionaryViewLines.join("\n")||"(empty dictionary)";
+  S("dictNext").disabled=stop>=info.termCount;
+  show("dictStatus","DICTIONARY VERIFIED\n"+d.ref+"\nLanguage: "+info.language+"\nVersion: "+info.version+
+    "\nTotal terms: "+info.termCount+"\nIDs inspected: "+dictionaryViewNext+
+    "\nMore terms: "+Math.max(0,info.termCount-dictionaryViewNext),true);
+ }catch(e){show("dictStatus","Dictionary inspection failed: "+String(e.message||e),false)}
+}
+async function build(){
+ try{
+  if(!source)throw Error("Local source unavailable");
+  const d=dictionarySelection(),resolver=await readonlyResolver(d.ref);
+  show("dictStatus","Inspecting existing vocabulary and encoding source against "+d.ref+"…");
+  const made=await M.buildJavascriptArtifactV3(source,{
+    resolver,learn:false,entry:"darkStar",identifierMap:MAP,input:params()
+  });
+  const restored=await M.hydrateArtifactV3(made.artifact,resolver);
+  artifact=made.artifact;activeCode=restored.canonical;activeEntry=artifact.entry;
+  S("metadata").value=JSON.stringify(artifact,null,2);
+  S("saveArtifact").disabled=false;
+  ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;
+  measurementSource=source;measurementSourceType="local source";
+  const all=M.collectDictionaryTerms(restored.canonical,[]);
+  const used=[...made.resolvedTerms.keys()];
+  const missing=made.missingTerms||[];
+  const total=await resolver.termCount();
+  show("dictStatus","READ-ONLY M64 BUILD VERIFIED\nDictionary: "+d.ref+
+    "\nExisting on-chain symbols: "+total+"\nSource terms found: "+all.length+
+    "\nSource terms reused: "+used.length+"\nNot in dictionary (encoded literally): "+missing.length+
+    "\nSHA-256: "+restored.sha256+"\nM64: "+artifact.payload.length+" characters\nNo dictionary transaction sent.",true);
+  show("termUsage","Reused symbols:\n"+(used.join(", ")||"(none)")+
+    "\n\nNot yet stored (literal ASCII, no transaction required):\n"+(missing.join(", ")||"(none)"));
+  measurement();
+  render();
+ }catch(e){show("dictStatus","Read-only M64 compression failed: "+String(e.message||e),false)}
+}
+async function extendDictionary(){
+ try{
+  if(!source)throw Error("Local source unavailable");
+  const d=dictionarySelection(),read=await readonlyResolver(d.ref);
+  const probe=await M.buildJavascriptArtifactV3(source,{resolver:read,learn:false,entry:"darkStar",identifierMap:MAP,input:params()});
+  const missing=probe.missingTerms||[];
+  if(!missing.length){show("dictStatus","All eligible terms already exist on-chain. No vocabulary transaction needed.",true);return}
+  if(!confirm("Add "+missing.length+" terms to M64Dictionary at "+d.ref+" on Polygon?"+
+    "\nThese term IDs will be permanent. Gas paid by your wallet."))return;
+  if(!window.ethereum?.request)throw Error("No injected wallet for dictionary writes");
+  const chain=Number(BigInt(await window.ethereum.request({method:"eth_chainId"})));
+  if(chain!==d.chainId)throw Error("Wallet chain "+chain+" does not match "+d.chainId);
+  await window.ethereum.request({method:"eth_requestAccounts"});
+  const writable=await M.createEip1193Dictionary({eip1193:window.ethereum,address:d.address,chainId:d.chainId,writable:true,verify:true});
+  await writable.ensureTerms(missing);
+  show("dictStatus","Dictionary append confirmed; rebuilding read-only against current contract…",true);
+  await build();
+ }catch(e){show("dictStatus","Dictionary append failed: "+String(e.message||e),false)}
+}
 
 const CHISEL_LOG_ABI=["function logRecord(bytes32 format,bytes data)","event RecordLogged(address indexed writer,bytes32 indexed format,bytes data)"];
 const CHISEL_PREFLIGHT_ABI=["function creator() view returns (address)","function getArtifact(address writer,string artifact) view returns (string,uint64)"];
@@ -455,7 +513,7 @@ S("reset").onclick=()=>{apply(DEFAULT);render()};S("rerun").onclick=render;
 S("png").onclick=async()=>{try{download(await pngBlob(),"dark-star-z.png")}catch(e){show("renderStatus",String(e.message||e),false)}};
 S("preset").onclick=()=>download(new Blob([JSON.stringify({kind:"dark-star-z-input",version:1,input:params()},null,2)+"\n"],{type:"application/json"}),"dark-star-z-input.json");
 S("savePage").onclick=async()=>{try{show("renderStatus","bundling standalone page…");const html=ledgerRebuiltHtml||await portablePageHtml();download(new Blob([html],{type:"text/html"},),"dark-star-z.html");show("renderStatus","Self-contained HTML saved; "+html.length+" characters.",true)}catch(e){show("renderStatus","HTML export failed: "+String(e.message||e),false)}};
-S("load").onclick=loadCid;S("inspect").onclick=inspect;S("build").onclick=build;S("pin").onclick=publish;
+S("load").onclick=loadCid;S("inspect").onclick=()=>inspect(false);S("dictNext").onclick=()=>inspect(true);S("build").onclick=build;S("extendDictionary").onclick=extendDictionary;S("pin").onclick=publish;
 S("prepareTemplateTx").onclick=()=>previewTransaction("template");S("prepareProgramTx").onclick=()=>previewTransaction("program");S("copyUnsignedTx").onclick=copyTransaction;
 S("publishTemplate").onclick=publishRendererTemplate;S("publishProgram").onclick=publishM64Program;S("rebuildLedger").onclick=rebuildFromLedger;S("saveLedgerPage").onclick=saveLedgerPage;
 S("draftAttest").onclick=draftTrust;S("copyAttest").onclick=copyTrust;S("useDigest").onclick=()=>{if(!artifact){show("attestStatus","Build or load an M64 v3 artifact first.",false);return}S("subjectDigest").value=artifact.sha256;draftTrust()};
