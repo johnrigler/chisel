@@ -94,6 +94,27 @@
       font: inherit;
     }
 
+    /* EVM/UTXO addresses and their chooser options must not use proportional glyph widths. */
+    input[id*="address" i],
+    input[name*="address" i],
+    input[id*="recipient" i],
+    select[id*="address" i],
+    select[name*="address" i],
+    select[id*="address" i] option,
+    select[name*="address" i] option,
+    select[id*="recipient" i] option,
+    .address,
+    .address-option,
+    [data-fixed-width] {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+      font-variant-ligatures: none;
+      font-kerning: none;
+      font-feature-settings: "liga" 0, "tnum" 1;
+      letter-spacing: 0;
+    }
+
+
+
     input,
     select,
     textarea {
