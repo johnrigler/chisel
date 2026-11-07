@@ -1,6 +1,17 @@
 # M64 Symbol Dictionary v2: typed entries and linked contracts
 
-Status: implemented in [`contracts/M64SymbolDictionary.sol`](../../contracts/M64SymbolDictionary.sol), **not deployed**. This is a replacement for the still-undeployed v1 `M64SymbolDictionary` design. Do not confuse it with the older, separately deployed text-based `M64Dictionary.sol` on Polygon.
+Status: implemented in [`contracts/M64SymbolDictionary.sol`](../../contracts/M64SymbolDictionary.sol). A Polygon mainnet deployment is **reported by the deploying user**, with mined receipt and nonempty runtime code, but its full on-chain dictionary state and compiler source equivalence have **not yet been independently verified**. This replaces the previous undeployed v1 `M64SymbolDictionary` design. Do not confuse it with the older, separately deployed text-based `M64Dictionary.sol` on Polygon.
+
+## Reported Polygon deployment (pending read-only state verification)
+
+- Chain: Polygon PoS (`eip155:137`)
+- Contract: `0xe6e9df9f49b1ab4417129454991466adc9923f8c`
+- Creation transaction: [`0x65c4fc0590df5f660561c5c16c796fdb2849eab135c0774ff14cca50b6f47a7c`](https://polygonscan.com/tx/0x65c4fc0590df5f660561c5c16c796fdb2849eab135c0774ff14cca50b6f47a7c)
+- Receipt block: `0x5c6fa5e`
+- Observed runtime SHA-256: `fd106ada91e3ffa6cf462358626a3619acfbf1d7a4317d65b962ee07a6da787f`
+- Evidence: the deploying user's EVM Factory receipt reported `MINED, RUNTIME CODE PRESENT`.
+- A raw compiled-runtime comparison reported `DIFFERS`. This is expected if `primaryDigest` was assigned during construction because Solidity substitutes its immutable references into the deployed runtime. Compare against the compiler's `deployedBytecode.immutableReferences` or read dictionary getters; do not treat the raw mismatch alone as failure.
+- Before using it as an active codec reference in Chisel, read `codecVersion`, `dictionaryVersion`, `primaryCount`, `secondaryCount`, the descriptor and snapshot digests, then compare actual seed entries and verified source/provenance. The EVM Factory now supports read-only checks. No automatic contract registration or redeployment is implied by this note.
 
 ## Design goal
 
@@ -66,4 +77,4 @@ A dictionary may be large or rich as long as it is immutable/versioned and verif
 - `MAX_DEFINITION_SYMBOLS=4096` and `MAX_RAW_ENTRY_BYTES=4096` bound individual entries. Off-chain decoders also bound total expanded output.
 - Unsupported kinds, malformed six-bit padding, truncated variable indexes, and forward references must fail closed.
 - References to another contract are *metadata*, not a third implicit escape or an instruction to execute code.
-- No live wallet signing, on-chain deployment, or Polygon publication is part of this change.
+- This document records the user-reported deployment above; editing it does not deploy, sign, or publish any new transaction.
