@@ -2,7 +2,8 @@
 "use strict";
 // M64 native six-bit v1. This core processes arbitrary binary bytes.
 // No JSON or JavaScript parser is required. The caller supplies an immutable
-// 62-entry primary dictionary and an append-only secondary dictionary.
+// 62-entry primary dictionary and an append-only typed secondary table.
+// kind 0 contains packed six-bit symbols; kind 1 contains reusable raw bytes.
 const ABC="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const MAX_OUTPUT=8*1024*1024;
 function bytes(v){if(!(v instanceof Uint8Array))throw Error("Expected Uint8Array");return v}
@@ -94,7 +95,16 @@ function prepareDictionary(dict,max=MAX_OUTPUT){
   if(!Array.isArray(defs))throw Error("Bad secondary dictionary");
   const expanded=[];
   for(let i=0;i<defs.length;i++){
-    const d=defs[i],packed=bytes(d.packed),count=d.symbolCount;
+    const d=defs[i],kind=d.kind===undefined?0:d.kind;
+    if(kind===1){
+      const raw=bytes(d.data);
+      if(raw.length===0||raw.length>4096||d.symbolCount!==0)throw Error("Invalid raw-byte dictionary entry");
+      appendLimited([],raw,max);
+      expanded.push(raw);
+      continue;
+    }
+    if(kind!==0)throw Error("Unknown secondary entry kind");
+    const packed=bytes(d.packed??d.data),count=d.symbolCount;
     if(!Number.isSafeInteger(count)||count<1||count>4096)throw Error("Bad secondary symbol count");
     const symbols=unpackSymbols(packed,count);
     expanded.push(parseSequence(symbols,primary,expanded,i,max));
