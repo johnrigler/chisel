@@ -106,8 +106,15 @@ test("rejects altered snapshot, byte count, checksum, truncated records, bad cha
  assert.throws(()=>API.unpackRecord(built.record.slice(0,10)),/Invalid|Truncated/);
  assert.throws(()=>API.unpackRecord(new Uint8Array(100)),/Invalid/);
  await assert.rejects(API.verifyDictionary({...provider,getNetwork:async()=>({chainId:1n})},{ethers:fakeE,seed,address:addr}),/expected Polygon 137/);
- const wrong={...provider,getTransaction:async()=>({to:addr})};
- await assert.rejects(API.readReceipt(wrong,txHash,v,{ethers:fakeE}),/registered Chisel publisher/);
+ const delegated={...provider,getTransaction:async()=>({to:addr})};
+ record=built.record;
+ const delegation=await API.readReceipt(delegated,txHash,v,{ethers:fakeE});
+ assert.equal(delegation.direct,false);
+ assert.equal(delegation.outerTo,addr);
+ const wrong={...provider,getTransactionReceipt:async()=>({status:1,blockNumber:100,logs:[{
+   address:addr,parsed:{name:"RecordLogged",args:{format:topic,writer:addr,data:bytes(built.record)}}
+ }]})};
+ await assert.rejects(API.readReceipt(wrong,txHash,v,{ethers:fakeE}),/Expected one native M64 record log/);
 });
 test("fails closed when an on-chain seed byte differs and when entries have the wrong kind",async()=>{
  class WrongSeed extends FakeContract {
