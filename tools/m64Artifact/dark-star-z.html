@@ -439,27 +439,8 @@ async function readChiselLog(txHash,format){
  throw Error("No "+format+" RecordLogged event from this Chisel contract");
 }
 async function readChiselProgramLog(txHash){
- if(!TX_HASH_RE.test(txHash||""))throw Error("A mined Chisel program transaction hash is required (0x + 64 hexadecimal digits).");
- const d=chiselSelection(),provider=await recordProvider(d.chainId);
- const receipt=await provider.getTransactionReceipt(txHash);
- if(!receipt)throw Error("No mined Chisel program transaction receipt found for "+txHash);
- if(receipt.status!==1)throw Error("Program transaction reverted");
- const iface=new ethers.Interface(CHISEL_LOG_ABI);
- const current=ethers.id(M.M64_LEDGER_PROGRAM_FORMAT).toLowerCase();
- const legacy=ethers.id(M.M64_LEDGER_PROGRAM_FORMAT_V2).toLowerCase();
- for(const log of receipt.logs){
-  if(log.address.toLowerCase()!==d.address.toLowerCase())continue;
-  try{
-   const parsed=iface.parseLog(log);
-   if(parsed?.name!=="RecordLogged")continue;
-   const format=parsed.args.format.toLowerCase();
-   if(format!==current&&format!==legacy)continue;
-   return {bytes:ethers.getBytes(parsed.args.data),writer:parsed.args.writer,
-    format:format===current?M.M64_LEDGER_PROGRAM_FORMAT:M.M64_LEDGER_PROGRAM_FORMAT_V2,
-    txHash,block:receipt.blockNumber};
-  }catch(_){}
- }
- throw Error("No CM64 v3 or legacy v2 Chisel RecordLogged event from this contract");
+  // This workbench only supports the compact binary CM64 v3 event.
+  return readChiselLog(txHash,M.M64_LEDGER_PROGRAM_FORMAT);
 }
 async function inspectWalletRoute(accountOverride){
  const wallet=window.ethereum;
@@ -592,7 +573,7 @@ async function rebuildFromLedger(){
   show("ledgerStatus","Fetching Chisel program record...");
   const record=await readChiselProgramLog(S("programTx").value.trim());
   const pkg=M.unpackLedgerProgram(record.bytes);
-  if((pkg.version===3?M.M64_LEDGER_PROGRAM_FORMAT:M.M64_LEDGER_PROGRAM_FORMAT_V2)!==record.format)throw Error("CM64 program event format/version mismatch");
+  if(pkg.version!==3)throw Error("This workbench reads CM64 binary v3 records only");
   if(pkg.carrier!==d.ref)throw Error("Ledger record declares "+pkg.carrier+" instead of "+d.ref);
   configureDictionary(pkg.artifact);
   const resolver=await readonlyResolver(pkg.artifact.dictionary.ref);
