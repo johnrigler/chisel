@@ -39,46 +39,71 @@ test('M64 transport uses 64 actual characters; expansion escape lives in binary 
  assert.deepEqual([...M.decode64(asText,M.M64_V3_CODEC.alphabet)],[...decoded]);
 });
 
-test('Chisel envelope v2 preserves M64 Base64url payload characters exactly in UTF-8 bytes',async()=>{
+test('CM64 v3 is compact binary: native addresses, hashes, and dictionary stream, no JSON',async()=>{
  const {artifact,canonical,resolver}=await build();
  const packed=packageArtifact(artifact);
  const decoded=M.unpackLedgerProgram(packed);
- assert.equal(FORMAT,'chisel-m64-program-v2');
- assert.equal(packed[0],0x43);
- assert.equal(packed[1],0x4d);
- assert.equal(packed[2],0x36);
- assert.equal(packed[3],0x34);
- assert.equal(packed[4],2);
+ const raw=M.decode64(artifact.payload,M.M64_V3_CODEC.alphabet);
+ assert.equal(FORMAT,'chisel-m64-program-v3');
+ assert.deepEqual([...packed.subarray(0,5)],[0x43,0x4d,0x36,0x34,3]);
+ assert.equal(decoded.version,3);
+ assert.equal(decoded.payloadEncoding,'m64-binary');
+ assert.equal(decoded.rawPayloadBytes,raw.length);
+ assert.deepEqual([...packed.subarray(packed.length-raw.length)],[...raw]);
  assert.equal(decoded.artifact.payload,artifact.payload);
- assert.equal(decoded.payloadEncoding,'m64-base64url-ascii');
+ assert.deepEqual(decoded.artifact.input,artifact.input);
  assert.equal(decoded.carrier,CARRIER);
  assert.equal(decoded.template.tx,TEMPLATE);
+ assert.equal(decoded.template.sha256,TEMPLATE_HASH);
  assert.equal(decoded.artifact.dictionary.ref,DICT);
- const headerLength=new DataView(packed.buffer,packed.byteOffset,packed.byteLength).getUint32(5,false);
- const actualTail=new TextDecoder().decode(packed.subarray(9+headerLength));
- assert.equal(actualTail,artifact.payload);
- assert.equal(decoded.m64TextBytes,artifact.payload.length);
+ assert.equal(decoded.artifact.entry,artifact.entry);
+ assert.equal(decoded.artifact.sha256,artifact.sha256);
+ assert.equal(decoded.artifact.canonicalBytes,artifact.canonicalBytes);
+ assert.ok(packed.length<new TextEncoder().encode(JSON.stringify(artifact)).length+raw.length);
+ assert.equal(new TextDecoder().decode(packed).includes('"kind"'),false);
  const hydrated=await M.hydrateArtifactV3(decoded.artifact,resolver);
  assert.equal(hydrated.canonical,canonical);
  assert.equal(hydrated.sha256,artifact.sha256);
 });
 
-test('Chisel ledger record rejects altered payload characters and wrong metadata',async()=>{
+test('CM64 v3 supports no input, compact known numeric schema, and generic numeric maps',async()=>{
  const {artifact}=await build();
- const packed=packageArtifact(artifact);
- const headerLength=new DataView(packed.buffer,packed.byteOffset,packed.byteLength).getUint32(5,false);
- const tampered=new Uint8Array(packed);
- tampered[9+headerLength]='!'.charCodeAt(0);
- assert.throws(()=>M.unpackLedgerProgram(tampered),/M64|alphabet|noncanonical/i);
- const wrongVersion=new Uint8Array(packed);
- wrongVersion[4]=1;
- assert.throws(()=>M.unpackLedgerProgram(wrongVersion),/magic\/version/);
- const unsupported=new Uint8Array(packed);
- unsupported.set([0,0,0,0],0);
- assert.throws(()=>M.unpackLedgerProgram(unsupported),/magic\/version/);
+ const withoutInput={...artifact};
+ delete withoutInput.input;
+ const plain=M.unpackLedgerProgram(packageArtifact(withoutInput)).artifact;
+ assert.equal(Object.hasOwn(plain,'input'),false);
+ const sparse={...artifact,input:{x0:1,y0:-2,x1:255,y1:123456}};
+ const bytes=packageArtifact(sparse);
+ assert.deepEqual(M.unpackLedgerProgram(bytes).artifact.input,sparse.input);
+ assert.throws(()=>packageArtifact({...artifact,input:{foo:"not numeric"}}),/safe integer|numeric/i);
+ assert.throws(()=>packageArtifact({...artifact,input:{not_safe:2**53}}),/safe integer|numeric/i);
 });
 
-test('compression report distinguishes internal abstract bytes, published M64 text and full envelope',async()=>{
+test('CM64 v3 rejects truncation, unsupported versions, and noncanonical varints',async()=>{
+ const {artifact}=await build();
+ const packed=packageArtifact(artifact);
+ const unsupported=new Uint8Array(packed);unsupported[4]=1;
+ assert.throws(()=>M.unpackLedgerProgram(unsupported),/magic\/version/);
+ const corrupt=new Uint8Array(packed);corrupt[0]=0;
+ assert.throws(()=>M.unpackLedgerProgram(corrupt),/magic\/version/);
+ assert.throws(()=>M.unpackLedgerProgram(packed.subarray(0,18)),/Truncated/);
+ const noncanonical=new Uint8Array([...packed.subarray(0,5),0x89,0x00,...packed.subarray(6)]);
+ assert.throws(()=>M.unpackLedgerProgram(noncanonical),/Noncanonical/);
+});
+
+test('previously published CM64 v2 envelopes remain decodable',async()=>{
+ const {artifact,canonical,resolver}=await build();
+ const legacy=M.packLedgerProgramV2(artifact,{carrier:CARRIER,templateTx:TEMPLATE,templateSha256:TEMPLATE_HASH});
+ const decoded=M.unpackLedgerProgram(legacy);
+ assert.equal(decoded.version,2);
+ assert.equal(decoded.payloadEncoding,'m64-base64url-ascii');
+ assert.equal(decoded.carrier,CARRIER);
+ assert.equal(decoded.artifact.payload,artifact.payload);
+ assert.equal(decoded.m64TextBytes,artifact.payload.length);
+ const hydrated=await M.hydrateArtifactV3(decoded.artifact,resolver);
+ assert.equal(hydrated.canonical,canonical);
+});
+test('compression report counts binary M64 bytes and full record separately from transport text',async()=>{
  const {source,artifact}=await build();
  const ledger=packageArtifact(artifact);
  const info=M.m64CompressionReport(source,artifact,ledger.length);
@@ -88,7 +113,7 @@ test('compression report distinguishes internal abstract bytes, published M64 te
  assert.equal(info.rawPayloadBytes,M.decode64(artifact.payload,M.M64_V3_CODEC.alphabet).length);
  assert.equal(info.ledgerRecordBytes,ledger.length);
  assert.ok(Math.abs(info.envelopeSavingsPct-100*(1-ledger.length/info.sourceBytes))<1e-9);
- assert.ok(ledger.length>artifact.payload.length);
+ assert.ok(ledger.length>info.rawPayloadBytes);
 });
 
 test('standalone renderer template contains landscape controls and all three replacement markers',async()=>{
@@ -141,6 +166,21 @@ test('workbench surfaces both contract inputs, read-only compression and full-re
  for(const required of ['id="dictionary"','id="chiselAddress"','id="dictEntries"','id="dictNext"',
    'id="extendDictionary"','learn:false','Projected','calldataSavingsPct','id="publishProgram"'])
    assert.ok(html.includes(required),required);
+});
+
+test('diagnostic savings and gas analysis stay in UI, never in the record bytes',async()=>{
+ const html=await readFile(new URL('../tools/m64Artifact/dark-star-z.html',import.meta.url),'utf8');
+ const record=await readFile(new URL('../tools/m64Artifact/m64.ledger.js',import.meta.url),'utf8');
+ assert.ok(html.includes('S("unsignedTx").value=JSON.stringify(unsigned,null,2);'));
+ assert.ok(html.includes('Screen-only diagnostics: percentages and gas estimates are not transmitted.'));
+ assert.ok(html.includes('M64 binary payload:'));
+ assert.ok(html.includes('On-chain CM64 v3 stores binary program bytes'));
+ assert.ok(html.includes('const summary={kind,format,chainId'));
+ assert.ok(record.includes('const out=[...MAGIC,BINARY_VERSION]'));
+ const v3=record.substring(record.indexOf('function packLedgerProgram(artifact,options={})'),
+   record.indexOf('function unpackLedgerProgramV3(value)'));
+ assert.ok(!v3.includes('JSON.stringify'));
+ assert.ok(!v3.includes('calldataSavingsPct'));
 });
 
 test('workbench distinguishes unsigned previews from mined renderer-template transaction hashes',async()=>{
