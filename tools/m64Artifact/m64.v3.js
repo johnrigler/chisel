@@ -31,7 +31,23 @@ async function buildJavascriptArtifactV3(source,opt={}){
   const canonical=M.canonicalizeJavascriptV1(source,identifierMap);
   const entry=M.mappedEntry(sourceEntry,identifierMap);
   const discovered=M.collectDictionaryTerms(canonical,[]);
-  const resolved=await resolver.ensureTerms(discovered);
+  let resolved,missingTerms=[];
+  if(opt.learn===false){
+    // Read-only mode: resolve existing on-chain symbols, leave every missing word
+    // as literal canonical ASCII. No new dictionary entries or wallet action.
+    if(typeof resolver.idForTerm!=="function")throw new Error("Read-only M64 build requires idForTerm");
+    resolved=new Map;
+    for(let i=0;i<discovered.length;i+=8){
+      const batch=discovered.slice(i,i+8);
+      const ids=await Promise.all(batch.map(term=>resolver.idForTerm(term)));
+      for(let j=0;j<batch.length;j++){
+        if(ids[j]===null)missingTerms.push(batch[j]);
+        else resolved.set(batch[j],ids[j]);
+      }
+    }
+  }else{
+    resolved=await resolver.ensureTerms(discovered);
+  }
   const abstract=M.tokenizeResolved(canonical,resolved);
   const payload=M.encode64(abstract,M.M64_V3_CODEC.alphabet);
   const sha256=await sha256HexUtf8(canonical);
@@ -56,7 +72,7 @@ async function buildJavascriptArtifactV3(source,opt={}){
   if(Object.prototype.hasOwnProperty.call(opt,"input"))artifact.input=opt.input;
 
   M.validateArtifactV3(artifact);
-  return{artifact,canonical,abstract,resolvedTerms:resolved,addedOrResolvedTerms:discovered};
+  return{artifact,canonical,abstract,resolvedTerms:resolved,addedOrResolvedTerms:discovered,missingTerms,existingTerms:[...resolved.keys()]};
 }
 
 async function hydrateArtifactV3(artifact,resolver){
