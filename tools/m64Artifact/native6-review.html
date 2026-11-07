@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M64 Native Six-Bit Review</title>
+<style>
+:root{font:16px system-ui,sans-serif;color:#1d2d3d;background:#f4f6f9}*{box-sizing:border-box}
+body{margin:0}main{max-width:1050px;margin:25px auto;padding:0 18px}
+h1{font-size:1.65rem}h2{font-size:1.1rem;margin-top:0}
+p{line-height:1.5}section{background:white;border:1px solid #d8e0e9;padding:17px;margin:16px 0;border-radius:8px}
+.meta{color:#526477;font-size:.91rem}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px}
+.stat{background:#ecf1f7;border-radius:7px;padding:11px}.stat b{display:block;font-size:1.55rem;font-variant-numeric:tabular-nums}
+textarea{display:block;width:100%;min-height:180px;resize:vertical;border:1px solid #aab9c9;border-radius:5px;padding:11px;font:13px/1.5 monospace}
+label{display:block;font-weight:600;margin:9px 0 5px}
+button{border:0;border-radius:6px;padding:9px 14px;background:#2355a2;color:#fff;cursor:pointer;margin:8px 8px 0 0}
+pre{background:#f0f3f7;padding:11px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:270px;overflow:auto;font:12px/1.5 monospace;border-radius:6px}
+.ok{color:#177346;font-weight:700}.bad{color:#bc2424;font-weight:700}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:8px;border-bottom:1px solid #e0e6ed}
+code{font-family:monospace}
+</style></head><body><main>
+<h1>M64 native six-bit review</h1>
+<p>Lossless six-bit compression using the fixed 62-symbol Dark Star trial dictionary, two reserved escapes, and 24 packed second-level definitions. All encoding and decoding happens in this browser tab. No wallet, chain RPC, or publication.</p>
+<section><h2>Choose test input</h2>
+<div><button id="loadDark">Dark Star source</button><button id="loadJson">JSON</button><button id="loadHtml">HTML</button><button id="loadPython">Python</button></div>
+<label for="source">Input data (UTF-8 text)</label><textarea id="source" spellcheck="false"></textarea>
+<button id="run">Encode + decode locally</button><button id="canonical">Canonicalize Dark Star, then encode</button>
+<p class="meta">Raw mode preserves input bytes exactly. Canonicalizing is an explicit, lossy preprocessing choice and is only suitable for the known Dark Star JavaScript program.</p>
+</section>
+<section><h2>Measured binary result</h2>
+<div class="stats" id="stats"></div>
+<p id="proof"></p>
+<table><thead><tr><th>Measurement</th><th>Bytes</th></tr></thead><tbody id="rows"></tbody></table>
+<p class="meta">Count-prefix and six-bit bit-padding are included in the program record. Dictionary storage, contract address and version framing, event/call-data overhead, and Polygon gas are not. Reusable dictionary definitions are not written into each payload.</p>
+</section>
+<section><h2>Inspect byte stream</h2><label>Six-bit instruction symbols (printable Base64url spelling for inspection only)</label><pre id="symbols"></pre>
+<label>Published-format candidate (native bytes shown in hex, not a UTF-8 string)</label><pre id="wire"></pre>
+<label>Reconstructed UTF-8 text</label><pre id="decoded"></pre>
+</section>
+<section><h2>Reusable dictionary</h2><pre id="descriptor"></pre>
+<p class="meta">The Solidity contract on the development branch stores this descriptor and the fixed 62 primary definitions. It stores secondary definitions as packed bytes plus exact symbol counts, allowing previously published records to remain decodable if new entries are appended.</p>
+</section>
+<script src="./m64.js"></script><script src="./m64.javascript.js"></script>
+<script src="./m64.native6.js"></script><script src="./seeds/darkstar-native6-v1.js"></script>
+<script>
+"use strict";
+const byId=id=>document.getElementById(id);
+const dict=ChiselM64Native6DarkStarSeed.create();
+const decoder=new TextDecoder("utf-8",{fatal:true});
+const encoder=new TextEncoder();
+let currentDarkStar="";
+const SAMPLES={
+ json:'{"thing":"M64","format":"JSON","numbers":[1,2,3],"enabled":true,"nested":{"message":"hello"}}',
+ html:'<main><h1>M64</h1><p>Six-bit encoding, contract-backed dictionary.</p></main>',
+ python:'def greet(name):\n    message = "Hello, " + name\n    return message\n'
+};
+function setSample(type){byId("source").value=SAMPLES[type];calculate(false)}
+async function loadDarkStar(){
+ try{
+  const response=await fetch("./examples/darkstar-core.js",{cache:"no-cache"});
+  if(!response.ok)throw Error("Source unavailable: "+response.status);
+  currentDarkStar=await response.text();
+  byId("source").value=currentDarkStar;
+  calculate(false);
+ }catch(e){byId("proof").className="bad";byId("proof").textContent=e.message}
+}
+function calculate(canonicalize){
+ try{
+  let source=byId("source").value;
+  if(canonicalize){
+   if(!currentDarkStar||source!==currentDarkStar)throw Error("Canonicalization is enabled only for the original Dark Star sample");
+   source=ChiselM64.canonicalizeJavascriptV1(source,"darkStar=a\nmod=m\nputPixel=q\ndrawLine=l");
+  }
+  const input=encoder.encode(source),codec=ChiselM64Native6,result=codec.encode(input,dict);
+  const recovered=codec.decode(result.wire,dict);
+  if(codec.bytesHex(input)!==codec.bytesHex(recovered))throw Error("Roundtrip mismatch");
+  const ratio=input.length?100*(1-result.wire.length/input.length):0;
+  const stats=[
+   ["Input bytes",input.length],["Packed bytes",result.wire.length],
+   ["Six-bit symbols",result.symbolCount],["Bytes saved",input.length-result.wire.length],
+   ["Reduction",ratio.toFixed(1)+"%"]
+  ];
+  byId("stats").replaceChildren(...stats.map(([name,val])=>{
+   const d=document.createElement("div"),title=document.createElement("span"),value=document.createElement("b");
+   d.className="stat";title.textContent=name;value.textContent=String(val);d.append(title,value);return d;
+  }));
+  const data=[["UTF-8 input",input.length],["Six-bit packed program",result.packed.length],
+    ["Symbol count prefix",result.wire.length-result.packed.length],["Complete wire bytes",result.wire.length]];
+  byId("rows").replaceChildren(...data.map(([label,count])=>{
+   const row=document.createElement("tr"),left=document.createElement("td"),right=document.createElement("td");
+   left.textContent=label;right.textContent=String(count);row.append(left,right);return row;
+  }));
+  byId("symbols").textContent=result.symbols.map(s=>codec.alphabet[s]).join("");
+  byId("wire").textContent=codec.bytesHex(result.wire).replace(/(..)/g,"$1 ").trim();
+  byId("decoded").textContent=decoder.decode(recovered);
+  byId("descriptor").textContent=
+   "Media type: "+dict.descriptor.mediaType+"\n"+
+   "Purpose: "+dict.descriptor.description+"\n"+
+   "Codec version: "+dict.descriptor.codecVersion+"\n"+
+   "Primary symbols: "+dict.primary.length+"\n"+
+   "Secondary definitions: "+dict.secondary.length+"\n"+
+   "Format escapes: 62 = raw byte; 63 = second-level dictionary reference";
+  byId("proof").className="ok";
+  byId("proof").textContent="Verified: reconstructed "+recovered.length+" bytes exactly equal the encoded input.";
+ }catch(e){byId("proof").className="bad";byId("proof").textContent="Encoding error: "+e.message}
+}
+byId("run").onclick=()=>calculate(false);
+byId("canonical").onclick=()=>calculate(true);
+byId("loadDark").onclick=loadDarkStar;
+byId("loadJson").onclick=()=>setSample("json");
+byId("loadHtml").onclick=()=>setSample("html");
+byId("loadPython").onclick=()=>setSample("python");
+loadDarkStar();
+</script></main></body></html>
