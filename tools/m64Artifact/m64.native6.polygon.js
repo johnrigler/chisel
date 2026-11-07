@@ -194,8 +194,10 @@ async function readReceipt(provider,txHash,verified,opt={}){
   await requirePolygon(provider);
   if(!SHA.test(txHash))throw Error("Enter a 32-byte Polygon transaction hash");
   const transaction=await provider.getTransaction(txHash);
-  if(!transaction||!transaction.to||transaction.to.toLowerCase()!==CHISEL)
-    throw Error("Transaction was not sent to the registered Chisel publisher");
+  if(!transaction)throw Error("Polygon transaction not found");
+  // A smart-account wallet may route the outer transaction through a
+  // delegation manager. The authoritative provenance is the receipt log
+  // *emitted by Chisel*, not necessarily the top-level tx.to address.
   const receipt=await provider.getTransactionReceipt(txHash);
   if(!receipt)throw Error("Transaction is pending or unavailable from wallet RPC");
   if(Number(receipt.status)!==1)throw Error("Transaction reverted");
@@ -210,7 +212,8 @@ async function readReceipt(provider,txHash,verified,opt={}){
   if(found.length!==1)throw Error("Expected one native M64 record log at Chisel; found "+found.length);
   const data=toBytes(found[0].args.data);
   const rebuilt=await rebuildRecord(data,verified);
-  return {...rebuilt,txHash,recordBytes:data.length,writer:found[0].args.writer,blockNumber:receipt.blockNumber};
+  return {...rebuilt,txHash,recordBytes:data.length,writer:found[0].args.writer,blockNumber:receipt.blockNumber,
+    outerTo:transaction.to||null,direct:!!transaction.to&&transaction.to.toLowerCase()===CHISEL};
 }
 async function previewPublish(provider,prepared,opt={}){
   const ethers=getEthers(opt.ethers);
