@@ -23,8 +23,17 @@ bundler, Hardhat, ethers or CDN dependency in the browser path.
   ABI-encoded constructor arguments when present. Wallet/chain/gas are checked again.
 - **Check receipt** explicitly. Submitted is not mined; successful receipt
   and nonempty `eth_getCode` are separately reported. A byte-for-byte
-  compiled-runtime comparison is displayed when supplied. Immutables or
-  libraries may make raw runtime equality unsuitable for some contracts.
+  compiled-runtime comparison is displayed when supplied. For Solidity
+  constructors with `immutable` variables, an exact runtime comparison is
+  inappropriate: solc's `deployedBytecode.immutableReferences` positions
+  are compared separately, and every other byte must match. If the imported
+  artifact lacks these reference offsets, a runtime mismatch is **inconclusive**
+  rather than proof of failed deployment.
+- **Inspect deployed M64** using the read-only getter section. Provide an
+  existing address, select the correct chain and wallet provider, and read
+  the code, names, versions, dictionary counts and prefix snapshot digests
+  with `eth_call` only. This confirms basic live state consistency; it does
+  not independently verify published source code or every dictionary entry.
 - No file upload service, private-key input, API token, persistent storage,
   FileProxy, or Etherscan account key is required. The uploaded JSON and
   constructor arguments are processed in memory. Only the wallet's provider
@@ -121,9 +130,11 @@ runtime choice documented in `tools/M64_ARTIFACT_WORKBENCH.md` is unchanged.
 - The standard library RPC supports only preflight gas estimation here.
   Deployment is a consequential transaction and can incur gas even if mined
   with failure.
-- `eth_getCode` and a receipt from one RPC do not constitute independent
-  audit or multi-provider verification. Confirm the contract before Chisel
-  uses it for publishing data.
+- `eth_getCode`, `eth_call` and a receipt from one RPC do not constitute
+  independent audit or multi-provider verification. A compiler-declared
+  immutable-adjusted match checks all *other* runtime bytes but does not prove
+  the constructor was given the intended seed. Confirm the actual entries
+  and source provenance before Chisel uses it for publishing data.
 - Run unit tests using Node's built-in test runner *only if available*:
   `node --test tests/evm-factory.test.mjs`. Node is **not** a runtime
   dependency of Chisel or the factory page.
