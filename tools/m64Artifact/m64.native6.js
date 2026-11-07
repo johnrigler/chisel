@@ -1,6 +1,6 @@
 (function(g){
 "use strict";
-// M64 native six-bit v1. This core processes arbitrary binary bytes.
+// M64 native six-bit codec v2. This core processes arbitrary binary bytes.
 // No JSON or JavaScript parser is required. The caller supplies an immutable
 // 62-entry primary dictionary and an append-only typed secondary table.
 // kind 0 contains packed six-bit symbols; kind 1 contains reusable raw bytes.
@@ -154,7 +154,7 @@ function decode(wire,dict,max=MAX_OUTPUT){
   return parseSequence(symbols,p.primary,p.expanded,p.expanded.length,max);
 }
 g.ChiselM64Native6=Object.freeze({
-  version:1,alphabet:ABC,packSymbols,unpackSymbols,encode,decode,
+  version:2,alphabet:ABC,packSymbols,unpackSymbols,encode,decode,
   prepareDictionary,index,readIndex,writeUint:uint,readUint,bytesHex,fromHex
 });
 })(globalThis);
