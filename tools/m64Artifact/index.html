@@ -22,7 +22,14 @@ footer{max-width:1420px;margin:10px auto;color:#aeb5c4;font-size:12px}
 <a href="dictionary-polygon.html">Dictionary console</a> ·
 <a href="packet-polygon.html">Packet carrier</a></nav>
 </header>
-<main><iframe loading="eager" src="dark-star-z.html" title="Dark Star Z, first M64 v3 executable artifact"></iframe></main>
+<main><iframe id="darkstarWorkbench" loading="eager" src="dark-star-z.html" title="Dark Star Z, first M64 v3 executable artifact"></iframe>
+<script>
+"use strict";
+const forward=new URLSearchParams(location.search),target=document.getElementById("darkstarWorkbench");
+const allowed=new URLSearchParams();
+for(const key of ["chain","dictionary","chisel","templateTx","programTx","cid"])if(forward.has(key))allowed.set(key,forward.get(key));
+if([...allowed].length)target.src="dark-star-z.html?"+allowed.toString();
+</script></main>
 <footer>
 <p>Dark Star Z is the first interactive example, not the definition of the M64 format. The codec and dictionary resolver remain language- and carrier-neutral. The older v2 import/export user interface has been removed; v3 artifacts use external dictionary references.</p>
 <p>A future generic source editor can build on the same <code>m64.v3.js</code> functions used by this page.</p>
