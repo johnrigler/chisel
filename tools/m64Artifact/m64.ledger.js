@@ -142,12 +142,24 @@ function packLedgerProgram(artifact,options={}){
     writeVar(out,0);
   }else{
     const input=artifact.input;
-    if(!input||typeof input!=="object"||Array.isArray(input)||
-       Object.keys(input).length!==DARK_STAR_INPUT_KEYS.length||
-       !DARK_STAR_INPUT_KEYS.every(key=>Object.hasOwn(input,key)))
-      throw Error("CM64 binary input requires the complete Dark Star numeric parameter schema; no JSON fallback is permitted");
-    writeVar(out,1);
-    for(const key of DARK_STAR_INPUT_KEYS)writeSigned(out,input[key]);
+    if(!input||typeof input!=="object"||Array.isArray(input))
+      throw Error("CM64 binary input must be a numeric field map; no JSON fallback is permitted");
+    const keys=Object.keys(input).sort();
+    if(keys.length>64)throw Error("CM64 supports at most 64 numeric input fields");
+    for(const key of keys){
+      if(!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(key)||!Number.isSafeInteger(input[key]))
+        throw Error("CM64 binary input requires ASCII field names and safe integer values; no JSON fallback is permitted");
+    }
+    if(keys.length===DARK_STAR_INPUT_KEYS.length &&
+       DARK_STAR_INPUT_KEYS.every(key=>Object.hasOwn(input,key))){
+      writeVar(out,1);
+      for(const key of DARK_STAR_INPUT_KEYS)writeSigned(out,input[key]);
+    }else{
+      // Generic sparse numeric fields stay typed bytes rather than JSON.
+      writeVar(out,2);
+      writeVar(out,keys.length);
+      for(const key of keys){writeShortText(out,key,"parameter");writeSigned(out,input[key]);}
+    }
   }
   out.push(...raw);
   return Uint8Array.from(out);
@@ -171,6 +183,15 @@ function unpackLedgerProgramV3(value){
   if(schema===1){
     input={};
     for(const key of DARK_STAR_INPUT_KEYS)input[key]=readSigned(state);
+  }else if(schema===2){
+    const count=readVar(state);
+    if(count>64)throw Error("Too many CM64 numeric parameters");
+    input={};let previous="";
+    for(let i=0;i<count;i++){
+      const key=readShortText(state,"parameter");
+      if(!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(key)||key<=previous)throw Error("Noncanonical CM64 parameter name order");
+      input[key]=readSigned(state);previous=key;
+    }
   }else if(schema!==0)throw Error("Unknown CM64 binary input schema "+schema);
   const raw=state.bytes.subarray(state.pos);
   if(!raw.length)throw Error("CM64 binary program payload is empty");
