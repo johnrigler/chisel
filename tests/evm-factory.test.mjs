@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 import {webcrypto} from "node:crypto";
 import vm from "node:vm";
 
-const ctx = vm.createContext({crypto: webcrypto, Uint8Array, BigInt, TextEncoder});
+const ctx = vm.createContext({crypto: webcrypto, Uint8Array, BigInt, TextEncoder, TextDecoder});
 vm.runInContext(readFileSync(new URL("../tools/evmFactory/factory.js", import.meta.url), "utf8"), ctx);
 const api = ctx.CHISEL_EVM_FACTORY;
 const ACCOUNT = "0x1111111111111111111111111111111111111111";
