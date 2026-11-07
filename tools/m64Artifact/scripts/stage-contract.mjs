@@ -5,8 +5,10 @@ import {createHash} from "node:crypto";
 import {fileURLToPath} from "node:url";
 import {dirname} from "node:path";
 const sha=bytes=>createHash("sha256").update(bytes).digest("hex");
-for(const name of ["M64Dictionary.sol","M64SymbolDictionary.sol"]){
-  const canonical=new URL("../../../contracts/"+name,import.meta.url);
+for(const {name,canonical} of [
+  {name:"M64Dictionary.sol",canonical:new URL("../../../contracts/M64Dictionary.sol",import.meta.url)},
+  {name:"M64SymbolDictionary.sol",canonical:new URL("../../../contracts/M64SymbolDictionary.sol",import.meta.url)}
+]){
   const target=new URL("../contracts/"+name,import.meta.url);
   const bytes=await readFile(canonical);
   await mkdir(dirname(fileURLToPath(target)),{recursive:true});
