@@ -204,7 +204,7 @@ async function readReceipt(provider,txHash,verified,opt={}){
   const iface=new ethers.Interface(CHISEL_ABI),format=eventFormat(ethers);
   const found=[];
   for(const log of receipt.logs||[]){
-    if(log.address?.toLowerCase()!==CHISEL)continue;
+    if(log.address?.toLowerCase()!==CHISEL.toLowerCase())continue;
     let parsed;try{parsed=iface.parseLog(log)}catch{continue}
     if(parsed?.name!=="RecordLogged"||parsed.args.format?.toLowerCase()!==format.toLowerCase())continue;
     found.push(parsed);
@@ -213,7 +213,7 @@ async function readReceipt(provider,txHash,verified,opt={}){
   const data=toBytes(found[0].args.data);
   const rebuilt=await rebuildRecord(data,verified);
   return {...rebuilt,txHash,recordBytes:data.length,writer:found[0].args.writer,blockNumber:receipt.blockNumber,
-    outerTo:transaction.to||null,direct:!!transaction.to&&transaction.to.toLowerCase()===CHISEL};
+    outerTo:transaction.to||null,direct:!!transaction.to&&transaction.to.toLowerCase()===CHISEL.toLowerCase()};
 }
 async function previewPublish(provider,prepared,opt={}){
   const ethers=getEthers(opt.ethers);
