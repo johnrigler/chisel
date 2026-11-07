@@ -170,7 +170,7 @@ function ascii(s){const a=new Uint8Array(s.length);for(let i=0;i<s.length;i++){l
 function hex(s){if(!s||s.length%2||/[^a-fA-F0-9]/.test(s))throw Error("Invalid hex seed");return Uint8Array.from(s.match(/../g).map(v=>parseInt(v,16)))}
 function create(){
  return {
-  descriptor:{mediaType:"text/javascript",description:"Dark Star Z six-bit M64 experiment; reusable JS source fragments",codecVersion:1,dictionaryVersion:1},
+  descriptor:{mediaType:"text/javascript",description:"Dark Star Z six-bit M64 experiment; reusable JS source fragments",codecVersion:2,dictionaryVersion:1},
   primary:primaryTerms.map(ascii),
   secondary:secondaryDefinitions.map(d=>({packed:hex(d.packedHex),symbolCount:d.symbolCount}))
  };
