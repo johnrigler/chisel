@@ -250,9 +250,7 @@ async function prepareChiselTransaction(kind){
  const unsigned={chainId:d.chainId,to:d.address,value:"0x0",data};
  unsignedTxCache={kind,unsigned,format,bytes,detail};
  const summary={kind,format,chainId:d.chainId,to:d.address,value:"0x0",recordBytes:bytes.length,calldataBytes:(data.length-2)/2,
-  dataSha256:await M.sha256HexUtf8(ethers.toUtf8String(bytes).startsWith?.("")?"":"")};
- // The SHA-256 for a program record is binary; show its canonical-source digest in detail instead.
- delete summary.dataSha256;
+  recordSha256:ethers.sha256(bytes).slice(2)};
  Object.assign(summary,detail);
  S("unsignedTx").value=JSON.stringify({...summary,transaction:unsigned},null,2);
  show("unsignedTxStatus","UNSIGNED "+kind.toUpperCase()+" TRANSACTION READY\nTo: "+d.address+"\nChain: "+d.chainId+
