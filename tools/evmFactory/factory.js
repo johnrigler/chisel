@@ -36,14 +36,17 @@
       const ctor = source.abi.find(fragment => fragment && fragment.type === "constructor");
       const constructorInputs = ctor && Array.isArray(ctor.inputs) ? ctor.inputs.length : 0;
       const bytecode = source.bytecode || (source.evm && source.evm.bytecode);
+      const deployedBytecode = source.deployedBytecode || (source.evm && source.evm.deployedBytecode);
+      const immutableReferences = deployedBytecode && typeof deployedBytecode === "object" &&
+        deployedBytecode.immutableReferences || source.immutableReferences || null;
       const raw = typeof bytecode === "string" ? bytecode : bytecode && bytecode.object;
       if (!raw || raw === "0x") return; // interfaces and abstract contracts lack deployment bytecode
       entries.push(Object.freeze({
         name,
         abi: source.abi,
         bytecode: normalizedHex(bytecode, true, MAX_INIT_BYTES),
-        deployedBytecode: normalizedHex(
-          source.deployedBytecode || (source.evm && source.evm.deployedBytecode), false),
+        deployedBytecode: normalizedHex(deployedBytecode, false),
+        immutableReferences,
         constructorInputs,
         constructorParameters: ctor && Array.isArray(ctor.inputs) ? ctor.inputs : [],
         declaredCreationSha256: typeof source.bytecodeSha256 === "string" ? source.bytecodeSha256.toLowerCase() : null,
@@ -320,6 +323,108 @@
     return Object.freeze({hash, chainId: review.chainId, artifact: review.artifact});
   }
 
+
+  // Solidity patches constructor-initialized immutables into the deployed
+  // runtime. Compare every byte except the exact locations declared by solc.
+  // Never infer mutable byte ranges from observed differences.
+  function compareRuntime(runtime, compiled, references) {
+    if (!compiled) return {status:"unavailable", ignoredBytes:0};
+    if (runtime === compiled) return {status:"exact", ignoredBytes:0};
+    if (runtime.length !== compiled.length) return {status:"mismatch", ignoredBytes:0};
+    if (!references || typeof references !== "object" || Array.isArray(references)) {
+      return {status:"mismatch", ignoredBytes:0, immutableReferencesMissing:true};
+    }
+    const covered = new Uint8Array((runtime.length - 2) / 2);
+    let ranges = 0;
+    for (const locations of Object.values(references)) {
+      if (!Array.isArray(locations)) throw new Error("Malformed Solidity immutableReferences.");
+      for (const ref of locations) {
+        if (!ref || !Number.isSafeInteger(ref.start) || !Number.isSafeInteger(ref.length) ||
+          ref.start < 0 || ref.length <= 0 || ref.length > 256 || ref.start + ref.length > covered.length) {
+          throw new Error("Immutable reference lies outside compiled runtime.");
+        }
+        for (let i=ref.start; i<ref.start+ref.length; i++) {
+          if (covered[i]) throw new Error("Overlapping Solidity immutable references.");
+          covered[i] = 1;
+        }
+        ranges++;
+      }
+    }
+    if (!ranges) return {status:"mismatch", ignoredBytes:0, immutableReferencesMissing:true};
+    let ignored = 0;
+    for (let i=0; i<covered.length; i++) {
+      if (covered[i]) {ignored++; continue;}
+      if (runtime.slice(2+i*2, 4+i*2) !== compiled.slice(2+i*2, 4+i*2)) {
+        return {status:"mismatch", ignoredBytes:ignored};
+      }
+    }
+    return {status:"immutable-adjusted", ignoredBytes:ignored};
+  }
+
+  // Read-only M64 getters. Selectors correspond to exact audited Solidity
+  // function signatures; no transactions are sent and no keys are requested.
+  const M64_SELECTORS = Object.freeze({
+    codecVersion:"0x9bad6d4d", dictionaryVersion:"0xa5c0def6",
+    primaryCount:"0xe56be999", secondaryCount:"0x2ac237df",
+    name:"0x06fdde03", symbol:"0x95d89b41", language:"0xed9978c7",
+    mediaType:"0x6abe0c0c", description:"0x7284e416",
+    primaryDigest:"0x67718087", definitionDigest:"0x9ab0fb6e",
+    digestAtCount:"0xddbbe90b"
+  });
+  function wordAt(raw, position) {
+    if (!/^0x(?:[0-9a-fA-F]{2})*$/.test(raw) || !Number.isSafeInteger(position) ||
+      position < 0 || position + 32 > (raw.length - 2)/2) {
+      throw new Error("Malformed ABI response.");
+    }
+    return raw.slice(2 + position*2, 66 + position*2);
+  }
+  function readUintWord(raw) {return BigInt("0x" + wordAt(raw, 0));}
+  function readStringWord(raw) {
+    const offset = Number(readUintWord(raw));
+    if (!Number.isSafeInteger(offset) || offset < 32) throw new Error("Bad ABI string offset.");
+    const length = Number(BigInt("0x" + wordAt(raw,offset)));
+    if (!Number.isSafeInteger(length) || length > 4096 ||
+      offset + 32 + length > (raw.length - 2)/2) throw new Error("Bad ABI string length.");
+    const start = 2 + (offset + 32)*2;
+    const data = Uint8Array.from((raw.slice(start,start+length*2).match(/.{2}/g)||[]),x=>parseInt(x,16));
+    return new TextDecoder("utf-8",{fatal:true}).decode(data);
+  }
+  async function inspectM64Dictionary(provider, address, expectedChain = 137) {
+    providerRequired(provider);
+    if (!ADDRESS.test(address)) throw new Error("Enter a valid M64 contract address.");
+    const chain = chainNumber(await provider.request({method:"eth_chainId"}));
+    if (chain !== expectedChain) throw new Error("Wallet provider is on chain " + chain + "; expected " + expectedChain + ".");
+    const code = normalizedHex(await provider.request({method:"eth_getCode",params:[address,"latest"]}),false);
+    if (!code || code==="0x") throw new Error("No runtime bytecode at this address on chain " + chain + ".");
+    async function call(name,argument) {
+      const data = M64_SELECTORS[name] + (argument===undefined ? "" : uintWord(BigInt(argument)));
+      const result = await provider.request({method:"eth_call",params:[{to:address,data},"latest"]});
+      if (typeof result!=="string" || !/^0x[0-9a-fA-F]*$/.test(result) || result.length < 66) {
+        throw new Error("Contract did not return valid ABI data for " + name + ".");
+      }
+      return result;
+    }
+    const state={chainId:chain,address,codeBytes:(code.length-2)/2};
+    for (const key of ["codecVersion","dictionaryVersion","primaryCount","secondaryCount"]) {
+      const value=readUintWord(await call(key));
+      if (value>BigInt(Number.MAX_SAFE_INTEGER))throw new Error(key+" is too large.");
+      state[key]=Number(value);
+    }
+    for (const key of ["name","symbol","language","mediaType","description"]) {
+      state[key]=readStringWord(await call(key));
+    }
+    for (const key of ["primaryDigest","definitionDigest"]) {
+      state[key]="0x"+wordAt(await call(key),0).toLowerCase();
+    }
+    state.baseDigest="0x"+wordAt(await call("digestAtCount",0),0).toLowerCase();
+    state.snapshotDigest="0x"+wordAt(await call("digestAtCount",state.secondaryCount),0).toLowerCase();
+    state.consistent=state.codecVersion===2 && state.dictionaryVersion===1 &&
+      state.primaryCount===62 && state.baseDigest===state.primaryDigest &&
+      state.snapshotDigest===state.definitionDigest &&
+      state.primaryDigest!=="0x"+"0".repeat(64) && !!state.name && !!state.mediaType;
+    return Object.freeze(state);
+  }
+
   async function checkReceipt(provider, pending) {
     providerRequired(provider);
     if (!pending || !HASH.test(pending.hash)) throw new Error("No submitted transaction.");
@@ -339,17 +444,18 @@
     const code = await provider.request({method: "eth_getCode", params: [address, "latest"]});
     const runtime = normalizedHex(code, false);
     if (!runtime || runtime === "0x") throw new Error("Receipt succeeded but no runtime bytecode was found.");
-    const expected = pending.artifact.deployedBytecode;
+    const comparison = compareRuntime(runtime, pending.artifact.deployedBytecode,
+      pending.artifact.immutableReferences);
     return {
       state: "mined", hash: pending.hash, address, block: receipt.blockNumber,
       runtimeSha256: await sha256(runtime),
-      // Equality is strong evidence for this RPC; a mismatch may indicate immutables,
-      // library linking, a different deployment or chain-specific transformations.
-      runtimeMatch: expected ? runtime === expected : null
+      runtimeComparison: comparison,
+      runtimeMatch: comparison.status==="exact" || comparison.status==="immutable-adjusted" ?
+        true : comparison.status==="mismatch" ? false : null
     };
   }
 
   root.CHISEL_EVM_FACTORY = Object.freeze({
-    collectArtifacts, chainNumber, expectedChain, encodeConstructorArgs, creationData, switchWalletChain, reviewDeployment, sendReviewed, checkReceipt, sha256
+    collectArtifacts, chainNumber, expectedChain, encodeConstructorArgs, creationData, switchWalletChain, reviewDeployment, sendReviewed, checkReceipt, inspectM64Dictionary, compareRuntime, sha256
   });
 }(typeof window !== "undefined" ? window : globalThis));
