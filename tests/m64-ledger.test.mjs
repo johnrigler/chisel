@@ -98,3 +98,47 @@ test('standalone renderer template contains landscape controls and all three rep
  for(const token of ['Landscape controls','Save PNG','Save parameters','sandbox','Render'])
   assert.ok(html.includes(token),token);
 });
+
+test('read-only M64 build uses existing dictionary entries without writing or dropping missing words',async()=>{
+ const resolver=M.createMemoryDictionary({ref:DICT,language:'javascript',terms:['function','return','const']});
+ const source='function f(x){const thing=x+1;return thing}';
+ const before=resolver.snapshotTerms();
+ const built=await M.buildJavascriptArtifactV3(source,{resolver,entry:'f',identifierMap:'f=a',learn:false});
+ assert.deepEqual(resolver.snapshotTerms(),before);
+ assert.deepEqual([...built.resolvedTerms.keys()],['function','const','return']);
+ assert.ok(built.missingTerms.includes('thing'));
+ const decoded=await M.hydrateArtifactV3(built.artifact,resolver);
+ assert.equal(decoded.canonical,built.canonical);
+ assert.equal(decoded.sha256,built.artifact.sha256);
+});
+
+test('empty dictionary compresses read-only with literals and never appends',async()=>{
+ const resolver=M.createMemoryDictionary({ref:DICT,language:'javascript'});
+ const source='function f(x){return x+17}';
+ const built=await M.buildJavascriptArtifactV3(source,{resolver,entry:'f',identifierMap:'f=a',learn:false});
+ assert.equal(resolver.snapshotTerms().length,0);
+ assert.equal(built.resolvedTerms.size,0);
+ assert.ok(built.missingTerms.includes('function'));
+ assert.ok(built.missingTerms.includes('return'));
+ const decoded=await M.hydrateArtifactV3(built.artifact,resolver);
+ assert.equal(decoded.canonical,built.canonical);
+});
+
+test('new ledger envelope size is predictable before the renderer transaction is published',async()=>{
+ const {artifact}=await build();
+ const before=M.packLedgerProgram(artifact,{
+  carrier:CARRIER,templateTx:'0x'+'0'.repeat(64),templateSha256:'0'.repeat(64)
+ });
+ const after=packageArtifact(artifact);
+ assert.equal(before.length,after.length);
+ const report=M.m64CompressionReport('function f(){}',artifact,before.length);
+ assert.equal(report.ledgerRecordBytes,before.length);
+ assert.equal(report.envelopeSavingsPct,100*(report.sourceBytes-before.length)/report.sourceBytes);
+});
+
+test('workbench surfaces both contract inputs, read-only compression and full-record metrics',async()=>{
+ const html=await readFile(new URL('../tools/m64Artifact/dark-star-z.html',import.meta.url),'utf8');
+ for(const required of ['id="dictionary"','id="chiselAddress"','id="dictEntries"','id="dictNext"',
+   'id="extendDictionary"','learn:false','Projected','calldataSavingsPct','id="publishProgram"'])
+   assert.ok(html.includes(required),required);
+});
