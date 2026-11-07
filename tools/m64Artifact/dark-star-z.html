@@ -110,7 +110,7 @@ const SPEC=[
 const MAP="darkStar=a\nmod=m\nputPixel=q\ndrawLine=l";
 const maxPixels=3500000;
 let source="",activeCode="",activeEntry="darkStar",artifact=null,lastPng=null,renderTimer=0,runNumber=0;
-let ledgerRebuiltHtml="",ledgerRebuiltTx="";
+let ledgerRebuiltHtml="",ledgerRebuiltTx="",measurementSource="",measurementSourceType="local source";
 function show(id,value,state){const el=S(id);el.textContent=value;el.className="status"+(state===true?" good":state===false?" bad":"")}
 function params(){const p={seed:DEFAULT.seed};for(const [key] of SPEC)p[key]=Number(S("p_"+key).value);return p}
 function apply(p){for(const [key,min,max] of SPEC){const n=Number(p[key]);S("p_"+key).value=Number.isFinite(n)?Math.min(max,Math.max(min,Math.round(n))):DEFAULT[key];S("r_"+key).value=S("p_"+key).value}}
@@ -146,7 +146,7 @@ const rgba=new Uint8ClampedArray(p.width*p.height*4);for(let i=0,j=0;i<data.leng
 c.getContext("2d").putImageData(new ImageData(rgba,p.width,p.height),0,0);
 lastPng=null;show("renderStatus","rendered "+p.width+" × "+p.height+" / "+p.lines+" lines",true);
 }catch(e){if(seq===runNumber)show("renderStatus","Render failed: "+String(e.message||e),false)}}
-function sourceFallback(){artifact=null;activeEntry="darkStar";activeCode=source;S("metadata").value=JSON.stringify({status:"local source",entry:"darkStar",source:"examples/darkstar-core.js",input:params()},null,2);S("saveArtifact").disabled=true;show("artifactStatus","local executable source; CID not loaded")}
+function sourceFallback(){artifact=null;activeEntry="darkStar";activeCode=source;measurementSource=source;measurementSourceType="local source";S("metadata").value=JSON.stringify({status:"local source",entry:"darkStar",source:"examples/darkstar-core.js",input:params()},null,2);S("saveArtifact").disabled=true;show("artifactStatus","local executable source; CID not loaded")}
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
 async function pngBlob(){return new Promise((resolve,reject)=>S("canvas").toBlob(b=>b?resolve(b):reject(Error("Unable to produce PNG")),"image/png"))}
 function rpcUrl(){const s=S("rpc").value.trim();const u=new URL(s);if(u.protocol!=="https:"&&u.hostname!=="localhost"&&u.hostname!=="127.0.0.1")throw Error("RPC must be HTTPS or loopback");if(u.username||u.password)throw Error("RPC URL must not contain credentials");return s}
@@ -161,7 +161,7 @@ const response=await fetch(url,{cache:"no-store"});if(!response.ok)throw Error("
 const a=M.validateArtifactV3(await response.json());configureDictionary(a);const resolver=await readonlyResolver(a.dictionary.ref);const hydrated=await M.hydrateArtifactV3(a,resolver);
 artifact=a;activeCode=hydrated.canonical;activeEntry=a.entry;S("metadata").value=JSON.stringify(a,null,2);S("saveArtifact").disabled=false;
 if(a.input&&typeof a.input==="object")apply(a.input);
-show("artifactStatus","M64 v3 hydrated from "+cid+"\ncanonical bytes: "+hydrated.canonicalBytes+"\nSHA-256: "+hydrated.sha256+"\nPublisher trust not yet evaluated. Select Render to execute.",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurement();
+show("artifactStatus","M64 v3 hydrated from "+cid+"\ncanonical bytes: "+hydrated.canonicalBytes+"\nSHA-256: "+hydrated.sha256+"\nPublisher trust not yet evaluated. Select Render to execute.",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurementSource=hydrated.canonical;measurementSourceType="verified canonical source";measurement();
 const canvas=S("canvas");canvas.width=1;canvas.height=1;show("renderStatus","IPFS program verified at the M64 canonical-byte layer. Awaiting explicit Render.");
 }catch(e){show("artifactStatus","CID load failed; existing program retained.\n"+String(e.message||e),false)}}
 async function inspect(){try{const d=dictionarySelection(),r=await readonlyResolver(d.ref),info=await r.inspectContract();show("dictStatus","dictionary "+d.ref+"\nterms: "+info.termCount+"\nversion: "+info.version,true)}
@@ -183,7 +183,7 @@ const made=await M.buildJavascriptArtifactV3(source,{resolver,entry:"darkStar",i
 const restored=await M.hydrateArtifactV3(made.artifact,read);
 artifact=made.artifact;activeCode=restored.canonical;activeEntry=artifact.entry;
 S("metadata").value=JSON.stringify(artifact,null,2);S("saveArtifact").disabled=false;
-show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurement();render();
+show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurementSource=source;measurementSourceType="local source";measurement();render();
 }catch(e){show("dictStatus","M64 build failed: "+String(e.message||e),false)}}
 
 const CHISEL_LOG_ABI=["function logRecord(bytes32 format,bytes data)","event RecordLogged(address indexed writer,bytes32 indexed format,bytes data)"];
@@ -231,12 +231,12 @@ async function writeChiselLog(format,bytes){
 }
 function measurement(ledgerByteCount=null){
  if(!artifact)return;
- const r=M.m64CompressionReport(source,artifact,ledgerByteCount);
+ const r=M.m64CompressionReport(measurementSource||source,artifact,ledgerByteCount);
  function pct(value){return value===null?"n/a":value.toFixed(1)+"%"}
- show("compressionStatus","Source: "+r.sourceBytes+" bytes | canonical: "+r.canonicalBytes+
+ show("compressionStatus","Baseline ("+measurementSourceType+"): "+r.sourceBytes+" bytes | canonical: "+r.canonicalBytes+
  "\nAbstract M64 stream (not published): "+r.rawPayloadBytes+" bytes | published M64 text: "+r.m64Characters+" chars / "+r.payloadTextBytes+" bytes | full v3 JSON: "+r.jsonBytes+" bytes"+
  "\nAbstract stream savings vs canonical: "+pct(r.rawSavingsPct)+" | M64 TEXT savings vs canonical: "+pct(r.textSavingsPct)+
- (ledgerByteCount===null?"\nLedger envelope: pending template and Chisel address":"\nComplete ledger program record: "+r.ledgerRecordBytes+" bytes | savings vs original JS: "+pct(r.envelopeSavingsPct))+
+ (ledgerByteCount===null?"\nLedger envelope: pending template and Chisel address":"\nComplete ledger program record: "+r.ledgerRecordBytes+" bytes | savings vs "+measurementSourceType+": "+pct(r.envelopeSavingsPct))+
  "\nComplete record includes M64 text and references; excludes dictionary creation, on-chain gas, HTML-template transaction and ABI/event overhead. RPC hex display does not double stored bytes.");
 }
 async function publishRendererTemplate(){
@@ -300,7 +300,7 @@ async function rebuildFromLedger(){
   if(artifact.input&&typeof artifact.input==="object")apply(artifact.input);
   S("metadata").value=JSON.stringify(artifact,null,2);
   S("saveArtifact").disabled=false;S("saveLedgerPage").disabled=false;
-  measurement(record.bytes.length);
+  measurementSource=hydrated.canonical;measurementSourceType="verified canonical source";measurement(record.bytes.length);
   show("ledgerStatus","REBUILT FROM POLYGON LEDGER\nChisel program: "+record.txHash+
    "\nChisel renderer template: "+pkg.template.tx+
    "\nDictionary: "+artifact.dictionary.ref+
