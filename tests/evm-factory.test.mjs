@@ -68,7 +68,7 @@ test("rejects an artifact with a mismatched declared creation hash", async () =>
   assert.ok(!provider.calls.includes("eth_sendTransaction"));
 });
 
-test("enforces chain selection, no implicit connect and no constructor args", async () => {
+test("enforces chain selection, no implicit connect and rejects missing constructor args", async () => {
   const provider = mockedProvider();
   const artifact = api.collectArtifacts(SAMPLE)[0];
   provider.setChain("0xaa36a7");
@@ -76,7 +76,8 @@ test("enforces chain selection, no implicit connect and no constructor args", as
   assert.ok(!provider.calls.includes("eth_sendTransaction"));
   provider.setChain("0x89"); provider.setAccounts([]);
   await assert.rejects(api.reviewDeployment(provider,artifact,"137"),/Connect the wallet/);
-  await assert.rejects(api.reviewDeployment(provider,{...artifact,constructorInputs:1},"137"),/zero-argument/);
+  const ctor = api.collectArtifacts({...SAMPLE,abi:[{type:"constructor",inputs:[{name:"owner",type:"address"}]}]})[0];
+  await assert.rejects(api.reviewDeployment(provider,ctor,"137"),/requires 1 JSON values/);
 });
 
 test("review does not send; sender and network are revalidated before sending", async () => {
@@ -135,4 +136,76 @@ test("handles rejected, unknown, and ineffective chain-switch requests", async (
   await assert.rejects(api.switchWalletChain(provider, "137"), /still on chain 1/);
   await assert.rejects(api.switchWalletChain(provider, "invalid"), /positive decimal chain ID/);
   assert.ok(!provider.calls.includes("eth_sendTransaction"));
+});
+
+const W = hex => hex.padStart(64, "0");
+const m64Params = ["string", "string", "string", "string", "string", "bytes[]", "bytes[]", "uint32[]"];
+const m64Artifact = api.collectArtifacts({
+  ...SAMPLE, contractName:"M64SymbolDictionary",
+  abi:[{type:"constructor",inputs:m64Params.map((type, i)=>({name:"arg"+i,type}))}]
+})[0];
+function hexString(value) {
+  const bytes = new TextEncoder().encode(value);
+  const hex = Buffer.from(bytes).toString("hex");
+  return W(bytes.length.toString(16)) + hex.padEnd(Math.ceil(bytes.length/32)*64,"0");
+}
+test("ABI encodes dynamic strings with correct head-relative offsets", () => {
+  const a = api.collectArtifacts({...SAMPLE,abi:[{type:"constructor",inputs:[
+    {type:"string",name:"first"},{type:"string",name:"second"}]}]})[0];
+  assert.equal(api.encodeConstructorArgs(a,["Hi","X"]), "0x" +
+    W("40") + W("80") + hexString("Hi") + hexString("X"));
+});
+test("M64 constructor encodes all eight values and primary/secondary byte arrays", async () => {
+  const args=["M64 Dictionary","M64","javascript","text/javascript","Dark Star",
+    ["0x20","0x000102","0xff"],["0xa0","0x01ff"],[9, 4]];
+  assert.equal(m64Artifact.constructorInputs,8);
+  assert.deepEqual(Array.from(m64Artifact.constructorParameters,p=>p.type),m64Params);
+  const output=api.encodeConstructorArgs(m64Artifact,args);
+  const words=output.slice(2).match(/.{64}/g);
+  assert.equal(BigInt("0x"+words[0]),256n);
+  assert.equal(BigInt("0x"+words[1]),320n); // first string = 64 bytes
+  // Last (uint32[]) tail ends with length 2 and two uint32 values.
+  assert.ok(output.endsWith(W("2") + W("9") + W("4")));
+  assert.equal(api.creationData(m64Artifact,args).data,SAMPLE.bytecode + output.slice(2));
+  const provider=mockedProvider();
+  const review=await api.reviewDeployment(provider,m64Artifact,"137",args);
+  assert.equal(review.encodedArgumentBytes,(output.length-2)/2);
+  assert.equal(review.transaction.data,SAMPLE.bytecode+output.slice(2));
+  assert.equal(review.creationSha256,await api.sha256(review.transaction.data));
+  assert.notEqual(review.creationSha256,review.compiledSha256);
+  assert.ok(!provider.calls.includes("eth_sendTransaction"));
+  const send=await api.sendReviewed(provider,review);
+  assert.equal(send.hash,HASH);
+});
+test("constructor validation rejects bad hex, unsigned range and wrong counts before gas estimation", async () => {
+  const provider=mockedProvider();
+  const good=["M64","M64","javascript","text/javascript","test",
+    ["0x00"],[],[1]];
+  for(const bad of [
+    good.slice(0,7),
+    [...good.slice(0,5), ["not hex"], [], [1]],
+    [...good.slice(0,7), [-1]],
+    [...good.slice(0,7), [4294967296]],
+    [...good.slice(0,5), "not an array", [], [1]],
+  ]){
+    await assert.rejects(api.reviewDeployment(provider,m64Artifact,"137",bad));
+  }
+  assert.ok(!provider.calls.includes("eth_estimateGas"));
+});
+test("supports fixed arrays, nested dynamic tuples, bool, address, signed ints, fixed bytes",()=>{
+  const artifact=api.collectArtifacts({...SAMPLE,abi:[{type:"constructor",inputs:[
+    {name:"fixed",type:"uint8[2]"},
+    {name:"s",type:"int8"},
+    {name:"ok",type:"bool"},
+    {name:"account",type:"address"},
+    {name:"id",type:"bytes2"},
+    {name:"nested",type:"tuple[]",components:[{name:"a",type:"string"},{name:"b",type:"uint16"}]}
+  ]}]})[0];
+  const result=api.encodeConstructorArgs(artifact,[[3,4],-2,true,ACCOUNT,"0x1234",[["one",7],["two",8]]]);
+  assert.ok(result.startsWith("0x"+W("3")+W("4")+"f".repeat(62)+"fe"+W("1")+W(ACCOUNT.slice(2))+"1234".padEnd(64,"0")));
+  assert.ok(result.endsWith(W("3") + Buffer.from("two").toString("hex").padEnd(64,"0")));
+});
+test("rejects ABI-encoded initcode beyond EIP-3860 bound",()=>{
+  const artifact=api.collectArtifacts({...SAMPLE,abi:[{type:"constructor",inputs:[{name:"huge",type:"bytes"}]}]})[0];
+  assert.throws(()=>api.creationData(artifact,["0x"+"aa".repeat(49152)]),/49,152|supported size/);
 });
