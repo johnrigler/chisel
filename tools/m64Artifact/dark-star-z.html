@@ -70,7 +70,7 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <div id="walletRouteStatus" class="status">Wallet route not inspected. An unsigned Chisel transaction preview does not guarantee MetaMask's eventual broadcast destination. No wallet settings are changed here.</div>
 <p class="small"><a href="https://support.metamask.io/configure/accounts/switch-to-or-revert-from-a-smart-account/" target="_blank" rel="noopener noreferrer">MetaMask instructions for reverting to a standard account</a>. The page checks the final transaction destination and Chisel event after mining.</p>
 <div class="actions"><button id="prepareTemplateTx">Preview renderer transaction (Chisel only)</button><button id="prepareProgramTx">Preview program transaction (Chisel + M64 reference)</button></div>
-<details><summary>Unsigned Polygon transaction data (read-only)</summary><textarea data-fixed-width id="unsignedTx" readonly spellcheck="false" aria-label="Unsigned Polygon transaction JSON" style="min-height:150px"></textarea><button id="copyUnsignedTx">Copy unsigned transaction JSON</button></details>
+<details><summary>Unsigned Polygon transaction fields (read-only, no diagnostics embedded)</summary><p class="small">Only chainId, to, value and encoded calldata are passed to the wallet. Compression percentages, estimates and the screen report are NOT part of the transaction data.</p><textarea data-fixed-width id="unsignedTx" readonly spellcheck="false" aria-label="Unsigned Polygon transaction request fields" style="min-height:150px"></textarea><button id="copyUnsignedTx">Copy unsigned transaction request</button></details>
 <div id="unsignedTxStatus" class="status">No unsigned transaction prepared. A preview is not a mined Polygon transaction.</div>
 <div class="actions"><button id="publishTemplate">1. Publish HTML renderer template</button></div>
 <label class="small" for="templateTx">Confirmed renderer-template transaction hash (0x + 64 hex digits)</label>
@@ -352,6 +352,7 @@ async function prepareChiselTransaction(kind){
   await M.hydrateArtifactV3(artifact,resolver); // Verify that the referenced deployed dictionary can reconstruct the exact program.
   format=M.M64_LEDGER_PROGRAM_FORMAT;
   bytes=M.packLedgerProgram(artifact,{carrier:d.ref,templateTx:template.txHash,templateSha256});
+   // Ledger bytes come exclusively from the compact wire codec, never from the screen summary.
   detail={dictionary:artifact.dictionary.ref,templateTx:template.txHash,canonicalSha256:artifact.sha256,m64Characters:artifact.payload.length};
   measurement(bytes.length);
  }else throw Error("Unknown Chisel transaction kind");
@@ -387,7 +388,9 @@ async function prepareChiselTransaction(kind){
   try{summary.estimatedGas=(await readProvider.estimateGas({to:d.address,data})).toString()}
   catch(e){summary.gasEstimateUnavailable=String(e.shortMessage||e.message||e)}
  }
- S("unsignedTx").value=JSON.stringify({...summary,transaction:unsigned},null,2);
+ // Screen-only analysis. Never serialize savings, estimates, labels or metadata from summary into calldata.
+ // The JSON below is just an inspector view of the wallet request, NOT the CM64 ledger record.
+ S("unsignedTx").value=JSON.stringify(unsigned,null,2);
  show("unsignedTxStatus","UNSIGNED "+kind.toUpperCase()+" TRANSACTION READY\nTo: "+d.address+"\nChain: "+d.chainId+
   "\nRecord bytes: "+bytes.length+"\nCalldata bytes: "+summary.calldataBytes+
    (kind==="program"?"\nPlain-source calldata bytes: "+originalCalldataBytes+
@@ -395,7 +398,7 @@ async function prepareChiselTransaction(kind){
     " ("+summary.calldataSavingsPct.toFixed(1)+"% savings)"+
     "\nM64Dictionary: "+detail.dictionary+"\nRenderer template tx: "+detail.templateTx:
     "\nRenderer template only; no dictionary reference in this transaction.")+
-   gasSummary+"\nNo wallet signature requested. Estimates exclude dictionary and template setup.",true);
+   gasSummary+"\nScreen-only diagnostics: percentages and gas estimates are not transmitted.\nNo wallet signature requested. Estimates exclude dictionary and template setup.",true);
  return unsignedTxCache;
 }
 async function previewTransaction(kind){
@@ -508,13 +511,13 @@ function measurement(ledgerByteCount=null){
  function pct(value){return value===null?"n/a":value.toFixed(1)+"%"}
  const diff=recordBytes===null?null:r.sourceBytes-recordBytes;
  show("compressionStatus","Baseline ("+measurementSourceType+"): "+r.sourceBytes+" bytes | canonical: "+r.canonicalBytes+
- "\nAbstract M64 stream (not published): "+r.rawPayloadBytes+" bytes | M64 text: "+r.m64Characters+" characters / "+r.payloadTextBytes+" bytes | v3 JSON: "+r.jsonBytes+" bytes"+
+ "\nM64 binary payload: "+r.rawPayloadBytes+" bytes | Base64url display: "+r.m64Characters+" characters / "+r.payloadTextBytes+" bytes"+
  "\nM64 TEXT vs canonical: "+pct(r.textSavingsPct)+" | internal abstract stream vs canonical: "+pct(r.rawSavingsPct)+
  (recordBytes===null?"\nComplete Chisel program record: enter both contract addresses to calculate":
  "\n"+(estimated?"Projected":"Actual")+" Chisel program record: "+r.ledgerRecordBytes+" bytes | "+
  (diff>=0?"SAVED ":"EXPANDED ") +Math.abs(diff)+" bytes vs "+measurementSourceType+
  " ("+pct(r.envelopeSavingsPct)+" net savings)")+
- "\nRecord includes dictionary address, full metadata, template locator and exact M64 text. Excludes shared dictionary/template setup, gas, duplicated event/calldata costs and IPFS packaging. Hex displayed by RPC does not double stored bytes.");
+ "\nOn-chain CM64 v3 stores binary program bytes and compact typed fields, with no JSON or compression-report metrics. Excludes shared dictionary/template setup, gas, duplicated event/calldata costs and IPFS packaging. Hex displayed by RPC does not double stored bytes.");
 }
 async function publishRendererTemplate(){
  try{
@@ -548,7 +551,7 @@ async function publishM64Program(){
   show("ledgerStatus","Program published and exact event bytes verified.\nTransaction: "+receipt.txHash+"\nBlock: "+receipt.block+
     "\nDictionary: "+prepared.detail.dictionary+"\nTemplate: "+prepared.detail.templateTx+
     "\nRequested Chisel: "+receipt.requestedTo+"\nActual transaction To: "+(receipt.outerTo||"unavailable")+"\nExecution route: "+receipt.route+
-    "\nRecord bytes: "+prepared.bytes.length+"\nM64 text preserved unchanged; EVM displays bytes as hex.\nNo IPFS publication performed yet.",true);
+    "\nRecord bytes: "+prepared.bytes.length+"\nBinary M64 stream on ledger; Base64url is reconstructed for display.\nNo IPFS publication performed yet.",true);
  }catch(e){show("ledgerStatus","Program publication failed: "+String(e.message||e),false)}
 }
 function assembleLedgerPage(template,code,entry,input){
