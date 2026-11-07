@@ -12,21 +12,23 @@ bundler, Hardhat, ethers or CDN dependency in the browser path.
   bytecode. The browser page does **not** compile source code.
 - **Import** a Solidity Standard JSON compiler output or a single JSON artifact
   with `abi` and `bytecode`. Multiple contracts appear as a selection.
-  Unlinked bytecode, invalid hex, missing ABI, initcode over 49,152 bytes, and
-  any constructor with arguments are deliberately rejected.
+  Unlinked bytecode, invalid hex, missing ABI, and total initcode over 49,152 bytes
+  are rejected. Constructors are ABI-encoded locally from editable JSON values.
 - **Review** creation bytes, SHA-256, target EVM chain ID, wallet account and
   estimated gas. A SHA-256 digest proves the inspected bytes were not altered
   inside this workflow; it does *not* verify Solidity source or semantics.
 - **Deploy** only after a separate explicit action, followed by the wallet's
   own approval. Chisel sends `eth_sendTransaction` with `from`, `data`,
-  `value: 0x0`, and **no** `to` address. Wallet/chain/gas are checked again.
+  `value: 0x0`, and **no** `to` address. The reviewed `data` includes the
+  ABI-encoded constructor arguments when present. Wallet/chain/gas are checked again.
 - **Check receipt** explicitly. Submitted is not mined; successful receipt
   and nonempty `eth_getCode` are separately reported. A byte-for-byte
   compiled-runtime comparison is displayed when supplied. Immutables or
   libraries may make raw runtime equality unsuitable for some contracts.
 - No file upload service, private-key input, API token, persistent storage,
-  FileProxy, or Etherscan account key is required. The uploaded JSON is
-  processed in memory. Only the wallet's provider sends transactions.
+  FileProxy, or Etherscan account key is required. The uploaded JSON and
+  constructor arguments are processed in memory. Only the wallet's provider
+  sends transactions.
 
 ### Build one Chisel artifact for multiple EVM chains
 
@@ -66,7 +68,14 @@ guarantee compatibility with every EVM chain.
 Then open [the Contract Factory](./index.html), click **Load Chisel from
 repository**, select an EVM chain ID and an injected browser-extension wallet,
 connect, click **Switch wallet to expected chain** if needed, review bytecode and gas, and explicitly click **Deploy reviewed
-contract**. The browser builds a contract-creation transaction with no `to`
+contract**. For constructors with inputs, enter the values as a JSON array in
+ABI order, check the decoded ABI signature, and review the resulting full
+creation bytes (compiled bytecode plus encoded arguments). For the new
+`M64SymbolDictionary` constructor, use **Fill M64 Symbol Dictionary with Dark
+Star seed** to populate five metadata strings, 62 primary byte definitions,
+24 packed secondary definitions, and their symbol counts. Inspect and edit the
+values before reviewing. The seed is experimental and must not be confused
+with the existing deployed `M64Dictionary` contract. The browser builds a contract-creation transaction with no `to`
 address, signs through the wallet, and checks the receipt when requested.
 
 **Important:** One compiled ABI/creation bytecode can be reused for deployments
@@ -95,10 +104,14 @@ runtime choice documented in `tools/M64_ARTIFACT_WORKBENCH.md` is unchanged.
 
 ### Limitations and verification
 
-- Constructor arguments, linking libraries, complex deployment scripts,
-  automatic verification, EVM-chain-specific fee estimates, and Solidity
-  editor/compiler UX are **not implemented**. Use compiled linked bytecode with
-  a zero-argument constructor.
+- Constructor arguments for standard ABI value types (strings, bytes,
+  integers, booleans, addresses, arrays and tuples) are encoded locally.
+  Unsupported ABI types, invalid values, mismatched array lengths and
+  oversized complete initcode fail closed. Values use JSON arrays in ABI order;
+  integers exceeding JavaScript's safe integer range must be decimal strings.
+- Linking libraries, complex deployment scripts, automatic verification,
+  EVM-chain-specific fee estimates, and Solidity editor/compiler UX
+  are **not implemented**. Use compiled, fully linked bytecode.
 - Only EIP-1193 injected wallets are supported. EIP-6963 discovery is used
   for multiple injected wallets, with `window.ethereum` fallback.
 - The chain ID is explicit. Click **Switch wallet to expected chain** to
