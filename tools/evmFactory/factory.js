@@ -45,6 +45,7 @@
         deployedBytecode: normalizedHex(
           source.deployedBytecode || (source.evm && source.evm.deployedBytecode), false),
         constructorInputs,
+        constructorParameters: ctor && Array.isArray(ctor.inputs) ? ctor.inputs : [],
         declaredCreationSha256: typeof source.bytecodeSha256 === "string" ? source.bytecodeSha256.toLowerCase() : null,
         declaredSourceSha256: typeof source.sourceSha256 === "string" ? source.sourceSha256.toLowerCase() : null,
         evmVersion: source.settings && source.settings.evmVersion || null,
@@ -90,6 +91,140 @@
     if (!root.crypto || !root.crypto.subtle) throw new Error("WebCrypto requires HTTPS or localhost.");
     const digest = await root.crypto.subtle.digest("SHA-256", decodeHex(hex));
     return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+
+  // ABI encoder implemented in vanilla JavaScript. All offsets are byte offsets
+  // from their containing tuple/array head. No wallet or RPC calls occur here.
+  function padWord(hex, left = true) {
+    if (hex.length > 64) throw new Error("ABI value exceeds 32 bytes.");
+    return left ? hex.padStart(64, "0") : hex.padEnd(64, "0");
+  }
+  function uintWord(n) {
+    if (n < 0n || n >= (1n << 256n)) throw new Error("ABI offset or length exceeds uint256.");
+    return padWord(n.toString(16));
+  }
+  function hexBytes(value, label) {
+    if (typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{2})*$/.test(value)) {
+      throw new Error(label + " must be an even-length 0x-prefixed hexadecimal string.");
+    }
+    return value.slice(2).toLowerCase();
+  }
+  function dynamicBytes(hex) {
+    const length = hex.length / 2;
+    return uintWord(BigInt(length)) + hex.padEnd(Math.ceil(length / 32) * 64, "0");
+  }
+  function arrayType(type) {
+    const match = /^(.*)\[([0-9]*)\]$/.exec(type);
+    return match ? {base:match[1], count:match[2] === "" ? null : Number(match[2])} : null;
+  }
+  function isDynamic(param) {
+    const arr = arrayType(param.type);
+    if (arr) return arr.count === null || isDynamic({...param, type:arr.base});
+    if (param.type === "tuple") return (param.components || []).some(isDynamic);
+    return param.type === "string" || param.type === "bytes";
+  }
+  function staticWords(param) {
+    if (isDynamic(param)) return 1;
+    const arr = arrayType(param.type);
+    if (arr) return arr.count * staticWords({...param, type:arr.base});
+    if (param.type === "tuple") return (param.components || []).reduce((n, p) => n + staticWords(p), 0);
+    return 1;
+  }
+  function tupleEncode(params, values) {
+    if (!Array.isArray(values) || values.length !== params.length) {
+      throw new Error("ABI tuple needs exactly " + params.length + " values.");
+    }
+    const headWords = params.reduce((n, p) => n + staticWords(p), 0);
+    const head = [], tail = [];
+    let offset = headWords * 32;
+    for (let i = 0; i < params.length; i++) {
+      const encoded = encodeValue(params[i], values[i]);
+      if (isDynamic(params[i])) {
+        head.push(uintWord(BigInt(offset)));
+        tail.push(encoded);
+        offset += encoded.length / 2;
+      } else {
+        head.push(encoded);
+      }
+      if (offset > MAX_INIT_BYTES * 3) throw new Error("Constructor arguments exceed the supported size.");
+    }
+    return head.join("") + tail.join("");
+  }
+  function integerValue(value, label) {
+    if (typeof value === "number" && !Number.isSafeInteger(value)) {
+      throw new Error(label + " must be a safe integer or a decimal string.");
+    }
+    if (typeof value !== "number" && typeof value !== "string") {
+      throw new Error(label + " must be an integer.");
+    }
+    const text = String(value);
+    if (!/^-?(?:[0-9]+|0x[0-9a-fA-F]+)$/.test(text)) {
+      throw new Error(label + " must be an integer.");
+    }
+    return BigInt(text);
+  }
+  function encodeValue(param, value) {
+    const type = param.type, label = param.name || type;
+    if (typeof type !== "string") throw new Error("Missing ABI parameter type.");
+    const arr = arrayType(type);
+    if (arr) {
+      if (!Array.isArray(value) || value.length > 8192) throw new Error(label + " must be an array of at most 8192 entries.");
+      if (arr.count !== null && value.length !== arr.count) throw new Error(label + " must contain exactly " + arr.count + " items.");
+      const component = {...param, type:arr.base};
+      const contents = tupleEncode(Array(value.length).fill(component), value);
+      return arr.count === null ? uintWord(BigInt(value.length)) + contents : contents;
+    }
+    if (type === "tuple") return tupleEncode(param.components || [], value);
+    if (type === "string") {
+      if (typeof value !== "string") throw new Error(label + " must be a string.");
+      return dynamicBytes(Array.from(new TextEncoder().encode(value), b => b.toString(16).padStart(2, "0")).join(""));
+    }
+    if (type === "bytes") return dynamicBytes(hexBytes(value, label));
+    const fixedBytes = /^bytes([0-9]+)$/.exec(type);
+    if (fixedBytes) {
+      const size = Number(fixedBytes[1]), hex = hexBytes(value, label);
+      if (size < 1 || size > 32 || hex.length !== size * 2) throw new Error(label + " must be exactly " + size + " bytes.");
+      return padWord(hex, false);
+    }
+    if (type === "address") {
+      if (typeof value !== "string" || !ADDRESS.test(value)) throw new Error(label + " must be a 20-byte EVM address.");
+      return padWord(value.slice(2).toLowerCase());
+    }
+    if (type === "bool") {
+      if (typeof value !== "boolean") throw new Error(label + " must be true or false.");
+      return uintWord(value ? 1n : 0n);
+    }
+    const numberType = /^(u?int)([0-9]*)$/.exec(type);
+    if (numberType) {
+      const bits = numberType[2] ? Number(numberType[2]) : 256;
+      if (bits < 8 || bits > 256 || bits % 8) throw new Error("Unsupported integer ABI type " + type);
+      const n = integerValue(value, label);
+      if (numberType[1] === "uint") {
+        if (n < 0n || n >= (1n << BigInt(bits))) throw new Error(label + " outside " + type + " range.");
+        return uintWord(n);
+      }
+      if (n < -(1n << BigInt(bits - 1)) || n >= (1n << BigInt(bits - 1))) throw new Error(label + " outside " + type + " range.");
+      return uintWord(BigInt.asUintN(256, n));
+    }
+    throw new Error("Unsupported constructor ABI type: " + type);
+  }
+
+  function encodeConstructorArgs(artifact, values) {
+    const params = artifact && artifact.constructorParameters;
+    if (!Array.isArray(params)) throw new Error("Constructor ABI unavailable; reload the compiled artifact.");
+    if (!Array.isArray(values) || values.length !== params.length) {
+      throw new Error("Constructor requires " + params.length + " JSON values in ABI order.");
+    }
+    return "0x" + tupleEncode(params, values);
+  }
+
+  function creationData(artifact, values = []) {
+    if (!artifact || typeof artifact.bytecode !== "string") throw new Error("Load compiled Solidity first.");
+    const encoded = encodeConstructorArgs(artifact, values);
+    const data = artifact.bytecode + encoded.slice(2);
+    if ((data.length - 2) / 2 > MAX_INIT_BYTES) throw new Error("Total creation bytecode plus constructor arguments exceeds 49,152 bytes.");
+    return Object.freeze({data, encodedArguments: encoded});
   }
 
   function providerRequired(provider) {
@@ -144,23 +279,24 @@
     return BigInt(value).toString();
   }
 
-  async function reviewDeployment(provider, artifact, chainInput) {
+  async function reviewDeployment(provider, artifact, chainInput, constructorArgs = []) {
     const desiredChain = expectedChain(chainInput);
-    if (!artifact || artifact.constructorInputs !== 0) {
-      throw new Error("This workbench deploys only zero-argument constructors. Compile a wrapper or use an ABI constructor encoder for other contracts.");
+    if (!artifact) throw new Error("Load compiled Solidity first.");
+    const compiledSha256 = await sha256(artifact.bytecode);
+    if (artifact.declaredCreationSha256 && artifact.declaredCreationSha256 !== compiledSha256) {
+      throw new Error("Creation bytecode SHA-256 does not match the imported artifact manifest.");
     }
+    const {data, encodedArguments} = creationData(artifact, constructorArgs);
     const {from, chainId} = await walletState(provider, desiredChain);
-    const transaction = {from, data: artifact.bytecode, value: "0x0"};
+    const transaction = {from, data, value: "0x0"};
     const gasEstimate = gasNumber(await provider.request({
       method: "eth_estimateGas", params: [transaction]
     }));
-    const creationSha256 = await sha256(artifact.bytecode);
-    if (artifact.declaredCreationSha256 && artifact.declaredCreationSha256 !== creationSha256) {
-      throw new Error("Creation bytecode SHA-256 does not match the imported artifact manifest.");
-    }
+    const creationSha256 = await sha256(data);
     return Object.freeze({
-      artifact, from, chainId, gasEstimate, creationSha256,
-      byteLength: (artifact.bytecode.length - 2) / 2,
+      artifact, from, chainId, gasEstimate, creationSha256, compiledSha256,
+      encodedArgumentBytes: (encodedArguments.length - 2) / 2,
+      byteLength: (data.length - 2) / 2,
       transaction: Object.freeze(transaction)
     });
   }
@@ -214,6 +350,6 @@
   }
 
   root.CHISEL_EVM_FACTORY = Object.freeze({
-    collectArtifacts, chainNumber, expectedChain, switchWalletChain, reviewDeployment, sendReviewed, checkReceipt, sha256
+    collectArtifacts, chainNumber, expectedChain, encodeConstructorArgs, creationData, switchWalletChain, reviewDeployment, sendReviewed, checkReceipt, sha256
   });
 }(typeof window !== "undefined" ? window : globalThis));
