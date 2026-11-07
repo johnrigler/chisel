@@ -30,8 +30,9 @@ details{margin-top:12px}
 summary{cursor:pointer}
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
-<script src="./factory.js?rev=20261105-chain-switch" defer></script>
-<script src="./app.js?rev=20261105-chain-switch" defer></script>
+<script src="./factory.js?rev=20261107-constructor-args" defer></script>
+<script src="../m64Artifact/seeds/darkstar-native6-v1.js?rev=20261107-constructor-args" defer></script>
+<script src="./app.js?rev=20261107-constructor-args" defer></script>
 </head>
 <body><main>
 <header>
@@ -52,6 +53,13 @@ summary{cursor:pointer}
 <div><label for="chain">Expected EVM chain ID (decimal)</label><input id="chain" inputmode="numeric" value="137" spellcheck="false" aria-describedby="chainHelp"><small id="chainHelp">137 = Polygon mainnet; 80002 = Polygon Amoy; 11155111 = Sepolia. Verify other chain IDs independently.</small></div>
 </div>
 <pre id="artifactStatus">No compiled artifact loaded.</pre>
+<h2>Constructor arguments</h2>
+<p>ABI parameters appear below in their exact constructor order. Enter a JSON array of values, or load the editable Dark Star M64 defaults if the selected ABI matches. Byte arrays must be <code>0x</code>-prefixed hex. Nothing is sent automatically.</p>
+<pre id="constructorSignature">Load an artifact to inspect constructor parameters.</pre>
+<button id="loadSeed" type="button" disabled>Fill M64 Symbol Dictionary with Dark Star seed</button>
+<label for="constructorArgs">Constructor values (JSON array, ABI order)</label>
+<textarea id="constructorArgs" spellcheck="false" placeholder='["Name", "M64", "javascript", "text/javascript", "Description", ["0x20", "..."], ["0x..."], [9]]'></textarea>
+<pre id="constructorStatus">Load an artifact to inspect constructor parameters.</pre>
 <details><summary>Full creation bytecode</summary><textarea readonly id="bytecode" aria-label="Full contract creation bytecode"></textarea></details>
 </section>
 <section class="panel">
@@ -66,10 +74,11 @@ summary{cursor:pointer}
 <small>Network switch requests use the selected wallet. Approve in the wallet; unknown networks must be added manually. Review again after switching.</small>
 <pre id="walletStatus">Not connected.</pre>
 <pre id="reviewStatus">Nothing reviewed. No network transaction has been requested.</pre>
+<details><summary>Full reviewed deployment data (creation bytecode + encoded constructor arguments)</summary><textarea readonly id="reviewedBytecode" aria-label="Final reviewed EVM creation data including ABI constructor arguments"></textarea></details>
 </section>
 <section class="panel">
 <h2>3. Deploy through wallet</h2>
-<p>Deployment uses <code>eth_sendTransaction</code> with creation bytecode and no <code>to</code> address. Only zero-argument constructors are supported. Gas is paid by the selected wallet; no transaction is sent until explicit approval.</p>
+<p>Deployment uses <code>eth_sendTransaction</code> with creation bytecode plus ABI-encoded constructor arguments and no <code>to</code> address. Gas is paid by the selected wallet; no transaction is sent until explicit approval.</p>
 <button id="deploy" class="primary" type="button" disabled>Deploy reviewed contract</button>
 <button id="receipt" type="button" disabled>Check transaction receipt</button>
 <pre id="deploymentStatus">Nothing submitted.</pre>
