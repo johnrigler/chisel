@@ -95,6 +95,14 @@ Earlier envelope v1 (decoded binary tail) was a development experiment and is **
 6. Save or upload the HTML. Verify its byte hash. When a deterministic import profile is chosen, rebuild its IPFS DAG/CAR and compare the computed CID with the published CID.
 7. Only execute reconstructed code after explicit user action, inside a constrained runtime. Hash verification proves byte integrity, not that the publisher or code is trustworthy.
 
+## Read-only dictionary inspection and marginal cost
+
+The workbench accepts the deployed dictionary address and the Chisel publisher address independently. Its first action should always be a read-only inspection of the dictionary identity and permanent term IDs. Compression uses only terms already in that table; missing terms remain literal bytes in the reversible canonical stream. No need to pay Polygon gas to add new words unless the expected repeated reuse justifies it. An explicit separate wallet action appends missing terms, and then the same read-only encoding can be repeated.
+
+The initial complete Chisel record size is projected before any transactions by populating the fixed-width template transaction and SHA-256 fields with placeholders. These are the same number of bytes as the eventual values. A live unsigned transaction preview compares ABI-encoded calldata and may request `eth_estimateGas` for the compressed record and plain-source baseline. The gas estimate depends on the current Polygon state/RPC and is not a signature or transaction submission.
+
+A saving percentage below zero means the representation expands the source. A payload may be smaller than canonical source while the full manifest/event is larger. This matters for a one-off program, and may change when metadata and HTML-template costs are amortized across many programs.
+
 ## Compression reporting
 
 Measure separately:
