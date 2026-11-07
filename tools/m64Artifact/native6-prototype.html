@@ -32,7 +32,8 @@ const model=function model(raw,two=true,maxMacros=24) {
   }
   return out.trim().replace(/\b(darkStar|mod|putPixel|drawLine)\b/g,x=>({darkStar:"a",mod:"m",putPixel:"q",drawLine:"l"})[x]);
  }
- function vi(n,b=128) {if(n<0||!Number.isSafeInteger(n))throw Error("Invalid integer");let a=[];do{let v=n%(b/2);n=Math.floor(n/(b/2));a.push(v+(n?b/2:0))}while(n);return a}
+ function vi(n,b=128) {if(n<0||!Number.isSafeInteger(n))throw Error("Invalid integer");const base=b===128?128:32,flag=base;let a=[];do{let v=n%base;n=Math.floor(n/base);a.push(v+(n?flag:0))}while(n);return a}
+ function readUInt(a,i=0){let n=0,m=1;for(let k=0;k<9;k++){if(i>=a.length)throw Error("Truncated byte varint");let v=a[i++];n+=(v&127)*m;if(!Number.isSafeInteger(n))throw Error("Byte varint overflow");if(v<128)return{n,i};m*=128}throw Error("Byte varint too long")}
  function index(n){return vi(n,64)}
  function readIndex(a,i){let n=0,m=1;for(let j=0;j<9;j++){if(i>=a.length)throw Error("Index truncated");let v=a[i++];n+=(v&31)*m;if(!Number.isSafeInteger(n))throw Error("Index overflow");if(v<32)return{n,i};m*=32}throw Error("Index too long")}
  function pack(a){let bytes=new Uint8Array(Math.ceil(a.length*6/8)),pos=0;for(const c of a){if(!Number.isInteger(c)||c<0||c>63)throw Error("Not a six-bit symbol");for(let b=5;b>=0;b--,pos++)if(c&(1<<b))bytes[pos>>3]|=1<<(7-(pos%8))}return bytes}
@@ -74,7 +75,9 @@ const model=function model(raw,two=true,maxMacros=24) {
    throw Error("Invalid symbol");
   }return out;
  }
- let decoded=decode(unpack(bytes,stream.length));
+ let wire=[...vi(stream.length),...bytes],field=readUInt(wire),decoded=decode(unpack(Uint8Array.from(wire.slice(field.i)),field.n));
+ if(field.n!==stream.length||readUInt(vi(842)).n!==842)throw Error("Invalid on-wire symbol-count varint");
+ if(stream.length%4!==0){let invalid=Uint8Array.from(bytes);invalid[invalid.length-1]|=1;let rejected=false;try{unpack(invalid,stream.length)}catch(e){rejected=e.message==="Nonzero padding"}if(!rejected)throw Error("Invalid six-bit padding accepted")}
  if(decoded!==canonical)throw Error("Canonical roundtrip failure");
  if(decode([esc,1,0])!=="@")throw Error("Literal escape failure");
  if(two&&readIndex(index(65),0).n!==65)throw Error("Extended index failure");
@@ -84,7 +87,7 @@ const model=function model(raw,two=true,maxMacros=24) {
  return {original:raw.length,canonical,primary,primaryBytes,secondaryBytes,dictionaryBytes:primaryBytes+secondaryBytes,
   secondary:second.map(s=>({expanded:decode(unpack(s.bytes,s.body.length)),symbols:s.body.length,bytes:s.bytes.length,print:s.body.map(i=>abc[i]).join(""),gain:s.gain})),
   count:stream.length,programBytes:vi(stream.length).length+bytes.length,packedBytes:bytes.length,print:stream.map(i=>abc[i]).join(""),
-  hex:hex([...vi(stream.length),...bytes]),decoded,literalCount:stream.filter(x=>x===esc).length,secondaryUses:seq.filter(x=>x.type==="s").length};
+  hex:hex(wire),decoded,literalCount:stream.filter(x=>x===esc).length,secondaryUses:seq.filter(x=>x.type==="s").length};
 };
 const E=id=>document.getElementById(id);
 function show(){
