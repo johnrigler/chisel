@@ -41,11 +41,17 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <section class="panel"><h2>Rendered output</h2><canvas id="canvas" width="1400" height="900" aria-label="Dark Star Z rendered landscape"></canvas>
 <p class="small">Image is computed in a restricted iframe from the active program. Parameter changes re-run the same hydrated source.</p></section>
 <section class="panel"><h2>Publish / reconstruct from two contracts</h2>
-<p class="small">The M64 dictionary holds symbol IDs. Chisel logs preserve the exact 64-character-alphabet M64 text (transported as UTF-8 bytes, shown as hex in EVM tools) and a standalone renderer template. Both contracts are required for ledger-only reconstruction. <a href="M64_WIRE_FORMAT.md">Wire format and compression accounting</a>.</p>
-<label class="small" for="chiselAddress">Chisel contract address (Polygon)</label>
+<p class="small">Polygon mainnet (chain 137). Chisel publishes the renderer and the M64 program as separate logs; M64Dictionary stores the symbol IDs needed to reconstruct the program. The program log explicitly names both the dictionary contract and the earlier renderer-template transaction. Neither contract executes the reconstructed JavaScript. <a href="M64_WIRE_FORMAT.md">Wire format and compression accounting</a>.</p>
+<label class="small" for="chiselAddress">Chisel contract address (Polygon 137, record publisher)</label>
 <input id="chiselAddress" style="width:100%" value="0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3" placeholder="0x… Chisel with logRecord(bytes32,bytes)" spellcheck="false">
-<p class="small">Candidate Chisel deployment address from the earlier contract work. The read-only preflight checks that this address has the expected Chisel methods before constructing a write. No transaction is sent by preparing it.</p>
-<div class="actions"><button id="prepareTemplateTx">Build next Polygon transaction (renderer)</button><button id="prepareProgramTx">Build M64 program transaction</button></div>
+<p class="small">Chisel receives the HTML renderer template and the M64 program record. Contract compatibility is checked read-only before preparing a write.</p>
+<label class="small" for="dictionary">M64Dictionary contract address (Polygon 137, symbol resolver)</label>
+<input id="dictionary" style="width:100%" value="0x522afe4f086da1df80531dea1e8793b05cace9cf" placeholder="0x… deployed M64Dictionary contract" spellcheck="false">
+<p class="small">Existing deployment reported with 51 Dark Star Z symbols. Inspect live term count and contract metadata before publishing. This address is part of the M64 artifact identity; it must match the dictionary reference embedded in the Chisel program record.</p>
+<div class="actions"><button id="inspect">Inspect M64Dictionary on Polygon</button><button id="build">Encode artifact using this dictionary</button></div>
+<div id="dictStatus" class="status">Dictionary address set; on-chain state not yet inspected in this session.</div>
+<p class="small"><strong>Renderer transaction:</strong> Chisel-only log of reusable HTML. <strong>Program transaction:</strong> Chisel log of exact M64 text, referring to the M64Dictionary address and the renderer-template transaction. Preview buttons prepare unsigned data; publishing requires wallet approval.</p>
+<div class="actions"><button id="prepareTemplateTx">Preview renderer transaction (Chisel only)</button><button id="prepareProgramTx">Preview program transaction (Chisel + M64 reference)</button></div>
 <details><summary>Unsigned Polygon transaction data (read-only)</summary><textarea id="unsignedTx" readonly spellcheck="false" aria-label="Unsigned Polygon transaction JSON" style="min-height:150px"></textarea><button id="copyUnsignedTx">Copy unsigned transaction JSON</button></details>
 <div id="unsignedTxStatus" class="status">No transaction prepared.</div>
 <div class="actions"><button id="publishTemplate">1. Publish HTML renderer template</button></div>
@@ -58,14 +64,11 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <div id="compressionStatus" class="status">Build M64 v3 to measure compression.</div>
 <div id="ledgerStatus" class="status">No ledger program or renderer template published.</div>
 </section>
-<section class="panel"><details><summary>M64 v3 dictionary and publishing</summary>
-<p class="small">Enter the address of an actual <code>M64Dictionary</code> contract, not the general Chisel contract. Reads use RPC; new dictionary terms require a wallet-approved transaction.</p>
-<label class="small" for="dictionary">Dictionary address</label><input id="dictionary" placeholder="0x… (M64Dictionary deployed contract)" style="width:100%" spellcheck="false">
+<section class="panel"><details><summary>Polygon RPC / dictionary settings</summary>
+<p class="small">The M64Dictionary address and inspect/encode actions are in the main publishing section above. Reads use RPC; encoding adds terms only when missing, after explicit wallet approval.</p>
 <label class="small" for="chain">EVM chain ID</label><input id="chain" type="number" min="1" value="137" style="width:100%">
 <label class="small" for="rpc">Public JSON-RPC URL (for read-only hydration)</label><input id="rpc" value="https://polygon-bor-rpc.publicnode.com" style="width:100%" spellcheck="false">
-<div class="actions"><button id="inspect">Inspect dictionary</button><button id="build">Build M64 v3 (wallet approval if needed)</button></div>
-<p class="small">Building only sends an on-chain transaction if the dictionary lacks terms, after showing and confirming the missing-term count. The image itself is always rendered locally.</p>
-<div id="dictStatus" class="status">no dictionary selected</div>
+<p class="small">The image renders locally without ledger publication. The dictionary is never replaced silently during reconstruction.</p>
 </details></section>
 <section class="panel"><details><summary>Publish via Pinata</summary>
 <p class="small">Pinata v3 uses a JWT. This is a per-session field; Chisel does not save the token in localStorage, the artifact, the URL, or the repository. A browser page holding a JWT can still expose it if the page is compromised. For stronger isolation, use a short-lived signed upload URL or a local credential broker.</p>
@@ -187,7 +190,7 @@ const made=await M.buildJavascriptArtifactV3(source,{resolver,entry:"darkStar",i
 const restored=await M.hydrateArtifactV3(made.artifact,read);
 artifact=made.artifact;activeCode=restored.canonical;activeEntry=artifact.entry;
 S("metadata").value=JSON.stringify(artifact,null,2);S("saveArtifact").disabled=false;
-show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurementSource=source;measurementSourceType="local source";measurement();render();
+show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncurrent on-chain terms: "+await read.termCount()+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurementSource=source;measurementSourceType="local source";measurement();render();
 }catch(e){show("dictStatus","M64 build failed: "+String(e.message||e),false)}}
 
 const CHISEL_LOG_ABI=["function logRecord(bytes32 format,bytes data)","event RecordLogged(address indexed writer,bytes32 indexed format,bytes data)"];
@@ -239,7 +242,11 @@ async function prepareChiselTransaction(kind){
   const templateHtml=ethers.toUtf8String(template.bytes);
   const templateSha256=await M.sha256HexUtf8(templateHtml);
   const dictionary=M.parseEip155DictionaryRef(artifact.dictionary.ref);
+  const selectedDictionary=dictionarySelection();
   if(dictionary.chainId!==d.chainId)throw Error("Current flow requires Chisel and dictionary on the same chain");
+  if(dictionary.ref!==selectedDictionary.ref)throw Error("Artifact dictionary "+dictionary.ref+" does not match selected deployed dictionary "+selectedDictionary.ref+". Re-encode the artifact using the intended dictionary before preparing the program transaction.");
+  const resolver=await readonlyResolver(dictionary.ref);
+  await M.hydrateArtifactV3(artifact,resolver); // Verify that the referenced deployed dictionary can reconstruct the exact program.
   format=M.M64_LEDGER_PROGRAM_FORMAT;
   bytes=M.packLedgerProgram(artifact,{carrier:d.ref,templateTx:template.txHash,templateSha256});
   detail={dictionary:artifact.dictionary.ref,templateTx:template.txHash,canonicalSha256:artifact.sha256,m64Characters:artifact.payload.length};
@@ -254,7 +261,9 @@ async function prepareChiselTransaction(kind){
  Object.assign(summary,detail);
  S("unsignedTx").value=JSON.stringify({...summary,transaction:unsigned},null,2);
  show("unsignedTxStatus","UNSIGNED "+kind.toUpperCase()+" TRANSACTION READY\nTo: "+d.address+"\nChain: "+d.chainId+
-  "\nRecord bytes: "+bytes.length+"\nCalldata bytes: "+summary.calldataBytes+"\nNo wallet signature requested.",true);
+  "\nRecord bytes: "+bytes.length+"\nCalldata bytes: "+summary.calldataBytes+
+   (kind==="program"?"\nM64Dictionary: "+detail.dictionary+"\nRenderer template tx: "+detail.templateTx:"\nRenderer template only; no dictionary reference in this transaction.")+
+   "\nNo wallet signature requested.",true);
  return unsignedTxCache;
 }
 async function previewTransaction(kind){
