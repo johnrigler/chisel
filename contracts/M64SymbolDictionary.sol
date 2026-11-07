@@ -167,7 +167,7 @@ contract M64SymbolDictionary {
                 ++i;
                 index |= uint256(digit & 31) << (5 * digits);
                 ++digits;
-                if (digit & 32 == 0) break;
+                if ((digit & 32) == 0) break;
             }
             if (index >= _secondary.length) revert ForwardSecondaryReference(index);
         }
