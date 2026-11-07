@@ -10,6 +10,13 @@
 main{max-width:1420px;padding:14px;margin:auto}header{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}h1{font-size:21px;margin:0}h2{font-size:15px;margin:0 0 8px}
 a{color:#b7cdfd}button,input,select{font:inherit;border:1px solid var(--line);color:var(--ink);background:#0e111a;border-radius:5px;padding:7px}
 button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}input[type=range]{padding:0;accent-color:#a2bdfa}
+[data-fixed-width],select[data-fixed-width] option,.address,.txhash{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace!important;
+  font-variant-ligatures:none;font-feature-settings:"liga" 0,"tnum" 1;
+  font-kerning:none;letter-spacing:0;
+}
+input[data-fixed-width]{min-width:0;overflow-x:auto;white-space:nowrap}
+textarea[data-fixed-width]{white-space:pre;tab-size:2}
 .cols{display:grid;grid-template-columns:minmax(300px,380px) minmax(400px,1fr);gap:12px;margin-top:12px}
 .panel{background:var(--p);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px}
 .control{display:grid;grid-template-columns:98px 1fr 76px;gap:8px;align-items:center;margin:6px 0}
@@ -43,10 +50,10 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <section class="panel"><h2>Publish / reconstruct from two contracts</h2>
 <p class="small">Polygon mainnet (chain 137). Chisel publishes the renderer and the M64 program as separate logs; M64Dictionary stores the symbol IDs needed to reconstruct the program. The program log explicitly names both the dictionary contract and the earlier renderer-template transaction. Neither contract executes the reconstructed JavaScript. <a href="M64_WIRE_FORMAT.md">Wire format and compression accounting</a>.</p>
 <label class="small" for="chiselAddress">Chisel contract address (Polygon 137, record publisher)</label>
-<input id="chiselAddress" style="width:100%" value="0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3" placeholder="0x… Chisel with logRecord(bytes32,bytes)" spellcheck="false">
+<input data-fixed-width id="chiselAddress" style="width:100%" value="0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3" placeholder="0x… Chisel with logRecord(bytes32,bytes)" spellcheck="false">
 <p class="small">Chisel receives the HTML renderer template and the M64 program record. Contract compatibility is checked read-only before preparing a write.</p>
 <label class="small" for="dictionary">M64Dictionary contract address (Polygon 137, symbol resolver)</label>
-<input id="dictionary" style="width:100%" value="0x522afe4f086da1df80531dea1e8793b05cace9cf" placeholder="0x… deployed M64Dictionary contract" spellcheck="false">
+<input data-fixed-width id="dictionary" style="width:100%" value="0x522afe4f086da1df80531dea1e8793b05cace9cf" placeholder="0x… deployed M64Dictionary contract" spellcheck="false">
 <p class="small">Existing deployment reported with 51 Dark Star Z symbols. Inspect live term count and contract metadata before publishing. This address is part of the M64 artifact identity; it must match the dictionary reference embedded in the Chisel program record.</p>
 <div class="actions"><button id="inspect">Inspect dictionary terms (read-only)</button><button id="dictNext" disabled>Next 64 symbols</button></div>
 <details><summary>Dictionary term list and permanent IDs</summary>
@@ -58,14 +65,16 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <div id="termUsage" class="status">No compression analysis yet.</div>
 <p class="small"><strong>Renderer transaction:</strong> Chisel-only log of reusable HTML. <strong>Program transaction:</strong> Chisel log of exact M64 text, referring to the M64Dictionary address and the renderer-template transaction. Preview buttons prepare unsigned data; publishing requires wallet approval.</p>
 <div class="actions"><button id="prepareTemplateTx">Preview renderer transaction (Chisel only)</button><button id="prepareProgramTx">Preview program transaction (Chisel + M64 reference)</button></div>
-<details><summary>Unsigned Polygon transaction data (read-only)</summary><textarea id="unsignedTx" readonly spellcheck="false" aria-label="Unsigned Polygon transaction JSON" style="min-height:150px"></textarea><button id="copyUnsignedTx">Copy unsigned transaction JSON</button></details>
-<div id="unsignedTxStatus" class="status">No transaction prepared.</div>
+<details><summary>Unsigned Polygon transaction data (read-only)</summary><textarea data-fixed-width id="unsignedTx" readonly spellcheck="false" aria-label="Unsigned Polygon transaction JSON" style="min-height:150px"></textarea><button id="copyUnsignedTx">Copy unsigned transaction JSON</button></details>
+<div id="unsignedTxStatus" class="status">No unsigned transaction prepared. A preview is not a mined Polygon transaction.</div>
 <div class="actions"><button id="publishTemplate">1. Publish HTML renderer template</button></div>
-<label class="small" for="templateTx">Renderer-template transaction hash</label>
-<input id="templateTx" style="width:100%" placeholder="0x… immutable Chisel template log tx" spellcheck="false">
+<label class="small" for="templateTx">Confirmed renderer-template transaction hash (0x + 64 hex digits)</label>
+<p class="small">The unsigned transaction JSON above is <strong>not</strong> this hash. First publish the renderer template to Chisel and approve it in your wallet; its mined transaction hash will be inserted here automatically. If you already published the template, paste its transaction hash.</p>
+<input data-fixed-width id="templateTx" style="width:100%" placeholder="0x… immutable Chisel template log tx" spellcheck="false">
+<div id="templateStep" class="status">Step 1 is pending: no confirmed renderer-template transaction hash. The program cannot reference an unsigned preview.</div>
 <div class="actions"><button id="publishProgram">2. Publish compressed program to Chisel</button></div>
 <label class="small" for="programTx">M64 program transaction hash</label>
-<input id="programTx" style="width:100%" placeholder="0x… Chisel program log tx" spellcheck="false">
+<input data-fixed-width id="programTx" style="width:100%" placeholder="0x… Chisel program log tx" spellcheck="false">
 <div class="actions"><button id="rebuildLedger">3. Rebuild HTML from ledger</button><button id="saveLedgerPage" disabled>Save ledger-rebuilt HTML</button></div>
 <div id="compressionStatus" class="status">Click "Inspect and compress" for actual byte counts, including the full Chisel record envelope. A negative percentage means expansion, not savings.</div>
 <div id="ledgerStatus" class="status">No ledger program or renderer template published.</div>
@@ -254,6 +263,35 @@ async function extendDictionary(){
 const CHISEL_LOG_ABI=["function logRecord(bytes32 format,bytes data)","event RecordLogged(address indexed writer,bytes32 indexed format,bytes data)"];
 const CHISEL_PREFLIGHT_ABI=["function creator() view returns (address)","function getArtifact(address writer,string artifact) view returns (string,uint64)"];
 let unsignedTxCache=null;
+const TX_HASH_RE=/^0x[0-9a-fA-F]{64}$/;
+const TEMPLATE_CACHE_PREFIX="chisel-m64-template-tx:v1:";
+function templateCacheKey(){
+ const d=chiselSelection();
+ return TEMPLATE_CACHE_PREFIX+d.ref;
+}
+function getRememberedTemplateTx(){
+ try{const v=localStorage.getItem(templateCacheKey())||"";return TX_HASH_RE.test(v)?v:""}catch(_){return ""}
+}
+function rememberConfirmedTemplateTx(tx){
+ if(!TX_HASH_RE.test(tx))return;
+ try{localStorage.setItem(templateCacheKey(),tx)}catch(_){}
+}
+function updateTemplateStep(){
+ const hash=S("templateTx").value.trim();
+ if(TX_HASH_RE.test(hash)){
+  show("templateStep","Renderer-template hash supplied: "+hash+"\nThe program preview will verify its receipt and Chisel event before using it.");
+ }else if(!hash){
+  show("templateStep","Step 1 required: publish the HTML renderer template and obtain its mined transaction hash.\nAn unsigned preview has no transaction hash. Use the renderer preview/publish buttons above.");
+ }else{
+  show("templateStep","Invalid renderer-template hash. It must be 0x followed by exactly 64 hexadecimal digits, not a contract address or unsigned transaction JSON.",false);
+ }
+}
+function restoreTemplateTx(){
+ const stored=getRememberedTemplateTx();
+ S("templateTx").value=stored;
+ updateTemplateStep();
+}
+
 function chiselSelection(){
  const address=S("chiselAddress").value.trim(),chainId=Number(S("chain").value);
  if(!ethers.isAddress(address))throw Error("Enter a deployed Chisel contract address");
@@ -287,6 +325,8 @@ async function loadRendererTemplate(){
  return {html,bytes:ethers.toUtf8Bytes(html),sha256:await M.sha256HexUtf8(html)};
 }
 async function prepareChiselTransaction(kind){
+ if(kind==="program"&&!TX_HASH_RE.test(S("templateTx").value.trim()))
+  throw Error("Program transaction needs a confirmed renderer-template transaction hash (0x + 64 hex digits). Publish the renderer template first.");
  const d=chiselSelection();
  await verifyChiselAddress(d);
  let format,bytes,detail;
@@ -354,9 +394,20 @@ async function prepareChiselTransaction(kind){
  return unsignedTxCache;
 }
 async function previewTransaction(kind){
- try{show("unsignedTxStatus","Checking Chisel contract and building unsigned "+kind+" transaction...");
+ try{
+  if(kind==="program"&&!TX_HASH_RE.test(S("templateTx").value.trim())){
+   updateTemplateStep();
+   if(S("templateTx").value.trim())return;
+   // Show the useful, independently publishable first transaction rather than
+   // failing with a generic "enter a 32-byte transaction hash" error.
+   show("unsignedTxStatus","Preparing the renderer template first. A program record must reference its mined transaction hash...");
+   await prepareChiselTransaction("template");
+   show("unsignedTxStatus","RENDERER PREVIEW READY (NOT BROADCAST)\nStep 1: review and publish the renderer template using your wallet.\nStep 2: after it is mined, its tx hash fills the renderer-template field.\nStep 3: preview/publish the M64 program, which will then reference that hash.",true);
+   return;
+  }
+  show("unsignedTxStatus","Checking Chisel contract and building unsigned "+kind+" transaction...");
   await prepareChiselTransaction(kind);
- }catch(e){unsignedTxCache=null;show("unsignedTxStatus","Transaction build failed: "+String(e.message||e),false)}
+ }catch(e){unsignedTxCache=null;show("unsignedTxStatus","Transaction preparation failed: "+String(e.message||e),false)}
 }
 async function copyTransaction(){
  try{if(!unsignedTxCache)throw Error("Build an unsigned transaction first");
@@ -365,10 +416,10 @@ async function copyTransaction(){
  }catch(e){show("unsignedTxStatus","Copy failed: "+String(e.message||e),false)}
 }
 async function readChiselLog(txHash,format){
- if(!/^0x[0-9a-fA-F]{64}$/.test(txHash||""))throw Error("Enter a 32-byte Chisel transaction hash");
+ if(!TX_HASH_RE.test(txHash||""))throw Error("A mined Chisel "+(format===M.M64_LEDGER_TEMPLATE_FORMAT?"renderer-template":"program")+" transaction hash is required (0x + 64 hexadecimal digits). The unsigned transaction preview is not a transaction hash.");
  const d=chiselSelection(),provider=await recordProvider(d.chainId);
  const receipt=await provider.getTransactionReceipt(txHash);
- if(!receipt)throw Error("Transaction not yet available on configured RPC");
+ if(!receipt)throw Error("No mined transaction receipt found for "+txHash+". Confirm the transaction was approved and mined on Polygon 137; an unsigned preview is not sufficient.");
  if(receipt.status!==1)throw Error("Transaction reverted");
  const iface=new ethers.Interface(CHISEL_LOG_ABI);
  for(const log of receipt.logs){
@@ -441,11 +492,18 @@ async function publishRendererTemplate(){
   show("ledgerStatus","Requesting wallet approval for renderer-template log ("+prepared.bytes.length+" bytes)...");
   const receipt=await writeChiselLog(prepared.format,prepared.bytes);
   S("templateTx").value=receipt.txHash;
+  rememberConfirmedTemplateTx(receipt.txHash);
+  updateTemplateStep();
   show("ledgerStatus","Renderer template published and exact event bytes verified.\nTransaction: "+receipt.txHash+"\nBlock: "+receipt.block+"\nSHA-256: "+prepared.detail.templateSha256,true);
  }catch(e){show("ledgerStatus","Template publication failed: "+String(e.message||e),false)}
 }
 async function publishM64Program(){
  try{
+  if(!TX_HASH_RE.test(S("templateTx").value.trim())){
+   updateTemplateStep();
+   show("ledgerStatus","Cannot publish the M64 program yet. First publish the renderer template to Chisel, approve it in your wallet and use its mined transaction hash. The unsigned preview is not a published transaction.",false);
+   return;
+  }
   const prepared=await prepareChiselTransaction("program");
   if(!confirm("Publish M64 program to Polygon "+prepared.unsigned.chainId+"?\nChisel: "+prepared.unsigned.to+
     "\nDictionary: "+prepared.detail.dictionary+"\nM64 characters: "+prepared.detail.m64Characters+
@@ -562,10 +620,14 @@ S("preset").onclick=()=>download(new Blob([JSON.stringify({kind:"dark-star-z-inp
 S("savePage").onclick=async()=>{try{show("renderStatus","bundling standalone page…");const html=ledgerRebuiltHtml||await portablePageHtml();download(new Blob([html],{type:"text/html"},),"dark-star-z.html");show("renderStatus","Self-contained HTML saved; "+html.length+" characters.",true)}catch(e){show("renderStatus","HTML export failed: "+String(e.message||e),false)}};
 S("load").onclick=loadCid;S("inspect").onclick=()=>inspect(false);S("dictNext").onclick=()=>inspect(true);S("build").onclick=build;S("extendDictionary").onclick=extendDictionary;S("pin").onclick=publish;
 S("prepareTemplateTx").onclick=()=>previewTransaction("template");S("prepareProgramTx").onclick=()=>previewTransaction("program");S("copyUnsignedTx").onclick=copyTransaction;
-S("publishTemplate").onclick=publishRendererTemplate;S("publishProgram").onclick=publishM64Program;S("rebuildLedger").onclick=rebuildFromLedger;S("saveLedgerPage").onclick=saveLedgerPage;
+S("publishTemplate").onclick=publishRendererTemplate;S("publishProgram").onclick=publishM64Program;
+S("templateTx").addEventListener("input",updateTemplateStep);
+S("chiselAddress").addEventListener("change",()=>{restoreTemplateTx();unsignedTxCache=null;S("unsignedTx").value="";});
+S("chain").addEventListener("change",()=>{restoreTemplateTx();unsignedTxCache=null;S("unsignedTx").value="";});S("rebuildLedger").onclick=rebuildFromLedger;S("saveLedgerPage").onclick=saveLedgerPage;
 S("draftAttest").onclick=draftTrust;S("copyAttest").onclick=copyTrust;S("useDigest").onclick=()=>{if(!artifact){show("attestStatus","Build or load an M64 v3 artifact first.",false);return}S("subjectDigest").value=artifact.sha256;draftTrust()};
 S("saveArtifact").onclick=()=>{if(artifact)download(new Blob([JSON.stringify(artifact,null,2)+"\n"],{type:"application/json"}),"dark-star-z.m64.json")};
-const q=new URLSearchParams(location.search);if(q.get("cid"))S("cid").value=q.get("cid");if(q.get("dictionary"))S("dictionary").value=q.get("dictionary");if(q.get("chain"))S("chain").value=q.get("chain");if(q.get("chisel"))S("chiselAddress").value=q.get("chisel");if(q.get("templateTx"))S("templateTx").value=q.get("templateTx");if(q.get("programTx"))S("programTx").value=q.get("programTx");}
+const q=new URLSearchParams(location.search);if(q.get("cid"))S("cid").value=q.get("cid");if(q.get("dictionary"))S("dictionary").value=q.get("dictionary");if(q.get("chain"))S("chain").value=q.get("chain");if(q.get("chisel"))S("chiselAddress").value=q.get("chisel");if(q.get("templateTx"))S("templateTx").value=q.get("templateTx");if(q.get("programTx"))S("programTx").value=q.get("programTx");
+if(!q.get("templateTx"))restoreTemplateTx();else updateTemplateStep();}
 async function boot(){wire();try{const embedded=S("bundledDarkstarSource");if(embedded){source=JSON.parse(embedded.textContent);const saved=S("bundledDarkstarInput");if(saved)apply(JSON.parse(saved.textContent))}else{const r=await fetch("examples/darkstar-core.js");if(!r.ok)throw Error("HTTP "+r.status);source=await r.text()}sourceFallback();await render();if(S("cid").value)await loadCid()}catch(e){show("renderStatus","Local source failed: "+String(e.message||e),false)}}
 boot();
 </script>
