@@ -2,17 +2,22 @@
 pragma solidity ^0.8.24;
 
 /// @title M64SymbolDictionary
-/// @notice Immutable 62-symbol primary table and append-only packed six-bit
-///         secondary definitions. Each deployment describes one data profile.
-/// @dev No JSON, bytecode interpreter, user-account storage, or publication
-///      carrier. No owner or administrator can change assigned symbol IDs.
-///      Symbols 62 and 63 are codec escapes, not user-defined entries.
+/// @notice One M64 format profile: 62 immutable primary definitions, two
+///         six-bit escape opcodes, and an append-only typed reference table.
+/// @dev A dictionary is NOT an ERC token. No ownership, balances, or transfer
+///      methods. All binary definitions are native bytes, never JSON envelopes.
+///      No external contract is invoked as part of decoding.
 contract M64SymbolDictionary {
-    uint8 public constant ASCII_ESCAPE = 62; // A raw byte follows as two 6-bit symbols.
-    uint8 public constant SECONDARY_ESCAPE = 63; // A base-32 varuint index follows.
-    uint32 public constant codecVersion = 1;
+    uint8 public constant ASCII_ESCAPE = 62;
+    uint8 public constant SECONDARY_ESCAPE = 63;
+    uint8 public constant ENTRY_PACKED_M64 = 0;
+    uint8 public constant ENTRY_RAW_BYTES = 1;
+    // Protocol v2 retains six-bit opcodes; typed secondary entries require
+    // v2-aware readers so a raw-byte entry cannot be mistaken for packed M64.
+    uint32 public constant codecVersion = 2;
     uint32 public constant dictionaryVersion = 1;
     uint32 public constant MAX_DEFINITION_SYMBOLS = 4096;
+    uint32 public constant MAX_RAW_ENTRY_BYTES = 4096;
 
     error WrongPrimaryCount(uint256 got);
     error EmptyMetadata();
@@ -27,22 +32,43 @@ contract M64SymbolDictionary {
     error ForwardSecondaryReference(uint256 index);
     error InvalidPrimaryIndex(uint256 index);
     error InvalidSecondaryIndex(uint256 index);
+    error WrongEntryKind(uint256 index);
+    error EmptyRawEntry();
+    error OversizedRawEntry();
+    error InvalidContractReference();
 
+    // Familiar, externally queryable metadata without implementing ERC-20/721.
+    string public name;
+    string public symbol;
+    string public language;
     string public mediaType;
     string public description;
+
     bytes32 public immutable primaryDigest;
-    // This hash changes only when a NEW secondary entry is appended.
-    // Pin primaryDigest and any referenced entry's immutable ID if stability
-    // across future appends matters; this aggregate digest is informational.
     bytes32 public definitionDigest;
+    // Snapshots let a reader pin exactly the dictionary prefix used at publish
+    // time even if more entries are added in future.
+    mapping(uint256 => bytes32) public digestAtCount;
 
     bytes[] private _primary;
-    struct Secondary {
-        bytes packed;
-        uint32 symbolCount;
+    struct Entry {
+        uint8 kind;
+        uint32 symbolCount; // 0 for RAW_BYTES; positive for PACKED_M64
+        bytes data;
     }
-    Secondary[] private _secondary;
-    mapping(bytes32 => uint256) private _secondaryIdPlusOne;
+    Entry[] private _secondary;
+    mapping(bytes32 => uint256) private _entryIdPlusOne;
+
+    // Informational inter-contract links. They do NOT automatically alter the
+    // M64 decoding table. A reader must explicitly select and verify a target.
+    struct Reference {
+        uint256 chainId;
+        address target;
+        bytes32 role;
+        bytes32 expectedDigest;
+    }
+    Reference[] private _references;
+    mapping(bytes32 => uint256) private _referenceIdPlusOne;
 
     event SecondaryAdded(
         uint256 indexed id,
@@ -50,20 +76,41 @@ contract M64SymbolDictionary {
         bytes32 indexed entryDigest,
         address indexed payer
     );
+    event EntryAdded(
+        uint256 indexed id,
+        uint8 kind,
+        bytes32 indexed entryDigest,
+        address indexed payer
+    );
+    event ReferenceAdded(
+        uint256 indexed id,
+        uint256 indexed chainId,
+        address indexed target,
+        bytes32 role,
+        bytes32 expectedDigest
+    );
 
     constructor(
+        string memory name_,
+        string memory symbol_,
+        string memory language_,
         string memory mediaType_,
         string memory description_,
         bytes[] memory primary_,
         bytes[] memory initialPacked_,
         uint32[] memory initialCounts_
     ) {
-        if (bytes(mediaType_).length == 0 || bytes(description_).length == 0) {
-            revert EmptyMetadata();
-        }
+        if (
+            bytes(name_).length == 0 || bytes(symbol_).length == 0 ||
+            bytes(language_).length == 0 || bytes(mediaType_).length == 0 ||
+            bytes(description_).length == 0
+        ) revert EmptyMetadata();
         if (primary_.length != 62) revert WrongPrimaryCount(primary_.length);
         if (initialPacked_.length != initialCounts_.length) revert LengthMismatch();
 
+        name = name_;
+        symbol = symbol_;
+        language = language_;
         mediaType = mediaType_;
         description = description_;
         for (uint256 i = 0; i < 62; i++) {
@@ -72,8 +119,9 @@ contract M64SymbolDictionary {
         }
         primaryDigest = keccak256(abi.encode(primary_));
         definitionDigest = primaryDigest;
+        digestAtCount[0] = primaryDigest;
         for (uint256 i = 0; i < initialPacked_.length; i++) {
-            _appendSecondary(initialPacked_[i], initialCounts_[i]);
+            _appendPacked(initialPacked_[i], initialCounts_[i]);
         }
     }
 
@@ -91,36 +139,77 @@ contract M64SymbolDictionary {
 
     function primaryCount() external pure returns (uint256) { return 62; }
     function secondaryCount() external view returns (uint256) { return _secondary.length; }
+    function referenceCount() external view returns (uint256) { return _references.length; }
 
     function primary(uint256 id) external view returns (bytes memory) {
         if (id >= 62) revert InvalidPrimaryIndex(id);
         return _primary[id];
     }
 
-    /// @notice ABI provides packed.length; symbolCount disambiguates pad bits.
+    /// @notice Existing packed-M64 read surface; fails closed on typed raw entries.
     function secondary(uint256 id) external view returns (bytes memory packed, uint32 symbolCount) {
         if (id >= _secondary.length) revert InvalidSecondaryIndex(id);
-        Secondary storage entry = _secondary[id];
-        return (entry.packed, entry.symbolCount);
+        Entry storage e = _secondary[id];
+        if (e.kind != ENTRY_PACKED_M64) revert WrongEntryKind(id);
+        return (e.data, e.symbolCount);
     }
 
-    /// @notice A duplicate definition returns its original ID without a state write.
-    function addSecondary(bytes calldata packed, uint32 symbolCount) external returns (uint256) {
-        return _appendSecondary(packed, symbolCount);
+    /// @notice Typed view suitable for packed M64 and reusable raw-byte entries.
+    function entry(uint256 id) external view returns (uint8 kind, bytes memory data, uint32 symbolCount) {
+        if (id >= _secondary.length) revert InvalidSecondaryIndex(id);
+        Entry storage e = _secondary[id];
+        return (e.kind, e.data, e.symbolCount);
     }
 
-    function addSecondaryBatch(
-        bytes[] calldata packed,
-        uint32[] calldata symbolCounts
-    ) external returns (uint256[] memory ids) {
-        if (packed.length != symbolCounts.length) revert LengthMismatch();
+    function referenceAt(uint256 id) external view returns (
+        uint256 chainId, address target, bytes32 role, bytes32 expectedDigest
+    ) {
+        if (id >= _references.length) revert InvalidContractReference();
+        Reference storage link = _references[id];
+        return (link.chainId, link.target, link.role, link.expectedDigest);
+    }
+
+    /// @notice Permissionless, append-only. Exact duplicates return the old ID.
+    function addSecondary(bytes calldata packed, uint32 count) external returns (uint256) {
+        return _appendPacked(packed, count);
+    }
+
+    function addSecondaryBatch(bytes[] calldata packed, uint32[] calldata counts)
+        external returns (uint256[] memory ids)
+    {
+        if (packed.length != counts.length) revert LengthMismatch();
         ids = new uint256[](packed.length);
-        for (uint256 i = 0; i < packed.length; i++) {
-            ids[i] = _appendSecondary(packed[i], symbolCounts[i]);
-        }
+        for (uint256 i = 0; i < packed.length; i++) ids[i] = _appendPacked(packed[i], counts[i]);
     }
 
-    function _appendSecondary(bytes memory packed, uint32 count) private returns (uint256 id) {
+    function addRaw(bytes calldata value) external returns (uint256) {
+        return _appendRaw(value);
+    }
+
+    function addRawBatch(bytes[] calldata values) external returns (uint256[] memory ids) {
+        ids = new uint256[](values.length);
+        for (uint256 i = 0; i < values.length; i++) ids[i] = _appendRaw(values[i]);
+    }
+
+    /// @notice Informational reference only, NOT a trusted or executable import.
+    /// @dev A reference may point across EVM chains. Readers must verify the
+    ///      remote dictionary's digest and chain independently.
+    function addReference(
+        uint256 chainId, address target, bytes32 role, bytes32 expectedDigest
+    ) external returns (uint256 id) {
+        if (chainId == 0 || target == address(0) ||
+            role == bytes32(0) || expectedDigest == bytes32(0)
+        ) revert InvalidContractReference();
+        bytes32 digest = keccak256(abi.encode(chainId, target, role, expectedDigest));
+        uint256 existing = _referenceIdPlusOne[digest];
+        if (existing != 0) return existing - 1;
+        id = _references.length;
+        _references.push(Reference(chainId, target, role, expectedDigest));
+        _referenceIdPlusOne[digest] = id + 1;
+        emit ReferenceAdded(id, chainId, target, role, expectedDigest);
+    }
+
+    function _appendPacked(bytes memory packed, uint32 count) private returns (uint256) {
         if (count == 0 || count > MAX_DEFINITION_SYMBOLS) revert InvalidSymbolCount();
         uint256 expected = (uint256(count) * 6 + 7) / 8;
         if (packed.length != expected) revert InvalidSymbolCount();
@@ -129,20 +218,33 @@ contract M64SymbolDictionary {
             revert InvalidPadding();
         }
         _validatePacked(packed, count);
+        return _append(ENTRY_PACKED_M64, packed, count);
+    }
 
-        bytes32 digest = keccak256(abi.encode(count, packed));
-        uint256 existing = _secondaryIdPlusOne[digest];
+    function _appendRaw(bytes memory value) private returns (uint256) {
+        if (value.length == 0) revert EmptyRawEntry();
+        if (value.length > MAX_RAW_ENTRY_BYTES) revert OversizedRawEntry();
+        return _append(ENTRY_RAW_BYTES, value, 0);
+    }
+
+    function _append(uint8 kind, bytes memory data, uint32 count) private returns (uint256 id) {
+        bytes32 digest = keccak256(abi.encode(kind, count, data));
+        uint256 existing = _entryIdPlusOne[digest];
         if (existing != 0) return existing - 1;
 
         id = _secondary.length;
-        _secondary.push(Secondary({packed: packed, symbolCount: count}));
-        _secondaryIdPlusOne[digest] = id + 1;
+        _secondary.push(Entry(kind, count, data));
+        _entryIdPlusOne[digest] = id + 1;
         definitionDigest = keccak256(abi.encode(definitionDigest, digest));
-        emit SecondaryAdded(id, count, digest, msg.sender);
+        digestAtCount[id + 1] = definitionDigest;
+        emit EntryAdded(id, kind, digest, msg.sender);
+        if (kind == ENTRY_PACKED_M64) {
+            emit SecondaryAdded(id, count, keccak256(abi.encode(count, data)), msg.sender);
+        }
     }
 
-    /// @dev Validate every escape. References MUST point to entries already
-    ///      stored, making a directed cycle impossible by construction.
+    /// @dev Secondary references point to already stored entries, whether
+    ///      packed or raw. This prohibits forward cycles by construction.
     function _validatePacked(bytes memory packed, uint32 count) private view {
         uint256 i = 0;
         while (i < count) {
@@ -157,7 +259,6 @@ contract M64SymbolDictionary {
                 i += 2;
                 continue;
             }
-
             uint256 index;
             uint256 digits;
             while (true) {
