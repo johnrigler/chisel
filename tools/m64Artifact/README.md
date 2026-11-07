@@ -1,5 +1,14 @@
 # Chisel M64 Artifact Workbench
 
+## Inspect, compress, compare, publish (read-only first)
+
+The Dark Star workbench now exposes both Polygon contract addresses together. **Inspect dictionary terms** verifies the selected M64Dictionary, reports its total term count and loads term IDs/text in pages of 64. **Inspect and compress** reads only existing on-chain terms, leaves missing words as literal ASCII, reconstructs the canonical JavaScript and verifies SHA-256. It does **not** write to either contract or request wallet approval. There is a separate wallet-authorized **Add missing terms** action if the publisher chooses to grow the immutable vocabulary.
+
+The compression report displays original/canonical source bytes, decoded internal stream bytes, exact 64-symbol M64 text bytes, v3 JSON bytes, and the **complete Chisel envelope** projected using fixed-length placeholder template transaction and template SHA-256 fields. Projected envelope size is the same as the final envelope size because the locator/hash widths are fixed. Savings may be negative. At unsigned transaction preview it additionally compares ABI calldata size and, when RPC supports it, estimated gas for the full M64 record versus uncompressed source written through the same `logRecord(bytes32,bytes)` method. That marginal comparison **does not include** one-time dictionary additions, renderer-template log, any IPFS overhead, or on-chain historical data duplication from calldata and emitted log.
+
+Publishing remains an explicit wallet action. The program record names the exact dictionary contract and the template transaction hash. Read-only reconstruction verifies both Chisel events and on-chain dictionary entries. Independent deterministic CID reproduction still requires a fixed IPFS DAG/CAR import profile.
+
+
 ## Polygon deployment used for Dark Star Z (reported 2026-11-07)
 
 The M64 dictionary **has already been deployed and populated**. This is not a proposed or empty contract. The reported Dark Star Z deployment extracted and published **51 symbols**. Those existing dictionary entries are the source of truth when encoding and reconstructing this artifact. The live count may grow; use the Workbench's `Inspect M64Dictionary` control to query the chain.
