@@ -115,11 +115,12 @@ describe("M64SymbolDictionary (native six-bit contract)", function () {
   });
 
   it("rejects invalid initial tables, mismatched seed arrays, and incomplete initial definitions", async function () {
+    const witness = await deploy();
     const options: [string, string, string[], string[], number[]] = [
       "text/javascript", "Test dictionary", primary().slice(0, 61), [], []
     ];
     await expect(ethers.deployContract("M64SymbolDictionary", options))
-      .to.be.revertedWithCustomError(await deploy(), "WrongPrimaryCount");
+      .to.be.revertedWithCustomError(witness, "WrongPrimaryCount");
     await expect(ethers.deployContract("M64SymbolDictionary", [
       "text/javascript", "Test dictionary", primary(), [packed6([0])], []
     ])).to.be.reverted;
