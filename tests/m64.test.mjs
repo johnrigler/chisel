@@ -270,10 +270,14 @@ test('Polygon M64 program record preserves deployed dictionary and Chisel refere
   assert.equal(unpacked.carrier, chiselRef);
   assert.equal(unpacked.artifact.dictionary.ref, dictionaryRef);
   assert.equal(unpacked.artifact.payload, artifact.payload);
-  assert.equal(unpacked.payloadEncoding, 'm64-base64url-ascii');
+  assert.equal(unpacked.payloadEncoding, 'm64-binary');
+  assert.equal(unpacked.version,3);
   assert.equal(unpacked.template.tx, templateTx);
   assert.equal(unpacked.template.sha256, templateSha256);
-  assert.ok(new TextDecoder().decode(bytes).includes(dictionaryRef));
+  // Binary wire format uses 20 address bytes, not a UTF-8 CAIP reference.
+  const addressBytes=Buffer.from(dictionaryRef.split(':')[2].slice(2),'hex');
+  assert.ok(Buffer.from(bytes).includes(addressBytes));
+  assert.equal(new TextDecoder().decode(bytes).includes(dictionaryRef),false);
 });
 
 test('Dark Star completes the M64 v3 canonicalize-resolve-hydrate integrity loop', async () => {
