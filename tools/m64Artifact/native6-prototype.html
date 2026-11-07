@@ -1,0 +1,107 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Native M64 Six-Bit Test</title><style>
+:root{font:16px system-ui,sans-serif;color:#1c2935;background:#f5f6f9}*{box-sizing:border-box}
+main{max-width:1100px;margin:24px auto;padding:0 16px}section{background:#fff;border:1px solid #dbe1e9;border-radius:9px;margin:14px 0;padding:15px}
+h1{font-size:1.65rem}h2{font-size:1.15rem}p{line-height:1.48}.note{color:#526174;font-size:.9rem}
+textarea{font:12px/1.5 monospace;width:100%;min-height:170px;padding:10px;border:1px solid #b4c0d0;border-radius:6px}
+button{border:0;background:#2453a0;color:white;border-radius:6px;padding:9px 15px;margin:9px 6px 0 0;cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px}.stat{padding:12px;border-radius:6px;background:#eef2f8}
+.stat b{display:block;font-size:1.5rem;font-variant-numeric:tabular-nums}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f3f8;padding:10px;border-radius:7px;max-height:260px;overflow:auto;font:12px/1.5 monospace}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid #e4e9f0;padding:7px}details{margin:10px 0}summary{cursor:pointer;font-weight:600}.ok{color:#177244;font-weight:700}.error{color:#ac2929;font-weight:700}
+</style></head><body><main><h1>M64: six-bit double-indirection experiment</h1>
+<p>Read-only local demo: 63 direct symbols with ASCII escape versus 62 direct symbols with ASCII escape and secondary M64 dictionary escape. No wallet, no RPC, and no transaction.</p>
+<section><h2>Dark Star program</h2><p class="note">This limited trial uses four known function aliases, stripped whitespace, and an automatically chosen dictionary. It is not a general JavaScript parser or a deployed dictionary.</p><textarea id="src" spellcheck="false"></textarea><button id="run">Recalculate</button><button id="reset">Reset Dark Star</button></section>
+<section><h2>Byte comparison</h2><div id="stats" class="stats"></div><p id="check"></p><table><thead><tr><th>Format</th><th>Bytes</th><th>Comment</th></tr></thead><tbody id="rows"></tbody></table><p class="note">The old 590-byte M64 baseline is the previously reported stream size, not recalculated here. Native six-bit payloads include a symbol-count varint; they exclude ledger metadata, ABI and EVM gas.</p></section>
+<section><h2>One-time vocabulary cost</h2><label>Number of artifacts reusing the same vocabulary <input id="reuse" type="number" value="10" min="1" max="1000000"></label><p id="amortize"></p><p class="note">Estimates serialize primary terms as ASCII length-prefixed strings and secondary definitions as packed six-bit sequences with symbol counts. EVM storage and call gas are not included. The example-trained vocabulary may not compress other programs equally.</p></section>
+<section><h2>Inspect the representation</h2><h3>Single-escape M64 symbols</h3><pre id="single"></pre><h3>Double-escape M64 symbols</h3><pre id="double"></pre><h3>Binary bytes, hexadecimal, including count prefix</h3><pre id="hex"></pre><h3>Reconstructed canonical source</h3><pre id="decoded"></pre></section>
+<section><details><summary>Primary vocabulary</summary><pre id="primary"></pre></details><details><summary>Second-level packed M64 dictionary</summary><pre id="secondary"></pre></details>
+<p>Symbol 62 is the ASCII escape, followed by two six-bit values making an ASCII byte. Symbol 63 identifies an extended dictionary entry using one or more six-bit index digits. Entries are themselves packed M64 streams and may reference earlier entries.</p>
+<p>The EVM ABI supplies the length of a returned <code>bytes</code> field, but not the number of meaningful six-bit symbols after padding. This trial tracks a symbol count for that reason, and checks decoding and recursion safety.</p></section>
+<p class="note">Experiment only. Existing CM64 v3 records, contracts, and wallet routing remain unchanged.</p>
+</main><script>
+const ORIGINAL="function darkStar(p){\n  function mod(n,m){return((n%m)+m)%m}\n  function putPixel(buf,w,h,x,y,r,g,b){\n    if(x<0||y<0||x>=w||y>=h)return;\n    const i=(y*w+x)*3;\n    buf[i]=r;buf[i+1]=g;buf[i+2]=b;\n  }\n  function drawLine(buf,w,h,x0,y0,x1,y1,r,g,b){\n    let dx=Math.abs(x1-x0),sx=x0<x1?1:-1;\n    let dy=-Math.abs(y1-y0),sy=y0<y1?1:-1;\n    let err=dx+dy;\n    while(true){\n      putPixel(buf,w,h,x0,y0,r,g,b);\n      if(x0===x1&&y0===y1)break;\n      const e2=err*2;\n      if(e2>=dy){err+=dy;x0+=sx}\n      if(e2<=dx){err+=dx;y0+=sy}\n    }\n  }\n  const buf=new Uint8Array(p.width*p.height*3);\n  let yl=p.yLeft,yr=p.yRight,dyl=p.dyLeft,dyr=p.dyRight;\n  let rr=p.r,gg=p.g,bb=p.b,drr=p.dr,dgg=p.dg,dbb=p.db;\n  for(let i=0;i<p.lines;i++){\n    drawLine(buf,p.width,p.height,0,mod(yl,p.height),p.width-1,mod(yr,p.height),mod(rr,256),mod(gg,256),mod(bb,256));\n    yl+=dyl;yr+=dyr;\n    rr=mod(rr+drr,256);gg=mod(gg+dgg,256);bb=mod(bb+dbb,256);\n    if(p.slopeEvery>0&&(i+1)%p.slopeEvery===0){dyl+=p.ddyLeft;dyr+=p.ddyRight}\n    if(p.colorEvery>0&&(i+1)%p.colorEvery===0){drr+=p.ddr;dgg+=p.ddg;dbb+=p.ddb}\n  }\n  return buf;\n}\n";
+const model=function model(raw,two=true,maxMacros=24) {
+ const abc="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_", cap=two?62:63, esc=two?62:63, meta=63;
+ function clean(s) {
+  let out="",space=false;
+  for(let i=0;i<s.length;){let c=s[i],n=s[i+1];
+   if(c==="/"&&n==="/"){i+=2;while(i<s.length&&s[i]!=="\n")i++;space=true;continue}
+   if(c==="/"&&n==="*"){i+=2;while(i+1<s.length&&!(s[i]==="*"&&s[i+1]==="/"))i++;i+=2;space=true;continue}
+   if(/\s/.test(c)){i++;space=true;continue}
+   if(space&&/[\w$]/.test(out.slice(-1))&&/[\w$]/.test(c))out+=" ";
+   out+=c;space=false;i++;
+  }
+  return out.trim().replace(/\b(darkStar|mod|putPixel|drawLine)\b/g,x=>({darkStar:"a",mod:"m",putPixel:"q",drawLine:"l"})[x]);
+ }
+ function vi(n,b=128) {if(n<0||!Number.isSafeInteger(n))throw Error("Invalid integer");let a=[];do{let v=n%(b/2);n=Math.floor(n/(b/2));a.push(v+(n?b/2:0))}while(n);return a}
+ function index(n){return vi(n,64)}
+ function readIndex(a,i){let n=0,m=1;for(let j=0;j<9;j++){if(i>=a.length)throw Error("Index truncated");let v=a[i++];n+=(v&31)*m;if(!Number.isSafeInteger(n))throw Error("Index overflow");if(v<32)return{n,i};m*=32}throw Error("Index too long")}
+ function pack(a){let bytes=new Uint8Array(Math.ceil(a.length*6/8)),pos=0;for(const c of a){if(!Number.isInteger(c)||c<0||c>63)throw Error("Not a six-bit symbol");for(let b=5;b>=0;b--,pos++)if(c&(1<<b))bytes[pos>>3]|=1<<(7-(pos%8))}return bytes}
+ function unpack(bytes,count){if(Math.ceil(count*6/8)!==bytes.length)throw Error("Incorrect symbol count");let a=[],pos=0;for(let i=0;i<count;i++){let v=0;for(let b=0;b<6;b++,pos++)v=v*2+((bytes[pos>>3]>>(7-(pos%8)))&1);a.push(v)}for(;pos<bytes.length*8;pos++)if(bytes[pos>>3]&(1<<(7-(pos%8))))throw Error("Nonzero padding");return a}
+ const canonical=clean(String(raw)),primary=[...new Set(canonical)].sort();
+ if(primary.length>cap)throw Error("This draft requires "+cap+" or fewer distinct ASCII characters");
+ if(/[^\x00-\x7F]/.test(canonical))throw Error("ASCII only");
+ let atoms=[...canonical].map(c=>primary.indexOf(c));
+ while(primary.length<cap) {
+  let counts=new Map(),best=null,top=1;
+  for(let i=0;i+1<atoms.length;i++){let k=atoms[i]+","+atoms[i+1];counts.set(k,(counts.get(k)||0)+1)}
+  for(const [key,count] of counts){if(count<=top)continue;let [a,b]=key.split(",").map(Number),word=primary[a]+primary[b];if(primary.includes(word))continue;best={a,b,word};top=count}
+  if(!best)break;let id=primary.length;primary.push(best.word);
+  let next=[];for(let i=0;i<atoms.length;){if(i+1<atoms.length&&atoms[i]===best.a&&atoms[i+1]===best.b){next.push(id);i+=2}else next.push(atoms[i++])}atoms=next;
+ }
+ let seq=atoms.map(id=>({id,type:"p"})),second=[];
+ const each=e=>e.type==="p"?[e.id]:[meta,...index(e.id)];
+ const enc=a=>a.flatMap(each);
+ const matches=(a,i,b)=>i+b.length<=a.length&&b.every((e,j)=>e.id===a[i+j].id&&e.type===a[i+j].type);
+ if(two)for(let id=0;id<maxMacros&&id<32;id++){
+  let m=new Map();
+  for(let i=0;i<seq.length;i++){let key="",parts=[];
+   for(let len=1;len<=18&&i+len<=seq.length;len++){let p=seq[i+len-1];parts.push(p);key+=p.type+p.id+"|";if(len<3)continue;let old=m.get(key);if(old)old.starts.push(i);else m.set(key,{parts:[...parts],starts:[i]})}
+  }
+  let best=null,gain=0;
+  for(const v of m.values()){let count=0,last=0;for(const i of v.starts)if(i>=last){count++;last=i+v.parts.length}if(count<2)continue;let saving=count*(enc(v.parts).length-(1+index(id).length));if(saving>gain){gain=saving;best=v}}
+  if(!best||gain<=0)break;
+  let body=enc(best.parts);
+  second.push({body,bytes:pack(body),gain});
+  let next=[];for(let i=0;i<seq.length;){if(matches(seq,i,best.parts)){next.push({type:"s",id});i+=best.parts.length}else next.push(seq[i++])}seq=next;
+ }
+ let stream=enc(seq),bytes=pack(stream);
+ function decode(arr,seen=new Set(),depth=0){
+  if(depth>32)throw Error("Expansion too deep");let out="";
+  for(let i=0;i<arr.length;){let c=arr[i++];
+   if(c<cap){if(primary[c]===undefined)throw Error("Unknown primary symbol");out+=primary[c];continue}
+   if(c===esc){if(i+1>=arr.length)throw Error("Incomplete literal");let v=arr[i++]*64+arr[i++];if(v>127)throw Error("Non ASCII escape");out+=String.fromCharCode(v);continue}
+   if(two&&c===meta){let ref=readIndex(arr,i);i=ref.i;if(!second[ref.n]||seen.has(ref.n))throw Error("Undefined/cyclic secondary");seen.add(ref.n);out+=decode(unpack(second[ref.n].bytes,second[ref.n].body.length),seen,depth+1);seen.delete(ref.n);continue}
+   throw Error("Invalid symbol");
+  }return out;
+ }
+ let decoded=decode(unpack(bytes,stream.length));
+ if(decoded!==canonical)throw Error("Canonical roundtrip failure");
+ if(decode([esc,1,0])!=="@")throw Error("Literal escape failure");
+ if(two&&readIndex(index(65),0).n!==65)throw Error("Extended index failure");
+ const hex=a=>[...a].map(x=>x.toString(16).padStart(2,"0")).join(" ");
+ let primaryBytes=vi(primary.length).length+primary.reduce((n,s)=>n+vi(s.length).length+s.length,0);
+ let secondaryBytes=two?vi(second.length).length+second.reduce((n,s)=>n+vi(s.body.length).length+s.bytes.length,0):0;
+ return {original:raw.length,canonical,primary,primaryBytes,secondaryBytes,dictionaryBytes:primaryBytes+secondaryBytes,
+  secondary:second.map(s=>({expanded:decode(unpack(s.bytes,s.body.length)),symbols:s.body.length,bytes:s.bytes.length,print:s.body.map(i=>abc[i]).join(""),gain:s.gain})),
+  count:stream.length,programBytes:vi(stream.length).length+bytes.length,packedBytes:bytes.length,print:stream.map(i=>abc[i]).join(""),
+  hex:hex([...vi(stream.length),...bytes]),decoded,literalCount:stream.filter(x=>x===esc).length,secondaryUses:seq.filter(x=>x.type==="s").length};
+};
+const E=id=>document.getElementById(id);
+function show(){
+ try{
+ const s=E("src").value,a=model(s,false),b=model(s,true),nums=[
+ ["Source",a.original],["Canonical",a.canonical.length],["Single escape",a.programBytes],["Two escapes",b.programBytes],["Secondary entries",b.secondary.length],["Symbol references",b.secondaryUses]];
+ E("stats").replaceChildren(...nums.map(([name,value])=>{let d=document.createElement("div"),t=document.createElement("span"),v=document.createElement("b");d.className="stat";t.textContent=name;v.textContent=Number(value).toLocaleString("en-US");d.append(t,v);return d}));
+ const rows=[["Source JS",a.original,"Uncompressed"],["Canonical JS",a.canonical.length,"Aliased and whitespace-stripped"],...(s===ORIGINAL?[["Historical 8-bit stream",590,"Prior measurement only"]]:[]),["Six-bit: ASCII escape",a.programBytes,a.count+" symbols"],["Six-bit: ASCII plus secondary escape",b.programBytes,b.count+" symbols"]];
+ E("rows").replaceChildren(...rows.map(row=>{let tr=document.createElement("tr");for(let x of row){let td=document.createElement("td");td.textContent=String(x);tr.append(td)}return tr}));
+ E("check").className="ok";E("check").textContent="Verified: both decode to identical canonical JavaScript.";
+ E("single").textContent=a.print;E("double").textContent=b.print;E("hex").textContent=b.hex;E("decoded").textContent=b.decoded;
+ let ABC="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+ E("primary").textContent="Single escape:\n"+a.primary.map((x,i)=>i+" ["+ABC[i]+"] "+JSON.stringify(x)).join("\n")+"\n\nTwo escapes:\n"+b.primary.map((x,i)=>i+" ["+ABC[i]+"] "+JSON.stringify(x)).join("\n");
+ E("secondary").textContent=b.secondary.map((x,i)=>"Index "+i+": "+JSON.stringify(x.expanded)+"\n"+x.symbols+" symbols / "+x.bytes+" packed bytes; "+x.gain+" symbols saved\n"+x.print).join("\n\n")||"No repeated sequences selected";
+ let n=Math.min(1000000,Math.max(1,Number(E("reuse").value)||1));
+ E("amortize").textContent="One-escape vocabulary: "+a.dictionaryBytes+" bytes. Two-escape primary: "+b.primaryBytes+" bytes; secondary: "+b.secondaryBytes+" bytes. At "+n+" repeated artifacts, modeled bytes/artifact are "+(a.programBytes+a.dictionaryBytes/n).toFixed(1)+" (one escape) and "+(b.programBytes+b.dictionaryBytes/n).toFixed(1)+" (two escapes).";
+ }catch(e){E("check").className="error";E("check").textContent="Cannot encode: "+e.message}
+}
+E("src").value=ORIGINAL;E("run").addEventListener("click",show);E("reset").addEventListener("click",()=>{E("src").value=ORIGINAL;show()});E("reuse").addEventListener("change",show);show();
+</script></body></html>
