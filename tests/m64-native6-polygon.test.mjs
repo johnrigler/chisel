@@ -42,7 +42,7 @@ class FakeInterface {
 const fakeE={Contract:FakeContract,BrowserProvider:class{},Interface:FakeInterface,id(name){assert.equal(name,API.FORMAT_NAME);return topic},ZeroHash:"0x"+"00".repeat(32)};
 const provider={
   async getNetwork(){return {chainId:137n}},
-  async getCode(address){assert.ok([addr,chisel].includes(address.toLowerCase()));return "0x6000"},
+  async getCode(address){assert.ok([addr.toLowerCase(),chisel.toLowerCase()].includes(address.toLowerCase()));return "0x6000"},
   async getTransaction(hash){assert.equal(hash,txHash);return {to:chisel}},
   async getTransactionReceipt(hash){
     assert.equal(hash,txHash);
