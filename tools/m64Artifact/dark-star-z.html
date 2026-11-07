@@ -317,11 +317,40 @@ async function prepareChiselTransaction(kind){
  const summary={kind,format,chainId:d.chainId,to:d.address,value:"0x0",recordBytes:bytes.length,calldataBytes:(data.length-2)/2,
   recordSha256:ethers.sha256(bytes).slice(2)};
  Object.assign(summary,detail);
+ let originalCalldataBytes=null,gasSummary="";
+ const readProvider=await recordProvider(d.chainId);
+ if(kind==="program"){
+  // Same logRecord ABI on the same Chisel contract, using uncompressed source
+  // for a like-for-like marginal publication comparison (no dictionary setup).
+  const plain=iface.encodeFunctionData("logRecord",[ethers.id("chisel-raw-javascript-v1"),
+    ethers.hexlify(ethers.toUtf8Bytes(measurementSource||source))]);
+  originalCalldataBytes=(plain.length-2)/2;
+  summary.rawSourceCalldataBytes=originalCalldataBytes;
+  summary.calldataSavingsPct=100*(originalCalldataBytes-summary.calldataBytes)/originalCalldataBytes;
+  try{
+   const [compressedGas,plainGas]=await Promise.all([
+     readProvider.estimateGas({to:d.address,data}),
+     readProvider.estimateGas({to:d.address,data:plain})
+   ]);
+   summary.estimatedM64Gas=compressedGas.toString();
+   summary.estimatedPlainSourceGas=plainGas.toString();
+   summary.marginalGasSaved=(plainGas-compressedGas).toString();
+   gasSummary="\nEstimated gas (M64/plain): "+compressedGas+"/"+plainGas+
+      " | delta: "+(plainGas-compressedGas);
+  }catch(e){summary.gasEstimateUnavailable=String(e.shortMessage||e.message||e);}
+ }else{
+  try{summary.estimatedGas=(await readProvider.estimateGas({to:d.address,data})).toString()}
+  catch(e){summary.gasEstimateUnavailable=String(e.shortMessage||e.message||e)}
+ }
  S("unsignedTx").value=JSON.stringify({...summary,transaction:unsigned},null,2);
  show("unsignedTxStatus","UNSIGNED "+kind.toUpperCase()+" TRANSACTION READY\nTo: "+d.address+"\nChain: "+d.chainId+
   "\nRecord bytes: "+bytes.length+"\nCalldata bytes: "+summary.calldataBytes+
-   (kind==="program"?"\nM64Dictionary: "+detail.dictionary+"\nRenderer template tx: "+detail.templateTx:"\nRenderer template only; no dictionary reference in this transaction.")+
-   "\nNo wallet signature requested.",true);
+   (kind==="program"?"\nPlain-source calldata bytes: "+originalCalldataBytes+
+    " | delta: "+(originalCalldataBytes-summary.calldataBytes)+
+    " ("+summary.calldataSavingsPct.toFixed(1)+"% savings)"+
+    "\nM64Dictionary: "+detail.dictionary+"\nRenderer template tx: "+detail.templateTx:
+    "\nRenderer template only; no dictionary reference in this transaction.")+
+   gasSummary+"\nNo wallet signature requested. Estimates exclude dictionary and template setup.",true);
  return unsignedTxCache;
 }
 async function previewTransaction(kind){
@@ -376,13 +405,31 @@ async function writeChiselLog(format,bytes){
 }
 function measurement(ledgerByteCount=null){
  if(!artifact)return;
- const r=M.m64CompressionReport(measurementSource||source,artifact,ledgerByteCount);
+ let estimated=false,recordBytes=ledgerByteCount;
+ if(recordBytes===null){
+  try{
+   const d=chiselSelection(),dict=M.parseEip155DictionaryRef(artifact.dictionary.ref);
+   if(d.chainId===dict.chainId){
+    // Fixed-width template locator/hash makes this an exact record-byte projection
+    // even before the renderer-template transaction has been published.
+    recordBytes=M.packLedgerProgram(artifact,{
+      carrier:d.ref,templateTx:"0x"+"0".repeat(64),templateSha256:"0".repeat(64)
+    }).length;
+    estimated=true;
+   }
+  }catch(_){}
+ }
+ const r=M.m64CompressionReport(measurementSource||source,artifact,recordBytes);
  function pct(value){return value===null?"n/a":value.toFixed(1)+"%"}
+ const diff=recordBytes===null?null:r.sourceBytes-recordBytes;
  show("compressionStatus","Baseline ("+measurementSourceType+"): "+r.sourceBytes+" bytes | canonical: "+r.canonicalBytes+
- "\nAbstract M64 stream (not published): "+r.rawPayloadBytes+" bytes | published M64 text: "+r.m64Characters+" chars / "+r.payloadTextBytes+" bytes | full v3 JSON: "+r.jsonBytes+" bytes"+
- "\nAbstract stream savings vs canonical: "+pct(r.rawSavingsPct)+" | M64 TEXT savings vs canonical: "+pct(r.textSavingsPct)+
- (ledgerByteCount===null?"\nLedger envelope: pending template and Chisel address":"\nComplete ledger program record: "+r.ledgerRecordBytes+" bytes | savings vs "+measurementSourceType+": "+pct(r.envelopeSavingsPct))+
- "\nComplete record includes M64 text and references; excludes dictionary creation, on-chain gas, HTML-template transaction and ABI/event overhead. RPC hex display does not double stored bytes.");
+ "\nAbstract M64 stream (not published): "+r.rawPayloadBytes+" bytes | M64 text: "+r.m64Characters+" characters / "+r.payloadTextBytes+" bytes | v3 JSON: "+r.jsonBytes+" bytes"+
+ "\nM64 TEXT vs canonical: "+pct(r.textSavingsPct)+" | internal abstract stream vs canonical: "+pct(r.rawSavingsPct)+
+ (recordBytes===null?"\nComplete Chisel program record: enter both contract addresses to calculate":
+ "\n"+(estimated?"Projected":"Actual")+" Chisel program record: "+r.ledgerRecordBytes+" bytes | "+
+ (diff>=0?"SAVED ":"EXPANDED ") +Math.abs(diff)+" bytes vs "+measurementSourceType+
+ " ("+pct(r.envelopeSavingsPct)+" net savings)")+
+ "\nRecord includes dictionary address, full metadata, template locator and exact M64 text. Excludes shared dictionary/template setup, gas, duplicated event/calldata costs and IPFS packaging. Hex displayed by RPC does not double stored bytes.");
 }
 async function publishRendererTemplate(){
  try{
