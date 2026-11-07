@@ -64,6 +64,11 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <div id="dictStatus" class="status">Dictionary address set; on-chain state not yet inspected in this session.</div>
 <div id="termUsage" class="status">No compression analysis yet.</div>
 <p class="small"><strong>Renderer transaction:</strong> Chisel-only log of reusable HTML. <strong>Program transaction:</strong> Chisel log of exact M64 text, referring to the M64Dictionary address and the renderer-template transaction. Preview buttons prepare unsigned data; publishing requires wallet approval.</p>
+<p class="small"><strong>Wallet execution:</strong> MetaMask may route a requested Chisel call through its Delegation Manager. This is wallet smart-account behavior, not a separate Polygon network. Chisel cannot disable it. To revert on Polygon, use MetaMask → Account details → Smart account and disable Polygon, confirming any wallet transaction.</p>
+<div class="actions"><button id="inspectWalletRoute">Inspect connected wallet (read-only)</button></div>
+<label class="small"><input id="requireStandardAccount" type="checkbox" checked> Refuse publication when account contract or EIP-7702 delegation code is detected</label>
+<div id="walletRouteStatus" class="status">Wallet route not inspected. An unsigned Chisel transaction preview does not guarantee MetaMask's eventual broadcast destination. No wallet settings are changed here.</div>
+<p class="small"><a href="https://support.metamask.io/configure/accounts/switch-to-or-revert-from-a-smart-account/" target="_blank" rel="noopener noreferrer">MetaMask instructions for reverting to a standard account</a>. The page checks the final transaction destination and Chisel event after mining.</p>
 <div class="actions"><button id="prepareTemplateTx">Preview renderer transaction (Chisel only)</button><button id="prepareProgramTx">Preview program transaction (Chisel + M64 reference)</button></div>
 <details><summary>Unsigned Polygon transaction data (read-only)</summary><textarea data-fixed-width id="unsignedTx" readonly spellcheck="false" aria-label="Unsigned Polygon transaction JSON" style="min-height:150px"></textarea><button id="copyUnsignedTx">Copy unsigned transaction JSON</button></details>
 <div id="unsignedTxStatus" class="status">No unsigned transaction prepared. A preview is not a mined Polygon transaction.</div>
@@ -430,6 +435,28 @@ async function readChiselLog(txHash,format){
  }
  throw Error("No "+format+" RecordLogged event from this Chisel contract");
 }
+async function inspectWalletRoute(accountOverride){
+ const wallet=window.ethereum;
+ if(!wallet?.request)throw Error("No connected EIP-1193 wallet. Connect a wallet to inspect its account.");
+ const d=chiselSelection();
+ const chain=Number(BigInt(await wallet.request({method:"eth_chainId"})));
+ if(chain!==d.chainId)throw Error("Wallet is on chain "+chain+"; switch to Polygon chain "+d.chainId);
+ const accounts=await wallet.request({method:"eth_accounts"});
+ const account=accountOverride||accounts?.[0];
+ if(!account||!ethers.isAddress(account))throw Error("No connected account. Connect the wallet first; inspection does not request a signature.");
+ const address=ethers.getAddress(account);
+ const code=String(await wallet.request({method:"eth_getCode",params:[address,"latest"]})).toLowerCase();
+ if(!/^0x([0-9a-f]{2})*$/.test(code))throw Error("Invalid account code returned by wallet RPC");
+ const hasCode=code!=="0x",is7702=code.startsWith("0xef0100");
+ const classification=is7702?"EIP-7702 delegation code detected":hasCode?"Account has contract bytecode":"No account bytecode detected at this block";
+ show("walletRouteStatus","Account: "+address+"\nChain: "+chain+"\n"+classification+
+   "\nDirect-only guard: "+(S("requireStandardAccount").checked?"on":"off")+
+   "\nWallet routing may still change at signing; this is a preflight check, not a guarantee.",!hasCode);
+ return {account:address,hasCode,is7702};
+}
+async function inspectWalletRouteClick(){
+ try{await inspectWalletRoute()}catch(e){show("walletRouteStatus","Inspection unavailable: "+String(e.message||e),false)}
+}
 async function writeChiselLog(format,bytes){
  const d=chiselSelection(),wallet=window.ethereum;
  if(!wallet?.request)throw Error("No EIP-1193 wallet available for Chisel publication");
@@ -439,6 +466,10 @@ async function writeChiselLog(format,bytes){
  const provider=new ethers.BrowserProvider(wallet);
  await verifyChiselAddress(d);
  const signer=await provider.getSigner();
+ const accountStatus=await inspectWalletRoute(await signer.getAddress());
+ if(S("requireStandardAccount").checked&&accountStatus.hasCode)
+  throw Error("Direct-only publication guard stopped this write. The account has "+
+   (accountStatus.is7702?"EIP-7702 delegated":"contract")+" code on Polygon. Disable Smart account for Polygon in MetaMask, or uncheck the guard only if you intentionally accept delegated execution.");
  const contract=new ethers.Contract(d.address,CHISEL_LOG_ABI,signer);
  const tx=await contract.logRecord(ethers.id(format),ethers.hexlify(bytes));
  const receipt=await tx.wait();
@@ -452,7 +483,10 @@ async function writeChiselLog(format,bytes){
   }catch(e){return false}
  });
  if(!logged)throw Error("Transaction mined but exact RecordLogged bytes not found; inspect: "+tx.hash);
- return {txHash:tx.hash,block:receipt.blockNumber};
+ let outerTo=null;
+ try{const outer=await provider.getTransaction(tx.hash);outerTo=outer?.to||null}catch(_){}
+ return {txHash:tx.hash,block:receipt.blockNumber,requestedTo:d.address,outerTo,
+  route:outerTo?(outerTo.toLowerCase()===d.address.toLowerCase()?"direct-to-Chisel":"routed-via-other-contract"):"unverified"};
 }
 function measurement(ledgerByteCount=null){
  if(!artifact)return;
@@ -494,7 +528,7 @@ async function publishRendererTemplate(){
   S("templateTx").value=receipt.txHash;
   rememberConfirmedTemplateTx(receipt.txHash);
   updateTemplateStep();
-  show("ledgerStatus","Renderer template published and exact event bytes verified.\nTransaction: "+receipt.txHash+"\nBlock: "+receipt.block+"\nSHA-256: "+prepared.detail.templateSha256,true);
+  show("ledgerStatus","Renderer template published and exact event bytes verified.\nTransaction: "+receipt.txHash+"\nBlock: "+receipt.block+"\nRequested Chisel: "+receipt.requestedTo+"\nActual transaction To: "+(receipt.outerTo||"unavailable")+"\nExecution route: "+receipt.route+"\nSHA-256: "+prepared.detail.templateSha256,true);
  }catch(e){show("ledgerStatus","Template publication failed: "+String(e.message||e),false)}
 }
 async function publishM64Program(){
@@ -513,6 +547,7 @@ async function publishM64Program(){
   S("programTx").value=receipt.txHash;
   show("ledgerStatus","Program published and exact event bytes verified.\nTransaction: "+receipt.txHash+"\nBlock: "+receipt.block+
     "\nDictionary: "+prepared.detail.dictionary+"\nTemplate: "+prepared.detail.templateTx+
+    "\nRequested Chisel: "+receipt.requestedTo+"\nActual transaction To: "+(receipt.outerTo||"unavailable")+"\nExecution route: "+receipt.route+
     "\nRecord bytes: "+prepared.bytes.length+"\nM64 text preserved unchanged; EVM displays bytes as hex.\nNo IPFS publication performed yet.",true);
  }catch(e){show("ledgerStatus","Program publication failed: "+String(e.message||e),false)}
 }
@@ -620,6 +655,7 @@ S("preset").onclick=()=>download(new Blob([JSON.stringify({kind:"dark-star-z-inp
 S("savePage").onclick=async()=>{try{show("renderStatus","bundling standalone page…");const html=ledgerRebuiltHtml||await portablePageHtml();download(new Blob([html],{type:"text/html"},),"dark-star-z.html");show("renderStatus","Self-contained HTML saved; "+html.length+" characters.",true)}catch(e){show("renderStatus","HTML export failed: "+String(e.message||e),false)}};
 S("load").onclick=loadCid;S("inspect").onclick=()=>inspect(false);S("dictNext").onclick=()=>inspect(true);S("build").onclick=build;S("extendDictionary").onclick=extendDictionary;S("pin").onclick=publish;
 S("prepareTemplateTx").onclick=()=>previewTransaction("template");S("prepareProgramTx").onclick=()=>previewTransaction("program");S("copyUnsignedTx").onclick=copyTransaction;
+S("inspectWalletRoute").onclick=inspectWalletRouteClick;S("requireStandardAccount").onchange=()=>show("walletRouteStatus","Publication guard "+(S("requireStandardAccount").checked?"enabled":"disabled")+". Reinspect the wallet before publishing. This cannot change MetaMask settings or force its broadcast route.");
 S("publishTemplate").onclick=publishRendererTemplate;S("publishProgram").onclick=publishM64Program;
 S("templateTx").addEventListener("input",updateTemplateStep);
 S("chiselAddress").addEventListener("change",()=>{restoreTemplateTx();unsignedTxCache=null;S("unsignedTx").value="";});
