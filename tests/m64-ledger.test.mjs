@@ -142,3 +142,35 @@ test('workbench surfaces both contract inputs, read-only compression and full-re
    'id="extendDictionary"','learn:false','Projected','calldataSavingsPct','id="publishProgram"'])
    assert.ok(html.includes(required),required);
 });
+
+test('workbench distinguishes unsigned previews from mined renderer-template transaction hashes',async()=>{
+ const html=await readFile(new URL('../tools/m64Artifact/dark-star-z.html',import.meta.url),'utf8');
+ assert.ok(html.includes('A preview is not a mined Polygon transaction'));
+ assert.ok(html.includes('if(kind==="program"&&!TX_HASH_RE.test(S("templateTx").value.trim()))'));
+ assert.ok(html.includes('await prepareChiselTransaction("template")'));
+ assert.ok(html.includes('RENDERER PREVIEW READY (NOT BROADCAST)'));
+ assert.ok(html.includes('rememberConfirmedTemplateTx(receipt.txHash)'));
+ assert.ok(html.includes('getRememberedTemplateTx()'));
+ assert.ok(html.includes('The unsigned preview is not a published transaction'));
+});
+
+test('EVM addresses and transaction hash fields use fixed-width presentation across tools',async()=>{
+ const root=await readFile(new URL('../index.html',import.meta.url),'utf8');
+ assert.ok(root.includes('select[id*="address" i] option'));
+ assert.ok(root.includes('font-variant-ligatures: none'));
+ const html=await readFile(new URL('../tools/m64Artifact/dark-star-z.html',import.meta.url),'utf8');
+ for(const id of ['dictionary','chiselAddress','templateTx','programTx']){
+  assert.ok(html.includes('data-fixed-width id="'+id+'"'),id);
+ }
+ assert.ok(html.includes('font-kerning:none'));
+ for(const path of ['dictionary-polygon.html','packet-polygon.html']){
+  const tool=await readFile(new URL('../tools/m64Artifact/'+path,import.meta.url),'utf8');
+  assert.ok(tool.includes('font-variant-ligatures:none'),path);
+ }
+});
+
+test('outer workbench iframe forwards known contract and transaction query fields',async()=>{
+ const html=await readFile(new URL('../tools/m64Artifact/index.html',import.meta.url),'utf8');
+ assert.ok(html.includes('darkstarWorkbench'));
+ assert.ok(html.includes('"templateTx","programTx"'));
+});
