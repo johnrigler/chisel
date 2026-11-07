@@ -30,9 +30,9 @@ details{margin-top:12px}
 summary{cursor:pointer}
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
-<script src="./factory.js?rev=20261107-constructor-args" defer></script>
+<script src="./factory.js?rev=20261107-immutable-read" defer></script>
 <script src="../m64Artifact/seeds/darkstar-native6-v1.js?rev=20261107-constructor-args" defer></script>
-<script src="./app.js?rev=20261107-constructor-args" defer></script>
+<script src="./app.js?rev=20261107-immutable-read" defer></script>
 </head>
 <body><main>
 <header>
@@ -82,6 +82,14 @@ summary{cursor:pointer}
 <button id="deploy" class="primary" type="button" disabled>Deploy reviewed contract</button>
 <button id="receipt" type="button" disabled>Check transaction receipt</button>
 <pre id="deploymentStatus">Nothing submitted.</pre>
+</section>
+<section class="panel">
+<h2>4. Inspect a deployed M64 contract (read-only)</h2>
+<p>Paste a Polygon contract address and inspect the live getter values through your selected EIP-1193 provider. This does not sign or send a transaction. Runtime comparisons account for compiler-declared immutable references when available.</p>
+<label for="inspectAddress">Deployed M64 Symbol Dictionary address</label>
+<input id="inspectAddress" type="text" spellcheck="false" placeholder="0x...">
+<button id="inspectM64" type="button">Read M64 metadata and dictionary snapshot</button>
+<pre id="inspectStatus">No contract inspected. This read-only check validates the reported metadata, entry counts and snapshot hashes, not full source equivalence.</pre>
 </section>
 </main></body>
 </html>
