@@ -114,16 +114,29 @@ describe("M64SymbolDictionary (native six-bit contract)", function () {
       .to.be.revertedWithCustomError(dict, "TruncatedIndex");
   });
 
-  it("rejects invalid initial tables, mismatched seed arrays, and incomplete initial definitions", async function () {
-    const witness = await deploy();
-    const options: [string, string, string[], string[], number[]] = [
-      "text/javascript", "Test dictionary", primary().slice(0, 61), [], []
-    ];
-    await expect(ethers.deployContract("M64SymbolDictionary", options))
-      .to.be.revertedWithCustomError(witness, "WrongPrimaryCount");
-    await expect(ethers.deployContract("M64SymbolDictionary", [
-      "text/javascript", "Test dictionary", primary(), [packed6([0])], []
-    ])).to.be.reverted;
+  it("rejects invalid initial tables and mismatched seed arrays", async function () {
+    async function expectDeployFailure(args: unknown[], expectedError: string) {
+      let failure: unknown = null;
+      try {
+        await ethers.deployContract("M64SymbolDictionary", args);
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure, "deployment must reject").not.to.equal(null);
+      expect(String(failure)).to.include(expectedError);
+    }
+
+    await expectDeployFailure([
+      "text/javascript", "Test dictionary", primary().slice(0, 61), [], [],
+    ], "WrongPrimaryCount");
+
+    await expectDeployFailure([
+      "text/javascript", "Test dictionary", primary(), [packed6([0])], [],
+    ], "LengthMismatch");
+
+    await expectDeployFailure([
+      "", "Test dictionary", primary(), [], [],
+    ], "EmptyMetadata");
   });
 
   it("does not expose an owner, mutable primary symbols or arbitrary secondary edits", async function () {
