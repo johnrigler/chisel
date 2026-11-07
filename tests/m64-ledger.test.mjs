@@ -87,7 +87,7 @@ test('compression report distinguishes internal abstract bytes, published M64 te
  assert.equal(info.payloadTextBytes,artifact.payload.length);
  assert.equal(info.rawPayloadBytes,M.decode64(artifact.payload,M.M64_V3_CODEC.alphabet).length);
  assert.equal(info.ledgerRecordBytes,ledger.length);
- assert.equal(info.envelopeSavingsPct,100*(1-ledger.length/info.sourceBytes));
+ assert.ok(Math.abs(info.envelopeSavingsPct-100*(1-ledger.length/info.sourceBytes))<1e-9);
  assert.ok(ledger.length>artifact.payload.length);
 });
 
