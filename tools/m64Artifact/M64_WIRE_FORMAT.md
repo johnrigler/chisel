@@ -1,6 +1,39 @@
 # M64 v3 transport, Chisel ledger records, and hexadecimal EVM rendering
 
-Status: implementation note for the dual-contract Dark Star Z experiment. The ledger envelope described here is **version 2**. The earlier unmerged prototype used a different byte payload; do not confuse them or decode version 2 as version 1.
+**Current proposal: CM64 binary record v3**, using the existing M64 dictionary codec. The version 2 JSON-header records below remain historical and readable. The v3 change is designed for a single compressed-program transaction, with no JSON in ledger bytes. No v3 transaction has been broadcast from this change.
+
+## CM64 binary program record v3
+
+The format is a byte serialization, not serialized JSON:
+
+| Field | Encoding |
+| --- | --- |
+| Magic | Four raw bytes `43 4d 36 34` ("CM64") |
+| Version | Single byte `03` |
+| Chain ID | Unsigned LEB128-style varint |
+| Chisel contract | 20 raw address bytes |
+| Dictionary contract | 20 raw address bytes |
+| Dictionary version | Unsigned varint |
+| Renderer-template transaction hash | 32 raw bytes |
+| Renderer-template SHA-256 | 32 raw bytes |
+| Canonical program SHA-256 | 32 raw bytes |
+| Canonical byte count | Unsigned varint |
+| JavaScript language version | Length-prefixed short ASCII string |
+| Canonical entry function | Length-prefixed short ASCII string |
+| Input schema | Unsigned varint: 0 absent; 1 fixed-order Dark Star signed integers; 2 sorted numeric field-name/value pairs |
+| Compressed program | Remaining raw decoded M64 token-stream bytes, **not Base64 text** |
+
+All numeric parameter values use zigzag signed varints. The fixed Dark Star schema is deliberately defined by the named ordering in `DARK_STAR_INPUT_KEYS` in `m64.ledger.js`. Generic numeric maps use lexicographically ordered short ASCII keys and signed varints. Unknown schema numbers must fail, not fall back to JSON. The language/runtime/canonicalizer/codec currently supported by v3 are fixed by the version and decoder, rather than redundantly restated as strings. If these conventions change, introduce a new version.
+
+The rendered M64 Base64url alphabet stays exactly `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_`. The decoder reconstructs that display representation from the raw bytes; the ledger itself never pays to store the display characters. The underlying dictionary stream uses `0x80..0xBF` for indexes 0..63, `0xC0` plus a varuint for larger indexes, and ASCII bytes for literals. **That is one byte per dictionary index, not six-bit packing.** The 64-character transport does not automatically imply six-bit storage for a mixed literal/index stream. Any subsequent bit-packing optimization needs its own codec/version and measured byte/gas savings.
+
+The `logRecord(bytes32,bytes)` call still wraps the program bytes in EVM ABI calldata and emits a Chisel event. That repeats payload bytes in calldata and the log. It is preserved for this compatibility iteration, **not** claimed to be the minimum-gas publication method. Compare with a direct calldata-only carrier separately. The `chisel-m64-program-v3` event format is distinct from `chisel-m64-program-v2`, and the reader accepts either while validating its envelope version.
+
+**Off-chain diagnostics:** raw/canonical/program byte counts, percentage savings, projected gas, and the JSON shown in the unsigned-transaction inspector are UI-only. The signing request carries only the chain ID, destination, value, and EVM calldata. No compression-report values are included in CM64 v3. The reader can rebuild and verify the record using a node/RPC, Chisel's template log, and the referenced dictionary. The wallet is not needed for reconstruction.
+
+## CM64 envelope v2 (historical, backward-readable)
+
+Status: historical description of v2 below, with the current v3 binary candidate specified above. The earlier unmerged prototype used a different byte payload; do not confuse it with deployed v2 or candidate v3.
 
 ## Three layers, three different purposes
 
