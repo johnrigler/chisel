@@ -41,7 +41,7 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <section class="panel"><h2>Rendered output</h2><canvas id="canvas" width="1400" height="900" aria-label="Dark Star Z rendered landscape"></canvas>
 <p class="small">Image is computed in a restricted iframe from the active program. Parameter changes re-run the same hydrated source.</p></section>
 <section class="panel"><h2>Publish / reconstruct from two contracts</h2>
-<p class="small">The M64 dictionary holds symbol IDs. Chisel logs hold the compressed program and a standalone renderer-template reference. Both are required for ledger-only reconstruction.</p>
+<p class="small">The M64 dictionary holds symbol IDs. Chisel logs preserve the exact 64-character-alphabet M64 text (transported as UTF-8 bytes, shown as hex in EVM tools) and a standalone renderer template. Both contracts are required for ledger-only reconstruction. <a href="M64_WIRE_FORMAT.md">Wire format and compression accounting</a>.</p>
 <label class="small" for="chiselAddress">Chisel contract address (Polygon)</label>
 <input id="chiselAddress" style="width:100%" placeholder="0x… Chisel with logRecord(bytes32,bytes)" spellcheck="false">
 <div class="actions"><button id="publishTemplate">1. Publish HTML renderer template</button></div>
@@ -234,10 +234,10 @@ function measurement(ledgerByteCount=null){
  const r=M.m64CompressionReport(source,artifact,ledgerByteCount);
  function pct(value){return value===null?"n/a":value.toFixed(1)+"%"}
  show("compressionStatus","Source: "+r.sourceBytes+" bytes | canonical: "+r.canonicalBytes+
- "\nM64 binary: "+r.rawPayloadBytes+" bytes | text: "+r.payloadTextBytes+" chars | full v3 JSON: "+r.jsonBytes+" bytes"+
- "\nBinary vs canonical savings: "+pct(r.rawSavingsPct)+
+ "\nAbstract M64 stream (not published): "+r.rawPayloadBytes+" bytes | published M64 text: "+r.m64Characters+" chars / "+r.payloadTextBytes+" bytes | full v3 JSON: "+r.jsonBytes+" bytes"+
+ "\nAbstract stream savings vs canonical: "+pct(r.rawSavingsPct)+" | M64 TEXT savings vs canonical: "+pct(r.textSavingsPct)+
  (ledgerByteCount===null?"\nLedger envelope: pending template and Chisel address":"\nComplete ledger program record: "+r.ledgerRecordBytes+" bytes | savings vs original JS: "+pct(r.envelopeSavingsPct))+
- "\nExcludes dictionary storage, on-chain gas, HTML-template transaction, and ABI/event overhead.");
+ "\nComplete record includes M64 text and references; excludes dictionary creation, on-chain gas, HTML-template transaction and ABI/event overhead. RPC hex display does not double stored bytes.");
 }
 async function publishRendererTemplate(){
  try{
@@ -262,12 +262,12 @@ async function publishM64Program(){
   if(dictionary.chainId!==carrier.chainId)throw Error("Current v1 flow requires Chisel and dictionary on the same chain");
   const bytes=M.packLedgerProgram(artifact,{carrier:carrier.ref,templateTx:template.txHash,templateSha256});
   measurement(bytes.length);
-  show("ledgerStatus","Requesting wallet approval for M64 program log ("+bytes.length+" bytes). Dictionary: "+artifact.dictionary.ref);
+  show("ledgerStatus","Requesting wallet approval for Chisel log ("+bytes.length+" UTF-8 envelope bytes, including "+artifact.payload.length+" original M64 characters). Dictionary: "+artifact.dictionary.ref);
   const receipt=await writeChiselLog(M.M64_LEDGER_PROGRAM_FORMAT,bytes);
   S("programTx").value=receipt.txHash;
   show("ledgerStatus","Program published to Chisel.\nTransaction: "+receipt.txHash+"\nBlock: "+receipt.block+
     "\nDictionary: "+artifact.dictionary.ref+"\nTemplate: "+template.txHash+
-    "\nRecord bytes: "+bytes.length+"\nNo IPFS publication performed yet.",true);
+    "\nRecord bytes: "+bytes.length+"\nM64 text was preserved unchanged; EVM displays bytes as hex.\nNo IPFS publication performed yet.",true);
  }catch(e){show("ledgerStatus","Program publication failed: "+String(e.message||e),false)}
 }
 function assembleLedgerPage(template,code,entry,input){
@@ -305,7 +305,7 @@ async function rebuildFromLedger(){
    "\nChisel renderer template: "+pkg.template.tx+
    "\nDictionary: "+artifact.dictionary.ref+
    "\nCanonical SHA-256: "+hydrated.sha256+
-   "\nStandalone HTML: "+M.utf8Len(html)+" bytes\nHTML SHA-256: "+await M.sha256HexUtf8(html)+
+   "\nM64 text: "+pkg.m64Characters+" characters (preserved verbatim)\nStandalone HTML: "+M.utf8Len(html)+" bytes\nHTML SHA-256: "+await M.sha256HexUtf8(html)+
    "\nStandalone page includes all landscape controls. Save HTML or publish as a page to IPFS.\nNo program was executed automatically.",true);
   const canvas=S("canvas");canvas.width=1;canvas.height=1;
   show("renderStatus","Ledger source verified. Select Render to execute.",true);
