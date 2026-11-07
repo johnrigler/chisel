@@ -34,6 +34,26 @@
         "error EmptyTerm()"
       ])
     }),
+    "m64.symbol.v2": Object.freeze({
+      id: "m64.symbol.v2",
+      title: "M64 Native Six-Bit Symbol Dictionary",
+      abi: Object.freeze([
+        "function codecVersion() view returns (uint32)",
+        "function dictionaryVersion() view returns (uint32)",
+        "function name() view returns (string)",
+        "function symbol() view returns (string)",
+        "function language() view returns (string)",
+        "function mediaType() view returns (string)",
+        "function description() view returns (string)",
+        "function primaryCount() view returns (uint256)",
+        "function secondaryCount() view returns (uint256)",
+        "function primary(uint256) view returns (bytes)",
+        "function entry(uint256) view returns (uint8,bytes,uint32)",
+        "function primaryDigest() view returns (bytes32)",
+        "function definitionDigest() view returns (bytes32)",
+        "function digestAtCount(uint256) view returns (bytes32)"
+      ])
+    }),
     "chisel.v1": Object.freeze({
       id: "chisel.v1",
       title: "Mogwai / Chisel v1",
@@ -77,6 +97,14 @@
       runtimeBytecodeHash: null,
       deploymentStatus: "not-registered"
     }),
+    "m64.symbol.v2": Object.freeze({
+      id: "m64.symbol.v2", language: "Solidity",
+      interfaceId: "m64.symbol.v2",
+      source: "contracts/M64SymbolDictionary.sol",
+      compiledArtifact: null,
+      runtimeBytecodeHash: null,
+      deploymentStatus: "user-reported-receipt; on-chain value verification required"
+    }),
     "chisel.v1": Object.freeze({
       id: "chisel.v1", language: "Solidity",
       interfaceId: "chisel.v1", source: "contracts/Chisel.sol",
@@ -94,6 +122,13 @@
       id: "jethro.polygon.137", name: "Jethro", chainId: 137,
       address: "0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0",
       implementationId: "jethro.legacy.v1", interfaceId: "jethro.mapArtifact.v1"
+    }),
+    "m64.symbol.polygon.137": Object.freeze({
+      id: "m64.symbol.polygon.137", name: "M64 Native Six-Bit Symbol Dictionary", chainId: 137,
+      address: "0xe6e9df9f49b1ab4417129454991466adc9923f8c",
+      deploymentTxHash: "0x65c4fc0590df5f660561c5c16c796fdb2849eab135c0774ff14cca50b6f47a7c",
+      implementationId: "m64.symbol.v2", interfaceId: "m64.symbol.v2",
+      verificationStatus: "mined-receipt-reported; runtime-present; exact seed verification required"
     }),
     "chisel.polygon.137": Object.freeze({
       id: "chisel.polygon.137", name: "Mogwai / Chisel", chainId: 137,
