@@ -324,9 +324,16 @@
       } else if (result.state === "reverted") {
         show("deploymentStatus", "MINED AND REVERTED. Gas may have been charged.\nHash: " + result.hash + "\nBlock: " + result.block);
       } else {
-        const comparison = result.runtimeMatch === true ? "matches compiled runtime exactly" :
-          result.runtimeMatch === false ? "DIFFERS from compiled runtime; investigate immutables, linking or mismatched build" :
-          "no compiled runtime supplied for comparison";
+        const check=result.runtimeComparison || {};
+        const comparison = check.status==="exact" ? "MATCH: exact compiled runtime" :
+          check.status==="immutable-adjusted" ?
+            "MATCH outside " + check.ignoredBytes + " bytes at compiler-declared immutable locations (constructor-initialized runtime)" :
+          check.status==="mismatch" && check.immutableReferencesMissing ?
+            "INCONCLUSIVE: runtime differs; imported artifact lacks Solidity immutableReferences. Recompile with deployedBytecode.immutableReferences or inspect read-only state below." :
+          check.status==="mismatch" ?
+            "DIFFERS outside compiler-declared immutables; investigate artifact, linking and compiler settings" :
+            "no compiled runtime supplied for comparison";
+        $("inspectAddress").value = result.address;
         show("deploymentStatus", [
           "MINED, RUNTIME CODE PRESENT",
           "Hash: " + result.hash,
@@ -339,6 +346,40 @@
         ].join("\n"));
       }
     } catch (err) { error("deploymentStatus", err); }
+  });
+
+
+  $("inspectM64").addEventListener("click",async()=>{
+    const button=$("inspectM64");
+    if(button.disabled)return;
+    button.disabled=true;
+    show("inspectStatus","Reading M64 contract metadata and snapshot digests from the selected wallet provider. This sends only eth_call requests, not a transaction.");
+    try {
+      const address=$("inspectAddress").value.trim();
+      const chain=api.expectedChain($("chain").value);
+      const info=await api.inspectM64Dictionary(wallet(),address,chain);
+      show("inspectStatus",[
+        info.consistent ? "READ-ONLY STATE CHECKS PASSED" : "STATE INCONSISTENCY: CHECK CONTRACT BEFORE USING",
+        "Chain ID: "+info.chainId,
+        "Address: "+info.address,
+        "Runtime bytes: "+info.codeBytes,
+        "Name: "+info.name,
+        "Symbol: "+info.symbol,
+        "Language: "+info.language,
+        "Media type: "+info.mediaType,
+        "Description: "+info.description,
+        "Codec version: "+info.codecVersion,
+        "Dictionary version: "+info.dictionaryVersion,
+        "Primary entries: "+info.primaryCount,
+        "Secondary entries: "+info.secondaryCount,
+        "Primary digest: "+info.primaryDigest,
+        "Definition digest: "+info.definitionDigest,
+        "Digest at 0 matches primary: "+(info.baseDigest===info.primaryDigest),
+        "Digest at secondaryCount matches latest: "+(info.snapshotDigest===info.definitionDigest),
+        "These state checks do not constitute verified Solidity source or a full 62+ entry audit."
+      ].join("\n"));
+    } catch(err) {error("inspectStatus",err);}
+    finally {button.disabled=false;}
   });
 
   discover();
