@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dark Star Z | M64 Ledger-Reconstructed Landscape</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b0c10;color:#edf0f7;font:14px/1.45 system-ui,sans-serif}
+main{max-width:1420px;padding:14px;margin:auto}h1{font-size:21px;margin:0}h2{font-size:15px;margin:0 0 10px}small{color:#aeb8ca}
+.cols{display:grid;grid-template-columns:minmax(300px,380px) minmax(400px,1fr);gap:12px;margin-top:12px}
+.panel{background:#171921;border:1px solid #343948;border-radius:8px;padding:12px;margin-bottom:12px}
+.control{display:grid;grid-template-columns:96px 1fr 76px;gap:8px;align-items:center;margin:6px 0}
+.control label{font-size:12px;color:#aeb8ca}button,input{font:inherit;border:1px solid #343948;background:#10131b;color:inherit;border-radius:5px;padding:7px}
+input[type=range]{padding:0;width:100%;accent-color:#a2bdfa}input[type=number]{font:12px ui-monospace,monospace;width:100%}
+button{cursor:pointer}.actions{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
+canvas{display:block;width:100%;height:auto;max-height:75vh;background:#000;border:1px solid #343948}
+pre{font:12px/1.45 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#b1c0d4}
+@media(max-width:840px){.cols{grid-template-columns:1fr}.control{grid-template-columns:86px 1fr 68px}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Dark Star Z</h1><small>Standalone M64 reconstruction. All code and landscape controls are embedded; no runtime network requests.</small></header>
+<div class="cols">
+<section class="panel"><h2>Landscape controls</h2><div id="controls"></div>
+<div class="actions"><button id="render">Render</button><button id="reset">Reset</button><button id="png">Save PNG</button><button id="preset">Save parameters</button></div>
+<pre id="status">Ready. Review this artifact before selecting Render; it contains JavaScript reconstructed from a ledger program.</pre></section>
+<section class="panel"><h2>Rendered output</h2><canvas id="canvas" width="1400" height="900"></canvas>
+<small>The renderer executes only inside a restricted sandbox iframe, with a 10-second timeout.</small></section>
+</div>
+</main>
+<script id="m64-source" type="application/json">__CHISEL_SOURCE_JSON__</script>
+<script id="m64-entry" type="application/json">__CHISEL_ENTRY_JSON__</script>
+<script id="m64-input" type="application/json">__CHISEL_INPUT_JSON__</script>
+<script>
+"use strict";
+const S=id=>document.getElementById(id);
+const source=JSON.parse(S("m64-source").textContent),entry=JSON.parse(S("m64-entry").textContent),initial=JSON.parse(S("m64-input").textContent);
+const DEFAULT={width:1400,height:900,lines:1600,yLeft:120,yRight:160,dyLeft:1,dyRight:2,slopeEvery:73,ddyLeft:0,ddyRight:-1,r:24,g:98,b:180,dr:1,dg:2,db:-1,colorEvery:137,ddr:1,ddg:-1,ddb:1,seed:124771};
+const SPEC=[["width",240,2200,20],["height",160,1600,20],["lines",10,4500,10],["yLeft",-800,1600,1],["yRight",-800,1600,1],["dyLeft",-12,12,1],["dyRight",-12,12,1],["slopeEvery",0,350,1],["ddyLeft",-5,5,1],["ddyRight",-5,5,1],["r",0,255,1],["g",0,255,1],["b",0,255,1],["dr",-12,12,1],["dg",-12,12,1],["db",-12,12,1],["colorEvery",0,350,1],["ddr",-5,5,1],["ddg",-5,5,1],["ddb",-5,5,1]];
+let everRendered=false,renderTimer=0,runIndex=0;
+function show(v){S("status").textContent=v}
+function params(){const p={seed:DEFAULT.seed};for(const [k] of SPEC)p[k]=Number(S("p_"+k).value);return p}
+function apply(p){for(const [k,min,max] of SPEC){const v=Number(p&&p[k]);const n=Number.isFinite(v)?Math.min(max,Math.max(min,Math.round(v))):DEFAULT[k];S("p_"+k).value=S("r_"+k).value=n}}
+function schedule(){if(!everRendered)return;clearTimeout(renderTimer);renderTimer=setTimeout(render,200)}
+function controls(){for(const [k,min,max,step] of SPEC){const d=document.createElement("div");d.className="control";
+const lab=document.createElement("label");lab.textContent=k;lab.htmlFor="r_"+k;
+const range=document.createElement("input");range.type="range";range.id="r_"+k;range.min=min;range.max=max;range.step=step;
+const num=document.createElement("input");num.type="number";num.id="p_"+k;num.min=min;num.max=max;num.step=step;
+range.addEventListener("input",()=>{num.value=range.value;schedule()});
+num.addEventListener("change",()=>{let v=Number(num.value);if(!Number.isFinite(v))v=DEFAULT[k];v=Math.min(max,Math.max(min,Math.round(v)));num.value=range.value=v;schedule()});
+d.append(lab,range,num);S("controls").append(d)}apply(initial&&typeof initial==="object"?initial:DEFAULT)}
+function sandbox(code,name,arg){return new Promise((resolve,reject)=>{
+if(!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name))return reject(Error("Invalid program entry"));
+const f=document.createElement("iframe");f.setAttribute("sandbox","allow-scripts");f.style.display="none";
+const id=Math.random().toString(36).slice(2),end=()=>{clearTimeout(timer);removeEventListener("message",listener);f.remove()};
+const timer=setTimeout(()=>{end();reject(Error("Execution exceeded 10 seconds"))},10000);
+function listener(e){if(e.source!==f.contentWindow||!e.data)return;const d=e.data;if(d.kind==="ready")f.contentWindow.postMessage({kind:"run",id,code,name,arg},"*");else if(d.kind==="result"&&d.id===id){end();d.ok?resolve(d.value):reject(Error(d.error))}}
+addEventListener("message",listener);
+f.srcdoc='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' \'unsafe-eval\'; connect-src \'none\'; img-src \'none\';">'+
+'<scr'+'ipt>window.addEventListener("message",function(e){const d=e.data;if(!d||d.kind!=="run")return;try{const fn=new Function("input",d.code+"\\n;return "+d.name+"(input)");parent.postMessage({kind:"result",id:d.id,ok:true,value:fn(d.arg)},"*")}catch(err){parent.postMessage({kind:"result",id:d.id,ok:false,error:String(err)},"*")}});parent.postMessage({kind:"ready"},"*");<'+'/script>';
+document.body.append(f)})}
+async function render(){const seq=++runIndex;try{const p=params();if(!Number.isSafeInteger(p.width)||!Number.isSafeInteger(p.height)||p.width*p.height<1||p.width*p.height>3500000)throw Error("Invalid image dimensions");
+show("Rendering...");const v=await sandbox(source,entry,p);if(seq!==runIndex)return;
+const rgb=v instanceof Uint8Array?v:v instanceof ArrayBuffer?new Uint8Array(v):null;
+if(!rgb||rgb.length!==p.width*p.height*3)throw Error("Program did not return the expected RGB bytes");
+const canvas=S("canvas");canvas.width=p.width;canvas.height=p.height;
+const rgba=new Uint8ClampedArray(p.width*p.height*4);for(let i=0,j=0;i<rgb.length;i+=3,j+=4){rgba[j]=rgb[i];rgba[j+1]=rgb[i+1];rgba[j+2]=rgb[i+2];rgba[j+3]=255}
+canvas.getContext("2d").putImageData(new ImageData(rgba,p.width,p.height),0,0);
+everRendered=true;show("Rendered "+p.width+" × "+p.height+" / "+p.lines+" lines");
+}catch(e){if(seq===runIndex)show("Render failed: "+String(e.message||e))}}
+function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
+controls();
+S("render").onclick=render;
+S("reset").onclick=()=>{apply(DEFAULT);if(everRendered)render()};
+S("png").onclick=()=>S("canvas").toBlob(blob=>{if(blob)download(blob,"dark-star-z.png")},"image/png");
+S("preset").onclick=()=>download(new Blob([JSON.stringify({kind:"dark-star-z-input",version:1,input:params()},null,2)],{type:"application/json"}),"dark-star-z-input.json");
+</script>
+</body>
+</html>
