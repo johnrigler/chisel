@@ -73,7 +73,7 @@ test("native M6P2 binary record roundtrips the seeded Dark Star source by byte a
  assert.deepEqual([...result.source],[...source]);
  assert.notEqual(record[0],123); // not JSON source
  assert.equal(String.fromCharCode(...record.slice(0,4)),"M6P2");
- assert.equal(built.recordBytes,built.wireBytes+92); // header: magic 5 + address 20 + snapshot count 1 + digest 32 + len 1 + sha 32 + prefix overhead 1
+ assert.equal(built.recordBytes,built.wireBytes+91); // header: 5 + 20 + 1 + 32 + 1 + 32
  assert.equal(result.address,addr);
  assert.equal(result.snapshotCount,24);
 });
