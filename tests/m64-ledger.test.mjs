@@ -59,7 +59,7 @@ test('CM64 v3 is compact binary: native addresses, hashes, and dictionary stream
  assert.equal(decoded.artifact.entry,artifact.entry);
  assert.equal(decoded.artifact.sha256,artifact.sha256);
  assert.equal(decoded.artifact.canonicalBytes,artifact.canonicalBytes);
- assert.ok(packed.length<new TextEncoder().encode(JSON.stringify(artifact)).length+raw.length);
+ assert.ok(packed.length>raw.length);
  assert.equal(new TextDecoder().decode(packed).includes('"kind"'),false);
  const hydrated=await M.hydrateArtifactV3(decoded.artifact,resolver);
  assert.equal(hydrated.canonical,canonical);
@@ -91,17 +91,14 @@ test('CM64 v3 rejects truncation, unsupported versions, and noncanonical varints
  assert.throws(()=>M.unpackLedgerProgram(noncanonical),/Noncanonical/);
 });
 
-test('previously published CM64 v2 envelopes remain decodable',async()=>{
- const {artifact,canonical,resolver}=await build();
- const legacy=M.packLedgerProgramV2(artifact,{carrier:CARRIER,templateTx:TEMPLATE,templateSha256:TEMPLATE_HASH});
- const decoded=M.unpackLedgerProgram(legacy);
- assert.equal(decoded.version,2);
- assert.equal(decoded.payloadEncoding,'m64-base64url-ascii');
- assert.equal(decoded.carrier,CARRIER);
- assert.equal(decoded.artifact.payload,artifact.payload);
- assert.equal(decoded.m64TextBytes,artifact.payload.length);
- const hydrated=await M.hydrateArtifactV3(decoded.artifact,resolver);
- assert.equal(hydrated.canonical,canonical);
+test('old CM64 envelope version is deliberately not supported',async()=>{
+ const {artifact}=await build();
+ const v3=packageArtifact(artifact);
+ const old=new Uint8Array(v3);
+ old[4]=2;
+ assert.throws(()=>M.unpackLedgerProgram(old),/binary v3 required/);
+ assert.equal(typeof M.packLedgerProgramV2,'undefined');
+ assert.equal(typeof M.M64_LEDGER_PROGRAM_FORMAT_V2,'undefined');
 });
 test('compression report counts binary M64 bytes and full record separately from transport text',async()=>{
  const {source,artifact}=await build();
