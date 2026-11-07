@@ -57,3 +57,24 @@ test("wire never serializes the input as JSON or Base64 text",()=>{
  assert.notEqual(M.bytesHex(wire),M.bytesHex(raw));
  assert.ok(!new TextDecoder().decode(wire).includes('{"sample"'));
 });
+
+test("typed raw entries share the secondary index namespace with packed definitions",()=>{
+ const dict={primary:Array.from({length:62},(_,i)=>Uint8Array.of(i+1)),secondary:[
+  {kind:1,data:Uint8Array.of(0,128,255,4),symbolCount:0},
+  {kind:0,packed:M.packSymbols([63,0,3]),symbolCount:3}
+ ]};
+ const prep=M.prepareDictionary(dict);
+ same(prep.expanded[0],Uint8Array.of(0,128,255,4));
+ same(prep.expanded[1],Uint8Array.of(0,128,255,4,4));
+ const data=Uint8Array.of(0,128,255,4,4,0,128,255,4,4);
+ const record=M.encode(data,dict);
+ same(M.decode(record.wire,dict),data);
+ assert.ok(record.symbols.includes(63));
+});
+test("malformed typed entries fail closed without changing the six-bit wire",()=>{
+ const primary=Array.from({length:62},(_,i)=>Uint8Array.of(i+1));
+ const d={primary,secondary:[]};
+ assert.throws(()=>M.prepareDictionary({...d,secondary:[{kind:2,data:Uint8Array.of(1),symbolCount:0}]}),/Unknown secondary entry kind/);
+ assert.throws(()=>M.prepareDictionary({...d,secondary:[{kind:1,data:Uint8Array.of(1),symbolCount:1}]}),/Invalid raw-byte dictionary entry/);
+ assert.throws(()=>M.prepareDictionary({...d,secondary:[{kind:1,data:Uint8Array.of(),symbolCount:0}]}),/Invalid raw-byte dictionary entry/);
+});
