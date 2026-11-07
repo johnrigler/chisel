@@ -16,6 +16,7 @@
     ++revision;
     reviewed = null;
     $("deploy").disabled = true;
+    $("reviewedBytecode").value = "";
     show("reviewStatus", "Review invalidated. Review current contract, chain and wallet again.");
   }
   function wallet() {
@@ -81,12 +82,48 @@
     if (detail && detail.provider) addWallet(detail.provider, (detail.info && detail.info.name) || "EIP-6963 wallet");
   });
 
+  function selectedContract() {
+    return artifacts[Number($("contract").value)];
+  }
+  function constructorValues() {
+    const selected = selectedContract();
+    if (!selected) throw new Error("Load compiled Solidity first.");
+    if (!selected.constructorInputs) return [];
+    const raw = $("constructorArgs").value.trim();
+    if (!raw || raw.length > 512 * 1024) throw new Error("Enter a JSON array of constructor values (maximum 512 KiB).");
+    let values;
+    try { values = JSON.parse(raw); } catch (e) { throw new Error("Invalid constructor JSON: " + e.message); }
+    if (!Array.isArray(values)) throw new Error("Constructor arguments must be a JSON array in ABI order.");
+    return values;
+  }
+  function updateConstructorPreview() {
+    const selected = selectedContract();
+    $("loadSeed").disabled = !selected || !matchesM64Seed(selected);
+    if (!selected) { show("constructorStatus", "Load an artifact to inspect constructor parameters."); return; }
+    const params = selected.constructorParameters || [];
+    if (!params.length) { show("constructorStatus", "No constructor arguments. Bytecode is ready for review."); return; }
+    try {
+      const encoded = api.creationData(selected, constructorValues());
+      show("constructorStatus", "Constructor arguments encoded: " +
+        ((encoded.encodedArguments.length - 2) / 2) + " bytes\n" +
+        "Total deployment data: " + ((encoded.data.length - 2) / 2) +
+        " bytes\nNo wallet transaction has been requested.");
+    } catch (err) { show("constructorStatus", "Not ready: " + err.message); }
+  }
+  function matchesM64Seed(selected) {
+    if (!selected || !selected.name.endsWith("M64SymbolDictionary")) return false;
+    const types = (selected.constructorParameters || []).map(p => p.type);
+    return JSON.stringify(types) === JSON.stringify([
+      "string", "string", "string", "string", "string", "bytes[]", "bytes[]", "uint32[]"
+    ]);
+  }
   async function renderArtifact() {
     invalidate();
-    const selected = artifacts[Number($("contract").value)];
+    const selected = selectedContract();
     if (!selected) {
       $("bytecode").value = "";
       show("artifactStatus", "No deployable contract selected.");
+      updateConstructorPreview();
       return;
     }
     $("bytecode").value = selected.bytecode;
@@ -106,10 +143,14 @@
           (selected.declaredCreationSha256 === digest ? "MATCH" : "MISMATCH - deployment blocked") : "not applicable"),
         "Constructor arguments: " + selected.constructorInputs,
         "Compiled runtime: " + (selected.deployedBytecode ? "provided" : "not provided"),
-        selected.constructorInputs ? "DEPLOYMENT BLOCKED: constructor arguments are not supported." :
+        selected.constructorInputs ? "Enter the constructor arguments below before review." :
           "Eligible for gas estimation and wallet review."
       ].join("\n"));
     } catch (err) { error("artifactStatus", err); }
+    $("constructorSignature").textContent = (selected.constructorParameters || [])
+      .map((p, i) => String(i + 1) + ". " + (p.name || "(unnamed)") + " : " + p.type).join("\n") ||
+      "This constructor takes no arguments.";
+    updateConstructorPreview();
   }
 
   function loadJSON(data) {
@@ -123,6 +164,7 @@
     });
     $("contract").disabled = false;
     $("contract").value = "0";
+    $("constructorArgs").value = "";
     void renderArtifact();
   }
 
@@ -158,7 +200,32 @@
     void loadBundled("../../contracts/compiled/M64Dictionary.json", "M64 Dictionary");
   });
 
-  $("contract").addEventListener("change", renderArtifact);
+  $("contract").addEventListener("change", () => {
+    $("constructorArgs").value = "";
+    void renderArtifact();
+  });
+  $("constructorArgs").addEventListener("input", () => {
+    invalidate();
+    updateConstructorPreview();
+  });
+  $("loadSeed").addEventListener("click", () => {
+    invalidate();
+    try {
+      const selected = selectedContract();
+      if (!matchesM64Seed(selected)) throw new Error("The selected contract does not match the M64 symbol dictionary constructor.");
+      if (!window.ChiselM64Native6DarkStarSeed) throw new Error("Dark Star seed script is unavailable.");
+      const seed = window.ChiselM64Native6DarkStarSeed.create();
+      const hex = bytes => "0x" + Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+      const values = [
+        "M64 JavaScript Dictionary", "M64", "javascript", seed.descriptor.mediaType,
+        seed.descriptor.description,
+        seed.primary.map(hex), seed.secondary.map(item => hex(item.packed)),
+        seed.secondary.map(item => item.symbolCount)
+      ];
+      $("constructorArgs").value = JSON.stringify(values, null, 2);
+      updateConstructorPreview();
+    } catch (err) { error("constructorStatus", err); }
+  });
   $("chain").addEventListener("input", () => {
     invalidate();
     void refreshWalletStatus(activeWallet());
@@ -207,21 +274,24 @@
       const contract = artifacts[Number($("contract").value)];
       if (!contract) throw new Error("Load compiled Solidity first.");
       show("reviewStatus", "Estimating contract creation gas. No transaction is being submitted.");
-      const review = await api.reviewDeployment(provider, contract, $("chain").value);
+      const review = await api.reviewDeployment(provider, contract, $("chain").value, constructorValues());
       if (token !== revision) return;
       reviewed = {provider, review};
+      $("reviewedBytecode").value = review.transaction.data;
       $("deploy").disabled = false;
       show("reviewStatus", [
         "REVIEWED, NOT SUBMITTED",
         "Contract: " + contract.name,
         "Account: " + review.from,
         "Chain ID: " + review.chainId,
-        "Creation bytes: " + review.byteLength,
-        "Creation SHA-256: " + review.creationSha256,
+        "Compiled creation SHA-256: " + review.compiledSha256,
+        "ABI-encoded constructor bytes: " + review.encodedArgumentBytes,
+        "Final creation bytes: " + review.byteLength,
+        "Final creation SHA-256: " + review.creationSha256,
         "Estimated gas units: " + review.gasEstimate,
         "To address: none (new contract)",
         "Native value: 0",
-        "Exact creation bytecode is displayed above.",
+        "Full final creation bytecode including arguments is displayed below.",
         "Approve only if these details match the intended deployment."
       ].join("\n"));
     } catch (err) { if (token === revision) error("reviewStatus", err); }
