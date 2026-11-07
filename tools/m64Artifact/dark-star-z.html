@@ -40,6 +40,24 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <div>
 <section class="panel"><h2>Rendered output</h2><canvas id="canvas" width="1400" height="900" aria-label="Dark Star Z rendered landscape"></canvas>
 <p class="small">Image is computed in a restricted iframe from the active program. Parameter changes re-run the same hydrated source.</p></section>
+<section class="panel"><h2>Publish / reconstruct from two contracts</h2>
+<p class="small">The M64 dictionary holds symbol IDs. Chisel logs preserve the exact 64-character-alphabet M64 text (transported as UTF-8 bytes, shown as hex in EVM tools) and a standalone renderer template. Both contracts are required for ledger-only reconstruction. <a href="M64_WIRE_FORMAT.md">Wire format and compression accounting</a>.</p>
+<label class="small" for="chiselAddress">Chisel contract address (Polygon)</label>
+<input id="chiselAddress" style="width:100%" value="0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3" placeholder="0x… Chisel with logRecord(bytes32,bytes)" spellcheck="false">
+<p class="small">Candidate Chisel deployment address from the earlier contract work. The read-only preflight checks that this address has the expected Chisel methods before constructing a write. No transaction is sent by preparing it.</p>
+<div class="actions"><button id="prepareTemplateTx">Build next Polygon transaction (renderer)</button><button id="prepareProgramTx">Build M64 program transaction</button></div>
+<details><summary>Unsigned Polygon transaction data (read-only)</summary><textarea id="unsignedTx" readonly spellcheck="false" aria-label="Unsigned Polygon transaction JSON" style="min-height:150px"></textarea><button id="copyUnsignedTx">Copy unsigned transaction JSON</button></details>
+<div id="unsignedTxStatus" class="status">No transaction prepared.</div>
+<div class="actions"><button id="publishTemplate">1. Publish HTML renderer template</button></div>
+<label class="small" for="templateTx">Renderer-template transaction hash</label>
+<input id="templateTx" style="width:100%" placeholder="0x… immutable Chisel template log tx" spellcheck="false">
+<div class="actions"><button id="publishProgram">2. Publish compressed program to Chisel</button></div>
+<label class="small" for="programTx">M64 program transaction hash</label>
+<input id="programTx" style="width:100%" placeholder="0x… Chisel program log tx" spellcheck="false">
+<div class="actions"><button id="rebuildLedger">3. Rebuild HTML from ledger</button><button id="saveLedgerPage" disabled>Save ledger-rebuilt HTML</button></div>
+<div id="compressionStatus" class="status">Build M64 v3 to measure compression.</div>
+<div id="ledgerStatus" class="status">No ledger program or renderer template published.</div>
+</section>
 <section class="panel"><details><summary>M64 v3 dictionary and publishing</summary>
 <p class="small">Enter the address of an actual <code>M64Dictionary</code> contract, not the general Chisel contract. Reads use RPC; new dictionary terms require a wallet-approved transaction.</p>
 <label class="small" for="dictionary">Dictionary address</label><input id="dictionary" placeholder="0x… (M64Dictionary deployed contract)" style="width:100%" spellcheck="false">
@@ -78,6 +96,7 @@ details summary{cursor:pointer;padding:6px 0}textarea{width:100%;min-height:110p
 <script src="m64.dictionary.js"></script>
 <script src="m64.dictionary.evm.js"></script>
 <script src="m64.v3.js"></script>
+<script src="m64.ledger.js"></script>
 <script src="../../chisel.thunder-attest.js"></script>
 <script>
 "use strict";
@@ -95,6 +114,7 @@ const SPEC=[
 const MAP="darkStar=a\nmod=m\nputPixel=q\ndrawLine=l";
 const maxPixels=3500000;
 let source="",activeCode="",activeEntry="darkStar",artifact=null,lastPng=null,renderTimer=0,runNumber=0;
+let ledgerRebuiltHtml="",ledgerRebuiltTx="",measurementSource="",measurementSourceType="local source";
 function show(id,value,state){const el=S(id);el.textContent=value;el.className="status"+(state===true?" good":state===false?" bad":"")}
 function params(){const p={seed:DEFAULT.seed};for(const [key] of SPEC)p[key]=Number(S("p_"+key).value);return p}
 function apply(p){for(const [key,min,max] of SPEC){const n=Number(p[key]);S("p_"+key).value=Number.isFinite(n)?Math.min(max,Math.max(min,Math.round(n))):DEFAULT[key];S("r_"+key).value=S("p_"+key).value}}
@@ -130,7 +150,7 @@ const rgba=new Uint8ClampedArray(p.width*p.height*4);for(let i=0,j=0;i<data.leng
 c.getContext("2d").putImageData(new ImageData(rgba,p.width,p.height),0,0);
 lastPng=null;show("renderStatus","rendered "+p.width+" × "+p.height+" / "+p.lines+" lines",true);
 }catch(e){if(seq===runNumber)show("renderStatus","Render failed: "+String(e.message||e),false)}}
-function sourceFallback(){artifact=null;activeEntry="darkStar";activeCode=source;S("metadata").value=JSON.stringify({status:"local source",entry:"darkStar",source:"examples/darkstar-core.js",input:params()},null,2);S("saveArtifact").disabled=true;show("artifactStatus","local executable source; CID not loaded")}
+function sourceFallback(){artifact=null;activeEntry="darkStar";activeCode=source;measurementSource=source;measurementSourceType="local source";S("metadata").value=JSON.stringify({status:"local source",entry:"darkStar",source:"examples/darkstar-core.js",input:params()},null,2);S("saveArtifact").disabled=true;show("artifactStatus","local executable source; CID not loaded")}
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
 async function pngBlob(){return new Promise((resolve,reject)=>S("canvas").toBlob(b=>b?resolve(b):reject(Error("Unable to produce PNG")),"image/png"))}
 function rpcUrl(){const s=S("rpc").value.trim();const u=new URL(s);if(u.protocol!=="https:"&&u.hostname!=="localhost"&&u.hostname!=="127.0.0.1")throw Error("RPC must be HTTPS or loopback");if(u.username||u.password)throw Error("RPC URL must not contain credentials");return s}
@@ -145,7 +165,7 @@ const response=await fetch(url,{cache:"no-store"});if(!response.ok)throw Error("
 const a=M.validateArtifactV3(await response.json());configureDictionary(a);const resolver=await readonlyResolver(a.dictionary.ref);const hydrated=await M.hydrateArtifactV3(a,resolver);
 artifact=a;activeCode=hydrated.canonical;activeEntry=a.entry;S("metadata").value=JSON.stringify(a,null,2);S("saveArtifact").disabled=false;
 if(a.input&&typeof a.input==="object")apply(a.input);
-show("artifactStatus","M64 v3 hydrated from "+cid+"\ncanonical bytes: "+hydrated.canonicalBytes+"\nSHA-256: "+hydrated.sha256+"\nPublisher trust not yet evaluated. Select Render to execute.",true);
+show("artifactStatus","M64 v3 hydrated from "+cid+"\ncanonical bytes: "+hydrated.canonicalBytes+"\nSHA-256: "+hydrated.sha256+"\nPublisher trust not yet evaluated. Select Render to execute.",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurementSource=hydrated.canonical;measurementSourceType="verified canonical source";measurement();
 const canvas=S("canvas");canvas.width=1;canvas.height=1;show("renderStatus","IPFS program verified at the M64 canonical-byte layer. Awaiting explicit Render.");
 }catch(e){show("artifactStatus","CID load failed; existing program retained.\n"+String(e.message||e),false)}}
 async function inspect(){try{const d=dictionarySelection(),r=await readonlyResolver(d.ref),info=await r.inspectContract();show("dictStatus","dictionary "+d.ref+"\nterms: "+info.termCount+"\nversion: "+info.version,true)}
@@ -167,8 +187,209 @@ const made=await M.buildJavascriptArtifactV3(source,{resolver,entry:"darkStar",i
 const restored=await M.hydrateArtifactV3(made.artifact,read);
 artifact=made.artifact;activeCode=restored.canonical;activeEntry=artifact.entry;
 S("metadata").value=JSON.stringify(artifact,null,2);S("saveArtifact").disabled=false;
-show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);render();
+show("dictStatus","M64 v3 BUILT\n"+d.ref+"\nmissing at inspection: "+missing.length+"\ncanonical SHA-256: "+restored.sha256+"\npayload: "+artifact.payload.length+" chars",true);ledgerRebuiltHtml="";S("saveLedgerPage").disabled=true;measurementSource=source;measurementSourceType="local source";measurement();render();
 }catch(e){show("dictStatus","M64 build failed: "+String(e.message||e),false)}}
+
+const CHISEL_LOG_ABI=["function logRecord(bytes32 format,bytes data)","event RecordLogged(address indexed writer,bytes32 indexed format,bytes data)"];
+const CHISEL_PREFLIGHT_ABI=["function creator() view returns (address)","function getArtifact(address writer,string artifact) view returns (string,uint64)"];
+let unsignedTxCache=null;
+function chiselSelection(){
+ const address=S("chiselAddress").value.trim(),chainId=Number(S("chain").value);
+ if(!ethers.isAddress(address))throw Error("Enter a deployed Chisel contract address");
+ if(!Number.isSafeInteger(chainId)||chainId<1)throw Error("Invalid Chisel chain ID");
+ return {address:ethers.getAddress(address),chainId,ref:M.m64Eip155CarrierRef(chainId,address)};
+}
+async function recordProvider(chainId){
+ const provider=new ethers.JsonRpcProvider(rpcUrl());
+ const actual=Number(BigInt(await provider.send("eth_chainId",[])));
+ if(actual!==chainId)throw Error("RPC chain "+actual+" does not match Chisel chain "+chainId);
+ return provider;
+}
+async function verifyChiselAddress(d){
+ const provider=await recordProvider(d.chainId),code=await provider.getCode(d.address);
+ if(!code||code==="0x")throw Error("No contract bytecode at "+d.address+" on chain "+d.chainId);
+ const c=new ethers.Contract(d.address,CHISEL_PREFLIGHT_ABI,provider);
+ try{
+  const creator=await c.creator();
+  const [body,revision]=await c.getArtifact(ethers.ZeroAddress,"__m64_preflight__");
+  if(!ethers.isAddress(creator)||typeof body!=="string"||typeof revision!=="bigint")throw Error("invalid contract metadata");
+ }catch(e){throw Error("Selected address is not verified as a compatible Chisel contract: "+String(e.shortMessage||e.message||e))}
+ return provider;
+}
+async function loadRendererTemplate(){
+ const response=await fetch("examples/darkstar-ledger-template.html",{cache:"no-store"});
+ if(!response.ok)throw Error("Renderer HTML template HTTP "+response.status);
+ const html=await response.text();
+ for(const marker of ["__CHISEL_SOURCE_JSON__","__CHISEL_INPUT_JSON__","__CHISEL_ENTRY_JSON__"]){
+  if(html.split(marker).length!==2)throw Error("Renderer template must include exactly one "+marker);
+ }
+ return {html,bytes:ethers.toUtf8Bytes(html),sha256:await M.sha256HexUtf8(html)};
+}
+async function prepareChiselTransaction(kind){
+ const d=chiselSelection();
+ await verifyChiselAddress(d);
+ let format,bytes,detail;
+ if(kind==="template"){
+  const template=await loadRendererTemplate();
+  format=M.M64_LEDGER_TEMPLATE_FORMAT;
+  bytes=template.bytes;detail={templateSha256:template.sha256};
+ }else if(kind==="program"){
+  if(!artifact)throw Error("Build or load a verified M64 v3 artifact first");
+  const template=await readChiselLog(S("templateTx").value.trim(),M.M64_LEDGER_TEMPLATE_FORMAT);
+  const templateHtml=ethers.toUtf8String(template.bytes);
+  const templateSha256=await M.sha256HexUtf8(templateHtml);
+  const dictionary=M.parseEip155DictionaryRef(artifact.dictionary.ref);
+  if(dictionary.chainId!==d.chainId)throw Error("Current flow requires Chisel and dictionary on the same chain");
+  format=M.M64_LEDGER_PROGRAM_FORMAT;
+  bytes=M.packLedgerProgram(artifact,{carrier:d.ref,templateTx:template.txHash,templateSha256});
+  detail={dictionary:artifact.dictionary.ref,templateTx:template.txHash,canonicalSha256:artifact.sha256,m64Characters:artifact.payload.length};
+  measurement(bytes.length);
+ }else throw Error("Unknown Chisel transaction kind");
+ const iface=new ethers.Interface(CHISEL_LOG_ABI);
+ const data=iface.encodeFunctionData("logRecord",[ethers.id(format),ethers.hexlify(bytes)]);
+ const unsigned={chainId:d.chainId,to:d.address,value:"0x0",data};
+ unsignedTxCache={kind,unsigned,format,bytes,detail};
+ const summary={kind,format,chainId:d.chainId,to:d.address,value:"0x0",recordBytes:bytes.length,calldataBytes:(data.length-2)/2,
+  recordSha256:ethers.sha256(bytes).slice(2)};
+ Object.assign(summary,detail);
+ S("unsignedTx").value=JSON.stringify({...summary,transaction:unsigned},null,2);
+ show("unsignedTxStatus","UNSIGNED "+kind.toUpperCase()+" TRANSACTION READY\nTo: "+d.address+"\nChain: "+d.chainId+
+  "\nRecord bytes: "+bytes.length+"\nCalldata bytes: "+summary.calldataBytes+"\nNo wallet signature requested.",true);
+ return unsignedTxCache;
+}
+async function previewTransaction(kind){
+ try{show("unsignedTxStatus","Checking Chisel contract and building unsigned "+kind+" transaction...");
+  await prepareChiselTransaction(kind);
+ }catch(e){unsignedTxCache=null;show("unsignedTxStatus","Transaction build failed: "+String(e.message||e),false)}
+}
+async function copyTransaction(){
+ try{if(!unsignedTxCache)throw Error("Build an unsigned transaction first");
+  await navigator.clipboard.writeText(JSON.stringify(unsignedTxCache.unsigned,null,2));
+  show("unsignedTxStatus","Unsigned Polygon transaction fields copied.",true)
+ }catch(e){show("unsignedTxStatus","Copy failed: "+String(e.message||e),false)}
+}
+async function readChiselLog(txHash,format){
+ if(!/^0x[0-9a-fA-F]{64}$/.test(txHash||""))throw Error("Enter a 32-byte Chisel transaction hash");
+ const d=chiselSelection(),provider=await recordProvider(d.chainId);
+ const receipt=await provider.getTransactionReceipt(txHash);
+ if(!receipt)throw Error("Transaction not yet available on configured RPC");
+ if(receipt.status!==1)throw Error("Transaction reverted");
+ const iface=new ethers.Interface(CHISEL_LOG_ABI);
+ for(const log of receipt.logs){
+   if(log.address.toLowerCase()!==d.address.toLowerCase())continue;
+   try{const parsed=iface.parseLog(log);if(parsed?.name==="RecordLogged"&&parsed.args.format.toLowerCase()===ethers.id(format).toLowerCase()){
+     return {bytes:ethers.getBytes(parsed.args.data),writer:parsed.args.writer,txHash,block:receipt.blockNumber};
+   }}catch(_){}
+ }
+ throw Error("No "+format+" RecordLogged event from this Chisel contract");
+}
+async function writeChiselLog(format,bytes){
+ const d=chiselSelection(),wallet=window.ethereum;
+ if(!wallet?.request)throw Error("No EIP-1193 wallet available for Chisel publication");
+ const chain=Number(BigInt(await wallet.request({method:"eth_chainId"})));
+ if(chain!==d.chainId)throw Error("Wallet chain "+chain+" != Chisel chain "+d.chainId);
+ await wallet.request({method:"eth_requestAccounts"});
+ const provider=new ethers.BrowserProvider(wallet);
+ await verifyChiselAddress(d);
+ const signer=await provider.getSigner();
+ const contract=new ethers.Contract(d.address,CHISEL_LOG_ABI,signer);
+ const tx=await contract.logRecord(ethers.id(format),ethers.hexlify(bytes));
+ const receipt=await tx.wait();
+ if(!receipt||receipt.status!==1)throw Error("Chisel transaction did not succeed: "+tx.hash);
+ const iface=new ethers.Interface(CHISEL_LOG_ABI);
+ const logged=receipt.logs.some(log=>{
+  if(log.address.toLowerCase()!==d.address.toLowerCase())return false;
+  try{const parsed=iface.parseLog(log);
+   return parsed?.name==="RecordLogged"&&parsed.args.format.toLowerCase()===ethers.id(format).toLowerCase()&&
+    parsed.args.data.toLowerCase()===ethers.hexlify(bytes).toLowerCase()
+  }catch(e){return false}
+ });
+ if(!logged)throw Error("Transaction mined but exact RecordLogged bytes not found; inspect: "+tx.hash);
+ return {txHash:tx.hash,block:receipt.blockNumber};
+}
+function measurement(ledgerByteCount=null){
+ if(!artifact)return;
+ const r=M.m64CompressionReport(measurementSource||source,artifact,ledgerByteCount);
+ function pct(value){return value===null?"n/a":value.toFixed(1)+"%"}
+ show("compressionStatus","Baseline ("+measurementSourceType+"): "+r.sourceBytes+" bytes | canonical: "+r.canonicalBytes+
+ "\nAbstract M64 stream (not published): "+r.rawPayloadBytes+" bytes | published M64 text: "+r.m64Characters+" chars / "+r.payloadTextBytes+" bytes | full v3 JSON: "+r.jsonBytes+" bytes"+
+ "\nAbstract stream savings vs canonical: "+pct(r.rawSavingsPct)+" | M64 TEXT savings vs canonical: "+pct(r.textSavingsPct)+
+ (ledgerByteCount===null?"\nLedger envelope: pending template and Chisel address":"\nComplete ledger program record: "+r.ledgerRecordBytes+" bytes | savings vs "+measurementSourceType+": "+pct(r.envelopeSavingsPct))+
+ "\nComplete record includes M64 text and references; excludes dictionary creation, on-chain gas, HTML-template transaction and ABI/event overhead. RPC hex display does not double stored bytes.");
+}
+async function publishRendererTemplate(){
+ try{
+  const prepared=await prepareChiselTransaction("template");
+  const d=prepared.unsigned;
+  if(!confirm("Publish Dark Star renderer template to Polygon "+d.chainId+"?\nChisel: "+d.to+
+   "\nTemplate bytes: "+prepared.bytes.length+"\nSHA-256: "+prepared.detail.templateSha256+
+   "\nThis writes an immutable log and incurs POL gas."))return;
+  show("ledgerStatus","Requesting wallet approval for renderer-template log ("+prepared.bytes.length+" bytes)...");
+  const receipt=await writeChiselLog(prepared.format,prepared.bytes);
+  S("templateTx").value=receipt.txHash;
+  show("ledgerStatus","Renderer template published and exact event bytes verified.\nTransaction: "+receipt.txHash+"\nBlock: "+receipt.block+"\nSHA-256: "+prepared.detail.templateSha256,true);
+ }catch(e){show("ledgerStatus","Template publication failed: "+String(e.message||e),false)}
+}
+async function publishM64Program(){
+ try{
+  const prepared=await prepareChiselTransaction("program");
+  if(!confirm("Publish M64 program to Polygon "+prepared.unsigned.chainId+"?\nChisel: "+prepared.unsigned.to+
+    "\nDictionary: "+prepared.detail.dictionary+"\nM64 characters: "+prepared.detail.m64Characters+
+    "\nRecord bytes: "+prepared.bytes.length+"\nThis writes an immutable log and incurs POL gas."))return;
+  show("ledgerStatus","Requesting wallet approval for M64 program log ("+prepared.bytes.length+" bytes)...");
+  const receipt=await writeChiselLog(prepared.format,prepared.bytes);
+  S("programTx").value=receipt.txHash;
+  show("ledgerStatus","Program published and exact event bytes verified.\nTransaction: "+receipt.txHash+"\nBlock: "+receipt.block+
+    "\nDictionary: "+prepared.detail.dictionary+"\nTemplate: "+prepared.detail.templateTx+
+    "\nRecord bytes: "+prepared.bytes.length+"\nM64 text preserved unchanged; EVM displays bytes as hex.\nNo IPFS publication performed yet.",true);
+ }catch(e){show("ledgerStatus","Program publication failed: "+String(e.message||e),false)}
+}
+function assembleLedgerPage(template,code,entry,input){
+ const fields=[["__CHISEL_SOURCE_JSON__",code],["__CHISEL_ENTRY_JSON__",entry],["__CHISEL_INPUT_JSON__",input]];
+ let html=template;
+ for(const [marker,value] of fields){
+  if(html.split(marker).length!==2)throw Error("Renderer template missing a unique "+marker);
+  html=html.replace(marker,JSON.stringify(value).replace(/</g,"\\u003c"));
+ }
+ return html;
+}
+async function rebuildFromLedger(){
+ try{
+  const d=chiselSelection();
+  show("ledgerStatus","Fetching Chisel program record...");
+  const record=await readChiselLog(S("programTx").value.trim(),M.M64_LEDGER_PROGRAM_FORMAT);
+  const pkg=M.unpackLedgerProgram(record.bytes);
+  if(pkg.carrier!==d.ref)throw Error("Ledger record declares "+pkg.carrier+" instead of "+d.ref);
+  configureDictionary(pkg.artifact);
+  const resolver=await readonlyResolver(pkg.artifact.dictionary.ref);
+  const hydrated=await M.hydrateArtifactV3(pkg.artifact,resolver);
+  show("ledgerStatus","Canonical source verified. Fetching renderer template from Chisel...");
+  const template=await readChiselLog(pkg.template.tx,M.M64_LEDGER_TEMPLATE_FORMAT);
+  const templateText=ethers.toUtf8String(template.bytes);
+  const templateSha256=await M.sha256HexUtf8(templateText);
+  if(templateSha256!==pkg.template.sha256)throw Error("Ledger renderer-template SHA-256 mismatch");
+  const html=assembleLedgerPage(templateText,hydrated.canonical,pkg.artifact.entry,pkg.artifact.input||{});
+  ledgerRebuiltHtml=html;ledgerRebuiltTx=record.txHash;
+  artifact=pkg.artifact;activeCode=hydrated.canonical;activeEntry=artifact.entry;
+  if(artifact.input&&typeof artifact.input==="object")apply(artifact.input);
+  S("metadata").value=JSON.stringify(artifact,null,2);
+  S("saveArtifact").disabled=false;S("saveLedgerPage").disabled=false;
+  measurementSource=hydrated.canonical;measurementSourceType="verified canonical source";measurement(record.bytes.length);
+  show("ledgerStatus","REBUILT FROM POLYGON LEDGER\nChisel program: "+record.txHash+
+   "\nChisel renderer template: "+pkg.template.tx+
+   "\nDictionary: "+artifact.dictionary.ref+
+   "\nCanonical SHA-256: "+hydrated.sha256+
+   "\nM64 text: "+pkg.m64Characters+" characters (preserved verbatim)\nStandalone HTML: "+M.utf8Len(html)+" bytes\nHTML SHA-256: "+await M.sha256HexUtf8(html)+
+   "\nStandalone page includes all landscape controls. Save HTML or publish as a page to IPFS.\nNo program was executed automatically.",true);
+  const canvas=S("canvas");canvas.width=1;canvas.height=1;
+  show("renderStatus","Ledger source verified. Select Render to execute.",true);
+ }catch(e){show("ledgerStatus","Ledger reconstruction failed: "+String(e.message||e),false)}
+}
+function saveLedgerPage(){
+ if(!ledgerRebuiltHtml)return;
+ download(new Blob([ledgerRebuiltHtml],{type:"text/html"}),"dark-star-z-ledger-rebuilt.html");
+}
+
 async function portablePageHtml(){
   if(!source)throw Error("Dark Star Z source not loaded");
   const copy=document.documentElement.cloneNode(true);
@@ -204,7 +425,7 @@ async function portablePageHtml(){
 async function publish(){const button=S("pin");button.disabled=true;try{
 const jwt=S("pinataJwt").value.trim();if(!jwt)throw Error("Provide a Pinata JWT for this session");
 let blob,name;if(S("pinataWhat").value==="artifact"){if(!artifact)throw Error("Build or load an M64 v3 artifact first");blob=new Blob([JSON.stringify(artifact,null,2)+"\n"],{type:"application/json"});name="dark-star-z.m64.json"}
-else if(S("pinataWhat").value==="page"){blob=new Blob([await portablePageHtml()],{type:"text/html"});name="dark-star-z.html"}
+else if(S("pinataWhat").value==="page"){blob=new Blob([ledgerRebuiltHtml||await portablePageHtml()],{type:"text/html"});name=ledgerRebuiltHtml?"dark-star-z-ledger-rebuilt.html":"dark-star-z.html"}
 else{blob=await pngBlob();name="dark-star-z.png"}
 const fd=new FormData();fd.append("file",new File([blob],name,{type:blob.type}));fd.append("network","public");fd.append("name",name);
 show("pinStatus","uploading "+name+" ("+blob.size+" bytes)…");
@@ -224,11 +445,13 @@ function wire(){makeControls();apply(DEFAULT);
 S("reset").onclick=()=>{apply(DEFAULT);render()};S("rerun").onclick=render;
 S("png").onclick=async()=>{try{download(await pngBlob(),"dark-star-z.png")}catch(e){show("renderStatus",String(e.message||e),false)}};
 S("preset").onclick=()=>download(new Blob([JSON.stringify({kind:"dark-star-z-input",version:1,input:params()},null,2)+"\n"],{type:"application/json"}),"dark-star-z-input.json");
-S("savePage").onclick=async()=>{try{show("renderStatus","bundling standalone page…");const html=await portablePageHtml();download(new Blob([html],{type:"text/html"}),"dark-star-z.html");show("renderStatus","Self-contained HTML saved; "+html.length+" characters.",true)}catch(e){show("renderStatus","HTML export failed: "+String(e.message||e),false)}};
+S("savePage").onclick=async()=>{try{show("renderStatus","bundling standalone page…");const html=ledgerRebuiltHtml||await portablePageHtml();download(new Blob([html],{type:"text/html"},),"dark-star-z.html");show("renderStatus","Self-contained HTML saved; "+html.length+" characters.",true)}catch(e){show("renderStatus","HTML export failed: "+String(e.message||e),false)}};
 S("load").onclick=loadCid;S("inspect").onclick=inspect;S("build").onclick=build;S("pin").onclick=publish;
+S("prepareTemplateTx").onclick=()=>previewTransaction("template");S("prepareProgramTx").onclick=()=>previewTransaction("program");S("copyUnsignedTx").onclick=copyTransaction;
+S("publishTemplate").onclick=publishRendererTemplate;S("publishProgram").onclick=publishM64Program;S("rebuildLedger").onclick=rebuildFromLedger;S("saveLedgerPage").onclick=saveLedgerPage;
 S("draftAttest").onclick=draftTrust;S("copyAttest").onclick=copyTrust;S("useDigest").onclick=()=>{if(!artifact){show("attestStatus","Build or load an M64 v3 artifact first.",false);return}S("subjectDigest").value=artifact.sha256;draftTrust()};
 S("saveArtifact").onclick=()=>{if(artifact)download(new Blob([JSON.stringify(artifact,null,2)+"\n"],{type:"application/json"}),"dark-star-z.m64.json")};
-const q=new URLSearchParams(location.search);if(q.get("cid"))S("cid").value=q.get("cid");if(q.get("dictionary"))S("dictionary").value=q.get("dictionary");if(q.get("chain"))S("chain").value=q.get("chain");}
+const q=new URLSearchParams(location.search);if(q.get("cid"))S("cid").value=q.get("cid");if(q.get("dictionary"))S("dictionary").value=q.get("dictionary");if(q.get("chain"))S("chain").value=q.get("chain");if(q.get("chisel"))S("chiselAddress").value=q.get("chisel");if(q.get("templateTx"))S("templateTx").value=q.get("templateTx");if(q.get("programTx"))S("programTx").value=q.get("programTx");}
 async function boot(){wire();try{const embedded=S("bundledDarkstarSource");if(embedded){source=JSON.parse(embedded.textContent);const saved=S("bundledDarkstarInput");if(saved)apply(JSON.parse(saved.textContent))}else{const r=await fetch("examples/darkstar-core.js");if(!r.ok)throw Error("HTTP "+r.status);source=await r.text()}sourceFallback();await render();if(S("cid").value)await loadCid()}catch(e){show("renderStatus","Local source failed: "+String(e.message||e),false)}}
 boot();
 </script>

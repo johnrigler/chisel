@@ -1,5 +1,13 @@
 # Chisel M64 Artifact Workbench
 
+## Dual-contract M64 ledger reconstruction (development branch)
+
+The Dark Star workbench can publish a self-contained renderer template (including landscape controls) and a versioned M64 program record as `Chisel.logRecord()` events, then retrieve both from Chisel and resolve the JavaScript source using the exact on-chain dictionary address embedded in the program record. This requires a deployed Chisel contract, a usable dictionary contract, a wallet for writes, and public RPC for reads. A full ledger-to-IPFS CID reproduction test remains outstanding.
+
+**Transport precision:** M64 text uses a complete 64-character Base64url alphabet. There is **not** a special 64th printable escape character. The extension escape is byte `0xC0` in the decoded abstract stream. Dictionary IDs 0–63 are direct single-byte references; 64+ use `0xC0 + varuint`. On Polygon, M64 text is sent as UTF-8 bytes via `bytes` and displayed as hexadecimal by RPC/explorers. The text is not replaced with the decoded abstract byte stream.
+
+See [M64 wire format and compression metrics](M64_WIRE_FORMAT.md) for exact layouts, the two contract references, recovery steps, and accounting for published text versus source, metadata, gas, and reusable dictionary/template setup.
+
 ## Active M64 v3 workbench (2026-11-06)
 
 **M64 v3 is the only current user-facing artifact format.** `index.html` is now a thin host for `dark-star-z.html`, the standalone interactive Dark Star Z viewer. Chisel's Examples page can also embed the viewer as an iframe.
