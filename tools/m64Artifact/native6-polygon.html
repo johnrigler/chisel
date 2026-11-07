@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: wss:; img-src 'self' data: blob:; base-uri 'self'; form-action 'none'">
+<title>Chisel · Native Six-Bit M64 Polygon Workbench</title>
+<style>
+:root{color-scheme:dark;--bg:#101419;--panel:#191f28;--text:#e5edf5;--muted:#9eafc1;--line:#405063}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--text);margin:0;font:15px/1.5 system-ui,sans-serif}
+main{max-width:1050px;margin:20px auto;padding:0 16px}
+h1{font-size:1.55rem}h2{font-size:1.12rem;margin:0 0 8px}
+a{color:#9fcbff}p,small{color:var(--muted)}
+section{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:15px;margin:15px 0}
+button,input,textarea,select{font:inherit}
+button{background:#284666;color:white;border:1px solid #6288b1;border-radius:6px;padding:9px 13px;cursor:pointer;margin:6px 7px 6px 0}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{display:block;background:#0a1017;color:var(--text);border:1px solid var(--line);padding:9px;border-radius:5px;width:100%;margin:5px 0 10px}
+textarea{min-height:230px;font:13px/1.5 monospace;resize:vertical}
+textarea[readonly]{background:#080e13}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;min-width:0}
+@media(max-width:750px){.grid{grid-template-columns:1fr}}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:330px;overflow:auto;background:#080e13;padding:10px;font:12px/1.55 ui-monospace,monospace;border-radius:6px;border:1px solid #2b3b4d}
+label{font-size:13px;color:var(--muted);display:block}
+code{overflow-wrap:anywhere;color:#b6d8ff}
+.good{color:#aaf2b9}.error{color:#ffaeaa}
+</style>
+</head><body><main>
+<h1>Native M64 · Polygon publish and rebuild</h1>
+<p>Six-bit program bytes, verified against the deployed M64 Symbol Dictionary, published through Chisel's existing <code>logRecord(bytes32,bytes)</code>. No JSON artifact envelope, new contract, IPFS upload, or automatic JavaScript execution.</p>
+<p><a href="../../index.html?mode=tools">Chisel Tools</a> · <a href="./native6-review.html">Local codec workbench</a> · <a href="./M64_SYMBOL_DICTIONARY_V2.md">Dictionary protocol</a></p>
+<section>
+<h2>1. Inspect the deployed Polygon dictionary</h2>
+<p>Read all 62 primary definitions and 24 seeded secondary entries through the selected EIP-1193 provider. Compare every byte with the local Dark Star seed, not merely contract metadata.</p>
+<div class="grid">
+<div><label for="dictionary">Deployed M64 dictionary (Polygon 137)</label><input id="dictionary" spellcheck="false" value="0xe6e9df9f49b1ab4417129454991466adc9923f8c"></div>
+<div><label for="wallet">Browser wallet/provider (read-only access works without connecting an account)</label><select id="wallet"><option>Detecting providers...</option></select></div>
+</div>
+<button id="scanWallet">Refresh providers</button>
+<button id="inspect">Verify all dictionary definitions</button>
+<pre id="inspectStatus">Not verified. Publishing is disabled until exact on-chain seed comparison passes.</pre>
+</section>
+<section>
+<h2>2. Build native six-bit program bytes</h2>
+<p>Type your own source or load the Dark Star sample. The source is encoded byte-for-byte; optional canonicalization is explicit and replaces the visible editor text. No code is executed.</p>
+<button id="loadSample">Load Dark Star example</button>
+<button id="canonical">Canonicalize loaded Dark Star example</button>
+<label for="source">Source text (UTF-8)</label><textarea id="source" spellcheck="false"></textarea>
+<button id="prepare" disabled>Prepare and verify binary record</button>
+<pre id="prepareStatus">Read and verify dictionary first.</pre>
+<details><summary>Inspect exact native M64 record bytes</summary><textarea id="record" readonly spellcheck="false"></textarea></details>
+</section>
+<section>
+<h2>3. Review and publish through Chisel</h2>
+<p>Gas estimation and wallet account connection are initiated only by Review. Publishing is a separate button that requests a wallet signature. The existing Chisel contract is <code>0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3</code>.</p>
+<button id="review" disabled>Connect and review M64 publication</button>
+<button id="publish" disabled>Publish reviewed binary record</button>
+<pre id="publishStatus">No transaction prepared.</pre>
+</section>
+<section>
+<h2>4. Rebuild from a Polygon transaction</h2>
+<p>Fetch the transaction receipt, find a matching <code>RecordLogged</code> event on the Chisel contract, retrieve the pinned dictionary snapshot, and verify byte length and SHA-256. Reconstructed code is displayed, never executed.</p>
+<label for="txHash">Transaction hash</label><input id="txHash" placeholder="0x + 64 hex characters" spellcheck="false">
+<button id="rebuild">Verify receipt and reconstruct source</button>
+<button id="saveSource" disabled>Save reconstructed source</button>
+<pre id="rebuildStatus">No ledger record reconstructed.</pre>
+<label for="reconstructed">Verified output, read-only</label><textarea id="reconstructed" readonly spellcheck="false"></textarea>
+</section>
+<script src="../../vendor/ethers-6.6.0.umd.min.js"></script>
+<script src="./m64.js"></script>
+<script src="./m64.javascript.js"></script>
+<script src="./m64.native6.js"></script>
+<script src="./seeds/darkstar-native6-v1.js"></script>
+<script src="./m64.native6.polygon.js"></script>
+<script>
+"use strict";
+const $=id=>document.getElementById(id),API=window.ChiselM64Native6Polygon;
+const sources=[],seed=window.ChiselM64Native6DarkStarSeed.create();
+let verified=null,prepared=null,reviewed=null,sent=null,reconstructed=null,sample=null;
+function show(id,text,ok){const el=$(id);el.textContent=text;el.classList.toggle("good",ok===true);el.classList.toggle("error",ok===false)}
+function addWallet(provider,name){
+ if(!provider||typeof provider.request!=="function"||sources.some(item=>item.provider===provider))return;
+ sources.push({provider,name:String(name||"Injected wallet")});refreshSelect();
+}
+function refreshSelect(){
+ const sel=$("wallet"),before=sel.value;sel.replaceChildren();
+ sources.forEach((item,i)=>{const opt=document.createElement("option");opt.value=String(i);opt.textContent=item.name;sel.append(opt)});
+ if(!sources.length){const opt=document.createElement("option");opt.value="";opt.textContent="No injected wallet found";sel.append(opt);}
+ if(sources[Number(before)])sel.value=before;
+}
+function discover(){
+ if(window.ethereum)addWallet(window.ethereum,"Injected EVM wallet");
+ if(window.backpack?.ethereum)addWallet(window.backpack.ethereum,"Backpack");
+ window.dispatchEvent(new Event("eip6963:requestProvider"));refreshSelect();
+}
+window.addEventListener("eip6963:announceProvider",event=>{
+ if(event.detail?.provider)addWallet(event.detail.provider,event.detail.info?.name);
+});
+function selectedWallet(){
+ const index=Number($("wallet").value);
+ if($("wallet").value===""||!sources[index])throw Error("No injected EVM wallet selected");
+ return sources[index].provider;
+}
+function provider(){
+ return new ethers.BrowserProvider(selectedWallet());
+}
+function clearPublication(){
+ prepared=null;reviewed=null;
+ $("prepare").disabled=!verified;$("review").disabled=true;$("publish").disabled=true;
+ $("record").value="";
+ show("prepareStatus","Record must be rebuilt after source or dictionary changes.");
+ show("publishStatus","Publication review invalidated. Nothing submitted.");
+}
+function clearDictionary(){
+ verified=null;clearPublication();$("prepare").disabled=true;
+ show("inspectStatus","Verify the selected Polygon dictionary before publishing.",false);
+}
+$("wallet").addEventListener("change",clearDictionary);
+$("dictionary").addEventListener("input",clearDictionary);
+$("source").addEventListener("input",clearPublication);
+$("scanWallet").onclick=discover;
+$("inspect").onclick=async()=>{
+ $("inspect").disabled=true;clearDictionary();
+ try{
+  const p=provider(),address=$("dictionary").value.trim();
+  show("inspectStatus","Querying Polygon dictionary definitions. No wallet signature required.");
+  verified=await API.verifyDictionary(p,{seed,address,ethers,onProgress:(count,total)=>{
+   show("inspectStatus","Reading on-chain entries: "+count+" / "+total);
+  }});
+  $("prepare").disabled=false;
+  show("inspectStatus",[
+   "PASSED: actual Polygon dictionary bytes match the Dark Star seed.",
+   "Contract: "+verified.address,"Chain: "+verified.chainId,
+   "Codec: "+verified.codecVersion,"Dictionary version: "+verified.dictionaryVersion,
+   "Name: "+verified.name,"Language: "+verified.language,"Media type: "+verified.mediaType,
+   "Primary entries inspected: 62 / 62",
+   "Secondary entries inspected: "+verified.snapshotCount+" / "+verified.snapshotCount,
+   "Secondary entries currently stored: "+verified.secondaryCount,
+   "Pinned snapshot digest: "+verified.snapshotDigest,
+   "Snapshot is immutable at this count, even if more entries are appended."
+  ].join("\n"),true);
+ }catch(e){show("inspectStatus","NOT VERIFIED: "+(e.message||String(e)),false)}
+ finally{$("inspect").disabled=false}
+};
+$("loadSample").onclick=async()=>{
+ try{
+  const r=await fetch("./examples/darkstar-core.js",{cache:"no-store"});
+  if(!r.ok)throw Error("Dark Star sample HTTP "+r.status);
+  sample=await r.text();$("source").value=sample;clearPublication();
+ }catch(e){show("prepareStatus",e.message,false)}
+};
+$("canonical").onclick=()=>{
+ try{
+  if(!sample||$("source").value!==sample)throw Error("Canonicalization is only available on the unedited Dark Star example");
+  $("source").value=ChiselM64.canonicalizeJavascriptV1(sample,"darkStar=a\nmod=m\nputPixel=q\ndrawLine=l");
+  clearPublication();
+ }catch(e){show("prepareStatus",e.message,false)}
+};
+$("prepare").onclick=async()=>{
+ clearPublication();
+ try{
+  if(!verified)throw Error("Dictionary must be verified first");
+  prepared=await API.prepare(new TextEncoder().encode($("source").value),verified);
+  $("record").value=API.hex(prepared.record);
+  $("review").disabled=false;
+  show("prepareStatus",[
+   "Local lossless round trip PASSED",
+   "Original source bytes: "+prepared.sourceLength,
+   "Native M64 program bytes: "+prepared.wireBytes,
+   "Full on-ledger binary record bytes: "+prepared.recordBytes,
+   "Source SHA-256: "+prepared.sourceSha256,
+   "Record SHA-256: "+prepared.recordSha256,
+   "Dictionary address: "+verified.address,
+   "Dictionary snapshot at entry "+verified.snapshotCount+": "+verified.snapshotDigest,
+   "Savings and byte counts are shown here only, not written as a JSON record."
+  ].join("\n"),true);
+ }catch(e){show("prepareStatus",e.message,false)}
+};
+$("review").onclick=async()=>{
+ $("review").disabled=true;$("publish").disabled=true;reviewed=null;
+ try{
+  if(!prepared||!verified)throw Error("Prepare program first");
+  const selected=selectedWallet();
+  const accounts=await selected.request({method:"eth_requestAccounts"});
+  if(!accounts?.[0])throw Error("Wallet account not connected");
+  const p=provider();
+  reviewed=await API.previewPublish(p,prepared,{ethers,account:accounts[0]});
+  $("publish").disabled=false;
+  show("publishStatus",[
+   "REVIEWED. NOT SUBMITTED.",
+   "Chain: Polygon 137","Sender: "+reviewed.from,
+   "To: "+reviewed.to,"Function: logRecord(bytes32,bytes)",
+   "Format: "+reviewed.format,"Native binary record: "+reviewed.bytes+" bytes",
+   "Exact record SHA-256: "+reviewed.recordSha256,
+   "Estimated gas units: "+reviewed.gas,
+   "Value: 0",
+   "Click Publish reviewed binary record for wallet approval."
+  ].join("\n"),true);
+ }catch(e){show("publishStatus","Review failed: "+(e.message||e),false);$("review").disabled=false}
+};
+$("publish").onclick=async()=>{
+ $("publish").disabled=true;
+ try{
+  if(!reviewed||!prepared||!verified)throw Error("No reviewed publication");
+  const p=provider();
+  show("publishStatus","Revalidating on-chain dictionary bytes and account before wallet signature. No prior signature is reused.");
+  const tx=await API.sendReviewed(p,reviewed,prepared,verified,{seed,ethers});
+  sent=tx.hash;$("txHash").value=sent;
+  show("publishStatus","SUBMITTED, NOT YET MINED\nHash: "+sent+"\nUse Rebuild after the receipt confirms successful execution.",true);
+ }catch(e){show("publishStatus","Publish failed or declined: "+(e.message||e),false);$("review").disabled=false}
+};
+$("rebuild").onclick=async()=>{
+ $("rebuild").disabled=true;reconstructed=null;$("saveSource").disabled=true;$("reconstructed").value="";
+ try{
+  const p=provider();
+  if(!verified||verified.address!==$("dictionary").value.trim().toLowerCase()){
+   show("rebuildStatus","Verifying deployed dictionary before receipt reconstruction.");
+   verified=await API.verifyDictionary(p,{seed,address:$("dictionary").value.trim(),ethers});
+   $("prepare").disabled=false;
+  }
+  const result=await API.readReceipt(p,$("txHash").value.trim(),verified,{ethers});
+  reconstructed=result.source;
+  $("reconstructed").value=new TextDecoder("utf-8",{fatal:true}).decode(result.source);
+  $("saveSource").disabled=false;
+  show("rebuildStatus",[
+   "REBUILT AND VERIFIED. SOURCE NOT EXECUTED.",
+   "Transaction: "+result.txHash,"Block: "+result.blockNumber,
+   "Writer: "+result.writer,
+   "Dictionary: "+result.address,
+   "Pinned dictionary entries: "+result.snapshotCount,
+   "Dictionary snapshot: "+result.snapshotDigest,
+   "Source length: "+result.sourceLength+" bytes",
+   "Reconstructed SHA-256: "+result.sourceSha256,
+   "Log record bytes: "+result.recordBytes,
+   "Save the exact bytes to reconstruct an IPFS source file, then wrap with a trusted renderer if needed."
+  ].join("\n"),true);
+ }catch(e){show("rebuildStatus","Rebuild failed: "+(e.message||e),false)}
+ finally{$("rebuild").disabled=false}
+};
+$("saveSource").onclick=()=>{
+ if(!reconstructed)return;
+ const url=URL.createObjectURL(new Blob([reconstructed],{type:"text/javascript"}));
+ const a=document.createElement("a");a.href=url;a.download="m64-native6-reconstructed.js";
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+const params=new URLSearchParams(location.search);
+if(params.get("tx"))$("txHash").value=params.get("tx");
+if(params.get("dictionary"))$("dictionary").value=params.get("dictionary");
+discover();$("loadSample").click();
+</script></main></body></html>
