@@ -594,7 +594,7 @@ async function rebuildFromLedger(){
    "\nChisel renderer template: "+pkg.template.tx+
    "\nDictionary: "+artifact.dictionary.ref+
    "\nCanonical SHA-256: "+hydrated.sha256+
-   "\nRecord version: "+pkg.version+(pkg.version===3?"\nBinary M64 payload: "+pkg.rawPayloadBytes+" bytes":"\nLegacy M64 text: "+pkg.m64Characters+" characters")+"\nStandalone HTML: "+M.utf8Len(html)+" bytes\nHTML SHA-256: "+await M.sha256HexUtf8(html)+
+   "\nRecord version: "+pkg.version+"\nBinary M64 payload: "+pkg.rawPayloadBytes+" bytes"+"\nStandalone HTML: "+M.utf8Len(html)+" bytes\nHTML SHA-256: "+await M.sha256HexUtf8(html)+
    "\nStandalone page includes all landscape controls. Save HTML or publish as a page to IPFS.\nNo program was executed automatically.",true);
   const canvas=S("canvas");canvas.width=1;canvas.height=1;
   show("renderStatus","Ledger source verified. Select Render to execute.",true);
