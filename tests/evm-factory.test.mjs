@@ -209,3 +209,66 @@ test("rejects ABI-encoded initcode beyond EIP-3860 bound",()=>{
   const artifact=api.collectArtifacts({...SAMPLE,abi:[{type:"constructor",inputs:[{name:"huge",type:"bytes"}]}]})[0];
   assert.throws(()=>api.creationData(artifact,["0x"+"aa".repeat(49152)]),/49,152|supported size/);
 });
+
+test("runtime comparison honors only Solidity compiler-declared immutable locations",()=>{
+  const expected="0x60000102aabbcc";
+  const runtime="0x6000ffffaabbcc";
+  const refs={"123":[{start:2,length:2}]};
+  assert.deepEqual(JSON.parse(JSON.stringify(api.compareRuntime(runtime,expected,refs))),
+    {status:"immutable-adjusted",ignoredBytes:2});
+  assert.equal(api.compareRuntime(expected,expected,null).status,"exact");
+  assert.equal(api.compareRuntime(runtime,expected,null).immutableReferencesMissing,true);
+  assert.equal(api.compareRuntime("0x6100ffffaabbcc",expected,refs).status,"mismatch");
+  assert.equal(api.compareRuntime("0x6000ffffaabb",expected,refs).status,"mismatch");
+  assert.throws(()=>api.compareRuntime(runtime,expected,{"x":[{start:900,length:2}]}),/outside compiled runtime/);
+  assert.throws(()=>api.compareRuntime(runtime,expected,{"x":[{start:2,length:2},{start:3,length:1}]}),/Overlapping/);
+});
+test("Solidity Standard JSON immutableReferences propagate to reviewed artifacts and receipts",async()=>{
+  const refs={"97":[{start:1,length:1}]};
+  const artifacts=api.collectArtifacts({contracts:{"Dict.sol":{Dict:{
+    abi:[],evm:{bytecode:{object:"60006000"},deployedBytecode:{object:"600000",immutableReferences:refs}}
+  }}}});
+  assert.equal(JSON.stringify(artifacts[0].immutableReferences),JSON.stringify(refs));
+  const p=mockedProvider();
+  p.setReceipt({status:"0x1",blockNumber:"0x1",contractAddress:CONTRACT});
+  // Mock getCode yields 0x6000 and compiled template is 0x600000, so length mismatch.
+  const result=await api.checkReceipt(p,{hash:HASH,chainId:137,artifact:artifacts[0]});
+  assert.equal(result.runtimeComparison.status,"mismatch");
+  assert.equal(result.runtimeMatch,false);
+});
+test("read-only M64 inspector validates language, counts and snapshot digests without signing",async()=>{
+  const selectors={
+    "0x9bad6d4d":2,"0xa5c0def6":1,"0xe56be999":62,"0x2ac237df":24
+  };
+  const texts={"0x06fdde03":"M64 JS","0x95d89b41":"M64","0xed9978c7":"javascript",
+    "0x6abe0c0c":"text/javascript","0x7284e416":"Dark Star"};
+  const baseDigest="0x"+"a1".repeat(32),definitionDigest="0x"+"b2".repeat(32);
+  const word=n=>BigInt(n).toString(16).padStart(64,"0");
+  const str=s=>{
+    const hex=Buffer.from(s,"utf8").toString("hex");
+    return "0x"+word(32)+word(hex.length/2)+hex.padEnd(Math.ceil(hex.length/64)*64,"0");
+  };
+  const p=mockedProvider(),request=p.request.bind(p);
+  p.request=async({method,params})=>{
+    if(method!=="eth_call")return request({method,params});
+    p.calls.push(method);
+    const key=params[0].data.slice(0,10);
+    if(key in selectors)return "0x"+word(selectors[key]);
+    if(key in texts)return str(texts[key]);
+    if(key==="0x67718087")return baseDigest;
+    if(key==="0x9ab0fb6e")return definitionDigest;
+    if(key==="0xddbbe90b")return params[0].data.endsWith(word(0))?baseDigest:definitionDigest;
+    throw Error("Unexpected selector: "+key);
+  };
+  const info=await api.inspectM64Dictionary(p,CONTRACT,137);
+  assert.equal(info.consistent,true);
+  assert.equal(info.primaryCount,62);
+  assert.equal(info.secondaryCount,24);
+  assert.equal(info.language,"javascript");
+  assert.equal(info.mediaType,"text/javascript");
+  assert.equal(info.snapshotDigest,definitionDigest);
+  assert.ok(p.calls.includes("eth_call"));
+  assert.ok(!p.calls.includes("eth_sendTransaction"));
+  p.setChain("0x1");
+  await assert.rejects(api.inspectM64Dictionary(p,CONTRACT,137),/expected 137/);
+});
