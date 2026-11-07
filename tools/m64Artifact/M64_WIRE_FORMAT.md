@@ -10,6 +10,21 @@ Status: implementation note for the dual-contract Dark Star Z experiment. The le
 
 **About the 63-plus-escape proposal:** The implemented protocol is not a 63-character vocabulary plus one printed escape. It has 64 ordinary printable transport symbols, while the decoded abstract byte stream has its own reserved dictionary-index extension marker at `0xC0`. Making the last printable symbol into an escape would be an incompatible *new* codec and should use a new codec ID and independent compression benchmarks. Existing v3 records must not be reinterpreted.\n\nThe 64-character alphabet and the first 64 dictionary indexes are separate ideas. M64's abstract bytes use single-byte references for dictionary IDs 0–63 (`0x80..0xBF`), and `0xC0 + varuint` for IDs 64 and above. `0x00..0x7F` represents literal ASCII. The transport alphabet has exactly 64 characters regardless of vocabulary size.
 
+## Active Polygon contract references
+
+For the current Dark Star Z experiment, the deployed and populated dictionary has been reported as:
+
+```text
+chainId       137 (Polygon mainnet)
+M64Dictionary 0x522afe4f086da1df80531dea1e8793b05cace9cf
+dictionaryRef eip155:137:0x522afe4f086da1df80531dea1e8793b05cace9cf
+Chisel        0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3
+```
+
+51 extracted Dark Star Z symbols were reported as published to the M64Dictionary. This is a historical baseline, not a hard-coded fixed dictionary size; on-chain inspection is needed to establish the current term count.
+
+The HTML renderer-template transaction is a Chisel-only log. The M64 program transaction is another Chisel log whose `CM64` v2 envelope includes the dictionary reference, the exact compressed M64 characters, canonical integrity metadata, and the renderer transaction's hash and SHA-256. The program transaction builder must verify that the chosen M64Dictionary address matches the artifact's dictionary reference and that the dictionary can reconstruct the artifact. The two contracts are joined by the **program record's immutable references**, not by a cross-contract call.
+
 ## Dual-contract layout
 
 - **M64Dictionary** (Polygon, or another resolver implementing the same lookup contract): immutable, append-only `id -> term`, `term -> id`; the dictionary identity is part of an artifact's meaning.
