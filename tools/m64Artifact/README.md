@@ -1,5 +1,18 @@
 # Chisel M64 Artifact Workbench
 
+## Polygon deployment used for Dark Star Z (reported 2026-11-07)
+
+The M64 dictionary **has already been deployed and populated**. This is not a proposed or empty contract. The reported Dark Star Z deployment extracted and published **51 symbols**. Those existing dictionary entries are the source of truth when encoding and reconstructing this artifact. The live count may grow; use the Workbench's `Inspect M64Dictionary` control to query the chain.
+
+- Polygon mainnet chain ID: `137`.
+- M64Dictionary (symbol IDs / term lookup): `0x522afe4f086da1df80531dea1e8793b05cace9cf`.
+- Full immutable dictionary reference: `eip155:137:0x522afe4f086da1df80531dea1e8793b05cace9cf`.
+- Chisel (record publisher): `0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3`.
+
+**Binding requirement:** A Chisel M64 **program** record must carry the exact dictionary reference in its `artifact.dictionary.ref`, not merely use a local dictionary or assume that Chisel contains symbol values. The packed `CM64` v2 envelope includes `artifact.dictionary.ref`, the Chisel carrier reference, the exact M64 text, and a reference plus SHA-256 for the earlier renderer-template log. During preparation, Chisel must reject any disagreement between the selected dictionary contract and the artifact's embedded reference, hydrate against that deployed contract, and check the canonical SHA-256/byte count. This is how the two separate contracts become one reproducible program record.
+
+The `Preview renderer transaction` operation itself references only Chisel, because the HTML template is dictionary-independent. The **subsequent program transaction** references both Chisel and M64Dictionary (and the renderer transaction). A deployed/populated dictionary is not evidence that a Chisel program record has been published. The addresses and 51-symbol baseline above are user-reported; the current session could not independently query the live Polygon state.
+
 ## Dual-contract M64 ledger reconstruction (development branch)
 
 The Dark Star workbench can publish a self-contained renderer template (including landscape controls) and a versioned M64 program record as `Chisel.logRecord()` events, then retrieve both from Chisel and resolve the JavaScript source using the exact on-chain dictionary address embedded in the program record. This requires a deployed Chisel contract, a usable dictionary contract, a wallet for writes, and public RPC for reads. A full ledger-to-IPFS CID reproduction test remains outstanding.
