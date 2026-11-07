@@ -7,6 +7,7 @@ await import('../tools/m64Artifact/m64.artifact.js');
 await import('../tools/m64Artifact/m64.javascript.js');
 await import('../tools/m64Artifact/m64.dictionary.js');
 await import('../tools/m64Artifact/m64.v3.js');
+await import('../tools/m64Artifact/m64.ledger.js');
 
 const M = globalThis.ChiselM64;
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -243,6 +244,36 @@ test('M64 v3 hydration rejects the wrong dictionary and tampered integrity metad
     () => M.hydrateArtifactV3(tampered, resolver),
     /canonical SHA-256 mismatch/,
   );
+});
+
+
+test('Polygon M64 program record preserves deployed dictionary and Chisel references', () => {
+  // Synthetic record, no chain write. The deployment address is not inferred from the Chisel address.
+  const dictionaryRef = 'eip155:137:0x522afe4f086da1df80531dea1e8793b05cace9cf';
+  const chiselRef = 'eip155:137:0x683cfa103fe5dbd0a47402d78fbf818d4160b1d3';
+  const artifact = artifactV3({
+    dictionary: {
+      kind: 'ledger-dictionary',
+      ref: dictionaryRef,
+      version: 1,
+      language: 'javascript',
+    },
+  });
+  const templateTx = '0x' + 'ab'.repeat(32);
+  const templateSha256 = 'cd'.repeat(32);
+  const bytes = M.packLedgerProgram(artifact, {
+    carrier: chiselRef,
+    templateTx,
+    templateSha256,
+  });
+  const unpacked = M.unpackLedgerProgram(bytes);
+  assert.equal(unpacked.carrier, chiselRef);
+  assert.equal(unpacked.artifact.dictionary.ref, dictionaryRef);
+  assert.equal(unpacked.artifact.payload, artifact.payload);
+  assert.equal(unpacked.payloadEncoding, 'm64-base64url-ascii');
+  assert.equal(unpacked.template.tx, templateTx);
+  assert.equal(unpacked.template.sha256, templateSha256);
+  assert.ok(new TextDecoder().decode(bytes).includes(dictionaryRef));
 });
 
 test('Dark Star completes the M64 v3 canonicalize-resolve-hydrate integrity loop', async () => {
