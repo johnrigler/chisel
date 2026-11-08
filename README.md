@@ -12,7 +12,7 @@
 
 Chisel is a browser-first toolkit for readable ledger records, signed publication, and recoverable software artifacts. The **bare site URL always opens Portal**. The top navigation is **Portal / Send / Review / About**; **Examples** and **Tools** remain in the menu. [About](https://johnrigler.github.io/chisel/?mode=about) explains the system, the author, and how to collaborate. Chisel is designed for static hosting, including GitHub Pages and IPFS. Creating or broadcasting transactions may require keys, UTXOs, network connectivity, and supported chain services. You do not need a key merely to inspect public records.
 
-**EVM contracts:** [Open the browser-native Contract Factory](tools/evmFactory/index.html) to inspect a compiled Solidity JSON artifact, estimate deployment gas, and deploy through an injected wallet. Source compilation uses standalone `solc`/`solc-js` outside the page; Hardhat and npm are not browser runtime requirements. See the [factory guide](tools/evmFactory/README.md). Existing Gomez/Jethro reads and writes remain in [evm.html](evm.html).
+**EVM contracts:** [Open the browser-native Contract Factory](tools/evmFactory/index.html) to inspect a compiled Solidity JSON artifact, estimate deployment gas, and deploy through an injected wallet. Source compilation uses standalone `solc`/`solc-js` outside the page; Hardhat and npm are not browser runtime requirements. See the [factory guide](tools/evmFactory/README.md). The [deployed Polygon M64 SVG icon viewer](tools/m64Artifact/svg-icons-polygon.html) reads and reconstructs icons without IPFS and supports reviewed, wallet-approved compressed dictionary additions. Existing Gomez/Jethro reads and writes remain in [evm.html](evm.html).
 
 ## Open and share a record
 
