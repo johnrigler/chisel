@@ -59,7 +59,7 @@ summary{cursor:pointer}
 <pre id="constructorSignature">Load an artifact to inspect constructor parameters.</pre>
 <button id="loadSeed" type="button" disabled>Fill with Dark Star seed</button>
 <button id="loadSvgSeed" type="button" disabled>Fill with SVG Icons v1 seed (62 primary symbols)</button>
-<small>Load a compiled <code>M64SymbolDictionary</code> artifact JSON above to enable these buttons. The SVG constructor contains only 62 primary definitions. After deployment, add 64 SVG icons with eight <code>addRawBatch(bytes[])</code> calls; this factory does not submit those follow-up calls. <a href="../m64Artifact/seeds/svg-icons-v1.js">SVG seed source</a> · <a href="../m64Artifact/seeds/svg-icons-v1.deployment-plan.json">64-icon batch plan</a>.</small>
+<small>Load a compiled <code>M64SymbolDictionary</code> artifact JSON above to enable these buttons. The SVG constructor contains only 62 primary definitions. The Polygon SVG constructor was deployed with 62 primary definitions and zero secondary entries. For this deployment, use the <a href="../m64Artifact/svg-icons-polygon.html">SVG icon viewer</a> to add 64 losslessly packed M64 entries using separately reviewed <code>addSecondaryBatch</code> calls. This factory does not submit icon batches. <a href="../m64Artifact/seeds/svg-icons-v1.js">SVG seed source</a> · <a href="../m64Artifact/seeds/svg-icons-v1.deployment-plan.json">original raw-icon batch plan</a>.</small>
 <label for="constructorArgs">Constructor values (JSON array, ABI order)</label>
 <textarea id="constructorArgs" spellcheck="false" placeholder='["Name", "M64", "javascript", "text/javascript", "Description", ["0x20", "..."], ["0x..."], [9]]'></textarea>
 <pre id="constructorStatus">Load an artifact to inspect constructor parameters.</pre>
@@ -85,6 +85,11 @@ summary{cursor:pointer}
 <button id="deploy" class="primary" type="button" disabled>Deploy reviewed contract</button>
 <button id="receipt" type="button" disabled>Check transaction receipt</button>
 <pre id="deploymentStatus">Nothing submitted.</pre>
+</section>
+<section class="panel">
+<h2>Deployed M64 SVG icon library</h2>
+<p>The deployed Polygon SVG dictionary has 62 primary compression definitions. Use the on-chain icon viewer to read entries, render SVG and review/submit the missing compressed icon definitions. It does not require redeploying the contract or using IPFS.</p>
+<p><a href="../m64Artifact/svg-icons-polygon.html">Open deployed Polygon SVG icon viewer</a></p>
 </section>
 <section class="panel">
 <h2>4. Inspect a deployed M64 contract (read-only)</h2>
