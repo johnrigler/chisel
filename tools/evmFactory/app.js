@@ -109,7 +109,7 @@
         ((encoded.encodedArguments.length - 2) / 2) + " bytes\n" +
         "Total deployment data: " + ((encoded.data.length - 2) / 2) +
         " bytes\nNo wallet transaction has been requested." +
-        (seedProfile === "svg" ? "\nSVG Icons v1: 62 primary symbols are in this constructor. The 64 raw icon entries are NOT included; add them after deployment with addRawBatch(bytes[]) in eight separate batches. See the linked deployment plan." : ""));
+        (seedProfile === "svg" ? "\nSVG Icons v1: 62 primary compression symbols are in this constructor. The 64 icons are NOT included. This profile is already deployed on Polygon 137; see the M64 SVG icon viewer for independently reviewed, compressed addSecondaryBatch writes." : ""));
     } catch (err) { show("constructorStatus", "Not ready: " + err.message); }
   }
   function matchesM64Seed(selected) {
