@@ -193,8 +193,10 @@ async function readReceipt(provider,txHash,verified,opt={}){
   const ethers=getEthers(opt.ethers);
   await requirePolygon(provider);
   if(!SHA.test(txHash))throw Error("Enter a 32-byte Polygon transaction hash");
-  const transaction=await provider.getTransaction(txHash);
-  if(!transaction)throw Error("Polygon transaction not found");
+  // Do not call BrowserProvider.getTransaction() here. Some Polygon RPCs
+  // return both v and yParity as hex strings for type-2 transactions;
+  // ethers 6.6.0 rejects that combination during signature normalization
+  // ("yParity mismatch"), before we ever inspect Chisel's event.
   // A smart-account wallet may route the outer transaction through a
   // delegation manager. The authoritative provenance is the receipt log
   // *emitted by Chisel*, not necessarily the top-level tx.to address.
@@ -212,8 +214,15 @@ async function readReceipt(provider,txHash,verified,opt={}){
   if(found.length!==1)throw Error("Expected one native M64 record log at Chisel; found "+found.length);
   const data=toBytes(found[0].args.data);
   const rebuilt=await rebuildRecord(data,verified);
+  // Raw RPC avoids ethers transaction signature parsing. These fields are
+  // informational only: the verified emitting log supplies provenance.
+  let outerTo=null;
+  try {
+    const raw=await provider.send("eth_getTransactionByHash",[txHash]);
+    if(typeof raw?.to==="string"&&ADDRESS.test(raw.to))outerTo=raw.to;
+  } catch (_) { /* Receipt verification does not require outer tx metadata. */ }
   return {...rebuilt,txHash,recordBytes:data.length,writer:found[0].args.writer,blockNumber:receipt.blockNumber,
-    outerTo:transaction.to||null,direct:!!transaction.to&&transaction.to.toLowerCase()===CHISEL.toLowerCase()};
+    outerTo,direct:outerTo!==null&&outerTo.toLowerCase()===CHISEL.toLowerCase()};
 }
 async function previewPublish(provider,prepared,opt={}){
   const ethers=getEthers(opt.ethers);
