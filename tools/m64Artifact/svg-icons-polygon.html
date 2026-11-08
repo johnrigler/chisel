@@ -28,8 +28,8 @@ label{display:block;color:var(--muted);font-size:13px;margin:9px 0 5px}pre{white
 <button id="refresh" type="button">Refresh on-chain state</button>
 <pre id="status" aria-live="polite">Checking contract…</pre></section>
 <section><h2>2. Request an icon</h2>
-<p>Enter a name such as <code>home</code>, an icon ordinal from 0 to 63, or <code>#N</code> for a literal contract entry ID. A name is resolved by Chisel's local manifest, not by a name getter in Solidity.</p>
-<div class="grid2"><div><label for="lookup">Name / ordinal / #entry</label><input id="lookup" value="home" spellcheck="false"></div><div><label>&nbsp;</label><button id="showIcon" type="button">Show icon</button></div></div>
+<p>Enter a name such as <code>home</code>, an ordinal 0–63, or a six-bit character such as <code>A</code> (icon 0), <code>B</code> (icon 1), or <code>a</code> (icon 26). Prefix a digit with <code>@</code> to interpret it as an M64 character (<code>@0</code> = icon 52), or use <code>#N</code> for a literal contract entry ID. Names and characters are resolved by Chisel, not Solidity.</p>
+<div class="grid2"><div><label for="lookup">Name / ordinal / character / #entry</label><input id="lookup" value="home" spellcheck="false"></div><div><label>&nbsp;</label><button id="showIcon" type="button">Show icon</button></div></div>
 <div id="preview" class="preview" aria-live="polite"></div>
 <label for="svgSource">Reconstructed SVG symbol fragment (read-only)</label><textarea id="svgSource" readonly spellcheck="false"></textarea>
 <h2>64-icon manifest</h2><p>Green outlines mean a complete matching icon has been recovered from Polygon. Others are local previews, not yet on-chain.</p>
