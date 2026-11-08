@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https:; img-src data:; base-uri 'self'; form-action 'none'">
+<title>Chisel · Polygon M64 SVG Icons</title>
+<style>
+:root{color-scheme:dark;--bg:#101419;--panel:#1a2029;--line:#405063;--ink:#e5edf5;--muted:#a5b8c9}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+main{max-width:1060px;margin:auto;padding:22px 16px 45px}h1{margin:0;font-size:1.6rem}h2{font-size:1.15rem;margin:0 0 8px}
+p{color:var(--muted)}a{color:#afd3ff}section{background:var(--panel);padding:15px;margin:15px 0;border:1px solid var(--line);border-radius:9px}
+button,input,select,textarea{font:inherit}button{background:#29496a;color:white;border:1px solid #6288b1;border-radius:6px;padding:9px 13px;margin:5px 5px 5px 0;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}input,select,textarea{background:#0b1018;color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:9px;max-width:100%;width:100%}
+textarea{min-height:95px;font:12px/1.45 ui-monospace,monospace;resize:vertical}
+label{display:block;color:var(--muted);font-size:13px;margin:9px 0 5px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#090f17;border:1px solid #354353;padding:12px;font:12px/1.55 ui-monospace,monospace;max-height:320px;overflow:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(116px,1fr));gap:9px;margin-top:10px}
+.iconItem{background:#101824;border:1px solid #3d4d5c;border-radius:7px;padding:9px;display:flex;align-items:center;flex-direction:column;gap:6px;cursor:pointer;min-width:0}
+.iconItem img{width:57px;height:57px;background:#e8eef7;border-radius:6px;padding:9px}
+.iconItem strong{font-size:12px;overflow-wrap:anywhere}.iconItem small{font-size:11px;color:var(--muted);text-align:center}
+.iconItem.onchain{border-color:#7daf87}.preview img{width:120px;height:120px;background:#e8eef7;padding:15px;border-radius:7px}
+.ok{color:#a4e9b7}.bad{color:#ffb5aa}.small{font-size:13px}code{overflow-wrap:anywhere}
+@media(max-width:680px){.grid2{grid-template-columns:1fr}}
+</style></head><body><main>
+<header><h1>M64 SVG Icons · Polygon</h1>
+<p>Read SVG definitions directly from a Polygon contract. No IPFS, gateway, contract deployment or wallet connection required to view. Each stored icon is returned by <code>entry(uint256)</code> and decoded in the browser.</p>
+<p><a href="./index.html">M64 tools</a> · <a href="../evmFactory/index.html">Contract Factory</a> · <a href="../../contracts/M64SymbolDictionary.sol">Solidity source</a> · <a href="https://polygonscan.com/address/0xd78e182813cd4e964aa382d6a81f9efbb10648bd">PolygonScan</a></p></header>
+<section><h2>1. Inspect deployed dictionary</h2>
+<p>Polygon PoS, chain 137. Contract <code>0xd78e182813cd4e964aa382d6a81f9efbb10648bd</code>. Reads are pinned to one block and compare all 62 primary definitions to the local SVG seed.</p>
+<label for="readSource">Read RPC</label><select id="readSource"><option value="public">PublicNode Polygon RPC (no wallet)</option></select>
+<button id="refresh" type="button">Refresh on-chain state</button>
+<pre id="status" aria-live="polite">Checking contract…</pre></section>
+<section><h2>2. Request an icon</h2>
+<p>Enter a name such as <code>home</code>, an icon ordinal from 0 to 63, or <code>#N</code> for a literal contract entry ID. A name is resolved by Chisel's local manifest, not by a name getter in Solidity.</p>
+<div class="grid2"><div><label for="lookup">Name / ordinal / #entry</label><input id="lookup" value="home" spellcheck="false"></div><div><label>&nbsp;</label><button id="showIcon" type="button">Show icon</button></div></div>
+<div id="preview" class="preview" aria-live="polite"></div>
+<label for="svgSource">Reconstructed SVG symbol fragment (read-only)</label><textarea id="svgSource" readonly spellcheck="false"></textarea>
+<h2>64-icon manifest</h2><p>Green outlines mean a complete matching icon has been recovered from Polygon. Others are local previews, not yet on-chain.</p>
+<div id="gallery" class="gallery"></div></section>
+<section><h2>3. Append compressed icons (optional, costs gas)</h2>
+<p>The initial deployment has 62 text-fragment compression symbols but zero stored icons. This tool encodes the missing icon definitions with native M64 v2 and calls <code>addSecondaryBatch(bytes[],uint32[])</code> in groups of up to eight. Anyone may append. Existing entries remain immutable. Nothing is submitted without wallet approval.</p>
+<label for="wallet">Wallet for writes</label><select id="wallet"><option value="">Detecting injected wallets…</option></select>
+<button id="scanWallet" type="button">Refresh wallet detection</button>
+<div><button id="reviewBatch" type="button" disabled>Review next eight missing icons</button>
+<button id="sendBatch" type="button" disabled>Submit reviewed batch through wallet</button></div>
+<pre id="writeStatus">Read a matching dictionary first. No transaction prepared.</pre>
+<p class="small">Storage costs Polygon gas. Review estimates can change. The contract stores compressed binary fragments and exposes them through getters; it does not render complete SVG markup itself. This page wraps a verified <code>&lt;symbol&gt;</code> fragment into a viewable SVG image.</p></section>
+<script src="../../vendor/ethers-6.6.0.umd.min.js"></script>
+<script src="./m64.native6.js"></script>
+<script src="./seeds/svg-icons-v1.js"></script>
+<script src="./svg-icons-polygon.js"></script>
+</main></body></html>
