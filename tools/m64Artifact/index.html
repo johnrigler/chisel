@@ -22,14 +22,25 @@ small{color:var(--muted)}footer{margin-top:24px;font-size:13px;color:var(--muted
 <main>
 <header>
 <h1>M64 tools</h1>
-<p>Select a codec or experiment. This index does not embed another application.</p>
+<p>Choose a codec, prepare an M64 dictionary deployment in the EVM Contract Factory, or open an existing EVM workbench. Each tool opens directly without nested navigation.</p>
 <nav><a href="../../index.html?mode=tools">Chisel tools</a><a href="../../index.html?mode=portal">Portal</a><a href="README.md">M64 documentation</a></nav>
 </header>
 <div class="grid">
 <section class="card primary">
 <h2>Native six-bit M64 · Polygon (v2)</h2>
-<p>Verify the deployed 62-primary/24-secondary dictionary, prepare compact binary records, publish through Chisel, and reconstruct exact source bytes from a transaction receipt.</p>
+<p>Verify the deployed JavaScript 62-primary/24-secondary dictionary, prepare compact binary records, publish through Chisel, and reconstruct exact source bytes from a transaction receipt. SVG uses a separately deployed dictionary profile.</p>
 <a href="native6-polygon.html">Open native M64 workbench</a>
+</section>
+<section class="card primary">
+<h2>EVM Contract Factory · Deploy M64 SVG</h2>
+<p>Next step for the SVG dictionary: import a compiled <code>M64SymbolDictionary.sol</code> artifact with SVG-specific constructor arguments, review its creation bytecode and gas estimate, then explicitly deploy to Polygon. This is the generic factory; it does not compile Solidity or create a seed automatically. Its bundled “M64 Dictionary” is the older text dictionary, not the SVG profile.</p>
+<a href="../evmFactory/index.html">Open EVM Contract Factory</a><br>
+<a href="../../contracts/M64SymbolDictionary.sol">View native M64 Solidity source</a>
+</section>
+<section class="card">
+<h2>EVM Workbench · Existing contracts</h2>
+<p>Open Gomez, Jethro, Chisel and Polygon transaction tools. This remains the general EVM workbench rather than a separate M64-only implementation.</p>
+<a href="../../evm.html">Open EVM Workbench</a>
 </section>
 <section class="card">
 <h2>Dark Star Z · M64 v3 (legacy codec)</h2>
@@ -48,7 +59,7 @@ small{color:var(--muted)}footer{margin-top:24px;font-size:13px;color:var(--muted
 </section>
 </div>
 <footer>
-The SVG icon dictionary is a separate planned native M64 profile. A prototype or seed file is not a deployed contract.
+The SVG icon dictionary is a separate planned native M64 profile. Its local seed and prototype are not a compiled Solidity artifact or a deployed contract. Review construction data before signing.
 </footer>
 <script>
 "use strict";
