@@ -86,7 +86,10 @@ function renderGallery() {
  }
 }
 function chooseIcon(text) {
- const query = text.trim().toLowerCase();
+ const original = text.trim();
+ const query = original.toLowerCase();
+ if (/^@.$/.test(original) && codec.alphabet.includes(original.slice(1)))
+  return icons[codec.alphabet.indexOf(original.slice(1))];
  if (/^#[0-9]+$/.test(query)) {
   if (!snapshot) throw Error("Read the deployed dictionary before requesting a raw entry ID");
   const id = Number(query.slice(1));
@@ -100,6 +103,8 @@ function chooseIcon(text) {
   if (!Number.isSafeInteger(ordinal) || !icons[ordinal]) throw Error("Icon ordinal must be 0–63");
   return icons[ordinal];
  }
+ if (original.length===1 && codec.alphabet.includes(original))
+  return icons[codec.alphabet.indexOf(original)];
  const icon = icons.find(x => x.name === query);
  if (!icon) throw Error("Unknown icon name: " + query);
  return icon;
