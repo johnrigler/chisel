@@ -59,5 +59,8 @@ fi
 cd "$repo_dir"
 if [[ "$#" -eq 0 ]]; then
   set -- M64SymbolDictionary.sol
+elif [[ "${1:0:1}" == "-" ]]; then
+  # Options such as --check without an explicit source target M64 SVG.
+  set -- M64SymbolDictionary.sol "$@"
 fi
 python3 "$contracts_dir/build-solidity.py" "$@"
