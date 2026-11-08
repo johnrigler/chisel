@@ -1,5 +1,5 @@
 {
-  "status": "UNDEPLOYED; use existing contracts/M64SymbolDictionary.sol",
+  "status": "CONSTRUCTOR DEPLOYED ON POLYGON 137; 62 primary entries confirmed; initial secondary count 0; icon batches not submitted",
   "chainId": 137,
   "contractSource": "contracts/M64SymbolDictionary.sol",
   "constructorArguments": [
@@ -163,5 +163,7 @@
     "verify": "all 62 primary bytes and 64 raw secondary bytes, then pin digestAtCount(64)"
   },
   "sourceSha256": "0xfa0fcd74d0ea8e728d2a243b4fb4d087f7972f2a88c744be954b53d29fd0be3d",
-  "safety": "Never publish until independently verified on-chain. 64 raw icons incur storage gas."
+  "safety": "Never publish until independently verified on-chain. 64 raw icons incur storage gas.",
+  "deployedAddress": "0xd78e182813cd4e964aa382d6a81f9efbb10648bd",
+  "preferredFollowUp": "Use ../svg-icons-polygon.html to review and submit compressed M64 addSecondaryBatch(bytes[],uint32[]) icon entries. afterDeployment below is the historical raw-byte alternative, not a confirmation of transaction submission."
 }
