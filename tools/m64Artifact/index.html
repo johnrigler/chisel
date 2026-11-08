@@ -3,36 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chisel M64 Artifact Workbench · v3</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'self'; form-action 'none'">
+<title>Chisel · M64 Tools</title>
 <style>
-:root{color-scheme:dark}body{margin:0;padding:12px;background:#0b0c10;color:#edf0f7;font:14px/1.5 system-ui,sans-serif}
-header{max-width:1420px;margin:auto;display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
-h1{margin:0;font-size:21px}a{color:#b7cdfd}p{margin:4px 0}.muted{color:#aeb5c4;font-size:12px}
-main{max-width:1460px;margin:auto}
-iframe{display:block;width:100%;height:1120px;border:1px solid #383d49;border-radius:7px;margin-top:12px;background:#0b0c10}
-footer{max-width:1420px;margin:10px auto;color:#aeb5c4;font-size:12px}
-@media(max-width:800px){iframe{height:1850px}}
+:root{color-scheme:dark;--bg:#0b0c10;--panel:#171921;--line:#343948;--ink:#edf0f7;--muted:#afb8ca}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+main{max-width:940px;padding:20px 16px 36px;margin:auto}h1{font-size:1.6rem;margin:0 0 4px}
+h2{font-size:1.12rem;margin:0 0 8px}p{margin:0 0 12px;color:var(--muted)}
+a{color:#b7cdfd}header{margin-bottom:20px}nav{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.card.primary{border-color:#6288b1}.card p{font-size:14px}
+.card a{display:inline-block;padding:7px 0;font-weight:600}
+small{color:var(--muted)}footer{margin-top:24px;font-size:13px;color:var(--muted)}
 </style>
 </head>
 <body>
-<header><div><h1>Chisel M64 Artifact Workbench</h1>
-<p class="muted">External dictionary · M64 v3 · browser-side reconstruction · IPFS</p></div>
-<nav><a href="../../index.html?mode=examples">Chisel</a> ·
-<a href="dark-star-z.html">Open Dark Star Z directly</a> ·
-<a href="dictionary-polygon.html">Dictionary console</a> ·
-<a href="packet-polygon.html">Packet carrier</a></nav>
+<main>
+<header>
+<h1>M64 tools</h1>
+<p>Select a codec or experiment. This index does not embed another application.</p>
+<nav><a href="../../index.html?mode=tools">Chisel tools</a><a href="../../index.html?mode=portal">Portal</a><a href="README.md">M64 documentation</a></nav>
 </header>
-<main><iframe id="darkstarWorkbench" loading="eager" src="dark-star-z.html" title="Dark Star Z, first M64 v3 executable artifact"></iframe>
+<div class="grid">
+<section class="card primary">
+<h2>Native six-bit M64 · Polygon (v2)</h2>
+<p>Verify the deployed 62-primary/24-secondary dictionary, prepare compact binary records, publish through Chisel, and reconstruct exact source bytes from a transaction receipt.</p>
+<a href="native6-polygon.html">Open native M64 workbench</a>
+</section>
+<section class="card">
+<h2>Dark Star Z · M64 v3 (legacy codec)</h2>
+<p>Interactive raster demonstration, external text dictionary and IPFS artifact workflow. This codec is distinct from native six-bit M64 v2.</p>
+<a id="darkstarLink" href="dark-star-z.html">Open Dark Star Z directly</a>
+</section>
+<section class="card">
+<h2>Dictionary console</h2>
+<p>Inspect and manage the earlier text-based Polygon dictionary, separate from the deployed native-six-bit dictionary.</p>
+<a href="dictionary-polygon.html">Open dictionary console</a>
+</section>
+<section class="card">
+<h2>Packet carrier</h2>
+<p>Inspect the older Polygon packet publication experiment.</p>
+<a href="packet-polygon.html">Open packet carrier</a>
+</section>
+</div>
+<footer>
+The SVG icon dictionary is a separate planned native M64 profile. A prototype or seed file is not a deployed contract.
+</footer>
 <script>
 "use strict";
-const forward=new URLSearchParams(location.search),target=document.getElementById("darkstarWorkbench");
-const allowed=new URLSearchParams();
-for(const key of ["chain","dictionary","chisel","templateTx","programTx","cid"])if(forward.has(key))allowed.set(key,forward.get(key));
-if([...allowed].length)target.src="dark-star-z.html?"+allowed.toString();
-</script></main>
-<footer>
-<p>Dark Star Z is the first interactive example, not the definition of the M64 format. The codec and dictionary resolver remain language- and carrier-neutral. The older v2 import/export user interface has been removed; v3 artifacts use external dictionary references.</p>
-<p>A future generic source editor can build on the same <code>m64.v3.js</code> functions used by this page.</p>
-</footer>
+// Preserve existing v3 deep links when users reach this index with legacy
+// parameters. Selecting Dark Star Z passes them through unchanged.
+const incoming=new URLSearchParams(location.search),legacy=new URLSearchParams();
+for(const key of ["chain","dictionary","chisel","templateTx","programTx","cid"])
+  if(incoming.has(key))legacy.set(key,incoming.get(key));
+if(legacy.size)document.getElementById("darkstarLink").href="dark-star-z.html?"+legacy.toString();
+</script>
+</main>
 </body>
 </html>
