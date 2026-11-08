@@ -82,7 +82,7 @@ ABI order, check the decoded ABI signature, and review the resulting full
 creation bytes (compiled bytecode plus encoded arguments). For the new
 `M64SymbolDictionary` constructor, use **Fill M64 Symbol Dictionary with Dark
 Star seed** to populate five metadata strings, 62 primary byte definitions,
-24 packed secondary definitions, and their symbol counts. Inspect and edit the
+24 packed secondary definitions, and their symbol counts. Alternatively choose **Fill with SVG Icons v1 seed (62 primary symbols)** after importing a compiled `M64SymbolDictionary` artifact. This loads the exact `M64 SVG Icons v1` constructor values: 62 primary byte definitions with empty packed and count arrays. **The 64 SVG icons are not added by deploying this constructor.** The seed source is `../m64Artifact/seeds/svg-icons-v1.js`; the exact follow-up payloads are in `../m64Artifact/seeds/svg-icons-v1.deployment-plan.json` and require eight wallet-approved `addRawBatch(bytes[])` calls with eight raw icons each. Verify `secondaryCount() == 64`, all entries and `digestAtCount(64)` before publishing. This factory does not currently submit follow-up batch calls. Inspect and edit the
 values before reviewing. The seed is experimental and must not be confused
 with the existing deployed `M64Dictionary` contract. The browser builds a contract-creation transaction with no `to`
 address, signs through the wallet, and checks the receipt when requested.

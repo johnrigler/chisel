@@ -8,6 +8,7 @@
   let pending = null;
   let revision = 0;
   let busy = false;
+  let seedProfile = null;
   let walletStatusRequest = 0;
 
   function show(id, message) { $(id).textContent = String(message); }
@@ -98,7 +99,7 @@
   }
   function updateConstructorPreview() {
     const selected = selectedContract();
-    $("loadSeed").disabled = !selected || !matchesM64Seed(selected);
+    $("loadSeed").disabled = $("loadSvgSeed").disabled = !selected || !matchesM64Seed(selected);
     if (!selected) { show("constructorStatus", "Load an artifact to inspect constructor parameters."); return; }
     const params = selected.constructorParameters || [];
     if (!params.length) { show("constructorStatus", "No constructor arguments. Bytecode is ready for review."); return; }
@@ -107,7 +108,8 @@
       show("constructorStatus", "Constructor arguments encoded: " +
         ((encoded.encodedArguments.length - 2) / 2) + " bytes\n" +
         "Total deployment data: " + ((encoded.data.length - 2) / 2) +
-        " bytes\nNo wallet transaction has been requested.");
+        " bytes\nNo wallet transaction has been requested." +
+        (seedProfile === "svg" ? "\nSVG Icons v1: 62 primary symbols are in this constructor. The 64 raw icon entries are NOT included; add them after deployment with addRawBatch(bytes[]) in eight separate batches. See the linked deployment plan." : ""));
     } catch (err) { show("constructorStatus", "Not ready: " + err.message); }
   }
   function matchesM64Seed(selected) {
@@ -165,6 +167,7 @@
     $("contract").disabled = false;
     $("contract").value = "0";
     $("constructorArgs").value = "";
+    seedProfile = null;
     void renderArtifact();
   }
 
@@ -202,9 +205,11 @@
 
   $("contract").addEventListener("change", () => {
     $("constructorArgs").value = "";
+    seedProfile = null;
     void renderArtifact();
   });
   $("constructorArgs").addEventListener("input", () => {
+    seedProfile = null;
     invalidate();
     updateConstructorPreview();
   });
@@ -223,6 +228,25 @@
         seed.secondary.map(item => item.symbolCount)
       ];
       $("constructorArgs").value = JSON.stringify(values, null, 2);
+      seedProfile = "darkstar";
+      updateConstructorPreview();
+    } catch (err) { error("constructorStatus", err); }
+  });
+  $("loadSvgSeed").addEventListener("click", () => {
+    invalidate();
+    try {
+      if (!matchesM64Seed(selectedContract())) throw new Error("Select a compiled M64SymbolDictionary artifact to use the SVG seed.");
+      const svg = window.ChiselM64Native6SvgIconsSeed;
+      if (!svg || svg.primaryHex.length !== 62 || svg.rawIconHex.length !== 64) {
+        throw new Error("SVG Icons v1 seed unavailable or has an unexpected entry count.");
+      }
+      const values = [
+        "M64 SVG Icons v1", "M64SVG", "svg", "image/svg+xml",
+        "Reusable SVG icon definitions for deterministic lossless reconstruction",
+        svg.primaryHex.map(value => "0x" + value), [], []
+      ];
+      $("constructorArgs").value = JSON.stringify(values, null, 2);
+      seedProfile = "svg";
       updateConstructorPreview();
     } catch (err) { error("constructorStatus", err); }
   });

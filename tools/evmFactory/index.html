@@ -32,7 +32,8 @@ summary{cursor:pointer}
 </style>
 <script src="./factory.js?rev=20261107-immutable-read" defer></script>
 <script src="../m64Artifact/seeds/darkstar-native6-v1.js?rev=20261107-constructor-args" defer></script>
-<script src="./app.js?rev=20261107-immutable-read" defer></script>
+<script src="../m64Artifact/seeds/svg-icons-v1.js?rev=20261107-svg-icons-v1" defer></script>
+<script src="./app.js?rev=20261107-svg-icons-v1" defer></script>
 </head>
 <body><main>
 <header>
@@ -54,9 +55,11 @@ summary{cursor:pointer}
 </div>
 <pre id="artifactStatus">No compiled artifact loaded.</pre>
 <h2>Constructor arguments</h2>
-<p>ABI parameters appear below in their exact constructor order. Enter a JSON array of values, or load the editable Dark Star M64 defaults if the selected ABI matches. Byte arrays must be <code>0x</code>-prefixed hex. Nothing is sent automatically.</p>
+<p>ABI parameters appear below in their exact constructor order. Enter a JSON array of values, or load the Dark Star or SVG Icons v1 defaults if the compiled M64SymbolDictionary ABI matches. Byte arrays must be <code>0x</code>-prefixed hex. Nothing is sent automatically.</p>
 <pre id="constructorSignature">Load an artifact to inspect constructor parameters.</pre>
-<button id="loadSeed" type="button" disabled>Fill M64 Symbol Dictionary with Dark Star seed</button>
+<button id="loadSeed" type="button" disabled>Fill with Dark Star seed</button>
+<button id="loadSvgSeed" type="button" disabled>Fill with SVG Icons v1 seed (62 primary symbols)</button>
+<small>Load a compiled <code>M64SymbolDictionary</code> artifact JSON above to enable these buttons. The SVG constructor contains only 62 primary definitions. After deployment, add 64 SVG icons with eight <code>addRawBatch(bytes[])</code> calls; this factory does not submit those follow-up calls. <a href="../m64Artifact/seeds/svg-icons-v1.js">SVG seed source</a> · <a href="../m64Artifact/seeds/svg-icons-v1.deployment-plan.json">64-icon batch plan</a>.</small>
 <label for="constructorArgs">Constructor values (JSON array, ABI order)</label>
 <textarea id="constructorArgs" spellcheck="false" placeholder='["Name", "M64", "javascript", "text/javascript", "Description", ["0x20", "..."], ["0x..."], [9]]'></textarea>
 <pre id="constructorStatus">Load an artifact to inspect constructor parameters.</pre>
