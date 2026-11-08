@@ -32,8 +32,13 @@ small{color:var(--muted)}footer{margin-top:24px;font-size:13px;color:var(--muted
 <a href="native6-polygon.html">Open native M64 workbench</a>
 </section>
 <section class="card primary">
-<h2>EVM Contract Factory · Deploy M64 SVG</h2>
-<p>Next step for the SVG dictionary: import a compiled <code>M64SymbolDictionary.sol</code> artifact with SVG-specific constructor arguments, review its creation bytecode and gas estimate, then explicitly deploy to Polygon. This is the generic factory; it does not compile Solidity or create a seed automatically. Its bundled “M64 Dictionary” is the older text dictionary, not the SVG profile.</p>
+<h2>M64 SVG Icons · Polygon on-chain viewer</h2>
+<p>Read and render all 64 planned icons from the separately deployed Polygon dictionary, using only read-only contract calls. Verify the 62 seed symbols and append missing icons as compressed M64 definitions through a separately reviewed wallet transaction. No IPFS required.</p>
+<a href="svg-icons-polygon.html">Open SVG icon viewer and batch uploader</a>
+</section>
+<section class="card">
+<h2>EVM Contract Factory · M64 deployments</h2>
+<p>The SVG icon dictionary is already deployed at <code>0xd78e182813cd4e964aa382d6a81f9efbb10648bd</code> on Polygon 137. Use the SVG viewer for read-only retrieval and follow-up compressed icon entries. This factory still supports new deployments and source inspection. Its bundled “M64 Dictionary” is an older, incompatible text codec.</p>
 <a href="../evmFactory/index.html">Open EVM Contract Factory</a><br>
 <a href="../../contracts/README.md">Shell compilation instructions (build.sh)</a><br>
 <a href="../../contracts/M64SymbolDictionary.sol">View native M64 Solidity source</a>
@@ -60,7 +65,7 @@ small{color:var(--muted)}footer{margin-top:24px;font-size:13px;color:var(--muted
 </section>
 </div>
 <footer>
-The SVG icon dictionary is a separate planned native M64 profile. Its local seed and prototype are not a compiled Solidity artifact or a deployed contract. Review construction data before signing.
+The SVG dictionary is deployed on Polygon 137, but the initial state has only 62 primary definitions. The 64 compressed icon entries must be separately appended and verified before they can be retrieved on-chain.
 </footer>
 <script>
 "use strict";
