@@ -5,6 +5,10 @@ This directory contains the Solidity source of Chisel's EVM contracts.
 and Python 3. The EVM Contract Factory does **not** compile source and no
 Node.js, npm, or Hardhat runtime is required.
 
+## Current Polygon SVG icon deployment
+
+The SVG dictionary constructor has already been deployed on Polygon mainnet (chain 137) at `0xd78e182813cd4e964aa382d6a81f9efbb10648bd`. Read-only checks report 62 primary fragments and zero initial secondary entries. To render icons or review transactions that append the 64 compressed SVG definitions, use [the SVG icon viewer](../tools/m64Artifact/svg-icons-polygon.html). **Do not redeploy simply to add icons.** The build instructions below remain useful for other profiles and compiler/source verification.
+
 ## Files
 
 | File | Role |
@@ -92,9 +96,7 @@ for SVG; it supplies JavaScript vocabulary, not icon vocabulary.
 
 **Compilation does not populate the SVG dictionary.** The constructor
 seed must be generated/reviewed independently, then supplied to the Factory.
-The earlier SVG icon prototype was a local experiment; no SVG dictionary
-deployment is implied by this build script. Also, the Factory's
-`Fill M64 ... Dark Star` helper does not currently offer an SVG seed.
+The SVG profile has now been deployed separately from this build script; compilation alone does not prove or reproduce that deployment. The Factory offers separate SVG and Dark Star seeds; do not mix profiles.
 
 ## Operational limits and provenance
 
