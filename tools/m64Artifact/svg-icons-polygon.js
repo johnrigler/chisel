@@ -404,6 +404,7 @@ $("sendBatch").addEventListener("click",async()=>{
  finally {writeBusy=false;invalidateWrite();}
 });
 const params = new URLSearchParams(location.search);
+$("mirrorUrl").value = new URL("../../chisel-artifacts/manifest.json",location.href).href;
 if(params.has("icon")) $("lookup").value=params.get("icon").slice(0,80);
 discover();
 renderGallery();
