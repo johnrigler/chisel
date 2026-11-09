@@ -132,6 +132,45 @@ function displayLookup() {
   $("svgSource").value = "";
  }
 }
+
+function selectedStandaloneSvg() {
+ const icon = chooseIcon($("lookup").value);
+ return {icon, source:decodeURIComponent(srcFor(icon).split(",")[1])};
+}
+function downloadSelectedSvg() {
+ const {icon} = selectedStandaloneSvg();
+ const a = document.createElement("a");
+ a.href = srcFor(icon);
+ a.download = "chisel-icon-" + icon.name + ".svg";
+ document.body.append(a);
+ a.click();
+ a.remove();
+}
+async function readStaticMirror() {
+ const preview = $("mirrorPreview");
+ preview.replaceChildren();
+ status("mirrorStatus","Reading static manifest and SHA-256 object (not FileProxy or Polygon)…");
+ const {icon,source} = selectedStandaloneSvg();
+ if (!window.ChiselStaticArtifactReader) throw Error("Static artifact reader unavailable");
+ const digest = await window.ChiselStaticArtifactReader.sha256Hex(
+  new TextEncoder().encode(source), window.crypto && window.crypto.subtle);
+ const result = await window.ChiselStaticArtifactReader.load({
+  manifestUrl:$("mirrorUrl").value.trim(), id:"polygon/137/icon/" + icon.name,
+  expectedSha256:digest
+ });
+ if (result.mediaType !== "image/svg+xml") throw Error("Mirror did not provide an SVG");
+ // Exact expected digest is derived from the locally bundled icon definition.
+ // This proves matching icon bytes, not present-day Polygon state or authorship.
+ const img = document.createElement("img");
+ img.alt = icon.name + " from verified static mirror";
+ img.src = "data:image/svg+xml;charset=utf-8," +
+  encodeURIComponent(new TextDecoder("utf-8",{fatal:true}).decode(result.bytes));
+ preview.append(img);
+ status("mirrorStatus","STATIC COPY MATCHES LOCAL ICON FIXTURE\nIcon: " + icon.name +
+  "\nSHA-256: " + result.sha256 + "\nSource: " + result.sourceUrl +
+  "\nThis does not prove a current Polygon entry or a verified M64 snapshot.",true);
+}
+
 function addWallet(provider, name) {
  if (!provider || typeof provider.request !== "function" || wallets.some(x => x.provider === provider)) return;
  wallets.push({provider, name:String(name || "Injected EVM wallet")});
@@ -338,6 +377,16 @@ async function submitBatch() {
  await refreshRead();
 }
 $("showIcon").addEventListener("click",displayLookup);
+$("downloadIcon").addEventListener("click",()=>{
+ try {downloadSelectedSvg();}
+ catch(error){status("mirrorStatus","DOWNLOAD FAILED: "+errText(error),false);}
+});
+$("checkMirror").addEventListener("click",async()=>{
+ try {await readStaticMirror();}
+ catch(error){$("mirrorPreview").replaceChildren();
+  status("mirrorStatus","STATIC READ UNAVAILABLE: "+errText(error)+
+   "\nNo Polygon provenance is asserted. The local fixture remains visible.",false);}
+});
 $("lookup").addEventListener("keydown",event => {if(event.key==="Enter") displayLookup();});
 $("refresh").addEventListener("click",refreshRead);
 $("readSource").addEventListener("change",refreshRead);
