@@ -26,9 +26,11 @@ The Polygon SVG viewer offers two new explicit actions:
 - Check a static manifest for that selected icon by ID and verify its returned
   bytes against the locally bundled SVG fixture's SHA-256.
 
-The viewer's default candidate manifest URL is
-https://rigler.org/chisel-artifacts/manifest.json . This is a **proposed path**
-and is not asserted to be deployed or populated. Static mirror failure leaves
+The viewer defaults to a **bundled static test mirror** at
+../../chisel-artifacts/manifest.json, relative to the current Chisel app. The
+sample manifest includes only the home icon, is marked unverified, and works on
+static hosting/IPFS without FileProxy. The proposed production address
+https://rigler.org/chisel-artifacts/manifest.json remains **not deployed**. Static mirror failure leaves
 the local preview and existing direct Polygon RPC viewer operational. Nothing
 starts a transaction, writes to FileProxy or treats mirrored bytes as a live
 Polygon read.
