@@ -1,0 +1,13 @@
+{
+  "format": "chisel-static-artifacts-v1",
+  "artifacts": {
+    "polygon/137/icon/home": {
+      "path": "objects/sha256/8e/8e1d961e426a422a073309fb62a74700d5180f7412839d800c9599459ca2f761.svg",
+      "sha256": "8e1d961e426a422a073309fb62a74700d5180f7412839d800c9599459ca2f761",
+      "bytes": 364,
+      "mediaType": "image/svg+xml",
+      "provenance": "unverified",
+      "sourceHint": "Bundled SVG icon fixture; no Polygon entry verification"
+    }
+  }
+}
