@@ -32,6 +32,15 @@ label{display:block;color:var(--muted);font-size:13px;margin:9px 0 5px}pre{white
 <div class="grid2"><div><label for="lookup">Name / ordinal / character / #entry</label><input id="lookup" value="home" spellcheck="false"></div><div><label>&nbsp;</label><button id="showIcon" type="button">Show icon</button></div></div>
 <div id="preview" class="preview" aria-live="polite"></div>
 <label for="svgSource">Reconstructed SVG symbol fragment (read-only)</label><textarea id="svgSource" readonly spellcheck="false"></textarea>
+<section><h2>Static artifact mirror (optional)</h2>
+<p>FileProxy can publish an SVG and a content-addressed manifest that Apache serves directly, even when FileProxy is stopped. This is a read-only test: the mirror is not assumed to exist until you publish it. Static bytes are checked against the exact bundled icon fixture, not treated as a fresh Polygon audit.</p>
+<button id="downloadIcon" type="button">Download selected standalone SVG</button>
+<label for="mirrorUrl">Static manifest URL</label>
+<input id="mirrorUrl" value="https://rigler.org/chisel-artifacts/manifest.json" spellcheck="false" autocomplete="off">
+<button id="checkMirror" type="button">Read selected icon from static mirror</button>
+<pre id="mirrorStatus" aria-live="polite">No static read attempted.</pre>
+<div id="mirrorPreview" class="preview"></div>
+</section>
 <h2>64-icon manifest</h2><p>Green outlines mean a complete matching icon has been recovered from Polygon. Others are local previews, not yet on-chain.</p>
 <div id="gallery" class="gallery"></div></section>
 <section><h2>3. Append compressed icons (optional, costs gas)</h2>
@@ -45,5 +54,6 @@ label{display:block;color:var(--muted);font-size:13px;margin:9px 0 5px}pre{white
 <script src="../../vendor/ethers-6.6.0.umd.min.js"></script>
 <script src="./m64.native6.js"></script>
 <script src="./seeds/svg-icons-v1.js"></script>
+<script src="./static-artifact-reader.js"></script>
 <script src="./svg-icons-polygon.js"></script>
 </main></body></html>
