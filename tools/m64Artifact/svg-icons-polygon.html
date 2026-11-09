@@ -33,10 +33,10 @@ label{display:block;color:var(--muted);font-size:13px;margin:9px 0 5px}pre{white
 <div id="preview" class="preview" aria-live="polite"></div>
 <label for="svgSource">Reconstructed SVG symbol fragment (read-only)</label><textarea id="svgSource" readonly spellcheck="false"></textarea>
 <section><h2>Static artifact mirror (optional)</h2>
-<p>FileProxy can publish an SVG and a content-addressed manifest that Apache serves directly, even when FileProxy is stopped. This is a read-only test: the mirror is not assumed to exist until you publish it. Static bytes are checked against the exact bundled icon fixture, not treated as a fresh Polygon audit.</p>
+<p>FileProxy can publish an SVG and a content-addressed manifest that Apache serves directly, even when FileProxy is stopped. The default URL uses the bundled static <code>home</code> fixture on this site as a working example; enter a different manifest URL after configuring rigler.org or another mirror. Exact bytes are checked against the bundled icon fixture, not treated as a Polygon audit.</p>
 <button id="downloadIcon" type="button">Download selected standalone SVG</button>
 <label for="mirrorUrl">Static manifest URL</label>
-<input id="mirrorUrl" value="https://rigler.org/chisel-artifacts/manifest.json" spellcheck="false" autocomplete="off">
+<input id="mirrorUrl" placeholder="https://rigler.org/chisel-artifacts/manifest.json" spellcheck="false" autocomplete="off">
 <button id="checkMirror" type="button">Read selected icon from static mirror</button>
 <pre id="mirrorStatus" aria-live="polite">No static read attempted.</pre>
 <div id="mirrorPreview" class="preview"></div>
