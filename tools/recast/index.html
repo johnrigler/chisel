@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Mogwai · Recast</title>
-  <link rel="stylesheet" href="style.css?v=20261110-audio1">
-  <script defer src="transcript.js?v=20261110-audio1"></script>
-  <script defer src="core.js?v=20261110-audio1"></script>
+  <link rel="stylesheet" href="style.css?v=20261110-edit1">
+  <script defer src="transcript.js?v=20261110-edit1"></script>
+  <script defer src="core.js?v=20261110-edit1"></script>
   <script defer src="timing.js?v=20261017-frames1"></script>
   <script defer src="storage.js?v=20261017-work3"></script>
-  <script defer src="render-source.js?v=20261110-audio1"></script>
-  <script defer src="recast.js?v=20261110-audio1"></script>
+  <script defer src="render-source.js?v=20261110-edit1"></script>
+  <script defer src="recast.js?v=20261110-edit1"></script>
 </head>
 <body>
 <header><a class="brand" href="https://github.com/johnrigler/mogwai">MOGWAI <span>/ RECAST</span></a><span class="local">Local video · continuous audio</span></header>
@@ -41,7 +41,8 @@
     <section><h2>Source</h2><input id="source" type="file" accept="video/*,audio/*,.ogg,.opus,.m4a"><p id="sourceInfo" class="muted">No source selected.</p><label>Output size<select id="size"><option value="1280x720">1280 × 720</option><option value="1920x1080">1920 × 1080</option><option value="960x540">960 × 540</option></select></label></section>
     <section class="transcriptSection">
       <div class="sectiontitle"><h2>Timed transcript</h2><div><button id="suggestHighlights" class="quiet" type="button" disabled>Suggest highlights</button> <button id="clearTranscript" class="quiet" type="button" disabled>Remove</button></div></div>
-      <label>Import SRT, WebVTT, or timed JSON<input id="transcriptFile" type="file" accept=".srt,.vtt,.json,text/vtt,application/json,text/plain"></label>
+      <label class="button transcriptImport" for="transcriptFile">Import SRT, WebVTT, or timed JSON</label>
+      <input id="transcriptFile" type="file" accept=".srt,.vtt,.json,text/vtt,application/json,text/plain" hidden>
       <p id="transcriptInfo" class="muted">No transcript imported. Segment timestamps are used as provided.</p>
       <label>Audio-to-transcript offset (seconds)<input id="transcriptOffset" type="number" min="-3600" max="3600" step="0.1" value="0" disabled></label>
       <p class="muted">Tap a line to seek. Toggle its highlight to emphasize it; suggestions are an offline length-and-language heuristic. Word-by-word coloring requires actual word timestamps in JSON.</p>
