@@ -7,3 +7,13 @@
 .thumbPad>*{pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 
 .workFolder{margin:12px 0;padding:10px;border:1px solid var(--line);border-radius:5px}.workFolder summary{font-size:12px;overflow-wrap:anywhere}.workFolder #workTarget{color:var(--accent)}.workFolder details{border-top:1px solid var(--line);margin-top:12px;padding-top:9px}.workFolder label{margin-top:10px}.workFolder input{width:100%;margin-top:5px;background:#0b1219;color:var(--ink);border:1px solid #344452;border-radius:4px;padding:8px;font:12px system-ui,sans-serif}.workFolder button{width:100%;font-size:12px;margin-top:8px}.workFolder p{font-size:11px}
+
+/* Audio transcript import and editorial highlights. */
+.transcriptSection input[type=number]{display:block;width:100%;margin-top:5px;background:#0b1219;color:var(--ink);border:1px solid #344452;border-radius:4px;padding:8px;font:12px system-ui,sans-serif}
+.transcriptList{max-height:360px;overflow-y:auto;border:1px solid var(--line);border-radius:5px;background:#0b1219}
+.transcriptRow{display:flex;align-items:flex-start;gap:5px;padding:6px 4px;border-bottom:1px solid #24323e}
+.transcriptRow:last-child{border-bottom:0}
+.transcriptRow.current{background:#302d21;border-left:3px solid var(--accent)}
+.transcriptRow button:first-child{flex:1;min-width:0;background:transparent;border:0;text-align:left;padding:3px 5px;font-size:12px;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
+.transcriptRow button:last-child{flex:0 0 32px;padding:3px;font-size:18px;color:var(--accent);background:transparent;border:0}
+.transcriptRow button[aria-pressed=true]{color:#ffd08c}
