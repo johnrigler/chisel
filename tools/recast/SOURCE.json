@@ -18,6 +18,7 @@
     "since": "2026-11-10",
     "description": "Chisel-hosted extension for audio-only sources and synchronized transcripts; original Mogwai distribution hashes remain recorded above.",
     "modified": [
+      "README.md",
       "core.js",
       "index.html",
       "recast.js",
