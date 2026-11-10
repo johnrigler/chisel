@@ -1,8 +1,8 @@
 # Mogwai Recast
 
-A static HTML composition tool around **one original video and one continuous audio timeline**. No account, server, framework, npm installation, upload or browser encoder is required. All runtime scripts and styles are local; the folder works on IPFS, GitHub Pages or from a local checkout.
+A static HTML composition tool around **one original audio or video recording and one continuous audio timeline**. No account, server, framework, npm installation, upload or browser encoder is required. All runtime scripts and styles are local; the folder works on IPFS, GitHub Pages or from a local checkout.
 
-Choose a video, press Play, then switch with the buttons or keys **1–4**:
+Choose an audio or video recording, press Play, then switch with the buttons or keys **1–4**:
 
 | Key | Layout |
 | --- | --- |
@@ -12,6 +12,24 @@ Choose a video, press Play, then switch with the buttons or keys **1–4**:
 | 4 | Mirror of 3: picture on the right, notes on the left. |
 
 The original video element remains mounted. A layout switch does not assign its source, seek it, pause it or restart its audio. Full screen shows the entire composition, including panels. The original 4:3 image will have letterboxing in a 16:9 composition.
+
+## Audio recording + synchronized transcript (Chisel extension, November 2026)
+
+Recast now accepts **audio-only recordings** (such as OGG, M4A, MP3 or WAV when the browser can decode them) as well as video. Audio is the master clock. With no video track the preview and renderer draw a static presentation background; the original recording stays on your device and outside the exported project bundle.
+
+Import a timestamped **SRT, WebVTT, or JSON** transcript in the Timed transcript panel. SRT/WebVTT has phrase-level timestamps. JSON can include word-level timestamps using `{"segments":[{"start":1,"end":3,"text":"Hello world","words":[{"start":1,"end":1.5,"text":"Hello"},{"start":1.5,"end":3,"text":"world"}]}]}`, or a root `words` array. Real word timestamps enable word-level live highlighting and FFmpeg karaoke timing. **The tool does not guess or align word timestamps.** For SRT it highlights a whole caption while it is spoken.
+
+Set **Audio-to-transcript offset** in seconds to correct the difference between the transcript clock and the recording. For instance `0.5` places a transcript cue at 1.0 s onto the recording at 1.5 s. The original timestamp data is retained. Tap a transcript row to seek and click its star to mark a statement as an editorial highlight. **Suggest highlights** uses a deterministic offline heuristic based on text length and a few discourse indicators, not an AI model; all selections are editable and should be reviewed.
+
+The transcript is independent of the maximum 100 image/layout cues. The project JSON includes the transcript and highlight flags, **but never bundles the original recording**. You can reuse previously exported transcripts. No new transcription or cloud call is required to import a timed transcript.
+
+FFmpeg export renders audio-only sources onto a 30 fps video background, adds layouts and images, and burns in captions using the libass `ass` filter. FFmpeg must include libass subtitle support. AAC source audio is stream-copied; formats such as Opus are transcoded to AAC for MP4 compatibility (the original recording remains untouched). In the render folder:
+
+```bash
+python3 render.py /path/to/phone-call.ogg phone-call-recast.mp4
+```
+
+`render-source.js` contains the matching offline renderer. You can review and edit `project.json` before generating the final video.
 
 ## Timed instructions and images
 
@@ -88,7 +106,7 @@ python3 render.py /path/to/apocalypseNewscast.mp4 recast.mp4
 
 FFmpeg and ffprobe must be installed. On Termux, the packages are `python` and `ffmpeg`. No Python packages are needed. The source stays outside the ZIP. The output is not allowed to overwrite an existing file.
 
-The renderer changes video size/position with per-frame scale and overlay expressions. It maps the original audio once using **`-map 0:a? -c:a copy`**; it does not cut, concatenate, mix or re-encode it. The output container must support the original audio codec. AAC works in MP4; an incompatible source codec causes FFmpeg to fail rather than silently changing it. Video is re-encoded as H.264. A 480×360 original gains no detail from an HD canvas.
+For video sources, the renderer changes video size/position with per-frame scale and overlay expressions. For audio sources it substitutes a generated background. It maps the original audio once, copying AAC streams without re-encoding and converting other codecs to AAC for MP4 playback. Neither path alters the original source file. Video is re-encoded as H.264. A 480×360 original gains no detail from an HD canvas.
 
 FFmpeg does not interpret HTML. The browser rasterizes the same Canvas panel layer used in the live preview, so fonts, wrapping and images are baked into PNGs before rendering. CSS/HTML can later add another live layer, but arbitrary markup would need a separate browser-capture step for file export.
 
