@@ -40,11 +40,11 @@
   <aside class="editor" aria-label="Cue editor">
     <section><h2>Source</h2><input id="source" type="file" accept="video/*,audio/*,.ogg,.opus,.m4a"><p id="sourceInfo" class="muted">No source selected.</p><label>Output size<select id="size"><option value="1280x720">1280 × 720</option><option value="1920x1080">1920 × 1080</option><option value="960x540">960 × 540</option></select></label></section>
     <section class="transcriptSection">
-      <div class="sectiontitle"><h2>Timed transcript</h2><button id="clearTranscript" class="quiet" type="button" disabled>Remove</button></div>
+      <div class="sectiontitle"><h2>Timed transcript</h2><div><button id="suggestHighlights" class="quiet" type="button" disabled>Suggest highlights</button> <button id="clearTranscript" class="quiet" type="button" disabled>Remove</button></div></div>
       <label>Import SRT, WebVTT, or timed JSON<input id="transcriptFile" type="file" accept=".srt,.vtt,.json,text/vtt,application/json,text/plain"></label>
       <p id="transcriptInfo" class="muted">No transcript imported. Segment timestamps are used as provided.</p>
       <label>Audio-to-transcript offset (seconds)<input id="transcriptOffset" type="number" min="-3600" max="3600" step="0.1" value="0" disabled></label>
-      <p class="muted">Tap a line to seek. Toggle its highlight to emphasize it. Word-by-word coloring requires actual word timestamps in JSON.</p>
+      <p class="muted">Tap a line to seek. Toggle its highlight to emphasize it; suggestions are an offline length-and-language heuristic. Word-by-word coloring requires actual word timestamps in JSON.</p>
       <div id="transcriptList" class="transcriptList" role="list" aria-label="Transcript lines"></div>
     </section>
     <section><div class="sectiontitle"><h2>Panels</h2><span id="mode">Full picture</span></div><label>Right-hand instructions<textarea id="rightText" rows="7" placeholder="Your instructions, notes, or running commentary…"></textarea></label><label>Bottom message<textarea id="bottomText" rows="3" placeholder="A message below the picture…"></textarea></label><label>Bottom image<input id="image" type="file" accept="image/png,image/jpeg,image/webp"></label><button id="removeImage" class="quiet" hidden>Remove image</button><p class="muted">Panels appear in layouts 2–4. The bottom panel appears in 3 and 4.</p><button id="saveCue" class="accent">Save cue here</button></section>
