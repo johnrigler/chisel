@@ -1,8 +1,8 @@
 (function () {
   'use strict';
-  const C = window.MogwaiRecast, T = window.MogwaiFrameTiming, S = window.MogwaiRecastStorage, $ = id => document.getElementById(id);
+  const C = window.MogwaiRecast, T = window.MogwaiFrameTiming, X = window.MogwaiTranscript, S = window.MogwaiRecastStorage, $ = id => document.getElementById(id);
   const video = $('video'), canvas = $('overlay');
-  const state = { project: C.validate({ format: C.FORMAT, width: 1280, height: 720, source: { name: '' }, cues: [C.emptyCue()] }), draft: C.emptyCue(), active: -1, selected: null, pinned: false, sourceTiming: null, timingPending: false, sourceVersion: 0, url: '', loaded: false, images: new Map(), renderVersion: 0 };
+  const state = { project: C.validate({ format: C.FORMAT, width: 1280, height: 720, source: { name: '' }, cues: [C.emptyCue()] }), draft: C.emptyCue(), active: -1, selected: null, pinned: false, sourceTiming: null, timingPending: false, sourceVersion: 0, url: '', loaded: false, images: new Map(), renderVersion: 0, captionKey: '', transcriptActive: -1 };
   function status(text, error) { $('status').textContent = text; $('status').classList.toggle('error', Boolean(error)); }
   async function run(fn) { try { await fn(); } catch (error) { status(error.message || String(error), true); } }
   function imageFor(data) {
@@ -15,13 +15,13 @@
     const areaW = stage.clientWidth || p.width, areaH = stage.clientHeight || p.height, scale = Math.min(areaW / p.width, areaH / p.height);
     const left = (areaW - p.width * scale) / 2, top = (areaH - p.height * scale) / 2;
     Object.assign(canvas.style, { left: left + 'px', top: top + 'px', width: p.width * scale + 'px', height: p.height * scale + 'px' });
-    Object.assign(video.style, { left: left + g.video[0] * scale + 'px', top: top + g.video[1] * scale + 'px', width: g.video[2] * scale + 'px', height: g.video[3] * scale + 'px' });
+    Object.assign(video.style, { left: left + g.video[0] * scale + 'px', top: top + g.video[1] * scale + 'px', width: g.video[2] * scale + 'px', height: g.video[3] * scale + 'px', visibility: state.project.source.kind === 'audio' ? 'hidden' : 'visible' });
   }
   async function paint() {
     const revision = ++state.renderVersion, cue = { ...state.draft }, image = await imageFor(cue.image);
     if (revision !== state.renderVersion) return;
     canvas.width = state.project.width; canvas.height = state.project.height;
-    C.render(canvas, cue, image); positionVideo();
+    C.render(canvas, cue, image, { audioOnly: state.project.source.kind === 'audio', caption: X.captionAt(state.project.transcript, currentTime()) }); positionVideo();
     canvas.setAttribute('aria-label', [cue.right, cue.bottom].filter(Boolean).join('. ') || 'No text overlay');
     $('mode').textContent = C.layouts[cue.layout];
     document.querySelectorAll('[data-layout]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.layout === cue.layout)));
@@ -43,6 +43,48 @@
     updateNudge();
   }
   function currentTime() { return state.loaded ? video.currentTime : 0; }
+  function renderTranscriptList() {
+    const list = $('transcriptList'); list.replaceChildren();
+    const transcript = state.project.transcript;
+    $('transcriptOffset').disabled = !transcript;
+    $('clearTranscript').disabled = !transcript;
+    if (!transcript) { $('transcriptInfo').textContent = 'No transcript imported. Segment timestamps are used as provided.'; return; }
+    $('transcriptOffset').value = String(transcript.offset);
+    $('transcriptInfo').textContent = transcript.name + ' · ' + transcript.segments.length + ' timed lines' +
+      (transcript.segments.some(row => row.words?.length) ? ' · word timestamps present' : ' · phrase-level timing');
+    const fragment = document.createDocumentFragment();
+    transcript.segments.forEach((segment, index) => {
+      const row = document.createElement('div'), jump = document.createElement('button'), flag = document.createElement('button');
+      row.className = 'transcriptRow'; row.dataset.segment = String(index); row.setAttribute('role', 'listitem');
+      jump.type = flag.type = 'button';
+      jump.textContent = C.time(segment.start + transcript.offset) + '  ' + segment.text;
+      jump.title = 'Seek to transcript line'; jump.addEventListener('click', () => {
+        if (!state.loaded) { status('Choose the original recording to seek within it.'); return; }
+        video.currentTime = Math.max(0, Math.min(video.duration, segment.start + transcript.offset));
+        state.pinned = false; state.active = -1; updateClock();
+      });
+      flag.textContent = segment.highlight ? '★' : '☆'; flag.title = 'Toggle editorial highlight';
+      flag.setAttribute('aria-label', 'Highlight transcript line ' + (index + 1));
+      flag.setAttribute('aria-pressed', String(segment.highlight));
+      flag.addEventListener('click', () => {
+        segment.highlight = !segment.highlight;
+        flag.textContent = segment.highlight ? '★' : '☆';
+        flag.setAttribute('aria-pressed', String(segment.highlight));
+        run(paint); status('Highlight ' + (segment.highlight ? 'added' : 'removed') + '. Save project JSON to keep it.');
+      });
+      row.append(jump, flag); fragment.appendChild(row);
+    });
+    list.appendChild(fragment); state.transcriptActive = -1;
+  }
+  function updateTranscriptPosition(caption) {
+    const index = caption ? caption.index : -1;
+    if (index === state.transcriptActive) return;
+    const previous = $('transcriptList').querySelector('[data-segment="' + state.transcriptActive + '"]');
+    if (previous) previous.classList.remove('current');
+    const next = $('transcriptList').querySelector('[data-segment="' + index + '"]');
+    if (next) next.classList.add('current');
+    state.transcriptActive = index;
+  }
   function saveCue() {
     const timing = frameTiming(), at = state.pinned && state.selected !== null ? state.project.cues[state.selected].at : timing ? T.floor(timing, currentTime()) : currentTime();
     const cue = { ...state.draft, at };
@@ -61,6 +103,10 @@
     document.body.classList.toggle('adjustingCue', state.pinned && state.selected !== null);
     $('clock').textContent = C.time(currentTime()) + ' / ' + C.time(state.loaded ? video.duration : 0);
     $('seek').value = String(currentTime());
+    const caption = X.captionAt(state.project.transcript, currentTime());
+    const captionKey = caption ? caption.index + ':' + caption.wordIndex + ':' + caption.segment.highlight : '';
+    if (captionKey !== state.captionKey) { state.captionKey = captionKey; run(paint); }
+    updateTranscriptPosition(caption);
     if ($('follow').checked && !state.pinned) {
       const found = C.cueAt(state.project.cues, currentTime());
       if (found.index !== state.active) { state.active = found.index; state.draft = { ...found.cue }; editors(found.cue); run(paint); renderCues(); }
@@ -154,37 +200,40 @@
     $('frameRate').value = rate; state.draft = { ...clean.cues[0] };
     const size = clean.width + 'x' + clean.height;
     if (![...$('size').options].some(option => option.value === size)) { const option = document.createElement('option'); option.value = size; option.textContent = clean.width + ' × ' + clean.height; $('size').appendChild(option); }
-    $('size').value = size; $('follow').checked = true; editors(state.draft); updateClock(); renderCues(); await paint();
-    status('Project opened. Choose ' + (clean.source.name || 'the source video') + ' separately.');
+    $('size').value = size; $('follow').checked = true; editors(state.draft); state.captionKey = ''; renderTranscriptList(); updateClock(); renderCues(); await paint();
+    status('Project opened. Choose ' + (clean.source.name || 'the source recording') + ' separately.');
   }
   async function exportFiles() {
     const project = C.validate(state.project);
-    if (!state.loaded || !video.videoWidth) throw new Error('Choose a video source before exporting.');
+    if (!state.loaded || !Number.isFinite(video.duration) || video.duration <= 0) throw new Error('Choose a playable audio or video source before exporting.');
     const files = [{ name: 'project.json', data: JSON.stringify(project, null, 2) + '\n' }, { name: 'render.py', data: window.RecastRenderPython }];
     const exported = document.createElement('canvas'); exported.width = project.width; exported.height = project.height;
     for (let i = 0; i < project.cues.length; i++) {
-      const cue = project.cues[i]; C.render(exported, cue, await imageFor(cue.image));
+      const cue = project.cues[i]; C.render(exported, cue, await imageFor(cue.image), { audioOnly: project.source.kind === 'audio' });
       const blob = await new Promise((resolve, reject) => exported.toBlob(value => value ? resolve(value) : reject(new Error('PNG export failed.')), 'image/png'));
       files.push({ name: 'overlays/' + String(i).padStart(3, '0') + '.png', data: new Uint8Array(await blob.arrayBuffer()) });
     }
-    files.push({ name: 'README.txt', data: 'Mogwai Recast\n\nThe original video is not included. Keep it separately.\n\nInstall Python 3, FFmpeg and ffprobe. In this folder run:\n\npython3 render.py "path/to/original.mp4" "recast.mp4"\n\nVideo is recomposed; audio is copied from the original as a single stream.\nThe output container must support the original audio codec (AAC works in MP4).\nExisting output files are not overwritten.\n\nProject JSON is editable and can be reopened in the static HTML tool.\nPanels are exported as transparent PNGs so FFmpeg needs no HTML renderer.\nThe original source file and embedded images stay private unless you share them.\n' });
+    files.push({ name: 'README.txt', data: 'Mogwai Recast\\n\\nThe original recording is not included. Keep it separately.\\n\\nInstall Python 3, FFmpeg and ffprobe (including libass subtitle support). In this folder run:\\n\\npython3 render.py "path/to/original.ogg" "recast.mp4"\\n\\nAudio-only and video sources are supported. Timed captions are burned into the video using an ASS subtitle filter.\\nAAC source audio is stream copied; other codecs are encoded to AAC for MP4 compatibility. The original recording is never modified.\\nExisting output files are not overwritten.\\n\\nProject JSON is editable and can be reopened in the static HTML tool.\\nPanels are exported as transparent PNGs.\\nThe original source file and embedded images stay private unless you share them.\\n' });
     return files;
   }
   async function exportPackage() { return C.zip(await exportFiles()); }
   $('source').addEventListener('change', () => run(async () => {
     const file = $('source').files[0]; if (!file) return;
     stopNudge(); state.sourceTiming = null; state.timingPending = true; state.pinned = false; const version = ++state.sourceVersion;
-    T.read(file).then(timing => { if (version === state.sourceVersion) { state.sourceTiming = timing; state.timingPending = false; updateNudge(); } }).catch(() => { if (version === state.sourceVersion) { state.timingPending = false; updateNudge(); } });
+    if (file.type.startsWith('audio/') || /\\.(?:ogg|opus|m4a|mp3|wav|flac)$/i.test(file.name)) {
+      state.sourceTiming = T.manual('30'); state.timingPending = false;
+    } else T.read(file).then(timing => { if (version === state.sourceVersion) { state.sourceTiming = timing; state.timingPending = false; updateNudge(); } }).catch(() => { if (version === state.sourceVersion) { state.timingPending = false; updateNudge(); } });
     video.pause(); if (state.url) URL.revokeObjectURL(state.url);
     state.url = URL.createObjectURL(file); state.loaded = false; state.project.source.name = file.name; video.src = state.url; video.load();
     updateNudge(); status('Opening ' + file.name + '…');
   }));
   video.addEventListener('loadedmetadata', () => {
-    state.loaded = true; state.active = -1; $('empty').hidden = true; $('play').disabled = false; $('seek').disabled = false; $('seek').max = String(video.duration);
-    $('sourceInfo').textContent = state.project.source.name + ' · ' + video.videoWidth + ' × ' + video.videoHeight + ' · ' + C.time(video.duration);
-    updateClock(); updateNudge(); run(paint); status(video.videoWidth ? 'Ready. Press Play; keys 1–4 change layouts.' : 'This is audio-only. FFmpeg export needs a video source.', !video.videoWidth);
+    state.loaded = true; state.project.source.kind = video.videoWidth ? 'video' : 'audio'; state.active = -1; $('empty').hidden = true; $('play').disabled = false; $('seek').disabled = false; $('seek').max = String(video.duration);
+    $('sourceInfo').textContent = state.project.source.name + (video.videoWidth ? ' · ' + video.videoWidth + ' × ' + video.videoHeight : ' · audio only') + ' · ' + C.time(video.duration);
+    if (!video.videoWidth && !state.sourceTiming) state.sourceTiming = T.manual('30');
+    state.captionKey = ''; updateClock(); updateNudge(); run(paint); status(video.videoWidth ? 'Video ready. Press Play.' : 'Audio ready. Import a timed transcript, or compose panels.');
   });
-  video.addEventListener('error', () => status('The browser could not open this video. Try an MP4 with H.264 video and AAC audio.', true));
+  video.addEventListener('error', () => status('The browser could not decode the selected audio or video file.', true));
   if (typeof video.requestVideoFrameCallback === 'function') {
     const onFrame = function () { updateClock(); video.requestVideoFrameCallback(onFrame); };
     video.requestVideoFrameCallback(onFrame);
@@ -211,6 +260,25 @@
   window.addEventListener('pointerup', stopNudge); window.addEventListener('pointercancel', stopNudge);
   window.addEventListener('blur', () => stopNudge()); document.addEventListener('visibilitychange', () => { if (document.hidden) stopNudge(); });
   $('frameRate').addEventListener('change', () => { stopNudge(); state.project = C.validate({ ...state.project, source: { ...state.project.source, frameRate: $('frameRate').value } }); updateNudge(); });
+  $('transcriptFile').addEventListener('change', () => run(async () => {
+    const file = $('transcriptFile').files[0]; if (!file) return;
+    if (file.size > 8_000_000) throw new Error('Transcript exceeds 8 MB.');
+    const transcript = X.fromText(await file.text(), file.name);
+    state.project = C.validate({ ...state.project, transcript });
+    state.captionKey = ''; renderTranscriptList(); updateClock(); await paint();
+    status('Imported ' + transcript.segments.length + ' timed transcript lines. Save project JSON to preserve them.');
+    $('transcriptFile').value = '';
+  }));
+  $('transcriptOffset').addEventListener('change', () => run(async () => {
+    if (!state.project.transcript) return;
+    state.project = C.validate({ ...state.project, transcript: { ...state.project.transcript, offset: Number($('transcriptOffset').value) } });
+    state.captionKey = ''; renderTranscriptList(); updateClock(); await paint();
+    status('Transcript offset updated. Save project JSON to keep the synchronization.');
+  }));
+  $('clearTranscript').addEventListener('click', () => run(async () => {
+    state.project = C.validate({ ...state.project, transcript: null });
+    state.captionKey = ''; renderTranscriptList(); updateClock(); await paint(); status('Transcript removed from this project.');
+  }));
   $('saveCue').addEventListener('click', () => run(saveCue));
   $('follow').addEventListener('change', () => { state.pinned = false; state.active = -1; updateClock(); });
   $('size').addEventListener('change', () => run(async () => { const [width, height] = $('size').value.split('x').map(Number); state.project = C.validate({ ...state.project, width, height }); await paint(); }));
@@ -255,6 +323,6 @@
     if (layout) { event.preventDefault(); run(() => chooseLayout(layout)); }
     else if (event.code === 'Space' && !event.target.closest('button')) { event.preventDefault(); run(togglePlay); }
   });
-  window.MOGWAI_RECAST = { state, loadProject, chooseLayout, saveCue, exportPackage, exportFiles, selectCue, nudgeCue };
+  window.MOGWAI_RECAST = { state, loadProject, chooseLayout, saveCue, exportPackage, exportFiles, selectCue, nudgeCue, renderTranscriptList };
   setWorkTarget(null); renderCues(); run(paint);
 })();
