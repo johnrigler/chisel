@@ -48,6 +48,7 @@
     const transcript = state.project.transcript;
     $('transcriptOffset').disabled = !transcript;
     $('clearTranscript').disabled = !transcript;
+    $('suggestHighlights').disabled = !transcript;
     if (!transcript) { $('transcriptInfo').textContent = 'No transcript imported. Segment timestamps are used as provided.'; return; }
     $('transcriptOffset').value = String(transcript.offset);
     $('transcriptInfo').textContent = transcript.name + ' · ' + transcript.segments.length + ' timed lines' +
@@ -274,6 +275,13 @@
     state.project = C.validate({ ...state.project, transcript: { ...state.project.transcript, offset: Number($('transcriptOffset').value) } });
     state.captionKey = ''; renderTranscriptList(); updateClock(); await paint();
     status('Transcript offset updated. Save project JSON to keep the synchronization.');
+  }));
+  $('suggestHighlights').addEventListener('click', () => run(async () => {
+    if (!state.project.transcript) return;
+    const selected = X.suggestHighlights(state.project.transcript);
+    selected.forEach(index => { state.project.transcript.segments[index].highlight = true; });
+    renderTranscriptList(); state.captionKey = ''; updateClock(); await paint();
+    status('Suggested ' + selected.length + ' transcript highlights using an offline heuristic. Review each selection before publishing.');
   }));
   $('clearTranscript').addEventListener('click', () => run(async () => {
     state.project = C.validate({ ...state.project, transcript: null });
