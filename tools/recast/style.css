@@ -14,6 +14,16 @@
 .transcriptRow{display:flex;align-items:flex-start;gap:5px;padding:6px 4px;border-bottom:1px solid #24323e}
 .transcriptRow:last-child{border-bottom:0}
 .transcriptRow.current{background:#302d21;border-left:3px solid var(--accent)}
-.transcriptRow button:first-child{flex:1;min-width:0;background:transparent;border:0;text-align:left;padding:3px 5px;font-size:12px;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
-.transcriptRow button:last-child{flex:0 0 32px;padding:3px;font-size:18px;color:var(--accent);background:transparent;border:0}
+.transcriptRow > button:first-child{flex:1;min-width:0;background:transparent;border:0;text-align:left;padding:3px 5px;font-size:12px;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
+.transcriptRow .transcriptFlag{flex:0 0 32px;padding:3px;font-size:18px;color:var(--accent);background:transparent;border:0}
 .transcriptRow button[aria-pressed=true]{color:#ffd08c}
+
+/* Inline corrections retain subtitle timestamps while editing the displayed text. */
+.transcriptRow{flex-wrap:wrap}
+.transcriptRow .transcriptEdit{flex:0 0 auto;padding:4px 7px;font-size:11px;background:transparent;color:var(--muted)}
+.transcriptRow.editing{background:#1d2b36}
+.transcriptInlineEditor{flex:0 0 100%;min-width:0;padding:6px 5px 8px}
+.transcriptInlineEditor textarea{width:100%;min-height:70px;margin:0 0 7px;font-size:13px}
+.transcriptEditActions{display:flex;justify-content:flex-end;gap:8px}
+.transcriptEditActions button{font-size:12px;padding:6px 10px}
+.transcriptSection .transcriptImport{display:inline-block;width:100%;margin:0 0 7px;font-size:12px}
