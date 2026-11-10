@@ -109,5 +109,26 @@
     }
     return null;
   }
-  root.MogwaiTranscript = Object.freeze({ stamp, cleanText, validate, fromText, captionAt });
+  // Offline suggestions only: a transparent ranking heuristic, not semantic AI analysis.
+  function suggestHighlights(transcript) {
+    const rows = transcript?.segments || [];
+    const candidates = rows.map((segment, index) => {
+      const text = segment.text, duration = segment.end - segment.start;
+      const words = text.toLowerCase().match(/[a-z0-9']+/g) || [];
+      if (words.length < 9 || duration < 1) return null;
+      const score = Math.min(160, text.length) / 14 +
+        (/[.!?]$/.test(text) ? 2 : 0) +
+        (/\\b(because|therefore|however|means|important|actually|problem|evidence|reason|disagree|instead|conclusion)\\b/i.test(text) ? 3 : 0) -
+        (/^(?:um|uh|yeah|okay|right|so|well)\\b/i.test(text) ? 2 : 0);
+      return { index, score, at: segment.start };
+    }).filter(Boolean).sort((a, b) => b.score - a.score);
+    const target = Math.min(24, Math.max(1, Math.ceil(rows.length * 0.07)));
+    const selected = [];
+    for (const row of candidates) {
+      if (selected.every(other => Math.abs(other.at - row.at) >= 4)) selected.push(row);
+      if (selected.length >= target) break;
+    }
+    return selected.map(row => row.index).sort((a, b) => a - b);
+  }
+  root.MogwaiTranscript = Object.freeze({ stamp, cleanText, validate, fromText, captionAt, suggestHighlights });
 })(typeof globalThis !== 'undefined' ? globalThis : this);
