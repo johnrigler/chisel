@@ -65,6 +65,7 @@ jobs:
           node --check chisel.record-preview.js
           node --check chisel.portal.publication.js
           node --check tools/recast/core.js
+          node --check tools/recast/transcript.js
           node --check tools/recast/timing.js
           node --check tools/recast/storage.js
           node --check tools/recast/recast.js
@@ -80,7 +81,9 @@ jobs:
           node tests/check-inline-scripts.mjs index.html evm.html qrScan.html tools/m64Artifact/deploy-dictionary-polygon.html tools/m64Artifact/dictionary-polygon.html tools/m64Artifact/packet-polygon.html
 
       - name: Check fileProxy Python syntax
-        run: python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py
+        run: |
+          python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py tools/recast/render.py
+          python3 -m unittest discover -s tests -p 'test_recast_audio.py' -v
 
   secp256k1-migration:
     runs-on: ubuntu-latest
