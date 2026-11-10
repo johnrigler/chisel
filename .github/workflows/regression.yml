@@ -85,6 +85,26 @@ jobs:
           python3 -m py_compile tools/fileProxy/proxy.py tools/fileProxy/proxys.py tools/recast/render.py
           python3 -m unittest discover -s tests -p 'test_recast_audio.py' -v
 
+  recast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+      - name: Test Recast transcript parsing and provenance
+        run: node --test tests/recast-*.test.mjs
+      - name: Validate Recast scripts and renderer
+        run: |
+          node --check tools/recast/transcript.js
+          node --check tools/recast/core.js
+          node --check tools/recast/recast.js
+          node --check tools/recast/render-source.js
+          python3 -m py_compile tools/recast/render.py
+          python3 -m unittest discover -s tests -p 'test_recast_audio.py' -v
+
   secp256k1-migration:
     runs-on: ubuntu-latest
     defaults:
