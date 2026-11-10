@@ -43,6 +43,53 @@
     updateNudge();
   }
   function currentTime() { return state.loaded ? video.currentTime : 0; }
+  function editTranscriptLine(row, segment, index, jump) {
+    const open = $('transcriptList').querySelector('.transcriptInlineEditor');
+    if (open) {
+      if (open.parentElement === row) open.querySelector('textarea').focus();
+      else status('Save or cancel the current transcript correction first.');
+      return;
+    }
+    const editor = document.createElement('div'), field = document.createElement('textarea');
+    const actions = document.createElement('div'), save = document.createElement('button'), cancel = document.createElement('button');
+    editor.className = 'transcriptInlineEditor'; row.classList.add('editing');
+    field.value = segment.text; field.maxLength = 1500; field.rows = 3;
+    field.setAttribute('aria-label', 'Correct transcript line ' + (index + 1));
+    save.type = cancel.type = 'button';
+    save.textContent = 'Save correction'; save.className = 'accent';
+    cancel.textContent = 'Cancel'; cancel.className = 'quiet';
+    actions.className = 'transcriptEditActions'; actions.append(save, cancel);
+    editor.append(field, actions); row.appendChild(editor); field.focus();
+    const close = () => { editor.remove(); row.classList.remove('editing'); };
+    cancel.addEventListener('click', close);
+    save.addEventListener('click', () => {
+      const corrected = X.cleanText(field.value);
+      if (!corrected || corrected.length > 1500) {
+        status('A transcript line must contain 1–1500 characters.', true);
+        field.focus(); return;
+      }
+      const changed = corrected !== segment.text;
+      const hadWords = changed && Array.isArray(segment.words) && segment.words.length > 0;
+      if (changed) {
+        segment.text = corrected;
+        // A changed phrase cannot keep stale per-word text; preserve segment timing instead.
+        if (hadWords) delete segment.words;
+        jump.textContent = C.time(segment.start + state.project.transcript.offset) + '  ' + corrected;
+      }
+      close();
+      if (changed) {
+        state.captionKey = '';
+        run(paint);
+        status('Line ' + (index + 1) + ' corrected.' +
+          (hadWords ? ' Word-level coloring for this line reverted to phrase timing.' : '') +
+          ' Save project JSON to preserve the correction.');
+      } else status('No changes to line ' + (index + 1) + '.');
+    });
+    field.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); close(); }
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); save.click(); }
+    });
+  }
   function renderTranscriptList() {
     const list = $('transcriptList'); list.replaceChildren();
     const transcript = state.project.transcript;
@@ -55,9 +102,13 @@
       (transcript.segments.some(row => row.words?.length) ? ' · word timestamps present' : ' · phrase-level timing');
     const fragment = document.createDocumentFragment();
     transcript.segments.forEach((segment, index) => {
-      const row = document.createElement('div'), jump = document.createElement('button'), flag = document.createElement('button');
+      const row = document.createElement('div'), jump = document.createElement('button'), flag = document.createElement('button'), edit = document.createElement('button');
       row.className = 'transcriptRow'; row.dataset.segment = String(index); row.setAttribute('role', 'listitem');
-      jump.type = flag.type = 'button';
+      jump.type = flag.type = edit.type = 'button';
+      flag.className = 'transcriptFlag'; edit.className = 'transcriptEdit';
+      edit.textContent = 'Edit'; edit.title = 'Correct the text of this line';
+      edit.setAttribute('aria-label', 'Edit transcript line ' + (index + 1));
+      edit.addEventListener('click', () => editTranscriptLine(row, segment, index, jump));
       jump.textContent = C.time(segment.start + transcript.offset) + '  ' + segment.text;
       jump.title = 'Seek to transcript line'; jump.addEventListener('click', () => {
         if (!state.loaded) { status('Choose the original recording to seek within it.'); return; }
@@ -73,7 +124,7 @@
         flag.setAttribute('aria-pressed', String(segment.highlight));
         run(paint); status('Highlight ' + (segment.highlight ? 'added' : 'removed') + '. Save project JSON to keep it.');
       });
-      row.append(jump, flag); fragment.appendChild(row);
+      row.append(jump, flag, edit); fragment.appendChild(row);
     });
     list.appendChild(fragment); state.transcriptActive = -1;
   }
