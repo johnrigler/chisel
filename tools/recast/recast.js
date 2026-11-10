@@ -214,14 +214,14 @@
       const blob = await new Promise((resolve, reject) => exported.toBlob(value => value ? resolve(value) : reject(new Error('PNG export failed.')), 'image/png'));
       files.push({ name: 'overlays/' + String(i).padStart(3, '0') + '.png', data: new Uint8Array(await blob.arrayBuffer()) });
     }
-    files.push({ name: 'README.txt', data: 'Mogwai Recast\\n\\nThe original recording is not included. Keep it separately.\\n\\nInstall Python 3, FFmpeg and ffprobe (including libass subtitle support). In this folder run:\\n\\npython3 render.py "path/to/original.ogg" "recast.mp4"\\n\\nAudio-only and video sources are supported. Timed captions are burned into the video using an ASS subtitle filter.\\nAAC source audio is stream copied; other codecs are encoded to AAC for MP4 compatibility. The original recording is never modified.\\nExisting output files are not overwritten.\\n\\nProject JSON is editable and can be reopened in the static HTML tool.\\nPanels are exported as transparent PNGs.\\nThe original source file and embedded images stay private unless you share them.\\n' });
+    files.push({ name: 'README.txt', data: 'Mogwai Recast\n\nThe original recording is not included. Keep it separately.\n\nInstall Python 3, FFmpeg and ffprobe (including libass subtitle support). In this folder run:\n\npython3 render.py "path/to/original.ogg" "recast.mp4"\n\nAudio-only and video sources are supported. Timed captions are burned into the video using an ASS subtitle filter.\nAAC source audio is stream copied; other codecs are encoded to AAC for MP4 compatibility. The original recording is never modified.\nExisting output files are not overwritten.\n\nProject JSON is editable and can be reopened in the static HTML tool.\nPanels are exported as transparent PNGs.\nThe original source file and embedded images stay private unless you share them.\n' });
     return files;
   }
   async function exportPackage() { return C.zip(await exportFiles()); }
   $('source').addEventListener('change', () => run(async () => {
     const file = $('source').files[0]; if (!file) return;
     stopNudge(); state.sourceTiming = null; state.timingPending = true; state.pinned = false; const version = ++state.sourceVersion;
-    if (file.type.startsWith('audio/') || /\\.(?:ogg|opus|m4a|mp3|wav|flac)$/i.test(file.name)) {
+    if (file.type.startsWith('audio/') || /\.(?:ogg|opus|m4a|mp3|wav|flac)$/i.test(file.name)) {
       state.sourceTiming = T.manual('30'); state.timingPending = false;
     } else T.read(file).then(timing => { if (version === state.sourceVersion) { state.sourceTiming = timing; state.timingPending = false; updateNudge(); } }).catch(() => { if (version === state.sourceVersion) { state.timingPending = false; updateNudge(); } });
     video.pause(); if (state.url) URL.revokeObjectURL(state.url);
