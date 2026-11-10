@@ -118,7 +118,7 @@
       if (words.length < 9 || duration < 1) return null;
       const score = Math.min(160, text.length) / 14 +
         (/[.!?]$/.test(text) ? 2 : 0) +
-        (/\\b(because|therefore|however|means|important|actually|problem|evidence|reason|disagree|instead|conclusion)\\b/i.test(text) ? 3 : 0) -
+        (/\b(because|therefore|however|means|important|actually|problem|evidence|reason|disagree|instead|conclusion)\b/i.test(text) ? 3 : 0) -
         (/^(?:um|uh|yeah|okay|right|so|well)\\b/i.test(text) ? 2 : 0);
       return { index, score, at: segment.start };
     }).filter(Boolean).sort((a, b) => b.score - a.score);
