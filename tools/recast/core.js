@@ -26,14 +26,15 @@
     }).sort((a, b) => a.at - b.at);
     if (cues[0].at !== 0 || cues.some((cue, i) => i && cue.at === cues[i - 1].at)) throw new Error('Start with a cue at 0; cue times must be unique.');
     const name = String(project.source?.name || '').split(/[\\/]/).pop().slice(0, 240);
-    const source = { name }, rate = project.source?.frameRate;
+    const source = { name, kind: project.source?.kind === 'audio' ? 'audio' : 'video' }, rate = project.source?.frameRate;
     if (rate && rate !== 'auto') {
       if (typeof rate !== 'string' || !/^\d+(?:\/\d+|\.\d+)?$/.test(rate)) throw new Error('Invalid source frame rate.');
       const parts = rate.split('/').map(Number), fps = parts[0] / (parts[1] ?? 1);
       if (!Number.isFinite(fps) || fps <= 0 || fps > 240) throw new Error('Invalid source frame rate.');
       source.frameRate = rate;
     }
-    return { format: FORMAT, width, height, source, cues };
+    const transcript = project.transcript == null ? null : root.MogwaiTranscript.validate(project.transcript);
+    return { format: FORMAT, width, height, source, cues, transcript };
   }
   function cueAt(cues, seconds) {
     let index = 0;
@@ -93,12 +94,47 @@
     wrapped.slice(0, max).forEach((line, i) => context.fillText(i === max - 1 && wrapped.length > max ? line.replace(/.$/, '…') : line, textX, y + padding + i * lineHeight));
     context.restore();
   }
-  function render(canvas, cue, image) {
+  function paintCaption(context, canvas, caption) {
+    if (!caption) return;
+    const scale = canvas.width / 1280, fullWidth = canvas.width;
+    const fontSize = Math.max(18, 36 * scale), padding = 18 * scale, lineHeight = fontSize * 1.27;
+    context.save(); context.font = '600 ' + fontSize + 'px sans-serif';
+    const words = caption.segment.text.split(/\s+/), maxWidth = fullWidth - 120 * scale;
+    const rows = []; let current = [];
+    for (const word of words) {
+      if (current.length && context.measureText(current.map(w => w.word).concat(word).join(' ')).width > maxWidth) { rows.push(current); current = []; }
+      current.push({ word, index: rows.reduce((n, row) => n + row.length, 0) + current.length });
+    }
+    if (current.length) rows.push(current);
+    const visible = rows.slice(-3), height = visible.length * lineHeight + padding * 2, y = canvas.height - height - 26 * scale;
+    context.fillStyle = 'rgba(5, 9, 15, .88)'; context.fillRect(25 * scale, y, fullWidth - 50 * scale, height);
+    if (caption.segment.highlight) { context.fillStyle = '#e7b26d'; context.fillRect(25 * scale, y, 5 * scale, height); }
+    context.textBaseline = 'top';
+    visible.forEach((row, i) => {
+      const text = row.map(w => w.word).join(' '), width = context.measureText(text).width;
+      let x = (fullWidth - width) / 2;
+      for (const w of row) {
+        context.fillStyle = w.index === caption.wordIndex || caption.segment.highlight ? '#f8c274' : '#f5f5f4';
+        context.fillText(w.word, x, y + padding + i * lineHeight);
+        x += context.measureText(w.word + ' ').width;
+      }
+    });
+    context.restore();
+  }
+  function render(canvas, cue, image, options = {}) {
     const width = canvas.width, height = canvas.height, context = canvas.getContext('2d'), g = geometry(cue.layout, width, height);
     context.clearRect(0, 0, width, height);
     const scale = width / 1280;
+    if (options.audioOnly) {
+      const [x, y, w, h] = g.video;
+      context.fillStyle = '#10151c'; context.fillRect(x, y, w, h);
+      context.fillStyle = '#dca761'; context.font = '600 ' + (32 * scale) + 'px sans-serif';
+      context.textAlign = 'center'; context.fillText('AUDIO CONVERSATION', x + w / 2, y + h / 2);
+      context.textAlign = 'start';
+    }
     if (g.right) paintPanel(context, g.right, cue.right, scale, null);
     if (g.bottom) paintPanel(context, g.bottom, cue.bottom, scale, image);
+    paintCaption(context, canvas, options.caption);
     return g;
   }
   function crc32(bytes) {
