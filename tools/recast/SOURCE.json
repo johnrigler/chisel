@@ -12,5 +12,22 @@
     "storage.js": "c656be73d22bf1bff048a844f3aec437d1bb3fbc13edca014f4bacfb5029552d",
     "style.css": "c7dfc06294f01151f2ce221f9211fdfbca1a5a039d10463df4ad62de637639f9",
     "timing.js": "6e26f6a3ef58ac334318ae1a1b7bfd395f2319e3987f5112dc8a497360abb125"
+  },
+  "derivative": {
+    "repository": "johnrigler/chisel",
+    "since": "2026-11-10",
+    "description": "Chisel-hosted extension for audio-only sources and synchronized transcripts; original Mogwai distribution hashes remain recorded above.",
+    "modified": [
+      "README.md",
+      "core.js",
+      "index.html",
+      "recast.js",
+      "render-source.js",
+      "render.py",
+      "style.css"
+    ],
+    "added": [
+      "transcript.js"
+    ]
   }
 }
