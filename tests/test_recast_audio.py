@@ -65,8 +65,8 @@ class RecastAudioTests(unittest.TestCase):
             def chunk(kind, data):
                 return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
             width, height = 320, 240
-            image = (b"\\x00" + b"\\x00\\x00\\x00\\x00" * width) * height
-            png.write_bytes(b"\\x89PNG\\r\\n\\x1a\\n" +
+            image = (b"\x00" + b"\x00\x00\x00\x00" * width) * height
+            png.write_bytes(b"\x89PNG\r\n\x1a\n" +
                 chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)) +
                 chunk(b"IDAT", zlib.compress(image)) + chunk(b"IEND", b""))
             source, destination = folder / "input.wav", folder / "output.mp4"
@@ -78,7 +78,7 @@ class RecastAudioTests(unittest.TestCase):
             p["transcript"]["segments"] = [{"start": 0.2, "end": 1, "text": "A spoken caption."}]
             command, script, graph = recast.build_command(p, str(source), str(destination), folder, 1.2,
                                                           "30/1", has_video=False, audio_codec="pcm_s16le")
-            script.write_text(graph + "\\n")
+            script.write_text(graph + "\n")
             subprocess.run(command, cwd=folder, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             info = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-show_streams",
                                                        "-of", "json", str(destination)], text=True))
