@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>Chisel · Commons SHA-256</title>
+<style>
+:root{color-scheme:dark;background:#10151b;color:#e8eff4;font:16px/1.6 system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0}main{max-width:900px;margin:30px auto;padding:25px}
+nav{display:flex;flex-wrap:wrap;gap:22px;font-size:14px}
+a{color:#c0b3ff;text-underline-offset:3px}
+h1{font:clamp(2.1rem,5vw,3.4rem)/1.12 Georgia,serif;margin:24px 0}
+h2{font-size:21px}p{margin:13px 0}section{border:1px solid #405166;border-radius:9px;padding:24px;margin:20px 0}
+label{display:block;font-weight:650;margin:20px 0 7px}
+input{display:block;width:100%;font:16px/1.4 ui-monospace,monospace;padding:12px;background:#1a2530;color:#e8eff4;border:1px solid #7f91a2;border-radius:5px}
+code,pre{overflow-wrap:anywhere;white-space:pre-wrap;font:14px/1.65 ui-monospace,monospace}
+button{font:650 16px system-ui,sans-serif;padding:13px 18px;color:#10151b;background:#b5a8ff;border:0;border-radius:5px;cursor:pointer;margin-top:13px}
+button:disabled{opacity:.42;cursor:not-allowed}.note{font-size:14px;color:#aebdcb}
+.big{font-size:16px}.tag{background:#1a2530;padding:10px;border-radius:4px}
+@media(max-width:600px){main{padding:18px;margin:0}section{padding:16px}}
+</style></head><body><main>
+<nav><a href="../../index.html?mode=portal">Chisel Portal</a><a href="https://johnrigler.github.io/commons/reading/ledger/">Commons ledger view</a></nav>
+<header><p class="note">Litecoin mainnet · Commons transport</p><h1>Commit a file's SHA-256</h1>
+<p>Calculate the SHA-256 of your unchanged source file in Bash or FileProxy, paste the complete 64-digit digest here, and open Send with the Commons output already selected. This tool does not read, transmit, or store your source file.</p></header>
+<section>
+<label for="hash">Full source-file SHA-256 (hex)</label>
+<input id="hash" type="text" maxlength="64" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="64 hexadecimal characters">
+<label for="amount">Litecoin per index output</label>
+<input id="amount" type="text" inputmode="decimal" value="0.00001000">
+<p id="cost" class="note">Two index outputs and the normal transaction fee.</p>
+<h2>OP_RETURN · 71 ASCII bytes</h2>
+<pre id="op-return" class="tag">Enter a digest to prepare the plan.</pre>
+<h2>Recipients (unspendable)</h2>
+<p>General Litecoin index: <code id="root">LLLLLLLLLLLLLLLLLLLLLLLLLLLLXgkk2V</code></p>
+<p>Commons transport: <code id="commons">LMxCoMMoNSzzzzzzzzzzzzzzzzzzZU8MFW</code></p>
+<button id="load-send" type="button" disabled>Review in Chisel Send</button>
+<p id="status" role="status" class="note"></p>
+</section>
+<p class="note">The plan replaces Send's recipient rows; inspect the actual coin, exact outputs, fee, OP_RETURN and signing account before approving the transaction. Nothing is broadcast by this page. A SHA-256 commitment identifies bytes, not their truth, creation time, or public availability. Store the source and at least one verified independent copy separately.</p>
+<p class="note">For example, Bash: <code>sha256sum /path/to/original.ogg</code>. Do not paste filenames, account details, or private evidence in OP_RETURN.</p>
+</main>
+<script src="core.js"></script><script src="app.js"></script>
+</body></html>
