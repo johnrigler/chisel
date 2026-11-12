@@ -1989,6 +1989,19 @@
     .portalViewingNowToggle::after { content:"EXPAND"; }
     #portalInteractionDisclosure[open] .portalViewingNowToggle::after { content:"COLLAPSE"; }
     .portalViewingNowExpanded { margin-top:12px; }
+
+    /* Viewing now: the most recent interaction is a media-first preview. */
+    .portalViewingNowLatest { display:flex; align-items:center; gap:10px; min-width:0; }
+    .portalViewingNowThumb { display:block; flex:none; width:96px; height:54px; object-fit:cover; border-radius:6px; background:#080c10; border:1px solid #354251; }
+    .portalViewingNowCaption { display:flex; min-width:0; flex:1; align-items:baseline; gap:8px; overflow:hidden; }
+    .portalViewingNowAction { flex:none; color:#a9d4ff; font-size:11px; font-weight:700; text-transform:uppercase; }
+    .portalViewingNowTitle { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#e6edf3; }
+    @media(max-width:600px) {
+      .portalViewingNowSummary { flex-wrap:wrap; }
+      .portalViewingNowLatest { order:3; flex-basis:100%; }
+      .portalViewingNowThumb { width:112px; height:63px; }
+    }
+
     .portalHistoryHeading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
     .portalHistoryHeading h3 { margin:0; font-size:17px; }
     .portalHistoryHeading .secondaryButton { margin-left:auto; font-size:11px; }
