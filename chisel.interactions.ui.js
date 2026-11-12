@@ -96,18 +96,58 @@
     }
     const panel = doc.getElementById("portalViewingNow"), historyContainer = doc.getElementById("portalInteractionHistory");
     const globalView = makeFeed(historyContainer, {}, false);
+    function youtubeVideoId(value) {
+      if (!value) return "";
+      try {
+        const url = new URL(value);
+        const hostname = url.hostname.toLowerCase();
+        let id = "";
+        if (hostname === "youtu.be" || hostname === "www.youtu.be") id = url.pathname.split("/")[1] || "";
+        else if (["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"].includes(hostname)) {
+          const parts = url.pathname.split("/").filter(Boolean);
+          id = parts[0] === "watch" ? url.searchParams.get("v") || "" :
+            ["shorts", "embed", "live", "v"].includes(parts[0]) ? parts[1] || "" : "";
+        }
+        return /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : "";
+      } catch (_) { return ""; }
+    }
+    function renderLatest(latest, activity, recent) {
+      const kind = activity ? ({
+        open_media: "Opened media", run_function: "Run requested", function_drawn: "Drew function",
+        star: "Starred", starred: "Starred"
+      }[activity.action] || {
+        visit: "Arrived", select: "Selected", engage: "Engaged", comment: "Comment"
+      }[activity.kind] || "Activity") : "";
+      const label = activity ? kind + " · " + (activity.title || "Chisel") : "No recent activity";
+      const videoId = activity && youtubeVideoId(activity.url);
+      // Avoid unnecessary DOM replacement on each history refresh.
+      const key = (activity ? activity.id : "") + ":" + (videoId || "");
+      if (latest.dataset.previewKey !== key) {
+        latest.replaceChildren();
+        if (videoId) {
+          const image = element("img", "portalViewingNowThumb");
+          image.src = "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
+          image.alt = "YouTube video thumbnail";
+          image.loading = "lazy";
+          image.referrerPolicy = "no-referrer";
+          image.onerror = function () { image.remove(); };
+          latest.appendChild(image);
+        }
+        const caption = element("span", "portalViewingNowCaption");
+        caption.appendChild(element("span", "portalViewingNowAction", kind || "Activity"));
+        if (activity) caption.appendChild(element("span", "portalViewingNowTitle", activity.title || "Chisel"));
+        else caption.appendChild(element("span", "portalViewingNowTitle", "No recent activity"));
+        latest.appendChild(caption);
+        latest.dataset.previewKey = key;
+      }
+      latest.title = activity ? [label, activity.synopsis, stamp(recent)].filter(Boolean).join("\n") : label;
+    }
     function paint() {
       globalView.paint();
       const latest = doc.getElementById("portalInteractionLatest");
       if (latest) {
-        const recent = client.feed({}).items[0], activity = recent && recent.document.payload;
-        const kind = activity ? ({
-          visit: "Arrived", select: "Selected", engage: "Engaged", comment: "Comment",
-          open_media: "Opened media", run_function: "Run requested", function_drawn: "Drew function"
-        }[activity.action] || {visit: "Arrived", select: "Selected", engage: "Engaged", comment: "Comment"}[activity.kind] || "Activity") : "";
-        const label = activity ? kind + " · " + (activity.title || "Chisel") : "No recent activity";
-        if (latest.textContent !== label) latest.textContent = label;
-        latest.title = activity ? [label, activity.synopsis, stamp(recent)].filter(Boolean).join("\n") : label;
+        const recent = client.feed({}).items[0];
+        renderLatest(latest, recent && recent.document.payload, recent);
       }
       const state = client.state, pending = state.outbox.length;
       const status = doc.getElementById("portalInteractionStatus");
