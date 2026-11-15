@@ -79,7 +79,9 @@
       const renderer = root.CHISEL_PORTAL_VIEW.createList({key: function (owner) { return owner.key; },
         create: function (owner) { const node = makeCard(owner); updateCard(node, owner); return node; }, update: updateCard});
       view.paint = function () {
-        const feed = client.feed(view.filter), owners = feed.items.map(function (entry) {
+        const feed = client.feed(view.filter), visible = fullComments ? feed.items :
+          feed.items.filter(function (entry) { return entry.document.payload.kind !== "visit"; });
+        const owners = visible.map(function (entry) {
           const key = entry.endpoint + ":" + entry.document.payload.id;
           if (!view.entries.has(key)) view.entries.set(key, {key: key, entry: entry});
           const owner = view.entries.get(key); owner.entry = entry; return owner;
@@ -96,6 +98,27 @@
     }
     const panel = doc.getElementById("portalViewingNow"), historyContainer = doc.getElementById("portalInteractionHistory");
     const globalView = makeFeed(historyContainer, {}, false);
+    const SELECTED_KEY = "chisel.portal.lastSelected.v1";
+    let lastSelected = null, localCleared = false;
+    try {
+      const stored = root.localStorage && JSON.parse(root.localStorage.getItem(SELECTED_KEY) || "null");
+      if (stored && typeof stored.title === "string" && stored.title.trim() && typeof stored.url === "string") {
+        lastSelected = {title: stored.title.slice(0, 200), url: api.publicUrl(stored.url)};
+      }
+    } catch (_) { /* Local preview remains optional when storage is blocked or invalid. */ }
+    function rememberSelection(record) {
+      if (!record || !record.subject) return;
+      const title = String(record.title || "").trim().slice(0, 200);
+      if (!title) return;
+      let url = "";
+      try { url = api.publicUrl(String(record.url || "")); } catch (_) {}
+      lastSelected = {title: title, url: url};
+      localCleared = false;
+      if (client.state.enabled) {
+        try { root.localStorage.setItem(SELECTED_KEY, JSON.stringify(lastSelected)); } catch (_) {}
+      }
+      paint();
+    }
     function youtubeVideoId(value) {
       if (!value) return "";
       try {
@@ -111,43 +134,35 @@
         return /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : "";
       } catch (_) { return ""; }
     }
-    function renderLatest(latest, activity, recent) {
-      const kind = activity ? ({
-        open_media: "Opened media", run_function: "Run requested", function_drawn: "Drew function",
-        star: "Starred", starred: "Starred"
-      }[activity.action] || {
-        visit: "Arrived", select: "Selected", engage: "Engaged", comment: "Comment"
-      }[activity.kind] || "Activity") : "";
-      const label = activity ? kind + " · " + (activity.title || "Chisel") : "No recent activity";
-      const videoId = activity && youtubeVideoId(activity.url);
-      // Avoid unnecessary DOM replacement on each history refresh.
-      const key = (activity ? activity.id : "") + ":" + (videoId || "");
+    function renderLatest(latest, record, recent) {
+      const title = record && record.title || "No record selected";
+      const videoId = record && youtubeVideoId(record.url);
+      const key = title + ":" + (record && record.url || "") + ":" + (videoId || "");
       if (latest.dataset.previewKey !== key) {
         latest.replaceChildren();
         if (videoId) {
           const image = element("img", "portalViewingNowThumb");
           image.src = "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
-          image.alt = "YouTube video thumbnail";
+          image.alt = "Video thumbnail for " + title;
           image.loading = "lazy";
           image.referrerPolicy = "no-referrer";
           image.onerror = function () { image.remove(); };
           latest.appendChild(image);
         }
-        const caption = element("span", "portalViewingNowCaption");
-        caption.appendChild(element("span", "portalViewingNowAction", kind || "Activity"));
-        if (activity) caption.appendChild(element("span", "portalViewingNowTitle", activity.title || "Chisel"));
-        else caption.appendChild(element("span", "portalViewingNowTitle", "No recent activity"));
-        latest.appendChild(caption);
+        latest.appendChild(element("span", "portalViewingNowTitle", title));
         latest.dataset.previewKey = key;
       }
-      latest.title = activity ? [label, activity.synopsis, stamp(recent)].filter(Boolean).join("\n") : label;
+      latest.title = record ? [title, record.synopsis, recent && stamp(recent)].filter(Boolean).join("\n") : title;
     }
     function paint() {
       globalView.paint();
       const latest = doc.getElementById("portalInteractionLatest");
       if (latest) {
-        const recent = client.feed({}).items[0];
-        renderLatest(latest, recent && recent.document.payload, recent);
+        const recent = localCleared ? null : client.feed({}).items.find(function (entry) {
+          const payload = entry.document && entry.document.payload;
+          return payload && payload.kind === "select" && payload.subject;
+        });
+        renderLatest(latest, lastSelected || recent && recent.document.payload, lastSelected ? null : recent);
       }
       const state = client.state, pending = state.outbox.length;
       const status = doc.getElementById("portalInteractionStatus");
@@ -215,16 +230,18 @@
       enabled.onchange = function () { client.setEnabled(enabled.checked); };
       doc.getElementById("portalInteractionRefresh").onclick = function () { tick(true); };
       doc.getElementById("portalInteractionExport").onclick = function () { download(client.exportData(), "chisel-interaction-history.json"); };
-      doc.getElementById("portalInteractionClear").onclick = function () { verifications.clear(); client.clearLocal(); };
-      client.record("visit", null, {mode: MODESafe(doc.body.dataset.mode), action: "arrive"}).catch(function () {});
+      doc.getElementById("portalInteractionClear").onclick = function () {
+        verifications.clear(); lastSelected = null; localCleared = true;
+        try { root.localStorage.removeItem(SELECTED_KEY); } catch (_) {}
+        client.clearLocal(); paint();
+      };
       tick(false);
       timer = root.setInterval(function () { tick(false); }, 15000);
       doc.addEventListener("visibilitychange", function () { if (!doc.hidden) tick(false); });
       root.addEventListener("pagehide", function () { if (timer) root.clearInterval(timer); timer = null; client.flush(); });
       root.addEventListener("pageshow", function () { if (started && !timer) timer = root.setInterval(function () { tick(false); }, 15000); });
     }
-    function MODESafe(value) { return ["portal", "send", "review", "examples", "tools"].includes(value) ? value : "portal"; }
-    return {start: start, comments: comments, refresh: tick, paint: paint};
+    return {start: start, comments: comments, refresh: tick, paint: paint, rememberSelection: rememberSelection};
   }
   root.CHISEL_INTERACTIONS_UI = {create: create};
 })(window);
