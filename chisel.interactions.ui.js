@@ -96,28 +96,152 @@
       };
       return view;
     }
+    function summarizeRecords(entries) {
+      const records = new Map();
+      for (const entry of entries) {
+        const payload = entry && entry.document && entry.document.payload;
+        if (!payload || !payload.subject || !["select", "engage"].includes(payload.kind)) continue;
+        let key;
+        try { key = api.subjectKey(payload.subject); } catch (_) { continue; }
+        let record = records.get(key);
+        if (!record) {
+          record = {key: key, subject: payload.subject, title: payload.title || "Chisel record",
+            url: payload.url || "", synopsis: payload.synopsis || "", views: 0, engagements: 0,
+            lastAt: "", lastEntry: null};
+          records.set(key, record);
+        }
+        if (payload.kind === "select") record.views++;
+        else record.engagements++;
+        if (!record.lastAt || payload.at > record.lastAt) {
+          record.lastAt = payload.at; record.lastEntry = entry;
+          record.title = payload.title || record.title;
+          record.url = payload.url || record.url;
+          record.synopsis = payload.synopsis || record.synopsis;
+        }
+      }
+      return Array.from(records.values()).sort(function (a, b) {
+        return b.views - a.views || b.engagements - a.engagements || b.lastAt.localeCompare(a.lastAt);
+      });
+    }
+    function viewCount(record) {
+      if (!record) return "";
+      const views = record.views, engagements = record.engagements;
+      return (views ? views + (views === 1 ? " view" : " views") : "") +
+        (engagements ? (views ? " · " : "") + engagements + (engagements === 1 ? " media open" : " media opens") : "");
+    }
+    function makeRecordCatalog(container) {
+      const view = {entries: new Map()}, list = element("div", "portalHistoryList portalViewedList");
+      list.tabIndex = 0; list.setAttribute("aria-label", "Other viewed Chisel records");
+      const empty = element("p", "muted", "No other records viewed yet.");
+      const older = button("OLDER RECORDS", function () { client.refresh({}, true, true); });
+      const message = element("p", "muted portalHistoryMessage");
+      container.appendChild(list); container.appendChild(empty); container.appendChild(older); container.appendChild(message);
+      function makeCard(owner) {
+        const card = element("article", "portalViewedEntry");
+        const open = button("", function () { options.open(owner.record.subject); });
+        open.className = "portalViewedLink";
+        const media = element("span", "portalViewedMedia");
+        const body = element("span", "portalViewedBody");
+        const title = element("span", "portalViewedTitle");
+        const count = element("span", "portalViewedCount");
+        body.appendChild(title); body.appendChild(count);
+        open.appendChild(media); open.appendChild(body); card.appendChild(open);
+        owner.open = open; owner.titleNode = title; owner.countNode = count; owner.media = media;
+        owner.mediaId = null;
+        updateCard(card, owner);
+        return card;
+      }
+      function updateCard(_card, owner) {
+        const record = owner.record;
+        owner.titleNode.textContent = record.title || "Chisel record";
+        owner.countNode.textContent = viewCount(record) || "Recorded interaction";
+        owner.countNode.className = "portalViewedCount" + (record.views > 1 ? " isRepeated" : "");
+        owner.open.title = "Open " + record.title + " in Portal";
+        const videoId = youtubeVideoId(record.url);
+        if (owner.mediaId !== videoId) {
+          owner.media.replaceChildren();
+          if (videoId) {
+            const image = element("img", "portalViewedThumb");
+            image.src = "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
+            image.alt = ""; image.loading = "lazy"; image.referrerPolicy = "no-referrer";
+            image.onerror = function () { image.remove(); };
+            owner.media.appendChild(image);
+          }
+          owner.media.hidden = !videoId; owner.mediaId = videoId;
+        }
+      }
+      const renderer = root.CHISEL_PORTAL_VIEW.createList({
+        key: function (owner) { return owner.key; }, create: makeCard, update: updateCard
+      });
+      view.paint = function (selectedKey, records) {
+        const feed = client.feed({}), grouped = (records || summarizeRecords(feed.items))
+          .filter(function (record) { return record.key !== selectedKey; });
+        const owners = grouped.map(function (record) {
+          if (!view.entries.has(record.key)) view.entries.set(record.key, {key: record.key});
+          const owner = view.entries.get(record.key);
+          owner.record = record; return owner;
+        });
+        const keys = new Set(owners.map(function (owner) { return owner.key; }));
+        for (const key of view.entries.keys()) if (!keys.has(key)) view.entries.delete(key);
+        renderer.render(list, owners);
+        empty.hidden = owners.length > 0;
+        older.hidden = !feed.hasMore;
+        const unavailable = !client.state.online && !!(feed.error || client.state.error);
+        older.disabled = feed.busy || unavailable;
+        message.textContent = unavailable ? "Shared record history unavailable. Saved selections remain available." :
+          feed.busy ? "Reading records…" : "";
+      };
+      return view;
+    }
     const panel = doc.getElementById("portalViewingNow"), historyContainer = doc.getElementById("portalInteractionHistory");
-    const globalView = makeFeed(historyContainer, {}, false);
+    const globalView = makeRecordCatalog(historyContainer);
     const SELECTED_KEY = "chisel.portal.lastSelected.v1";
     let lastSelected = null, localCleared = false;
     try {
       const stored = root.localStorage && JSON.parse(root.localStorage.getItem(SELECTED_KEY) || "null");
       if (stored && typeof stored.title === "string" && stored.title.trim() && typeof stored.url === "string") {
-        lastSelected = {title: stored.title.slice(0, 200), url: api.publicUrl(stored.url)};
+        // Legacy cached selections contained only title and URL. Resolve their ledger
+        // identity from a matching history entry rather than guessing a transaction.
+        lastSelected = {title: stored.title.slice(0, 200), url: api.publicUrl(stored.url), subject: null};
+        if (stored.subject) {
+          api.subjectKey(stored.subject);
+          lastSelected.subject = stored.subject;
+        }
       }
-    } catch (_) { /* Local preview remains optional when storage is blocked or invalid. */ }
+    } catch (_) { lastSelected = null; }
     function rememberSelection(record) {
       if (!record || !record.subject) return;
+      try { api.subjectKey(record.subject); } catch (_) { return; }
       const title = String(record.title || "").trim().slice(0, 200);
       if (!title) return;
       let url = "";
       try { url = api.publicUrl(String(record.url || "")); } catch (_) {}
-      lastSelected = {title: title, url: url};
+      lastSelected = {title: title, url: url, subject: record.subject};
       localCleared = false;
       if (client.state.enabled) {
         try { root.localStorage.setItem(SELECTED_KEY, JSON.stringify(lastSelected)); } catch (_) {}
       }
       paint();
+    }
+    function selectedPreview(entries) {
+      if (localCleared) return {record: null, entry: null};
+      const selected = entries.find(function (entry) {
+        const payload = entry.document && entry.document.payload;
+        return payload && payload.kind === "select" && payload.subject;
+      });
+      if (lastSelected && !lastSelected.subject) {
+        const match = entries.find(function (entry) {
+          const payload = entry.document && entry.document.payload;
+          return payload && payload.kind === "select" && payload.subject &&
+            payload.title === lastSelected.title && payload.url === lastSelected.url;
+        });
+        if (match) {
+          lastSelected.subject = match.document.payload.subject;
+          try { root.localStorage.setItem(SELECTED_KEY, JSON.stringify(lastSelected)); } catch (_) {}
+        }
+      }
+      return {record: lastSelected || selected && selected.document.payload || null,
+        entry: lastSelected ? null : selected || null};
     }
     function youtubeVideoId(value) {
       if (!value) return "";
@@ -134,36 +258,46 @@
         return /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : "";
       } catch (_) { return ""; }
     }
-    function renderLatest(latest, record, recent) {
+    function renderLatest(latest, record, recent, stats) {
       const title = record && record.title || "No record selected";
       const videoId = record && youtubeVideoId(record.url);
-      const key = title + ":" + (record && record.url || "") + ":" + (videoId || "");
+      const count = stats && viewCount(stats) || "";
+      const key = title + ":" + (record && record.url || "") + ":" + (videoId || "") + ":" + count;
       if (latest.dataset.previewKey !== key) {
         latest.replaceChildren();
         if (videoId) {
           const image = element("img", "portalViewingNowThumb");
           image.src = "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
-          image.alt = "Video thumbnail for " + title;
-          image.loading = "lazy";
-          image.referrerPolicy = "no-referrer";
+          image.alt = ""; image.loading = "lazy"; image.referrerPolicy = "no-referrer";
           image.onerror = function () { image.remove(); };
           latest.appendChild(image);
         }
-        latest.appendChild(element("span", "portalViewingNowTitle", title));
+        const caption = element("span", "portalViewingNowCaption");
+        caption.appendChild(element("span", "portalViewingNowTitle", title));
+        if (count) caption.appendChild(element("span", "portalViewedCount" + (stats.views > 1 ? " isRepeated" : ""), count));
+        latest.appendChild(caption);
         latest.dataset.previewKey = key;
       }
-      latest.title = record ? [title, record.synopsis, recent && stamp(recent)].filter(Boolean).join("\n") : title;
+      const canOpen = !!(record && record.subject);
+      latest.disabled = !canOpen;
+      latest.onclick = function (event) {
+        if (!canOpen) return;
+        event.preventDefault(); event.stopPropagation();
+        options.open(record.subject);
+      };
+      latest.setAttribute("aria-label", canOpen ? "Open " + title + " in Portal" : "No selected record");
+      latest.title = record ? [title, count && count + " in loaded history", record.synopsis,
+        recent && stamp(recent)].filter(Boolean).join("\n") : title;
     }
     function paint() {
-      globalView.paint();
+      const feed = client.feed({}), selected = selectedPreview(feed.items);
+      const records = summarizeRecords(feed.items);
+      let key = "";
+      try { if (selected.record && selected.record.subject) key = api.subjectKey(selected.record.subject); } catch (_) {}
+      globalView.paint(key, records);
       const latest = doc.getElementById("portalInteractionLatest");
-      if (latest) {
-        const recent = localCleared ? null : client.feed({}).items.find(function (entry) {
-          const payload = entry.document && entry.document.payload;
-          return payload && payload.kind === "select" && payload.subject;
-        });
-        renderLatest(latest, lastSelected || recent && recent.document.payload, lastSelected ? null : recent);
-      }
+      if (latest) renderLatest(latest, selected.record, selected.entry,
+        records.find(function (record) { return record.key === key; }));
       const state = client.state, pending = state.outbox.length;
       const status = doc.getElementById("portalInteractionStatus");
       if (status) {
