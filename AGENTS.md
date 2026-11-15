@@ -25,6 +25,14 @@ Read `ARCHITECTURE.md`, `docs/NEXT_DEVELOPMENT.md`, and the relevant wire-format
 - Do not broadcast, deploy, append dictionary entries, grant delegations, or spend gas without a specific user-initiated approval in the actual wallet/action flow. Never mistake unsigned calldata for a mined transaction.
 - Protocol readers should reconstruct ledger artifacts from ordinary public node/RPC data, independent of a particular wallet, browser extension, or proprietary index.
 
+## Release version and static-cache policy
+
+- The **only canonical application release number** is `chisel.version.js`. For every completed logical update published to `main`, increment its patch number before declaring the change done. Do not keep separate numeric application versions in `app.js`, page titles, or tool pages. This is an application release marker, not a ledger protocol/version marker.
+- `index.html` loads the release file before `app.js`, which reads `window.CHISEL_RELEASE.version`. Standalone HTML tools with a displayed release must load the same file and opt in via `data-chisel-release-title`.
+- When editing any browser runtime JS/CSS, update that file's `?rev=` cache key in its HTML entry point. When bumping the release, also update `chisel.version.js`'s own `?rev=` reference in every entry point, so refresh does not silently reuse an old cached copy. Cache-key strings are deployment identifiers, **not independent version numbers**.
+- The user validates each change by refreshing **GitHub Pages from `main`** and looking at the displayed release. Verify that `main` contains the changed files and updated release; never equate a GitHub commit alone with confirmed CDN/browser deployment. Run `node --test tests/version-release.test.mjs` with the usual regression suite before merging/publishing.
+- Do not create a feature branch for ordinary Chisel fixes. Integrate approved changes directly into `main` and preserve the option to roll back a bad commit.
+
 ## Review checklist
 
 Before committing a codec, publishing path, or UI change, answer:
