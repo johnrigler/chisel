@@ -64,6 +64,43 @@
       url: url, sourceUrl: source || "", summary: presentation, opReturn: payloads, notes: annotation || null, raw: row.raw || null};
   }
 
+  const SAVED_VIEWS_KEY = "chisel.portal.savedViews.v1";
+  function savedViews() {
+    try {
+      const value = root.localStorage && JSON.parse(root.localStorage.getItem(SAVED_VIEWS_KEY) || "[]");
+      return Array.isArray(value) ? value.filter(function (item) {
+        return item && typeof item.key === "string" && typeof item.url === "string";
+      }) : [];
+    } catch (_) { return []; }
+  }
+  function savedViewKey(row) {
+    const store = root.CHISEL_PORTAL_STORE, coin = store.canonicalCoinForRow(row);
+    const txid = String(row.txid || "").replace(/^0x/i, "").toLowerCase();
+    const chain = String(row.index && row.index.chainId || "");
+    return [coin, txid, coin === "evm" ? store.sourceIdForRow(row) : "", coin === "evm" ? chain : ""].join(":");
+  }
+  function isSavedView(row) {
+    return savedViews().some(function (item) { return item.key === savedViewKey(row); });
+  }
+  function saveView(row, url) {
+    const key = savedViewKey(row), views = savedViews().filter(function (item) { return item.key !== key; });
+    views.unshift({key: key, url: url, title: String(row.summary && row.summary.title || "").trim().slice(0, 200),
+      savedAt: new Date().toISOString()});
+    try {
+      if (!root.localStorage) return false;
+      root.localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views.slice(0, 100)));
+      return true;
+    } catch (_) { return false; }
+  }
+  function removeSavedView(row) {
+    const key = savedViewKey(row);
+    try {
+      if (!root.localStorage) return false;
+      root.localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(savedViews().filter(function (item) { return item.key !== key; })));
+      return true;
+    } catch (_) { return false; }
+  }
+
   function createController(options) {
     const deps = options, doc = deps.document || root.document, state = deps.state;
     const get = function (id) { return doc.querySelector("#" + id); };
@@ -89,8 +126,13 @@
         }
         lastRender = signature;
       }
-      const link = get("portalRecordUrl");
-      if (link) { link.href = url; link.textContent = url; }
+      const saveButton = get("portalRecordSaveView");
+      if (saveButton) {
+        const saved = isSavedView(row);
+        saveButton.setAttribute("aria-pressed", saved ? "true" : "false");
+        saveButton.setAttribute("aria-label", saved ? "Remove saved page view" : "Save this page view");
+        saveButton.title = saved ? "Remove saved page view from this browser" : "Save this page view to this browser";
+      }
       const json = get("portalRecordSource");
       if (json) { json.hidden = !source; if (source) json.href = source; }
       const download = get("portalRecordDownload");
@@ -124,8 +166,8 @@
         catch (_) { /* The copyable link still works when local-file history is unavailable. */ }
       }
       refresh(true);
-      const heading = get("portalRecordHeading");
-      if (heading && heading.focus) heading.focus({preventScroll: true});
+      const saveButton = get("portalRecordSaveView");
+      if (saveButton && saveButton.focus) saveButton.focus({preventScroll: true});
       const page = get("portalRecordPage");
       if (page && page.scrollIntoView) page.scrollIntoView({block: "start"});
       try {
@@ -183,6 +225,14 @@
       if (bound) return Promise.resolve(null);
       bound = true;
       const backButton = get("portalRecordBack"), copy = get("portalRecordCopyLink"), download = get("portalRecordDownload");
+      const saveButton = get("portalRecordSaveView");
+      if (saveButton) saveButton.onclick = function () {
+        if (!current) return;
+        const url = recordUrl(current.row, root.location.href, deps.sourceUrl(current.row));
+        const succeeded = isSavedView(current.row) ? removeSavedView(current.row) : saveView(current.row, url);
+        if (!succeeded) { deps.status("Could not save this view in this browser.", true); return; }
+        refresh(false);
+      };
       if (backButton) backButton.onclick = back;
       if (copy) copy.onclick = function () {
         if (!current) return;
