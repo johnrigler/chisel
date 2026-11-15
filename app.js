@@ -3,7 +3,8 @@
   // Constants
   //
   const APP_NAME = "chisel";
-  const APP_VERSION = "2.8.28";
+  const APP_VERSION = window.CHISEL_RELEASE && window.CHISEL_RELEASE.version;
+  if (!APP_VERSION) throw new Error("Load chisel.version.js before app.js.");
   const DEFAULT_CURRENCY_KEY = "litecoin";
   const STATUS_IDLE = "Idle";
   const STATUS_DONE = "Transaction sent successfully.";
@@ -17,7 +18,7 @@
     "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
     "a", "b", "c", "d", "e", "f", "g", "h"
   ];
-  console.log(APP_VERSION)
+  console.log("Chisel " + APP_VERSION);
 
   //
   // Currency registry
