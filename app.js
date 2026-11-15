@@ -1904,7 +1904,18 @@ function getMinimumRequiredFeeUnits(coin, values) {
     return context;
   }
 
+  async function resolveExistingVideoFromSend() {
+    const text = String(elems.opReturnAscii && elems.opReturnAscii.value || "").trim();
+    if (!/^https?:\\/\\/(?:www\\.|m\\.)?(?:youtube\\.com|youtu\\.be)\\//i.test(text)) return null;
+    const portal = window.CHISEL_PORTAL;
+    return portal && typeof portal.resolveSharedYoutube === "function"
+      ? portal.resolveSharedYoutube(text) : null;
+  }
+
   async function runBuildSignDecodeSend() {
+    // Never build, sign or broadcast a duplicate video from the ordinary UI.
+    const existingVideo = await resolveExistingVideoFromSend();
+    if (existingVideo) return null;
     if (window.chiselActivity) window.chiselActivity("Send", "Building transaction");
     const context = await buildTransactionContext();
     await reviewTransactionContext(context, context.rawHex, false, "Sign & broadcast");
@@ -3113,6 +3124,13 @@ function init() {
     elems.currency.onchange = onChangeCurrency;
     elems.currency.addEventListener("change", setUnspendableKindOptions);
     elems.opReturnAscii.oninput = onInputOpReturnAscii;
+    // Pasting a complete YouTube URL directly into Chisel follows the same
+    // resolution path as a link handed off by the Android share shim.
+    elems.opReturnAscii.addEventListener("change", function () {
+      resolveExistingVideoFromSend().catch(function (error) {
+        console.warn("Direct video resolution:", error);
+      });
+    });
     elems.opReturnHex.oninput = onInputOpReturnHex;
     if (elems.ipfsField) {
       elems.ipfsField.oninput = onInputIpfsField;
