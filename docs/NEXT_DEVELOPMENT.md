@@ -1,6 +1,8 @@
 # Chisel: Next Development Sequence
 
-Status: active development roadmap, updated 2026-10-06.
+Status: historical roadmap snapshot, last revised 2026-10-06.
+
+> This document preserves the sequence and assumptions at that date. Some status claims, including statements that the initial Polygon dictionary deployment is still pending, are no longer a reliable description of November 2026 work. Check [the 2026-11-15 infrastructure audit](INFRASTRUCTURE_AUDIT_2026-11-15.md), the current code and concrete chain deployment records before interpreting a listed task as unfinished.
 
 This is the durable order of operations for the next Chisel work. The goal is to keep Chisel useful while turning M64 from an experimental compression feature into a stable recovery substrate without turning any one ledger or carrier into a required platform.
 
