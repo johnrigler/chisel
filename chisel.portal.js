@@ -4459,6 +4459,9 @@
     if (row && row.draftRecord || !window.CHISEL_INTERACTIONS) return;
     try {
       const record = row ? describeInteractionRecord(row) : null;
+      if (record && kind === "select" && interactionView && typeof interactionView.rememberSelection === "function") {
+        interactionView.rememberSelection(record);
+      }
       const detail = Object.assign({at: new Date().toISOString(), mode: document.body.dataset.mode || "portal"}, options || {});
       if (record && detail.url) record.url = publicInteractionUrl(detail.url);
       if (interactionClient) interactionClient.record(kind, record, detail).catch(function (error) {
@@ -4499,7 +4502,10 @@
         } catch (error) { setStatus(error.message || String(error), true); }
       }});
     interactionView.start();
-    deferredInteractions.splice(0).forEach(function (event) { interactionClient.record(event.kind, event.record, event.detail).catch(function () {}); });
+    deferredInteractions.splice(0).forEach(function (event) {
+      if (event.kind === "select" && event.record) interactionView.rememberSelection(event.record);
+      interactionClient.record(event.kind, event.record, event.detail).catch(function () {});
+    });
     document.addEventListener("click", function (event) {
       const link = event.target.closest && event.target.closest("a");
       if (!link || !link.matches(".portalEvmMediaCard, .portalStreamThumb, .isDirectLink, .portalRecordTarget, .portalInlineLinks a")) return;
@@ -4510,7 +4516,6 @@
       const detail = event.detail || {}, row = state.portalRowKeys[detail.key];
       if (row) recordPortalInteraction("engage", row, {action: String(detail.action || "engage").slice(0, 48)});
     });
-    window.addEventListener("chisel:mode", function (event) { recordPortalInteraction("visit", null, {action: "mode", mode: event.detail && event.detail.mode || "portal"}); });
     requestPortalRender();
   }
 
