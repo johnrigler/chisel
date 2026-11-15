@@ -112,7 +112,8 @@
       const row = deps.find(current) || current.row;
       if (!row) return;
       current.row = row;
-      const content = get("portalRecordContent"), source = deps.sourceUrl(row);
+      const content = get("portalRecordContent"), source = deps.sourceUrl(row) ||
+        publicDataUrl(current.dataUrl || row.staticRawUrl, root.location.href);
       const page = get("portalRecordPage");
       if (page) page.classList.toggle("isAwaitingLedger", root.CHISEL_PORTAL_STORE.ledgerDisplayState(row) === "awaiting-ledger");
       const url = recordUrl(row, root.location.href, source);
