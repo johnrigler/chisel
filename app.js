@@ -1906,7 +1906,7 @@ function getMinimumRequiredFeeUnits(coin, values) {
 
   async function resolveExistingVideoFromSend() {
     const text = String(elems.opReturnAscii && elems.opReturnAscii.value || "").trim();
-    if (!/^https?:\\/\\/(?:www\\.|m\\.)?(?:youtube\\.com|youtu\\.be)\\//i.test(text)) return null;
+    if (!/^https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\//i.test(text)) return null;
     const portal = window.CHISEL_PORTAL;
     return portal && typeof portal.resolveSharedYoutube === "function"
       ? portal.resolveSharedYoutube(text) : null;
