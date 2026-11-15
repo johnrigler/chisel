@@ -4646,7 +4646,7 @@
       !!state.pendingHydration[row.key], row.index, state.personalAccount, getPortalAnnotation(row).metadata,
       getStaticDataSources(), getFileProxyUrl(), state.fileProxyAvailable,
       configValue("inlineImageScale", 12), configValue("inlineImageExpandedScale", 12)]),
-      function (target) { appendPortalInlineBody(target, row); });
+      function (target) { appendPortalInlineBody(target, row, options); });
   }
 
   function appendPortalInlineHeader(container, row, options) {
@@ -4741,7 +4741,7 @@
 
   }
 
-  function appendPortalInlineBody(container, row) {
+  function appendPortalInlineBody(container, row, options) {
     // Linked media leads the expanded record. Ledger flow and supporting
     // interpretation remain available immediately below it.
     const ledgerFirst = canonicalCoinForRow(row) === "litecoin" &&
@@ -4761,7 +4761,12 @@
       container.appendChild(supporting);
       supportTarget = body;
     }
-    appendPortalTransactionQr(supportTarget, row);
+    const transactionIdControl = appendPortalTransactionQr(supportTarget, row);
+    if (options && options.recordPage && transactionIdControl) {
+      const toolbar = document.querySelector(".portalRecordToolbar");
+      const copyLink = document.querySelector("#portalRecordCopyLink");
+      if (toolbar) toolbar.insertBefore(transactionIdControl, copyLink || null);
+    }
     appendPortalInterpretedRecord(supportTarget, row);
 
 
