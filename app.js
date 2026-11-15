@@ -2974,7 +2974,7 @@ function onClickAddCommonAddressButton() {
     }
   }
 
-  function loadSharedOpReturnFromUrl() {
+  async function loadSharedOpReturnFromUrl() {
     const url = new URL(window.location.href);
     const fragment = new URLSearchParams(url.hash.slice(1));
     const text = fragment.get("opreturn") ?? url.searchParams.get("opreturn");
@@ -2989,7 +2989,14 @@ function onClickAddCommonAddressButton() {
     // still receives text only: never keys, currency, outputs or signing options.
     const recordError = window.CHISEL_RECORD_PREVIEW
       ? window.CHISEL_RECORD_PREVIEW.receive(fragment.get("record") ?? url.searchParams.get("record"), text) : "";
-    if (!loadArtifactPayload({ opReturnAscii: text }, "shared link")) return false;
+    // The Portal owns discovery, regardless of whether the share came from
+    // Mogwai, a copied URL, or a Chisel link. Do not open Send for a match.
+    let existingRecord = null;
+    if (window.CHISEL_PORTAL && typeof window.CHISEL_PORTAL.resolveSharedYoutube === "function") {
+      try { existingRecord = await window.CHISEL_PORTAL.resolveSharedYoutube(text); }
+      catch (error) { console.warn("Shared video resolution:", error); }
+    }
+    if (!existingRecord && !loadArtifactPayload({ opReturnAscii: text }, "shared link")) return false;
     try {
       const consumed = new URL(window.location.href);
       consumed.searchParams.delete("opreturn");
@@ -3001,6 +3008,7 @@ function onClickAddCommonAddressButton() {
       }
       window.history.replaceState(null, "", consumed.toString());
     } catch (error) {}
+    if (existingRecord) return true;
     if (recordError) setStatusMessage(recordError + " OP_RETURN text was loaded; review the preview below.", true);
     if (elems.opReturnAscii.focus) elems.opReturnAscii.focus();
     const preview = elems.draftRecordPreview;
