@@ -4767,10 +4767,6 @@
     const imageLines = getImageLines(lines);
     const hasInlineImage = imageLines.length > 0;
     const semantics = buildSemantics(row.raw, lines);
-    const decodedLines = lines.map(function (line) {
-      return { raw: line, decoded: normalizeMacDougallText(line), payload: getMacPayload(line) };
-    });
-
     if (!row.discoveredLinksSaved && (!row.publication || row.publication.ledgerState === "seen")) {
       row.discoveredLinksSaved = true;
       saveDiscoveredLinksMaybe(row.txid, semantics, rowIndexEntry(row)).catch(function () {
@@ -4816,8 +4812,6 @@
       dataContainer.appendChild(links);
     }
 
-    dataContainer.appendChild(makeInlinePre("Decoded lines", pretty(decodedLines), false));
-    if (semantics.records.length) dataContainer.appendChild(makeInlinePre("Chisel records", pretty(semantics.records), false));
     dataContainer.appendChild(makeInlinePre("Raw transaction JSON", pretty(row.raw), false));
 
     if (appendDataContainer) supportTarget.appendChild(dataContainer);
