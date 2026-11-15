@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-hGr1AHAQYjVUIEJ+ScDqWtzMlolUVxoHa2ioAukQ0KA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261115-record-view-v2833"></script>
+  <script src="chisel.version.js?rev=20261115-record-save-v2834"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -145,6 +145,43 @@
       gap: 12px;
       align-items: center;
       flex-wrap: wrap;
+    }
+
+    .portalRecordSaveView {
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      padding: 8px;
+      border: 1px solid #39434f;
+      border-radius: 10px;
+      background: #11161c;
+      color: #b8c7d6;
+      cursor: pointer;
+    }
+
+    .portalRecordSaveView:hover,
+    .portalRecordSaveView:focus-visible {
+      border-color: #8aa1b8;
+      color: #e6edf3;
+    }
+
+    .portalRecordSaveView svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .portalRecordSaveView[aria-pressed="true"] {
+      color: #ffd166;
+    }
+
+    .portalRecordSaveView[aria-pressed="true"] svg {
+      fill: rgba(255, 209, 102, 0.22);
     }
 
     .recipientEditor {
@@ -2541,12 +2578,13 @@
       <section id="portalRecordPage" class="panel portalRecordPage" hidden>
         <div class="portalRecordToolbar actions">
           <button id="portalRecordBack" class="secondaryButton" type="button">← BACK TO LIST</button>
+          <button id="portalRecordSaveView" class="portalRecordSaveView" type="button" aria-label="Save this page view" aria-pressed="false" title="Save this page view to this browser">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.75h12a1.25 1.25 0 0 1 1.25 1.25v15l-7.25-4.5-7.25 4.5V5A1.25 1.25 0 0 1 6 3.75Z"/></svg>
+          </button>
           <button id="portalRecordCopyLink" class="secondaryButton" type="button">COPY RECORD LINK</button>
           <button id="portalRecordDownload" class="secondaryButton" type="button" disabled>DOWNLOAD JSON</button>
           <a id="portalRecordSource" class="secondaryButton" target="_blank" rel="noopener noreferrer" hidden>SOURCE JSON</a>
         </div>
-        <h2 id="portalRecordHeading" tabindex="-1">Chisel record</h2>
-        <a id="portalRecordUrl" class="portalRecordUrl"></a>
         <p id="portalRecordStatus" class="muted" role="status"></p>
         <article id="portalRecordContent" class="portalInlineDetails"></article>
       </section>
