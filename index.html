@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-hGr1AHAQYjVUIEJ+ScDqWtzMlolUVxoHa2ioAukQ0KA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261115-toolbar-txid-v2836"></script>
+  <script src="chisel.version.js?rev=20261115-artifact-cleanup-v2837"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -1064,6 +1064,14 @@
       font-variant-numeric: tabular-nums;
     }
     .portalFinanceOverview { font-size: 12px; overflow-wrap: anywhere; }
+    .portalFinanceHeadingRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .portalFinanceActions { margin-left: auto; }
     /* Transaction flow: block-explorer style UTXO inputs and outputs. */
     .portalLedgerPanel {
       min-width: 0;
@@ -3274,7 +3282,7 @@
   <script src="chisel.portal.record.js?rev=20261115-source-json-v2835"></script>
   <script src="chisel.interactions.js?rev=20261101-history-v2828"></script>
   <script src="chisel.interactions.ui.js?rev=20261115-grouped-records-v2831"></script>
-  <script src="chisel.portal.js?rev=20261115-toolbar-txid-v2836"></script>
+  <script src="chisel.portal.js?rev=20261115-artifact-cleanup-v2837"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261031-errors-v2817"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
