@@ -23,6 +23,13 @@ Record the observed difference between reading a live Chisel browser tab in a br
 - Use Work with the connected browser when the task requires reading live Chisel page state. Record stable findings in the conversation or this note so the user can continue in Voice or Chat without repeating them.
 - Treat recent notes as the record of what was observed at the time they were written. Rely on them for those historical observations. Recheck only when the user asks for current page state, the state may have changed, or the browser connection itself needs verification.
 
+## User's preferred workflow
+
+- For ordinary conversation and voice use, the user prefers Chat mode, especially in the ChatGPT phone app.
+- For Chisel tasks that need live page context, the user prefers Work mode with the ChatGPT browser extension connected to the Chisel tab.
+- In the user's workflow, the browser extension in Chat mode has not provided the same useful live-page access. Do not assume it is equivalent to Work's browser-connected workflow.
+- These are two preferred ways to work with ChatGPT, not a claim that the product has only two experiences. Preserve Chisel project context in repository notes so work can continue in Chat when Work time runs out, while recognizing that notes do not include live browser state.
+
 ## Work-to-Chat handoff
 
 Before ending a Work session, write a concise continuation note in the Chisel repository with:
