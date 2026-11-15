@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-hGr1AHAQYjVUIEJ+ScDqWtzMlolUVxoHa2ioAukQ0KA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261115-viewing-card-v2830"></script>
+  <script src="chisel.version.js?rev=20261115-grouped-records-v2831"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -1992,10 +1992,22 @@
     .portalViewingNowToggle { flex:none; font-size:10px; color:#b7d7ff; }
     .portalViewingNowToggle::after { content:"EXPAND"; }
     #portalInteractionDisclosure[open] .portalViewingNowToggle::after { content:"COLLAPSE"; }
-    .portalViewingNowLatest { display:flex; align-items:center; gap:10px; min-width:0; color:#e6edf3; }
+    .portalViewingNowLatest { display:flex; align-items:center; gap:10px; min-width:0; width:100%; border:0; background:transparent; padding:0; text-align:left; color:#e6edf3; font:inherit; cursor:pointer; }
+    .portalViewingNowLatest:disabled { cursor:default; opacity:0.8; }
+    .portalViewingNowLatest:focus-visible, .portalViewedLink:focus-visible { outline:2px solid #8baded; outline-offset:3px; }
+    .portalViewingNowCaption { display:grid; gap:4px; flex:1; min-width:0; }
     .portalViewingNowThumb { display:block; flex:none; width:110px; height:62px; object-fit:cover; border-radius:6px; background:#080c10; border:1px solid #354251; }
     .portalViewingNowTitle { min-width:0; font-size:13px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
     .portalViewingNowExpanded { margin-top:12px; min-width:0; }
+    .portalViewedEntry { border-top:1px solid #344150; padding:8px 0; min-width:0; }
+    .portalViewedLink { width:100%; display:flex; align-items:center; gap:9px; text-align:left; padding:3px; color:#dbeafa; background:transparent; border:0; cursor:pointer; font:inherit; }
+    .portalViewedLink:hover .portalViewedTitle { text-decoration:underline; }
+    .portalViewedMedia { flex:none; }
+    .portalViewedThumb { display:block; width:70px; height:40px; object-fit:cover; border:1px solid #354251; border-radius:5px; }
+    .portalViewedBody { display:grid; gap:4px; flex:1; min-width:0; }
+    .portalViewedTitle { font-size:12px; line-height:1.35; overflow-wrap:anywhere; }
+    .portalViewedCount { font-size:11px; color:#9eb2c6; }
+    .portalViewedCount.isRepeated { color:#c5f467; font-weight:700; }
     @media(max-width:600px) {
       .portalViewingNow { width:100%; justify-self:stretch; }
       .portalViewingNowThumb { width:100px; height:56px; }
@@ -2502,13 +2514,14 @@
         <details id="portalInteractionDisclosure">
           <summary class="portalViewingNowSummary">
             <span class="portalViewingNowHeader"><strong id="portalViewingNowHeading">Viewing now</strong><span class="portalViewingNowToggle" aria-hidden="true"></span></span>
-            <span id="portalInteractionLatest" class="portalViewingNowLatest" aria-live="polite">No record selected</span>
+            <button id="portalInteractionLatest" type="button" class="portalViewingNowLatest" aria-live="polite" disabled>No record selected</button>
           </summary>
           <div class="portalViewingNowExpanded">
             <div class="portalHistoryHeading">
               <span id="portalInteractionStatus" class="muted" role="status">Loading history…</span>
-              <button id="portalInteractionRefresh" class="secondaryButton" type="button">REFRESH HISTORY</button>
+              <button id="portalInteractionRefresh" class="secondaryButton" type="button">REFRESH RECORDS</button>
             </div>
+            <p class="portalViewedCount">Counts reflect selections in loaded history, not total worldwide views.</p>
             <div id="portalInteractionHistory"></div>
             <details class="portalHistorySettings">
               <summary>History controls</summary>
@@ -3163,7 +3176,7 @@
   <script src="chisel.portal.note-function.js?rev=20261101-history-v2828"></script>
   <script src="chisel.portal.record.js?rev=20261103-ledger-colors-v2830"></script>
   <script src="chisel.interactions.js?rev=20261101-history-v2828"></script>
-  <script src="chisel.interactions.ui.js?rev=20261115-viewing-card-v2830"></script>
+  <script src="chisel.interactions.ui.js?rev=20261115-grouped-records-v2831"></script>
   <script src="chisel.portal.js?rev=20261115-viewing-card-v2830"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261031-errors-v2817"></script>
