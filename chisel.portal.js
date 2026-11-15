@@ -5504,6 +5504,55 @@
     });
   }
 
+  // Resolve a shared video to its existing ledger record before offering a
+  // new transaction. Match stable YouTube IDs, not URL spelling or watch params.
+  function findExistingYoutubeRecord(input) {
+    const videoId = youtubeIdFromUrl(input);
+    if (!videoId) return null;
+    const matches = state.portalRows.filter(function (row) {
+      if (!row || row.draftRecord || !TXID_RE.test(String(row.txid || ""))) return false;
+      const summary = row.summary || {};
+      const candidates = [
+        summary.primaryUrl, summary.opReturnText, summary.cleanText
+      ].concat(safeArray(summary.opReturnUrls));
+      const cards = collectEvmMediaCards(row);
+      cards.forEach(function (card) {
+        candidates.push(card.url, card.sourceUrl);
+        if (card.videoId === videoId) candidates.push(input);
+      });
+      return candidates.some(function (candidate) {
+        if (!candidate) return false;
+        if (youtubeIdFromUrl(candidate) === videoId) return true;
+        return extractUrlsFromText(candidate).some(function (url) {
+          return youtubeIdFromUrl(url) === videoId;
+        });
+      });
+    });
+    // One canonical destination per coin. Prefer a confirmed, older record.
+    matches.sort(function (a, b) {
+      const aTime = Number(a.summary && a.summary.blockTime || a.blockTime || 0);
+      const bTime = Number(b.summary && b.summary.blockTime || b.blockTime || 0);
+      return aTime - bTime;
+    });
+    return matches[0] || null;
+  }
+
+  async function resolveSharedYoutube(input) {
+    if (!youtubeIdFromUrl(input)) return null;
+    let row = findExistingYoutubeRecord(input);
+    if (!row) {
+      // The startup bundle is not a complete ledger index. Refresh the
+      // configured static catalogs before deciding that this video is new.
+      try { await loadConfiguredStaticDatasets({quiet:true}); }
+      catch (error) { console.warn("Shared video index lookup:", error); }
+      row = findExistingYoutubeRecord(input);
+    }
+    if (!row) return null;
+    if (typeof window.setGuiMode === "function") window.setGuiMode("portal");
+    await openPortalRecord(row);
+    return row;
+  }
+
   function initializeRecordView() {
     if (recordView) return recordView;
     recordView = window.CHISEL_PORTAL_RECORD.createController({document: document, state: state,
@@ -7481,6 +7530,8 @@ function getPortalFirstCharacter() {
     renderDraftRecord: renderDraftRecord,
     renderStreamItem: renderPortalStreamItem,
     openRecord: openPortalRecord,
+    resolveSharedYoutube: resolveSharedYoutube,
+    findExistingYoutubeRecord: findExistingYoutubeRecord,
     loadRecordFromUrl: function () { return initializeRecordView().bind(); },
     recordUrl: portalRecordUrl,
     recordSourceUrl: recordDataUrl,

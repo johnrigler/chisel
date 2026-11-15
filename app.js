@@ -1904,7 +1904,18 @@ function getMinimumRequiredFeeUnits(coin, values) {
     return context;
   }
 
+  async function resolveExistingVideoFromSend() {
+    const text = String(elems.opReturnAscii && elems.opReturnAscii.value || "").trim();
+    if (!/^https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\//i.test(text)) return null;
+    const portal = window.CHISEL_PORTAL;
+    return portal && typeof portal.resolveSharedYoutube === "function"
+      ? portal.resolveSharedYoutube(text) : null;
+  }
+
   async function runBuildSignDecodeSend() {
+    // Never build, sign or broadcast a duplicate video from the ordinary UI.
+    const existingVideo = await resolveExistingVideoFromSend();
+    if (existingVideo) return null;
     if (window.chiselActivity) window.chiselActivity("Send", "Building transaction");
     const context = await buildTransactionContext();
     await reviewTransactionContext(context, context.rawHex, false, "Sign & broadcast");
@@ -2974,7 +2985,7 @@ function onClickAddCommonAddressButton() {
     }
   }
 
-  function loadSharedOpReturnFromUrl() {
+  async function loadSharedOpReturnFromUrl() {
     const url = new URL(window.location.href);
     const fragment = new URLSearchParams(url.hash.slice(1));
     const text = fragment.get("opreturn") ?? url.searchParams.get("opreturn");
@@ -2989,7 +3000,14 @@ function onClickAddCommonAddressButton() {
     // still receives text only: never keys, currency, outputs or signing options.
     const recordError = window.CHISEL_RECORD_PREVIEW
       ? window.CHISEL_RECORD_PREVIEW.receive(fragment.get("record") ?? url.searchParams.get("record"), text) : "";
-    if (!loadArtifactPayload({ opReturnAscii: text }, "shared link")) return false;
+    // The Portal owns discovery, regardless of whether the share came from
+    // Mogwai, a copied URL, or a Chisel link. Do not open Send for a match.
+    let existingRecord = null;
+    if (window.CHISEL_PORTAL && typeof window.CHISEL_PORTAL.resolveSharedYoutube === "function") {
+      try { existingRecord = await window.CHISEL_PORTAL.resolveSharedYoutube(text); }
+      catch (error) { console.warn("Shared video resolution:", error); }
+    }
+    if (!existingRecord && !loadArtifactPayload({ opReturnAscii: text }, "shared link")) return false;
     try {
       const consumed = new URL(window.location.href);
       consumed.searchParams.delete("opreturn");
@@ -3001,6 +3019,7 @@ function onClickAddCommonAddressButton() {
       }
       window.history.replaceState(null, "", consumed.toString());
     } catch (error) {}
+    if (existingRecord) return true;
     if (recordError) setStatusMessage(recordError + " OP_RETURN text was loaded; review the preview below.", true);
     if (elems.opReturnAscii.focus) elems.opReturnAscii.focus();
     const preview = elems.draftRecordPreview;
@@ -3105,6 +3124,13 @@ function init() {
     elems.currency.onchange = onChangeCurrency;
     elems.currency.addEventListener("change", setUnspendableKindOptions);
     elems.opReturnAscii.oninput = onInputOpReturnAscii;
+    // Pasting a complete YouTube URL directly into Chisel follows the same
+    // resolution path as a link handed off by the Android share shim.
+    elems.opReturnAscii.addEventListener("change", function () {
+      resolveExistingVideoFromSend().catch(function (error) {
+        console.warn("Direct video resolution:", error);
+      });
+    });
     elems.opReturnHex.oninput = onInputOpReturnHex;
     if (elems.ipfsField) {
       elems.ipfsField.oninput = onInputIpfsField;
