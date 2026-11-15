@@ -4375,15 +4375,42 @@
     const card = document.createElement("div");
     card.className = "portalTransactionQr";
 
-    const qr = document.createElement("div");
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "portalTransactionIdTrigger";
+    open.setAttribute("aria-label", "Show chain-qualified transaction ID");
+    open.title = "Show chain-qualified transaction ID";
+    open.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.75 3.75h6.5v6.5h-6.5zM13.75 3.75h6.5v6.5h-6.5zM3.75 13.75h6.5v6.5h-6.5z"/><path d="M13.75 13.75h2.5v2.5h-2.5zM18 13.75h2.25M18 18h2.25v2.25M13.75 18v2.25"/></svg>';
+
+    const dialog = document.createElement("dialog");
+    dialog.className = "portalTransactionIdDialog";
+    dialog.setAttribute("aria-label", "Chain-qualified transaction ID");
+
+    const heading = document.createElement("div");
+    heading.className = "portalTransactionIdDialogHeading";
+    const label = document.createElement("strong");
+    label.textContent = "Chain-qualified transaction ID";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "portalTransactionIdClose";
+    close.setAttribute("aria-label", "Close");
+    close.textContent = "×";
+    close.onclick = function () { if (dialog.close) dialog.close(); else dialog.removeAttribute("open"); };
+    heading.appendChild(label);
+    heading.appendChild(close);
+    dialog.appendChild(heading);
+
+    const qr = document.createElement("button");
+    qr.type = "button";
     qr.className = "portalTransactionQrCode";
-    qr.setAttribute("aria-label", "QR code for " + qualified);
+    qr.setAttribute("aria-label", "Copy chain-qualified transaction ID");
+    qr.title = "Copy transaction ID";
     if (typeof window.QRCode === "function") {
       try {
         new window.QRCode(qr, {
           text: qualified,
-          width: 132,
-          height: 132,
+          width: 168,
+          height: 168,
           colorDark: "#000000",
           colorLight: "#ffffff",
           correctLevel: window.QRCode.CorrectLevel.M
@@ -4394,35 +4421,40 @@
     } else {
       qr.textContent = "QR unavailable";
     }
-    card.appendChild(qr);
 
-    const info = document.createElement("div");
-    info.className = "portalTransactionQrInfo";
-    const label = document.createElement("strong");
-    label.textContent = "Chain-qualified transaction ID";
-    info.appendChild(label);
     const value = document.createElement("code");
+    value.className = "portalTransactionIdValue";
     value.textContent = qualified;
-    info.appendChild(value);
 
     const copy = document.createElement("button");
     copy.type = "button";
-    copy.className = "secondaryButton";
-    copy.textContent = "copy qualified ID";
-    copy.onclick = async function (event) {
+    copy.className = "secondaryButton portalTransactionIdCopy";
+    copy.textContent = "COPY ID";
+
+    async function copyQualifiedId(event) {
       event.preventDefault();
       event.stopPropagation();
       try {
-        if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("Clipboard unavailable");
-        await navigator.clipboard.writeText(qualified);
+        if (!window.navigator.clipboard || !window.navigator.clipboard.writeText) throw new Error("Clipboard unavailable");
+        await window.navigator.clipboard.writeText(qualified);
         setStatus("Copied chain-qualified transaction ID.", false);
+        copy.textContent = "COPIED";
       } catch (error) {
-        // HTTP and file:// may not expose navigator.clipboard.
         if (typeof window.prompt === "function") window.prompt("Copy qualified transaction ID:", qualified);
       }
+    }
+    qr.onclick = copyQualifiedId;
+    copy.onclick = copyQualifiedId;
+
+    dialog.appendChild(qr);
+    dialog.appendChild(value);
+    dialog.appendChild(copy);
+    open.onclick = function () {
+      if (dialog.showModal) dialog.showModal();
+      else dialog.setAttribute("open", "");
     };
-    info.appendChild(copy);
-    card.appendChild(info);
+    card.appendChild(open);
+    card.appendChild(dialog);
     container.appendChild(card);
     return card;
   }
