@@ -99,8 +99,8 @@ test("Viewing now ignores Arrived and opens the selected Portal record", () => {
 test("Duplicate events collapse by ledger record and show a popularity count", () => {
   const eric = "tx-eric", other = "tx-other";
   const app = fixture([
-    entry("select", "Other song", "other-1", other),
     entry("select", "Eric Clapton on JJ Cale", "eric-3", eric, "https://youtu.be/abcdefghijk", "2026-11-15T17:30:00.000Z"),
+    entry("select", "Other song", "other-1", other),
     entry("engage", "Eric Clapton on JJ Cale", "eric-open", eric, "https://youtu.be/abcdefghijk", "2026-11-15T17:28:00.000Z"),
     entry("select", "Eric Clapton on JJ Cale", "eric-2", eric, "https://youtu.be/abcdefghijk", "2026-11-15T17:25:00.000Z"),
     entry("select", "Eric Clapton on JJ Cale", "eric-1", eric, "https://youtu.be/abcdefghijk", "2026-11-15T17:22:00.000Z"),
