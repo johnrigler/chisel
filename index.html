@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-hGr1AHAQYjVUIEJ+ScDqWtzMlolUVxoHa2ioAukQ0KA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261115-single-source-v1"></script>
+  <script src="chisel.version.js?rev=20261115-viewing-card-v2830"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -1981,25 +1981,24 @@
     .portalStreamItem .portalStreamRow :is(.portalStreamTitle, .portalStreamTitle a, .portalStreamMetadata, .portalStreamMetadata a, .portalStreamTime, .portalStreamCoin, .portalStreamFinance, .portalStreamFinanceAmount, .portalStreamFinanceFee),
     .portalStreamItem .portalInlineDetails,
     .portalStreamItem .portalInlineDetails :is(.portalInlineHeader h4, .portalInlineHeader code, .portalInlineHeader .muted, .portalEvmMediaBody, .portalEvmMediaBody .muted, .portalTransactionQrInfo, .portalTransactionQrInfo code) { color: var(--publication-text); }
-    .portalViewingNowSummary { display:flex; align-items:center; gap:10px; min-width:0; cursor:pointer; list-style:none; font-size:13px; }
+    /* Compact Portal card: keep the most recently selected record in the upper right. */
+    .portalViewingNow { box-sizing:border-box; width:min(100%,380px); justify-self:end; padding:12px; background:#111a24; border-color:#42566a; min-width:0; }
+    .portalViewingNow > details { border:0; padding:0; }
+    .portalViewingNowSummary { display:grid; gap:9px; min-width:0; cursor:pointer; list-style:none; font-size:13px; }
     .portalViewingNowSummary::-webkit-details-marker { display:none; }
     .portalViewingNowSummary::marker { content:""; }
-    .portalViewingNowSummary strong { flex:none; font-size:16px; }
-    .portalViewingNowLatest { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#b7c9dd; }
-    .portalViewingNowToggle { flex:none; font-size:11px; color:#b7d7ff; }
+    .portalViewingNowHeader { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+    .portalViewingNowHeader strong { font-size:13px; color:#c2d4e6; }
+    .portalViewingNowToggle { flex:none; font-size:10px; color:#b7d7ff; }
     .portalViewingNowToggle::after { content:"EXPAND"; }
     #portalInteractionDisclosure[open] .portalViewingNowToggle::after { content:"COLLAPSE"; }
-    .portalViewingNowExpanded { margin-top:12px; }
-    /* Viewing now: the most recent interaction is a media-first preview. */
-    .portalViewingNowLatest { display:flex; align-items:center; gap:10px; min-width:0; }
-    .portalViewingNowThumb { display:block; flex:none; width:96px; height:54px; object-fit:cover; border-radius:6px; background:#080c10; border:1px solid #354251; }
-    .portalViewingNowCaption { display:flex; min-width:0; flex:1; align-items:baseline; gap:8px; overflow:hidden; }
-    .portalViewingNowAction { flex:none; color:#a9d4ff; font-size:11px; font-weight:700; text-transform:uppercase; }
-    .portalViewingNowTitle { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#e6edf3; }
+    .portalViewingNowLatest { display:flex; align-items:center; gap:10px; min-width:0; color:#e6edf3; }
+    .portalViewingNowThumb { display:block; flex:none; width:110px; height:62px; object-fit:cover; border-radius:6px; background:#080c10; border:1px solid #354251; }
+    .portalViewingNowTitle { min-width:0; font-size:13px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+    .portalViewingNowExpanded { margin-top:12px; min-width:0; }
     @media(max-width:600px) {
-      .portalViewingNowSummary { flex-wrap:wrap; }
-      .portalViewingNowLatest { order:3; flex-basis:100%; }
-      .portalViewingNowThumb { width:112px; height:63px; }
+      .portalViewingNow { width:100%; justify-self:stretch; }
+      .portalViewingNowThumb { width:100px; height:56px; }
     }
 
     .portalHistoryHeading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
@@ -2502,9 +2501,8 @@
       <section id="portalViewingNow" class="panel portalViewingNow" aria-labelledby="portalViewingNowHeading" hidden>
         <details id="portalInteractionDisclosure">
           <summary class="portalViewingNowSummary">
-            <strong id="portalViewingNowHeading">Viewing now</strong>
-            <span id="portalInteractionLatest" class="portalViewingNowLatest" aria-live="polite">Loading recent activity…</span>
-            <span class="portalViewingNowToggle" aria-hidden="true"></span>
+            <span class="portalViewingNowHeader"><strong id="portalViewingNowHeading">Viewing now</strong><span class="portalViewingNowToggle" aria-hidden="true"></span></span>
+            <span id="portalInteractionLatest" class="portalViewingNowLatest" aria-live="polite">No record selected</span>
           </summary>
           <div class="portalViewingNowExpanded">
             <div class="portalHistoryHeading">
@@ -2514,7 +2512,7 @@
             <div id="portalInteractionHistory"></div>
             <details class="portalHistorySettings">
               <summary>History controls</summary>
-              <label class="inlineOption"><input id="portalInteractionEnabled" type="checkbox" checked> Log page visits, selections and engagements</label>
+              <label class="inlineOption"><input id="portalInteractionEnabled" type="checkbox" checked> Log selections and engagements</label>
               <div class="actions">
                 <button id="portalInteractionExport" class="secondaryButton" type="button">EXPORT LOADED HISTORY</button>
                 <button id="portalInteractionClear" class="secondaryButton" type="button">CLEAR LOCAL / UNSENT HISTORY</button>
@@ -3165,8 +3163,8 @@
   <script src="chisel.portal.note-function.js?rev=20261101-history-v2828"></script>
   <script src="chisel.portal.record.js?rev=20261103-ledger-colors-v2830"></script>
   <script src="chisel.interactions.js?rev=20261101-history-v2828"></script>
-  <script src="chisel.interactions.ui.js?rev=20261115-media-thumbnail-v2832"></script>
-  <script src="chisel.portal.js?rev=20261114-video-resolve"></script>
+  <script src="chisel.interactions.ui.js?rev=20261115-viewing-card-v2830"></script>
+  <script src="chisel.portal.js?rev=20261115-viewing-card-v2830"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261031-errors-v2817"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
