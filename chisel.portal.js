@@ -912,9 +912,26 @@
 
     const block = document.createElement("section");
     block.className = "portalFinanceDetails portalLedgerPanel";
+    const headingRow = document.createElement("div");
+    headingRow.className = "portalFinanceHeadingRow";
     const heading = document.createElement("h5");
     heading.textContent = "Transaction flow";
-    block.appendChild(heading);
+    headingRow.appendChild(heading);
+
+    const actions = document.createElement("div");
+    actions.className = "actions portalFinanceActions";
+    const blockchairUrl = rowExplorerUrl(row);
+    if (canonicalCoinForRow(row) === "litecoin" && blockchairUrl) {
+      const blockchair = document.createElement("a");
+      blockchair.className = "secondaryButton";
+      setSafeHref(blockchair, blockchairUrl);
+      blockchair.target = "_blank";
+      blockchair.rel = "noopener noreferrer";
+      blockchair.textContent = "Blockchair";
+      actions.appendChild(blockchair);
+    }
+    headingRow.appendChild(actions);
+    block.appendChild(headingRow);
 
     const overview = document.createElement("div");
     overview.className = "portalFinanceOverview";
@@ -1018,7 +1035,7 @@
     appendSide("Outputs", destinations, finance.outputs, "output");
     block.appendChild(columns);
     container.appendChild(block);
-    return block;
+    return actions;
   }
 
   function extractOutputs(value) {
@@ -3624,29 +3641,11 @@
     return merged;
   }
 
-  function appendPortalInlineLinks(container, semantics, indexEntry) {
+  function appendPortalInlineLinks(container, semantics, indexEntry, transactionFlowActions) {
     const records = semantics && semantics.records ? semantics.records : [];
-    container.innerHTML = "";
+    container.replaceChildren();
 
-    records.filter(function (record) { return record.kind === "op-return-url"; }).forEach(function (record) {
-      const row = document.createElement("div");
-      row.className = "portalLinkRow";
-
-      const label = document.createElement("code");
-      label.textContent = record.url;
-
-      const a = document.createElement("a");
-      a.className = "secondaryButton";
-      setSafeHref(a, record.url);
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.textContent = record.url.indexOf("spotify.com") >= 0 ? "open Spotify" : (record.url.indexOf("youtu") >= 0 ? "open YouTube" : "open URL");
-
-      row.appendChild(label);
-      row.appendChild(a);
-      container.appendChild(row);
-    });
-
+    // Media URLs are already linked from the record preview above.
     records.filter(function (record) { return record.kind === "ipfs-v0-cid"; }).forEach(function (record) {
       const row = document.createElement("div");
       row.className = "portalLinkRow";
@@ -3677,18 +3676,18 @@
     records.filter(function (record) {
       return record.line && looksLikeAddressLine(record.line) && record.kind !== "image-chord-line";
     }).forEach(function (record) {
+      const targetEntry = inferIndexForAddress(record.line, indexEntry);
+      const decoded = printableText(record.displayText || record.payloadText || "");
+      if (transactionFlowActions) {
+        transactionFlowActions.appendChild(makeDrillButton(record.line, targetEntry, decoded || record.line));
+        return;
+      }
+
       const row = document.createElement("div");
       row.className = "portalLinkRow";
-
-      const label = document.createElement("code");
-      const decoded = printableText(record.displayText || record.payloadText || "");
-      const rawDecoded = printableText(record.payloadText || "");
-      label.textContent = record.kind + ": " + record.line + (decoded ? "  =>  " + decoded : "") + (rawDecoded && rawDecoded !== decoded ? "  [raw: " + rawDecoded + "]" : "");
-
-      const targetEntry = inferIndexForAddress(record.line, indexEntry);
-      row.appendChild(label);
       row.appendChild(makeDrillButton(record.line, targetEntry, decoded || record.line));
-      row.appendChild(makeAddressExplorerLink(record.line, targetEntry));
+      const explorer = makeAddressExplorerLink(record.line, targetEntry);
+      if (explorer && explorer.nodeType === 1) row.appendChild(explorer);
       container.appendChild(row);
     });
 
@@ -4636,12 +4635,10 @@
     if (interactionView) {
       if (!view.parts.comments) {
         const comments = document.createElement("div"); comments.style.display = "contents";
-        container.insertBefore(comments, view.parts.payload && view.parts.payload.node || null); view.parts.comments = {node: comments};
+        container.appendChild(comments); view.parts.comments = {node: comments};
       }
       interactionView.comments(view.parts.comments.node, describeInteractionRecord(row));
     }
-    updatePortalDetailPart(view, "payload", JSON.stringify(extractOutputs(row.raw).map(function (output) { return [output.n, output.opReturnPayload]; })),
-      function (target) { appendPortalPayloads(target, row); });
     updatePortalDetailPart(view, "body", JSON.stringify([row.raw, row.summary, row.loadError,
       !!state.pendingHydration[row.key], row.index, state.personalAccount, getPortalAnnotation(row).metadata,
       getStaticDataSources(), getFileProxyUrl(), state.fileProxyAvailable,
@@ -4696,24 +4693,17 @@
       actions.appendChild(primary);
     }
 
-    const verifyUrl = rowExplorerUrl(row);
-    if (verifyUrl) {
-      const verify = document.createElement("a");
-      verify.className = "secondaryButton";
-      setSafeHref(verify, verifyUrl);
-      verify.target = "_blank";
-      verify.rel = "noopener noreferrer";
-      verify.textContent = canonicalCoinForRow(row) === "litecoin" ? "Blockchair" : "verify tx";
-      actions.appendChild(verify);
-    }
-    if (canonicalCoinForRow(row) === "litecoin" && /^[0-9a-f]{64}$/i.test(String(row.txid || ""))) {
-      const alternative = document.createElement("a");
-      alternative.className = "secondaryButton";
-      setSafeHref(alternative, "https://litecoinspace.org/tx/" + row.txid);
-      alternative.target = "_blank";
-      alternative.rel = "noopener noreferrer";
-      alternative.textContent = "LitecoinSpace";
-      actions.appendChild(alternative);
+    if (canonicalCoinForRow(row) !== "litecoin") {
+      const verifyUrl = rowExplorerUrl(row);
+      if (verifyUrl) {
+        const verify = document.createElement("a");
+        verify.className = "secondaryButton";
+        setSafeHref(verify, verifyUrl);
+        verify.target = "_blank";
+        verify.rel = "noopener noreferrer";
+        verify.textContent = "verify tx";
+        actions.appendChild(verify);
+      }
     }
 
     if (row.raw) {
@@ -4746,7 +4736,7 @@
     // interpretation remain available immediately below it.
     const ledgerFirst = canonicalCoinForRow(row) === "litecoin" &&
       !!row.raw && !!portalFinanceForRow(row);
-    if (ledgerFirst) appendPortalFinanceDetails(container, row);
+    const transactionFlowActions = ledgerFirst ? appendPortalFinanceDetails(container, row) : null;
 
     const supporting = ledgerFirst ? document.createElement("details") : null;
     let supportTarget = container;
@@ -4841,7 +4831,7 @@
 
     const links = document.createElement("div");
     links.className = "portalInlineLinks";
-    if (appendPortalInlineLinks(links, semantics, rowIndexEntry(row))) {
+    if (appendPortalInlineLinks(links, semantics, rowIndexEntry(row), transactionFlowActions)) {
       const linksTitle = document.createElement("div");
       linksTitle.className = "stepTitle";
       linksTitle.textContent = "Links and addresses";
@@ -4852,43 +4842,6 @@
     dataContainer.appendChild(makeInlinePre("Raw transaction JSON", pretty(row.raw), false));
 
     if (appendDataContainer) supportTarget.appendChild(dataContainer);
-  }
-
-  function appendPortalPayloads(container, row) {
-    extractOutputs(row.raw).forEach(function (output) {
-      const payload = output.opReturnPayload;
-      if (!payload) return;
-      const section = document.createElement("section");
-      section.className = "portalPayload";
-      const heading = document.createElement("h5");
-      heading.textContent = "OP_RETURN #" + output.n + " · " + payload.label;
-      const actions = document.createElement("div");
-      actions.className = "actions";
-      const encoding = document.createElement("select");
-      encoding.setAttribute("aria-label", "OP_RETURN #" + output.n + " representation");
-      const values = payload.kind === "invalid" ? {scriptHex: "Script HEX"} :
-        Object.assign({}, payload.kind !== "binary" ? {text: payload.kind === "ascii" ? "ASCII text" : "UTF-8 text"} : {}, {hex: "HEX", base64: "Base64"});
-      Object.keys(values).forEach(function (key) {
-        const option = document.createElement("option");
-        option.value = key; option.textContent = values[key]; encoding.appendChild(option);
-      });
-      const choices = row.payloadEncodingChoices || (row.payloadEncodingChoices = Object.create(null));
-      encoding.value = Object.prototype.hasOwnProperty.call(values, choices[output.n]) ? choices[output.n] : Object.keys(values)[0];
-      const data = document.createElement("pre");
-      data.className = "portalPayloadValue";
-      const copy = document.createElement("button");
-      copy.type = "button"; copy.className = "secondaryButton"; copy.textContent = "COPY";
-      function show() { data.textContent = payload[encoding.value] || ""; }
-      encoding.onchange = function () { choices[output.n] = encoding.value; show(); };
-      copy.onclick = function () { copyPortalText(data.textContent, copy).catch(function (error) { setStatus(error.message, true); }); };
-      show();
-      actions.appendChild(encoding); actions.appendChild(copy);
-      section.appendChild(heading); section.appendChild(actions); section.appendChild(data);
-      if (payload.error) {
-        const error = document.createElement("p"); error.textContent = payload.error; section.appendChild(error);
-      }
-      container.appendChild(section);
-    });
   }
 
   function isLocalPortalRow(row) {
