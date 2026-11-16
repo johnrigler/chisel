@@ -2052,6 +2052,36 @@
           note.textContent = "An outbound URL recorded in OP_RETURN. It is not a verification of the target's contents.";
           panel.appendChild(note);
         }
+        // Show already-known sibling records immediately; fetch additional
+        // on-chain history only when the user requests it below.
+        const siblings = state.portalRows.filter(function (candidate) {
+          if (!candidate || candidate === row || candidate.txid === row.txid ||
+              canonicalCoinForRow(candidate) !== "litecoin") return false;
+          const summary = candidate.summary || {};
+          const addresses = [candidate.index && candidate.index.address]
+            .concat(safeArray(summary.outputAddresses), safeArray(summary.addresses),
+              candidate.raw ? extractLines(candidate.raw) : []);
+          return addresses.includes(record.address);
+        });
+        if (siblings.length) {
+          const related = document.createElement("div");
+          related.className = "portalSubjectRelated";
+          const heading = document.createElement("strong");
+          heading.textContent = "Other loaded records on this subject (" + siblings.length + ")";
+          related.appendChild(heading);
+          siblings.slice(0, 12).forEach(function (candidate) {
+            const link = document.createElement("a");
+            setSafeHref(link, portalRecordUrl(candidate));
+            link.textContent = displayTitleForRow(candidate) + " · " + shortTxid(candidate.txid);
+            link.onclick = function (event) {
+              if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              openPortalRecord(candidate);
+            };
+            related.appendChild(link);
+          });
+          panel.appendChild(related);
+        }
         const actions = document.createElement("div");
         actions.className = "actions portalSubjectActions";
         if (record.sha256) {
