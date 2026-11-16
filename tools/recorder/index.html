@@ -21,6 +21,9 @@
     }
     h1 { margin:0; font-size:16px; letter-spacing:.04em; }
     #status { color:var(--muted); font-size:12px; text-align:right; }
+    .scannerExit { color:#e6edf3; text-decoration:none; border:1px solid #566779; padding:8px 10px; border-radius:8px; white-space:nowrap; font-size:12px; font-weight:700; }
+    .scannerExit:hover, .scannerExit:focus-visible { background:#253447; }
+    @media (max-width:520px) { header { gap:8px; } h1 { font-size:13px; } #status { font-size:10px; max-width:36%; } }
     .stageWrap {
       position:relative; min-height:0; display:grid; place-items:center;
       padding:8px; background:#000; overflow:hidden;
@@ -231,7 +234,8 @@
 <body>
 <main>
   <header>
-    <h1>CHISEL KEY SCANNER</h1>
+    <a class="scannerExit" href="../../index.html" aria-label="Exit key scanner and return to Chisel">← CHISEL</a>
+    <h1>KEY SCANNER</h1>
     <div id="status">Tap SETUP.</div>
   </header>
 
