@@ -4866,6 +4866,11 @@
     const ledgerFirst = canonicalCoinForRow(row) === "litecoin" &&
       !!row.raw && !!portalFinanceForRow(row);
     const transactionFlowActions = ledgerFirst ? appendPortalFinanceDetails(container, row) : null;
+    // A decoded subject and SHA-256 are primary record content, not hidden
+    // under the optional raw JSON / annotations disclosure.
+    const frontRecord = ledgerFirst ? portalRecordBehaviorForRow(row) : null;
+    const subjectVisible = !!(frontRecord && frontRecord.behavior.id === "subject-reference");
+    if (subjectVisible) frontRecord.behavior.renderExpanded(container, frontRecord.record, row);
 
     const supporting = ledgerFirst ? document.createElement("details") : null;
     let supportTarget = container;
@@ -4886,7 +4891,7 @@
       const copyLink = document.querySelector("#portalRecordCopyLink");
       if (toolbar) toolbar.insertBefore(transactionIdControl, copyLink || null);
     }
-    appendPortalInterpretedRecord(supportTarget, row);
+    if (!subjectVisible) appendPortalInterpretedRecord(supportTarget, row);
 
 
     const evmImages = collectEvmImageAssets(row);
