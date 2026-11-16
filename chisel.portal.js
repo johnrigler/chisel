@@ -1127,7 +1127,7 @@
     else if (first === "S") record.kind = "image-chord-line";
     else if (isMacDougallFirst(first) && modifier === "A" && spacer === "x") record.kind = "person";
     else if (isMacDougallFirst(first) && modifier === "B" && spacer === "x") record.kind = "transport";
-    else if (isMacDougallFirst(first) && modifier === "C" && spacer === "x") record.kind = "subject";
+    else if (isMacDougallFirst(first) && (modifier === "C" || modifier === "K") && spacer === "x") record.kind = "subject";
     else if (isMacDougallFirst(first) && modifier === "D" && spacer === "x") record.kind = "ipfs-v0-first-half";
     else if (isMacDougallFirst(first) && modifier === "E" && spacer === "x") record.kind = "ipfs-v0-second-half";
     else if (isMacDougallFirst(first) && modifier === "D" && spacer !== "x") record.kind = "free-verse";
@@ -2001,6 +2001,105 @@
    * presentation without teaching renderPortalStreamItem about every format.
    */
   const PORTAL_RECORD_BEHAVIORS = [
+    {
+      id: "subject-reference",
+      match: function (row) {
+        if (!row || !row.raw || canonicalCoinForRow(row) !== "litecoin" ||
+            !window.CHISEL_PORTAL_SUBJECT) return null;
+        return window.CHISEL_PORTAL_SUBJECT.interpret(row.raw, row.txid, payloadData.fromOutput);
+      },
+      title: function (record) { return record.subject; },
+      renderExpanded: function (container, record, row) {
+        const panel = document.createElement("section");
+        panel.className = "portalInterpretedRecord portalSubjectReference";
+        panel.dataset.recordBehavior = "subject-reference";
+        const label = document.createElement("h5");
+        label.textContent = record.subject;
+        panel.appendChild(label);
+        const explanation = document.createElement("p");
+        explanation.className = "muted";
+        explanation.textContent = "Decoded from the address in this Litecoin transaction; this does not establish that the named organization published it.";
+        panel.appendChild(explanation);
+        const address = document.createElement("code");
+        address.className = "portalSubjectAddress";
+        address.textContent = record.address;
+        panel.appendChild(address);
+
+        if (record.sha256) {
+          const kind = document.createElement("strong");
+          kind.textContent = "SHA-256 checksum";
+          panel.appendChild(kind);
+          const digest = document.createElement("code");
+          digest.className = "portalSubjectDigest";
+          digest.textContent = record.sha256;
+          panel.appendChild(digest);
+          const note = document.createElement("p");
+          note.className = "muted";
+          note.textContent = "The transaction carries 64 ASCII hexadecimal characters" +
+            (record.bytesOnLedger === 71 ? " with a sha256: prefix" : "") +
+            ". Check the original file bytes before asserting a match.";
+          panel.appendChild(note);
+        } else if (record.url) {
+          const kind = document.createElement("strong");
+          kind.textContent = "Linked reference";
+          panel.appendChild(kind);
+          const url = document.createElement("code");
+          url.className = "portalSubjectDigest";
+          url.textContent = record.url;
+          panel.appendChild(url);
+          const note = document.createElement("p");
+          note.className = "muted";
+          note.textContent = "An outbound URL recorded in OP_RETURN. It is not a verification of the target's contents.";
+          panel.appendChild(note);
+        }
+        const actions = document.createElement("div");
+        actions.className = "actions portalSubjectActions";
+        if (record.sha256) {
+          const copy = document.createElement("button");
+          copy.type = "button";
+          copy.className = "secondaryButton";
+          copy.textContent = "Copy SHA-256";
+          copy.onclick = function () {
+            copyPortalText(record.sha256, copy).catch(function (error) { setStatus(error.message, true); });
+          };
+          actions.appendChild(copy);
+          const link = window.CHISEL_PORTAL_SUBJECT.commonsHandoff(record);
+          if (link) {
+            const commons = document.createElement("a");
+            commons.className = "secondaryButton";
+            setSafeHref(commons, link);
+            commons.textContent = "Use in Commons";
+            commons.target = "_blank";
+            commons.rel = "noopener noreferrer";
+            actions.appendChild(commons);
+          }
+        }
+        if (record.url) {
+          const open = document.createElement("a");
+          open.className = "secondaryButton";
+          setSafeHref(open, record.url);
+          open.textContent = "Follow reference";
+          open.target = "_blank";
+          open.rel = "noopener noreferrer";
+          actions.appendChild(open);
+        }
+        const history = document.createElement("button");
+        history.type = "button";
+        history.className = "secondaryButton";
+        history.textContent = "Related subject records";
+        history.title = "Load the ledger history of this shared unspendable address";
+        history.onclick = function () {
+          if (recordView && recordView.active()) recordView.back();
+          loadAddressStream(record.address, inferIndexForAddress(record.address, rowIndexEntry(row)), record.subject, {
+            source: "rabbit-trail", updateUrl: true
+          }).catch(function (error) { setStatus(error.message || String(error), true); });
+        };
+        actions.appendChild(history);
+        panel.appendChild(actions);
+        container.appendChild(panel);
+        return true;
+      }
+    },
     {
       id: "sticker-index",
       match: function (row) {
