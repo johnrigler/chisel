@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Chisel Broadcast</title>
+  <title>Chisel Key Scanner</title>
   <style>
     :root {
       color-scheme: dark;
@@ -125,6 +125,7 @@
     button.ready { background:#20552c; border-color:#4ea35f; }
     button:disabled { opacity:.38; cursor:default; }
     #recordButton { font-size:18px; }
+    [hidden] { display:none !important; }
     .drawer {
       display:none; position:fixed; inset:0; z-index:30; background:rgba(0,0,0,.74);
       padding:16px; align-items:end;
@@ -230,7 +231,7 @@
 <body>
 <main>
   <header>
-    <h1>CHISEL BROADCAST</h1>
+    <h1>CHISEL KEY SCANNER</h1>
     <div id="status">Tap SETUP.</div>
   </header>
 
@@ -244,11 +245,11 @@
     </div>
 
     <div class="sideControls left">
-      <button data-scene="screen" class="active">SCREEN</button>
-      <button data-scene="face">FACE</button>
-      <button data-scene="desk">DESK</button>
-      <button data-scene="scan">SCAN</button>
-      <button id="faceToggle" class="active">FACE ON</button>
+      <button data-scene="screen" hidden>SCREEN</button>
+      <button data-scene="face" hidden>FACE</button>
+      <button data-scene="desk" hidden>DESK</button>
+      <button data-scene="scan" class="active">SCAN</button>
+      <button id="faceToggle" hidden>FACE ON</button>
       <div class="spacer"></div>
       <button id="setupButton">SETUP</button>
     </div>
@@ -260,7 +261,7 @@
       <button id="zoomIn">+ ZOOM</button>
       <button id="zoomOut">− ZOOM</button>
       <div class="spacer"></div>
-      <button id="recordButton">● REC</button>
+      <button id="recordButton" hidden>● REC</button>
     </div>
   </div>
 
@@ -301,13 +302,13 @@
       <button id="closeSetup">CLOSE</button>
     </div>
 
-    <h2 style="margin-top:18px">Last recording</h2>
+    <h2 style="margin-top:18px" hidden>Last recording</h2>
     <div class="actions">
       <a id="videoDownload" class="button" hidden download="chisel-broadcast.webm">DOWNLOAD VIDEO</a>
       <a id="jsonDownload" class="button" hidden download="chisel-broadcast.json">DOWNLOAD PUBLIC INDEX</a>
     </div>
 
-    <h2 style="margin-top:18px">Public results</h2>
+    <p class="resourceHint">Video recording is now in <a href="https://rigler.org/mogwai/app/recorder/" target="_blank" rel="noopener">Mogwai Recorder</a>.</p><h2 style="margin-top:18px">Public results</h2>
     <div id="publicList" class="publicList"></div>
   </section>
 </div>
@@ -424,7 +425,7 @@
 
   const ctx = els.stage.getContext("2d");
   const state = {
-    scene:"screen",
+    scene:"scan",
     appView:"scan",
     scanMode:"key4",
     artifactId:"",
