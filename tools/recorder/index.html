@@ -450,7 +450,7 @@
     frontId:"",
     rearId:"",
     microphoneId:"",
-    faceOverlay:true,
+    faceOverlay:false,
     qrDetector:null,
     qrBusy:false,
     lastQrAt:0,
@@ -1498,7 +1498,16 @@
 
   async function loadDevices() {
     if (!navigator.mediaDevices) throw new Error("Media devices are unavailable.");
-    const probe = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    // Identify cameras using the rear camera only. A generic video request can
+    // select the front-facing camera and turn it on just to enumerate devices.
+    const probe = await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{facingMode:{exact:"environment"}}
+    });
+    const probeTrack = probe.getVideoTracks()[0];
+    const probedRearId = probeTrack && probeTrack.getSettings
+      ? String(probeTrack.getSettings().deviceId || "")
+      : "";
     probe.getTracks().forEach(t => t.stop());
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cams = devices.filter(d => d.kind === "videoinput");
@@ -1512,14 +1521,15 @@
     const rearGuess = cams.find(d => /back|rear|environment|world/i.test(d.label));
 
     state.frontId = frontGuess ? frontGuess.deviceId : (cams[0] ? cams[0].deviceId : "");
-    state.rearId = rearGuess ? rearGuess.deviceId : (cams[1] ? cams[1].deviceId : state.frontId);
+    const probedRear = cams.find(d => d.deviceId && d.deviceId === probedRearId);
+    state.rearId = (probedRear || rearGuess || {}).deviceId || "";
     state.microphoneId = mics[0] ? mics[0].deviceId : "";
 
     els.frontCamera.value = state.frontId;
     els.rearCamera.value = state.rearId;
     els.microphone.value = state.microphoneId;
 
-    setStatus("Devices ready.");
+    setStatus("Rear camera ready. Front camera remains off.");
   }
 
   function fillSelect(select,devices,fallback) {
@@ -1566,8 +1576,15 @@
     if (state.worldStream && state.worldStream.active) return;
     const video = state.rearId
       ? {deviceId:{exact:state.rearId},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:FRAME_RATE}}
-      : {facingMode:{ideal:"environment"}};
-    state.worldStream = await navigator.mediaDevices.getUserMedia({audio:false,video:video});
+      : {facingMode:{exact:"environment"}};
+    try {
+      state.worldStream = await navigator.mediaDevices.getUserMedia({audio:false,video:video});
+    } catch (error) {
+      if (!state.rearId && (error.name === "OverconstrainedError" || error.name === "NotFoundError")) {
+        throw new Error("No rear/environment camera is available; the face camera was not opened.");
+      }
+      throw error;
+    }
     els.worldVideo.srcObject = state.worldStream;
     await els.worldVideo.play();
     updateZoomButtons();
