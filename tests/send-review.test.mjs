@@ -10,16 +10,32 @@ function handler(name, next) {
   if (app.slice(start - 6, start) === 'async ') source = 'async ' + source;
   return source;
 }
-function flow(accepted = true) {
-  const calls = [], tx = { rawHex: 'unsigned fixture' };
-  const context = { window: {}, STATUS_DONE: 'sent',
+function flow(accepted = true, { content = 'https://youtu.be/jNQXAC9IVRw', duplicate = false } = {}) {
+  const calls = [], lookups = [], tx = { rawHex: 'unsigned fixture' };
+  const context = {
+    elems: { opReturnAscii: { value: content } },
+    window: { CHISEL_PORTAL: { resolveSharedYoutube: async url => {
+      lookups.push(url);
+      return duplicate ? { txid: 'a'.repeat(64) } : null;
+    } } },
+    STATUS_DONE: 'sent',
     buildTransactionContext: async () => { calls.push('build'); return tx; },
-    reviewTransactionContext: async (c, hex, manual, label) => { calls.push('review'); assert.equal(hex, tx.rawHex); assert.equal(label, 'Sign & broadcast'); if (!accepted) throw new Error('Transaction cancelled'); },
-    signTransactionContext: async () => calls.push('sign'), sendTransactionContext: async () => calls.push('broadcast'),
+    reviewTransactionContext: async (c, hex, manual, label) => {
+      calls.push('review'); assert.equal(hex, tx.rawHex); assert.equal(manual, false);
+      assert.equal(label, 'Sign & broadcast');
+      if (!accepted) throw new Error('Transaction cancelled');
+    },
+    signTransactionContext: async () => calls.push('sign'),
+    sendTransactionContext: async () => calls.push('broadcast'),
     setStatusMessage: () => {}, setGuiMode: () => {},
   };
-  vm.createContext(context); vm.runInContext(handler('runBuildSignDecodeSend', 'loadManualEditorsFromState'), context);
-  return { calls, context };
+  vm.createContext(context);
+  vm.runInContext([
+    handler('resolveExistingVideoFromSend', 'completeStandardSend'),
+    handler('completeStandardSend', 'runBuildSignDecodeSend'),
+    handler('runBuildSignDecodeSend', 'loadManualEditorsFromState'),
+  ].join('\n'), context);
+  return { calls, lookups, context };
 }
 test('declining the actual send review prevents signing and broadcast', async () => {
   const f = flow(false); await assert.rejects(f.context.runBuildSignDecodeSend(), /cancelled/);
@@ -27,6 +43,18 @@ test('declining the actual send review prevents signing and broadcast', async ()
 });
 test('an accepted transaction is signed and broadcast only after its review', async () => {
   const f = flow(); await f.context.runBuildSignDecodeSend(); assert.deepEqual(f.calls, ['build', 'review', 'sign', 'broadcast']);
+});
+test('an indexed YouTube video exits before build, approval, signing or broadcast', async () => {
+  const f = flow(true, { duplicate: true });
+  assert.equal(await f.context.runBuildSignDecodeSend(), null);
+  assert.deepEqual(f.lookups, ['https://youtu.be/jNQXAC9IVRw']);
+  assert.deepEqual(f.calls, []);
+});
+test('ordinary text bypasses YouTube lookup and uses the same reviewed signing path', async () => {
+  const f = flow(true, { content: 'A plain OP_RETURN note' });
+  await f.context.runBuildSignDecodeSend();
+  assert.deepEqual(f.lookups, []);
+  assert.deepEqual(f.calls, ['build', 'review', 'sign', 'broadcast']);
 });
 test('malicious minimum-fee response cannot change the fee or trigger a second signing flow', async () => {
   const fee = { value: '0.00010000' }, statuses = []; let runs = 0;
