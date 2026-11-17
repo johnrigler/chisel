@@ -1923,6 +1923,15 @@
     .chiselActivityMonitor[data-state="busy"] { --activity-accent: #79bfff; border-color: #396b97; }
     .chiselActivityMonitor[data-state="ok"] { --activity-accent: #71dfa8; border-color: #306f50; }
     .chiselActivityMonitor[data-state="error"] { --activity-accent: #ff8686; border-color: #934b50; }
+    .chiselActivityMonitor[data-state="busy"] #activityPulse::before {
+      content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px;
+      border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%;
+      vertical-align: -1px; animation: activitySpin .8s linear infinite;
+    }
+    @keyframes activitySpin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      #activityClock.activityClockPulse, #activityPulse::before { animation: none !important; }
+    }
     .activityMonitorTop, .activityMonitorDetail, .activityMonitorMeta {
       display: flex;
       align-items: center;
@@ -1994,6 +2003,7 @@
     .activityControls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding-top:10px; }
     #activityHealth { flex:1; color:#91a4b7; font-size:12px; }
     .activityControls button { padding:5px 9px; font-size:11px; }
+    .aiContextPreview { margin-top:8px; font-size:11px; min-height:120px; }
     .activityTrace { max-height:200px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:11px; line-height:1.4; color:#d7e2ee; margin:10px 0 0; }
 
     body[data-mode="portal"] #headerCurrency { display:none; }
@@ -2186,7 +2196,9 @@
               <pre id="activityTrace" class="activityTrace" aria-label="Application activity log"></pre>
             </details>
             <strong>Diagnostics</strong>
-            <div class="activityControls"><button type="button" class="secondaryButton" id="downloadDebugJson">DOWNLOAD DEBUG JSON</button><button type="button" class="secondaryButton" id="clearDebugJson">CLEAR DEBUG HISTORY</button></div>
+            <div class="activityControls"><button type="button" class="secondaryButton" id="downloadDebugJson">DOWNLOAD DEBUG JSON</button><button type="button" class="secondaryButton" id="clearDebugJson">CLEAR DEBUG HISTORY</button><button type="button" class="secondaryButton" id="copyAiContext">COPY WORK MODE CONTEXT</button></div>
+            <p class="help" id="aiContextStatus" role="status" aria-live="polite">Copies a read-only status summary for you to paste into ChatGPT Work Mode. Nothing is sent automatically.</p>
+            <textarea id="aiContextPreview" class="aiContextPreview" aria-label="Work Mode context for manual copying" readonly hidden rows="8"></textarea>
             <strong>Identity and pages</strong>
             <div id="identityMenuMount"></div>
             <strong>FileProxy</strong>
@@ -3258,8 +3270,9 @@
     });
   })();
   </script>
-<script src="chisel.activity-monitor.js?rev=20261031-status-v2821"></script>
+<script src="chisel.activity-monitor.js?rev=20261117-progress-v2840"></script>
   <script src="chisel.debug.js?rev=20261101-history-v2828"></script>
+  <script src="chisel.ai-context.js?rev=20261117-workmode-v2840"></script>
   <script src="vendor/qrcode.min.js?rev=20261012S"></script>
   <script src="vendor/html5-qrcode.min.js?rev=20261012S"></script>
   <script src="chisel.js?rev=20261017-security1"></script>
