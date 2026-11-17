@@ -258,36 +258,47 @@
         return /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : "";
       } catch (_) { return ""; }
     }
+    function transactionLabel(record) {
+      const subject = record && record.subject;
+      const txid = String(subject && subject.txid || "").replace(/^0x/i, "").toLowerCase();
+      if (!subject || !/^[0-9a-f]{64}$/.test(txid)) return "No transaction selected";
+      const labels = {
+        bitcoin: "BTC", digibyte: "DGB", dogecoin: "DOGE",
+        ecash: "XEC", litecoin: "LTC", ravencoin: "RVN"
+      };
+      const coin = subject.coin === "evm"
+        ? "EVM " + (subject.chainId ? "chain " + subject.chainId : "")
+        : labels[subject.coin] || String(subject.coin || "Ledger").toUpperCase();
+      return coin.trim() + " transaction · " + txid.slice(0, 10) + "…" + txid.slice(-8);
+    }
+
     function renderLatest(latest, record, recent, stats) {
-      const title = record && record.title || "No record selected";
-      const videoId = record && youtubeVideoId(record.url);
+      // This slot represents a selected ledger transaction. Use its chain and
+      // transaction ID instead of a semantic title that may be an address,
+      // identifier, or other payload text.
+      const title = transactionLabel(record);
+      const txid = String(record && record.subject && record.subject.txid || "").replace(/^0x/i, "").toLowerCase();
+      const validTransaction = /^[0-9a-f]{64}$/.test(txid);
       const count = stats && viewCount(stats) || "";
-      const key = title + ":" + (record && record.url || "") + ":" + (videoId || "") + ":" + count;
+      const key = title + ":" + txid + ":" + count;
       if (latest.dataset.previewKey !== key) {
         latest.replaceChildren();
-        if (videoId) {
-          const image = element("img", "portalViewingNowThumb");
-          image.src = "https://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
-          image.alt = ""; image.loading = "lazy"; image.referrerPolicy = "no-referrer";
-          image.onerror = function () { image.remove(); };
-          latest.appendChild(image);
-        }
         const caption = element("span", "portalViewingNowCaption");
         caption.appendChild(element("span", "portalViewingNowTitle", title));
         if (count) caption.appendChild(element("span", "portalViewedCount" + (stats.views > 1 ? " isRepeated" : ""), count));
         latest.appendChild(caption);
         latest.dataset.previewKey = key;
       }
-      const canOpen = !!(record && record.subject);
+      const canOpen = validTransaction && !!(record && record.subject);
       latest.disabled = !canOpen;
       latest.onclick = function (event) {
         if (!canOpen) return;
         event.preventDefault(); event.stopPropagation();
         options.open(record.subject);
       };
-      latest.setAttribute("aria-label", canOpen ? "Open " + title + " in Portal" : "No selected record");
-      latest.title = record ? [title, count && count + " in loaded history", record.synopsis,
-        recent && stamp(recent)].filter(Boolean).join("\n") : title;
+      latest.setAttribute("aria-label", canOpen ? "Open " + title + " in Portal" : "No transaction selected");
+      latest.title = canOpen ? [title, "Transaction ID: " + txid, count && count + " in loaded history",
+        record.synopsis, recent && stamp(recent)].filter(Boolean).join("\n") : title;
     }
     function paint() {
       const feed = client.feed({}), selected = selectedPreview(feed.items);
