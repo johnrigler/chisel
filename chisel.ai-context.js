@@ -21,8 +21,12 @@
     const monitor = document.getElementById("chiselActivityMonitor");
     const currency = document.getElementById("headerCurrency");
     const mode = document.body && document.body.dataset.mode || "unknown";
+    const diagnosticSnapshot = root.CHISEL_DIAGNOSTICS && typeof root.CHISEL_DIAGNOSTICS.snapshot === "function"
+      ? root.CHISEL_DIAGNOSTICS.snapshot() : null;
+    const recentEvents = diagnosticSnapshot && Array.isArray(diagnosticSnapshot.events)
+      ? diagnosticSnapshot.events.slice(-100) : [];
     return {
-      schema: "chisel-workmode-context-v1",
+      schema: "chisel-workmode-context-v2",
       exportedAt: new Date().toISOString(),
       app: {
         name: "Chisel",
@@ -40,7 +44,16 @@
         records: text("activityRecords", 120),
         fileProxy: text("activityProxyState", 120)
       },
-      privacy: "Read-only status summary. No keys, identity, balance, recipient, transaction body, or event log included."
+      diagnostics: diagnosticSnapshot ? {
+        release: diagnosticSnapshot.release || "unknown",
+        eventCount: diagnosticSnapshot.events && diagnosticSnapshot.events.length || 0,
+        recentEvents: recentEvents,
+        share: diagnosticSnapshot.share || null,
+        pwa: diagnosticSnapshot.pwa || null,
+        environment: diagnosticSnapshot.environment || null,
+        runtimeAssets: (diagnosticSnapshot.assetManifest || []).filter(asset => /chisel\\.(debug|share-diagnostics|pwa|ai-context|version)/.test(asset.file || "")).slice(0, 12)
+      } : null,
+      privacy: "Manual read-only handoff. Includes up to 100 sanitized runtime events plus share/PWA status. No keys, identity, recipient, transaction body, or network upload."
     };
   }
 

@@ -1,7 +1,7 @@
 /* Local diagnostics: sanitized errors and endpoint routes, never request bodies or key material. */
 (function () {
   "use strict";
-  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1", RELEASE="20261101-v2828";
+  const MAX=1000, MAX_CHARS=1000000, KEY="chisel.debug.events.v1";
   let events=[];
   try { const saved=JSON.parse(sessionStorage.getItem(KEY)||"[]"); if(Array.isArray(saved)) events=saved.slice(-MAX); } catch (_) {}
   const sensitive=/\b(?:(?:0x)?[0-9a-fA-F]{64,}|[1-9A-HJ-NP-Za-km-z]{51,}|(?:[LM3D][a-km-zA-HJ-NP-Z1-9]{25,34}))\b/g;
@@ -94,7 +94,7 @@
     const status=document.getElementById("portalStatus");
     const health=document.getElementById("portalFileProxyHealth");
     return {
-      schema:"chisel-debug-v3",exportedAt:new Date().toISOString(),release:RELEASE,
+      schema:"chisel-debug-v4",exportedAt:new Date().toISOString(),release:window.CHISEL_RELEASE && window.CHISEL_RELEASE.version || "unknown",
       version:clean(v && v.textContent),mode:clean(mode),selectedCurrency:coin?clean(coin.value):null,
       identityLabel:identity?clean(identity.textContent).replace(/\b[A-Za-z0-9]{15,}\b/g,"[account]"):null,
       balanceState:balance ? (/\d/.test(balance.textContent)?"populated":(/unavailable/i.test(balance.textContent)?"unavailable":(/not loaded/i.test(balance.textContent)?"not-loaded":"pending"))) : "unavailable",
@@ -107,6 +107,8 @@
         publications:(portal.portalRows || []).filter(row=>row.publication).slice(0,20).map(row=>({coin:clean(row.publication.coin),
           ledgerState:clean(row.publication.ledgerState),error:clean(row.publication.error),seenAt:row.publication.seenAt || null}))},
       environment:{userAgent:navigator.userAgent,screen:{width:screen.width,height:screen.height},viewport:{width:innerWidth,height:innerHeight,devicePixelRatio:devicePixelRatio}},
+      share:window.CHISEL_SHARE_DIAGNOSTICS && typeof window.CHISEL_SHARE_DIAGNOSTICS.snapshot === "function" ? window.CHISEL_SHARE_DIAGNOSTICS.snapshot() : null,
+      pwa:window.CHISEL_PWA_DIAGNOSTICS && typeof window.CHISEL_PWA_DIAGNOSTICS.snapshot === "function" ? window.CHISEL_PWA_DIAGNOSTICS.snapshot() : null,
       assetManifest:scripts(),viewportMeta:document.querySelector('meta[name="viewport"]')?.content||null,
       historyNote:"events may span multiple reloads in this browser tab; use boot timestamps to separate sessions",
       layout:overflow(),events:events.slice()
@@ -121,7 +123,7 @@
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),30000);
   }
-  window.CHISEL_DIAGNOSTICS={record:record,error:recordError,clean:clean,endpoint:endpoint,snapshot:snapshot,download:download,clear:function(){events=[];try{sessionStorage.removeItem(KEY)}catch(_){}}};
+  window.CHISEL_DIAGNOSTICS={record:record,error:recordError,clean:clean,endpoint:endpoint,snapshot:snapshot,download:download,clear:function(){events=[];try{sessionStorage.removeItem(KEY)}catch(_){};try{if(window.CHISEL_SHARE_DIAGNOSTICS&&typeof window.CHISEL_SHARE_DIAGNOSTICS.clear==="function")window.CHISEL_SHARE_DIAGNOSTICS.clear()}catch(_){}}};
   window.addEventListener("error",function(e){
     const target=e.target, tag=String(target && target.tagName || "").toUpperCase();
     // Resource error events have no runtime message, filename or stack.
