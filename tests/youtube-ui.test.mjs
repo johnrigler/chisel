@@ -52,6 +52,7 @@ function openYouTube({content = 'https://youtu.be/jNQXAC9IVRw', address = ''} = 
   sendPanel.insertBefore = element => { sendPanel.child = element; };
 
   const document = {
+    body: element('body'),
     head: {appendChild() {}},
     getElementById: node,
     querySelector(selector) {
