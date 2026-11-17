@@ -6958,7 +6958,9 @@ function getPortalFirstCharacter() {
   }
 
   function shouldAutoLoadConversationStreams() {
-    if (state.urlMainThunderwordRequest || state.mainThunderword || state.personalAccount) return false;
+    // The public Thunderword gate is additive: load the public root streams
+    // even when a visitor arrived through a specific address or has an identity
+    // saved locally. Existing address rows remain in the same Portal dataset.
     if (!configBool("autoLoadConversationStreams", true)) return false;
     try {
       const urlMode = new URL(window.location.href).searchParams.get("mode") || "";
