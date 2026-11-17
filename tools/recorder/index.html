@@ -1574,9 +1574,15 @@
 
   async function ensureWorldCamera() {
     if (state.worldStream && state.worldStream.active) return;
-    const video = state.rearId
-      ? {deviceId:{exact:state.rearId},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:FRAME_RATE}}
-      : {facingMode:{exact:"environment"}};
+    // Require environment-facing mode even when a camera ID was selected.
+    // If the selected device is actually the face camera, fail closed.
+    const video = {
+      facingMode:{exact:"environment"},
+      width:{ideal:1920},
+      height:{ideal:1080},
+      frameRate:{ideal:FRAME_RATE}
+    };
+    if (state.rearId) video.deviceId = {exact:state.rearId};
     try {
       state.worldStream = await navigator.mediaDevices.getUserMedia({audio:false,video:video});
     } catch (error) {
