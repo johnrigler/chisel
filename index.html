@@ -2016,6 +2016,9 @@
     .headerIdentityName { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:25ch; color:#e6edf3; font-weight:700; }
     .headerIdentityBalance { white-space:nowrap; font-size:11px; color:#91a4b7; }
     .headerIcon { flex:0 0 auto; width:34px; height:34px; display:grid; place-items:center; text-decoration:none; font-size:20px; background:#1d2630; color:#e6edf3; border:1px solid #344150; border-radius:9px; }
+    button.headerIcon { padding:0; cursor:pointer; font-weight:700; letter-spacing:0; }
+    button.headerIcon:disabled { opacity:.45; cursor:default; }
+    button.headerIcon:focus-visible { outline:2px solid #8baded; outline-offset:2px; }
     #identityMenuMount { min-width:0; display:grid; gap:9px; }
     #identityMenuMount .portalPersonalAccount { padding:9px; }
     #identityMenuMount .portalPersonalAccountAddress { font-size:11px; }
@@ -2179,6 +2182,7 @@
           <span class="headerIdentityName" id="headerIdentityName">Public viewer</span>
           <span class="headerIdentityBalance" id="headerIdentityBalance">Balance: —</span>
         </div>
+        <button class="headerIcon" id="headerAddressQrButton" type="button" aria-label="Show loaded public address QR code" title="Show loaded public address as QR code" disabled>▦</button>
         <a class="headerIcon" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin&amp;v=20261117-rearonly-scanner4" aria-label="Load or switch identity using key stickers" title="Switch identity">♙</a>
         <details class="appMenu" id="appMenu">
           <summary aria-label="Open application menu" title="Menu">☰</summary>
@@ -3312,7 +3316,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-  <script src="chisel.header-identity.js?rev=20261115-identity-network-v2832"></script>
+  <script src="chisel.header-identity.js?rev=20261117-address-qr-v2841"></script>
 <script src="app.js?rev=20261115-version-single-source"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
