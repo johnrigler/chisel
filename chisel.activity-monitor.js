@@ -10,10 +10,11 @@
   const records = byId("activityRecords");
   const proxy = byId("activityProxyState");
   const current = byId("activityCurrent");
-  const originalActivity = window.chiselActivity;
+  const originalActivity = typeof window.chiselActivity === "function"
+    ? window.chiselActivity
+    : function () {};
 
-  if (!monitor || !clock || !badge || !stream || !records || !proxy ||
-      !current || typeof originalActivity !== "function") return;
+  if (!monitor || !clock || !badge || !stream || !records || !proxy || !current) return;
 
   let lastStatusAt = Date.now();
   let pulseTimer = null;
