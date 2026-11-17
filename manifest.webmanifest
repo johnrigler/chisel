@@ -23,7 +23,7 @@
     "params": {
       "title": "share_title",
       "text": "share_text",
-      "url": "opreturn"
+      "url": "share_url"
     }
   }
 }
