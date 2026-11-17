@@ -3038,6 +3038,14 @@ function onClickAddCommonAddressButton() {
       window.history.replaceState(null, "", consumed.toString());
     } catch (error) {}
     if (existingRecord) return true;
+    // Drivers receive only public share presentation metadata, never signing credentials.
+    let sharedTitle = "";
+    try {
+      const raw = fragment.get("record") ?? url.searchParams.get("record");
+      const record = window.CHISEL_RECORD_PREVIEW && window.CHISEL_RECORD_PREVIEW.parseRecord(raw, text);
+      sharedTitle = record && (record.summary.title || record.metadata?.title) || "";
+    } catch (_) {}
+    window.dispatchEvent(new CustomEvent("chisel:share-loaded", {detail:{content:text,title:sharedTitle}}));
     if (recordError) setStatusMessage(recordError + " OP_RETURN text was loaded; review the preview below.", true);
     if (elems.opReturnAscii.focus) elems.opReturnAscii.focus();
     const preview = elems.draftRecordPreview;
