@@ -2989,7 +2989,14 @@ function onClickAddCommonAddressButton() {
   async function loadSharedOpReturnFromUrl() {
     const url = new URL(window.location.href);
     const fragment = new URLSearchParams(url.hash.slice(1));
-    const text = fragment.get("opreturn") ?? url.searchParams.get("opreturn");
+    const direct = fragment.get("opreturn") ?? url.searchParams.get("opreturn");
+    const shareUrl = url.searchParams.get("share_url");
+    const shareText = url.searchParams.get("share_text");
+    // Android share sheets frequently provide a URL in text, not url.
+    // Extract a web URL without accidentally etching a title + URL together.
+    const sharedValue = shareUrl || shareText;
+    const match = sharedValue && sharedValue.match(/https?:\/\/[^\s<>"']+/i);
+    const text = direct ?? (sharedValue === null ? null : (match ? match[0] : sharedValue));
 
     if (text === null) return false;
     if (!text.trim() || new TextEncoder().encode(text).byteLength > 4096) {
@@ -3012,6 +3019,9 @@ function onClickAddCommonAddressButton() {
     try {
       const consumed = new URL(window.location.href);
       consumed.searchParams.delete("opreturn");
+      consumed.searchParams.delete("share_url");
+      consumed.searchParams.delete("share_text");
+      consumed.searchParams.delete("share_title");
       consumed.searchParams.delete("record");
       if (fragment.has("opreturn") || fragment.has("record")) {
         fragment.delete("opreturn");
