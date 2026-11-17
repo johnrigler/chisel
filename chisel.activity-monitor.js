@@ -15,8 +15,7 @@
   if (!monitor || !clock || !badge || !stream || !records || !proxy ||
       !current || typeof originalActivity !== "function") return;
 
-  let lastPulseAt = 0;
-  let lastStatusAt = 0;
+  let lastStatusAt = Date.now();
   let pulseTimer = null;
 
   function tick() {
@@ -29,18 +28,25 @@
     if (value !== "idle") lastStatusAt = Date.now();
     monitor.dataset.state = value;
     badge.textContent = value === "error" ? "ERROR" :
-      value === "busy" ? "LOADING" :
-      value === "ok" ? "ACTIVE" : "IDLE";
+      value === "busy" ? "WORKING" :
+      value === "ok" ? "READY" : "IDLE";
   }
 
   function pulse() {
-    lastPulseAt = Date.now();
     clock.classList.remove("activityClockPulse");
-    // Replay only when a new event arrives, never on clock ticks.
+    // Replay the animation only when a real activity event arrives.
     void clock.offsetWidth;
     clock.classList.add("activityClockPulse");
     if (pulseTimer) clearTimeout(pulseTimer);
     pulseTimer = setTimeout(() => clock.classList.remove("activityClockPulse"), 750);
+  }
+
+  function clean(value, limit) {
+    const diagnostics = window.CHISEL_DIAGNOSTICS;
+    const raw = String(value == null ? "" : value).replace(/\\s+/g, " ").trim();
+    return diagnostics && typeof diagnostics.clean === "function"
+      ? diagnostics.clean(raw, limit || 220)
+      : raw.slice(0, limit || 220);
   }
 
   function syncStream() {
@@ -58,44 +64,49 @@
 
   function syncRecords() {
     const count = byId("portalExplorerCount");
-    const value = count && count.textContent.trim().replace(/\s+/g, " ");
+    const value = count && count.textContent.trim().replace(/\\s+/g, " ");
     records.textContent = value ? value.slice(0, 72) : "Records: pending";
   }
 
   function syncProxy() {
     const status = byId("portalFileProxyHealth");
-    const value = status && status.textContent.trim().replace(/\s+/g, " ");
+    const value = status && status.textContent.trim().replace(/\\s+/g, " ");
     // Report only the component's actual status, never infer a connection.
     proxy.textContent = value ? value.slice(0, 90) : "FileProxy: untested";
+  }
+
+  function renderEvent(source, message, level) {
+    const src = String(source || "Chisel").trim();
+    const msg = String(message || "").trim();
+    if (!msg) return;
+    const failure = level === "error" || /error|fail|rejected|timeout|unavailable/i.test(msg);
+    const working = /start|load|check|fetch|connect|build|sign|broadcast|wait|query|index|resolv|sync|pending/i.test(msg);
+    const success = /ready|initialized|updated|connected|complete|loaded|confirmed|accepted|finished/i.test(msg);
+    const nextState = failure ? "error" : working ? "busy" : success ? "ok" : null;
+
+    // Every real subsystem event replaces the generic startup label.
+    current.textContent = clean(src + ": " + msg, 240);
+    current.title = current.textContent;
+    current.dataset.level = failure ? "error" : working ? "busy" : "info";
+    if (nextState) state(nextState);
+    pulse();
   }
 
   window.chiselActivity = function (source, message, level, detail) {
     originalActivity.apply(this, arguments);
     const src = String(source || "");
     const msg = String(message || "");
-    const failure = level === "error" || /error|fail|rejected|timeout/i.test(msg);
+    const failure = level === "error" || /error|fail|rejected|timeout|unavailable/i.test(msg);
 
-    if (src === "Portal") {
-      const loading = /loading/i.test(msg);
-      state(failure ? "error" : loading ? "busy" : "ok");
-      if (document.body.dataset.mode === "portal" && current.dataset.latched !== "error") {
-        const status = String(detail || message || "");
-        const diagnostics = window.CHISEL_DIAGNOSTICS;
-        current.textContent = "Portal: " + (diagnostics ? diagnostics.clean(status) : status);
-        current.dataset.level = failure ? "error" : loading ? "busy" : "info";
-      }
-      if (!loading || failure) pulse();
-    } else if (src === "Send" || src === "Broadcast") {
-      state(failure ? "error" : /load|build|sign|broadcast/i.test(msg) ? "busy" : "ok");
-      if (failure || /success|accepted|confirmed/i.test(msg)) pulse();
-    } else if (src === "JavaScript" && failure) {
-      state("error");
-      pulse();
+    renderEvent(src, detail || msg, level);
+
+    if (src === "Portal" && document.body.dataset.mode === "portal" &&
+        current.dataset.latched !== "error") {
+      current.dataset.level = failure ? "error" : /loading|pending/i.test(msg) ? "busy" : "info";
     }
-
+    if (src === "FileProxy") syncProxy();
     syncStream();
     syncRecords();
-    if (src === "FileProxy") syncProxy();
   };
 
   const watchText = (id, sync) => {
@@ -109,6 +120,8 @@
   watchText("portalFileProxyHealth", syncProxy);
   byId("portalThunderwordSelect")?.addEventListener("change", syncStream);
 
+  current.textContent = "Chisel: Loading browser modules…";
+  state("busy");
   tick();
   syncStream();
   syncRecords();
@@ -119,7 +132,6 @@
     if (lastStatusAt && Date.now() - lastStatusAt > 12000 &&
         (monitor.dataset.state === "ok" || monitor.dataset.state === "busy")) {
       state("idle");
-      // Preserve the last actual status; the badge reports inactivity.
     }
   }, 1000);
 })();
