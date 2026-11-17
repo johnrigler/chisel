@@ -16,7 +16,8 @@
   if (!account || !accountCoin || !accountAddress || !badge || !sendSelect) return;
 
   function sync() {
-    const loaded = !account.hidden && Boolean(accountAddress.textContent.trim());
+    const address = accountAddress.textContent.trim();
+    const loaded = !account.hidden && Boolean(address);
     const ticker = loaded ? accountCoin.textContent.trim().slice(0, 12) : "";
     const hasAccountCoin = Boolean(ticker);
     badge.textContent = hasAccountCoin ? ticker : "";
@@ -25,7 +26,7 @@
       ? "Loaded public account network: " + ticker + ". Send currency is selected separately in Send."
       : "";
     sendSelect.hidden = hasAccountCoin;
-    if (qrButton) qrButton.disabled = !loaded || !addr || typeof window.QRCode !== "function";
+    if (qrButton) qrButton.disabled = !loaded || !address || typeof window.QRCode !== "function";
   }
 
   function showAddressQr() {
