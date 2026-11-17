@@ -8,6 +8,11 @@
   const accountAddress = document.getElementById("portalPersonalAccountAddress");
   const badge = document.getElementById("headerAccountCoin");
   const sendSelect = document.getElementById("headerCurrency");
+  const qrButton = document.getElementById("headerAddressQrButton");
+  const qrDialog = document.getElementById("senderAddressQrDialog");
+  const qrCode = document.getElementById("senderAddressQrCode");
+  const qrValue = document.getElementById("senderAddressQrValue");
+  const qrTitle = document.getElementById("senderAddressQrTitle");
   if (!account || !accountCoin || !accountAddress || !badge || !sendSelect) return;
 
   function sync() {
@@ -20,7 +25,39 @@
       ? "Loaded public account network: " + ticker + ". Send currency is selected separately in Send."
       : "";
     sendSelect.hidden = hasAccountCoin;
+    if (qrButton) qrButton.disabled = !loaded || !addr || typeof window.QRCode !== "function";
   }
+
+  function showAddressQr() {
+    const address = accountAddress.textContent.trim();
+    if (account.hidden || !address || typeof window.QRCode !== "function" ||
+        !qrDialog || !qrCode || !qrValue) return;
+
+    if (qrTitle) qrTitle.textContent = (accountCoin.textContent.trim() || "Public") + " address";
+    qrValue.textContent = address;
+    qrCode.textContent = "";
+    try {
+      if (typeof qrDialog.showModal === "function") {
+        if (!qrDialog.open) qrDialog.showModal();
+      } else {
+        qrDialog.setAttribute("open", "");
+      }
+      new window.QRCode(qrCode, {
+        text: address,
+        width: 320,
+        height: 320,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: window.QRCode.CorrectLevel.M
+      });
+    } catch (error) {
+      if (typeof qrDialog.close === "function" && qrDialog.open) qrDialog.close();
+      else qrDialog.removeAttribute("open");
+      if (window.chiselActivity) window.chiselActivity("Identity", "Could not render public address QR", "error");
+    }
+  }
+
+  if (qrButton) qrButton.addEventListener("click", showAddressQr);
 
   new MutationObserver(sync).observe(account, {
     childList: true,
