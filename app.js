@@ -1913,12 +1913,10 @@ function getMinimumRequiredFeeUnits(coin, values) {
       ? portal.resolveSharedYoutube(text) : null;
   }
 
-  async function runBuildSignDecodeSend() {
-    // Never build, sign or broadcast a duplicate video from the ordinary UI.
-    const existingVideo = await resolveExistingVideoFromSend();
-    if (existingVideo) return null;
-    if (window.chiselActivity) window.chiselActivity("Send", "Building transaction");
-    const context = await buildTransactionContext();
+  // Shared standard-send boundary. Specialized artifact presentations should
+  // enter here after preparing a draft, not duplicate the approval/signing flow.
+  // The reviewed context and wallet operations remain private to Chisel.
+  async function completeStandardSend(context) {
     await reviewTransactionContext(context, context.rawHex, false, "Sign & broadcast");
     if (window.chiselActivity) window.chiselActivity("Send", "Signing locally");
     await signTransactionContext(context);
@@ -1927,6 +1925,15 @@ function getMinimumRequiredFeeUnits(coin, values) {
     setStatusMessage(STATUS_DONE, false);
 
     return context;
+  }
+
+  async function runBuildSignDecodeSend() {
+    // Never build, sign or broadcast a duplicate video from the ordinary UI.
+    const existingVideo = await resolveExistingVideoFromSend();
+    if (existingVideo) return null;
+    if (window.chiselActivity) window.chiselActivity("Send", "Building transaction");
+    const context = await buildTransactionContext();
+    return completeStandardSend(context);
   }
 
   function loadManualEditorsFromState() {
