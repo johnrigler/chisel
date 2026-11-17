@@ -1,0 +1,29 @@
+{
+  "id": "./",
+  "name": "Chisel",
+  "short_name": "Chisel",
+  "description": "Self-sovereign ledger artifact explorer and transaction workbench",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0d10",
+  "theme_color": "#0f1318",
+  "icons": [
+    {
+      "src": "chisel-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "share_title",
+      "text": "share_text",
+      "url": "opreturn"
+    }
+  }
+}
