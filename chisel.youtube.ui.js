@@ -62,6 +62,8 @@
   $("ytCancel").onclick = function () {
     title = ""; titledContent = "";
     content.value = "";
+    const hex = $("opReturnHex");
+    if (hex) {hex.value = "";hex.dispatchEvent(new Event("input",{bubbles:true}));}
     content.dispatchEvent(new Event("input",{bubbles:true}));
     if (root.setGuiMode) root.setGuiMode("portal");
     render();
