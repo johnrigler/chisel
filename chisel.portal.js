@@ -3669,6 +3669,16 @@
     if (!target) return;
     const box = document.createElement("div");
 
+    if (!target.dataset.pageNavigationBound) {
+      target.dataset.pageNavigationBound = "true";
+      target.addEventListener("click", function (event) {
+        const source = event.target;
+        const button = source && source.closest ? source.closest("button.portalPageButton") : null;
+        if (!button || button.disabled || !target.contains(button)) return;
+        setPortalPage(Number(button.dataset.page));
+      });
+    }
+
     const filteredRows = Array.isArray(rows) ? rows : getFilteredPortalRows();
     if (!state.portalRows.length || !filteredRows.length) {
       target.textContent = "";
@@ -3690,8 +3700,9 @@
       button.type = "button";
       button.className = "secondaryButton portalPageButton";
       button.textContent = text;
+      button.dataset.page = String(targetPage);
+      button.setAttribute("aria-label", text === "›" ? "Next page" : "Previous page");
       button.disabled = !!disabled;
-      button.onclick = function () { setPortalPage(targetPage); };
       box.appendChild(button);
     }
 
@@ -3712,8 +3723,8 @@
       button.type = "button";
       button.className = "secondaryButton portalPageButton" + (p === page ? " active" : "");
       button.textContent = "page" + p;
+      button.dataset.page = String(p);
       button.disabled = p === page;
-      button.onclick = function () { setPortalPage(p); };
       box.appendChild(button);
       last = p;
     });
