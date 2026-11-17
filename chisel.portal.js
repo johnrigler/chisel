@@ -4900,7 +4900,14 @@
     if (options && options.recordPage && transactionIdControl) {
       const toolbar = document.querySelector(".portalRecordToolbar");
       const copyLink = document.querySelector("#portalRecordCopyLink");
-      if (toolbar) toolbar.insertBefore(transactionIdControl, copyLink || null);
+      if (toolbar) {
+        // This toolbar persists while Portal rebuilds the record body. Replace the
+        // previous transaction-ID control so each rerender cannot add another QR icon.
+        toolbar.querySelectorAll(".portalTransactionQr").forEach(function (existing) {
+          existing.remove();
+        });
+        toolbar.insertBefore(transactionIdControl, copyLink || null);
+      }
     }
     if (!subjectVisible) appendPortalInterpretedRecord(supportTarget, row);
 
