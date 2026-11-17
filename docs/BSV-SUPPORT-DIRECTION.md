@@ -60,3 +60,7 @@ The first concrete task is a read-path feasibility check with known raw
 transactions. Signing and broadcasting are later capabilities to establish.
 This note adds no wallet or broadcast behavior and does not reorder the
 existing M64 development sequence.
+
+## November 16, 2026 follow-up
+
+BSV remains a prospective Chisel carrier, potentially for M64 artifacts, but the user prefers collaborators before attempting a new BSV integration. First establish read fixtures and costs. Chisel-wide independent identity, rabbit-trail links and recovery requirements are recorded in [CROSS_PLATFORM_IDENTITY_AND_RABBIT_TRAILS_2026-11-16.md](CROSS_PLATFORM_IDENTITY_AND_RABBIT_TRAILS_2026-11-16.md). No live BSV support is implied.
