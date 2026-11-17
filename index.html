@@ -2200,6 +2200,8 @@
               <pre id="activityTrace" class="activityTrace" aria-label="Application activity log"></pre>
             </details>
             <strong>Diagnostics</strong>
+            <div class="activityControls"><button type="button" class="secondaryButton" id="shareApiTest">TEST SYSTEM SHARE</button><button type="button" class="secondaryButton" id="shareApiCopy">COPY SHARE TRACE</button></div>
+            <pre id="shareApiTrace" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#b8c7d6;margin:0">Share API: not tested</pre>
             <div class="activityControls"><button type="button" class="secondaryButton" id="downloadDebugJson">DOWNLOAD DEBUG JSON</button><button type="button" class="secondaryButton" id="clearDebugJson">CLEAR DEBUG HISTORY</button><button type="button" class="secondaryButton" id="copyAiContext">COPY WORK MODE CONTEXT</button></div>
             <p class="help" id="aiContextStatus" role="status" aria-live="polite">Copies a read-only status summary for you to paste into ChatGPT Work Mode. Nothing is sent automatically.</p>
             <textarea id="aiContextPreview" class="aiContextPreview" aria-label="Work Mode context for manual copying" readonly hidden rows="8"></textarea>
@@ -3318,6 +3320,7 @@
   <script src="chisel.safety.js?20261017-security1"></script>
   <script src="chisel.header-identity.js?rev=20261117-address-qr-v2841"></script>
 <script src="app.js?rev=20261115-version-single-source"></script>
+  <script src="chisel.share-diagnostics.js?rev=20261116-share-test"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <script src="chisel.pwa.js?rev=20261116-pwa-v2843"></script>
   <div id="portalBusyOverlay" role="status" aria-live="polite" aria-label="Portal loading" hidden>
