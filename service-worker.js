@@ -25,13 +25,15 @@ self.addEventListener('fetch', event => {
   const isNav = req.mode === 'navigate';
   const staticAsset = /\.(?:html?|js|css|svg|png|webmanifest|woff2?)$/i.test(url.pathname);
   if (!isNav && !staticAsset) return;
+  // Shared URLs and stateful deep links must never be stored in Cache Storage.
+  const navigationWithState = isNav && Boolean(url.search || url.hash);
   // Never persist transaction-specific or user-dependent responses.
   if (/\/(?:api|rpc|fileproxy|chisel-data)\//i.test(url.pathname)) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     try {
       const response = await fetch(req);
-      if (response.ok && response.type === 'basic') {
+      if (!navigationWithState && response.ok && response.type === 'basic') {
         // Only static same-origin resources. Navigation cached for offline launch.
         await cache.put(req, response.clone());
       }
