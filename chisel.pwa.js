@@ -32,6 +32,11 @@
       updateViaCache: reg.updateViaCache || null
     } : null;
   }
+  function incomingShareParameterNames() {
+    const declared = state.manifest && state.manifest.shareTarget && state.manifest.shareTarget.parameterNames || [];
+    const query = new URLSearchParams(location.search);
+    return declared.filter(name => query.has(name)).slice(0, 12);
+  }
   function snapshot() {
     const link = document.querySelector('link[rel="manifest"]');
     return {
@@ -40,6 +45,7 @@
       controllerPresent: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
       manifestLink: link ? safeEndpoint(link.href) : null,
       manifest: state.manifest,
+      incomingShareParameterNames: incomingShareParameterNames(),
       registration: registrationInfo(),
       beforeInstallPromptSeen: state.beforeInstallPromptSeen,
       appInstalledEventSeen: state.appInstalledEventSeen
@@ -84,7 +90,9 @@
         display: clean(manifest.display),
         shareTarget: target ? {
           present: true,
+          action: clean(target.action || './').slice(0, 240),
           method: clean(target.method || 'GET').slice(0, 12),
+          enctype: clean(target.enctype || '').slice(0, 120),
           parameterNames: params.slice(0, 12).map(name => clean(name).slice(0, 60))
         } : {present: false},
         icons: icons.slice(0, 12).map(icon => ({
@@ -94,6 +102,8 @@
         }))
       };
       record('pwa.manifest', 'Manifest loaded; share target ' + (target ? 'present' : 'missing') + '; icons=' + icons.length, 'info', link.href);
+      const incoming = incomingShareParameterNames();
+      if (incoming.length) record('pwa.incoming-share', 'Incoming share parameter names present: ' + incoming.join(', '));
     } catch (error) {
       state.manifest = {status: 'error'};
       record('pwa.manifest', 'Manifest read failed: ' + (error && error.message || error), 'error', link.href);
