@@ -51,7 +51,7 @@
         share: diagnosticSnapshot.share || null,
         pwa: diagnosticSnapshot.pwa || null,
         environment: diagnosticSnapshot.environment || null,
-        runtimeAssets: (diagnosticSnapshot.assetManifest || []).filter(asset => /chisel\\.(debug|share-diagnostics|pwa|ai-context|version)/.test(asset.file || "")).slice(0, 12)
+        runtimeAssets: (diagnosticSnapshot.assetManifest || []).filter(asset => /chisel\.(debug|share-diagnostics|pwa|ai-context|version)/.test(asset.file || "")).slice(0, 12)
       } : null,
       privacy: "Manual read-only handoff. Includes up to 100 sanitized runtime events plus share/PWA status. No keys, identity, recipient, transaction body, or network upload."
     };
