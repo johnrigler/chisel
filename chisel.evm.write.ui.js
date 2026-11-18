@@ -110,9 +110,15 @@
     }
   }
 
+  function injectedWalletName(provider) {
+    if (provider && (provider.isBackpack || provider.isBackpackWallet)) return "Backpack";
+    if (provider && provider.isMetaMask) return "MetaMask";
+    return "Injected wallet";
+  }
+
   function discover() {
     if (root.backpack && root.backpack.ethereum) addWallet(root.backpack.ethereum, "Backpack", "backpack");
-    if (root.ethereum) addWallet(root.ethereum, "Injected wallet", "injected");
+    if (root.ethereum) addWallet(root.ethereum, injectedWalletName(root.ethereum), "injected");
     panels.forEach(function (panel) { panel.renderWallets(); });
     root.dispatchEvent(new Event("eip6963:requestProvider"));
   }
