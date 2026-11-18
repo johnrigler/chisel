@@ -1054,27 +1054,42 @@ function setCurrencyForm() {
     render();
   }
 
+  let lastSentTransactionId = "";
+
+  function updateSendConfirmation(txid, ledgerSeen) {
+    const normalizedTxid = String(txid || "").replace(/^0x/i, "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(normalizedTxid)) return;
+    if (lastSentTransactionId && normalizedTxid !== lastSentTransactionId) return;
+    lastSentTransactionId = normalizedTxid;
+    const confirmation = document.getElementById("sendConfirmation");
+    if (!confirmation) return;
+    confirmation.replaceChildren();
+    confirmation.append(document.createTextNode(ledgerSeen ? "Seen by ledger. Transaction: " : "Broadcast accepted. Transaction: "));
+    const a = document.createElement("a");
+    const coin = getCoin();
+    a.href = (coin.NAME === "litecoin" ? "https://litecoinspace.org/tx/" : coin.DEFAULT_EXPLORER_URL || "") + normalizedTxid;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = normalizedTxid;
+    confirmation.appendChild(a);
+    confirmation.append(document.createTextNode(ledgerSeen ? " · Ledger read verified the transaction." : " · Awaiting ledger confirmation."));
+  }
+
   function setSendResultData(sendResult) {
     state.sendResult = sendResult;
-    const confirmation = document.getElementById("sendConfirmation");
-    if (confirmation) {
-      confirmation.replaceChildren();
-      const txid = String(sendResult && (sendResult.txid || sendResult.result) || "");
-      if (/^[0-9a-fA-F]{64}$/.test(txid)) {
-        confirmation.append(document.createTextNode("Broadcast accepted. Transaction: "));
-        const a = document.createElement("a");
-        a.href = (getCoin().NAME === "litecoin" ? "https://litecoinspace.org/tx/" : getCoin().DEFAULT_EXPLORER_URL || "") + txid;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.textContent = txid;
-        confirmation.appendChild(a);
-        confirmation.append(document.createTextNode(" · Awaiting block confirmation."));
-      } else {
-        confirmation.textContent = "Broadcast response received. Open Review for technical details.";
-      }
+    const txid = String(sendResult && (sendResult.txid || sendResult.result) || "");
+    if (/^(?:0x)?[0-9a-fA-F]{64}$/.test(txid)) updateSendConfirmation(txid, false);
+    else {
+      const confirmation = document.getElementById("sendConfirmation");
+      if (confirmation) confirmation.textContent = "Broadcast response received. Open Review for technical details.";
     }
     render();
   }
+
+  window.addEventListener("chisel:publication", function (event) {
+    const publication = event && event.detail && event.detail.publication;
+    if (publication && publication.ledgerState === "seen") updateSendConfirmation(publication.txid, true);
+  });
 
   function setChangeData(changeUnits) {
     const coin = getCoin();
@@ -1826,13 +1841,19 @@ function getMinimumRequiredFeeUnits(coin, values) {
   function confirmTransactionReview(text, action) {
     const dialog = document.createElement("dialog");
     if (typeof dialog.showModal !== "function") return Promise.resolve(window.confirm(text + "\n\n" + action + "?"));
-    const title = document.createElement("h2"), details = document.createElement("pre"), cancel = document.createElement("button"), accept = document.createElement("button");
-    title.textContent = "Review transaction"; details.textContent = text;
-    details.style.whiteSpace = "pre-wrap"; details.style.overflowWrap = "anywhere";
-    dialog.style.maxWidth = "min(44rem, 90vw)"; dialog.style.maxHeight = "85vh";
+    dialog.className = "transactionReviewDialog";
+    dialog.setAttribute("aria-labelledby", "transactionReviewTitle");
+    const title = document.createElement("h2"), details = document.createElement("pre"), actions = document.createElement("div"), cancel = document.createElement("button"), accept = document.createElement("button");
+    title.id = "transactionReviewTitle";
+    title.textContent = "Are you sure?";
+    details.textContent = text;
+    actions.className = "transactionReviewActions";
+    cancel.className = "transactionReviewCancel";
+    accept.className = "transactionReviewAccept";
     cancel.textContent = "Cancel"; accept.textContent = action;
     cancel.type = accept.type = "button";
-    dialog.append(title, details, cancel, accept); document.body.appendChild(dialog);
+    actions.append(cancel, accept);
+    dialog.append(title, details, actions); document.body.appendChild(dialog);
     return new Promise(function (resolve) {
       function finish(accepted) { dialog.close(); dialog.remove(); resolve(accepted); }
       cancel.onclick = function () { finish(false); }; accept.onclick = function () { finish(true); };
@@ -1885,16 +1906,27 @@ function getMinimumRequiredFeeUnits(coin, values) {
       logSafeSendStage("broadcast-error", "error");
       throw error;
     }
+    lastSentTransactionId = "";
     setSendResultData(sendResult);
+
+    // Clear the submitted text so the completed send cannot remain staged for
+    // an accidental second broadcast. Keep the preview captured above.
+    [elems.opReturnAscii, elems.opReturnHex, elems.ipfsField].forEach(function clearSentField(field) {
+      if (!field) return;
+      field.value = "";
+      field.dispatchEvent(new Event("input", {bubbles: true}));
+      field.dispatchEvent(new Event("change", {bubbles: true}));
+    });
 
     if (window.CHISEL_PUBLICATION) {
       try {
         // Bound reader receives public transport settings only. The watcher
         // never retains the signing context or its account/private key.
         const transport = {rpcUrl: context.values.rpcUrl, explorerUrl: context.values.explorerUrl};
-        await window.CHISEL_PUBLICATION.publish({coin: context.coin.NAME, signedHex: context.signedHex,
+        const publication = await window.CHISEL_PUBLICATION.publish({coin: context.coin.NAME, signedHex: context.signedHex,
           feeUnits: context.review.feeUnits, display: display},
           context.coin.getRawTransaction.bind(context.coin, context.client, transport));
+        if (publication) updateSendConfirmation(publication.txid, publication.ledgerState === "seen");
       } catch (error) {
         if (window.chiselActivity) window.chiselActivity("Portal", "Broadcast succeeded; local receipt could not be displayed", "error");
         console.warn("Broadcast succeeded; Portal receipt unavailable:", error);
