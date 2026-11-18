@@ -2334,6 +2334,7 @@ function onClickAddCommonAddressButton() {
     portal: "Portal is the home screen. Browse public ledger records, decode links, and select an artifact without signing in.",
     about: "About explains Chisel, its author, the trust model, and ways to participate.",
     examples: "Examples provides runnable experiments and self-tests, including Dark Star Z.",
+    polygon: "Polygon mode brings the EVM contract reader, transaction importer, and wallet-reviewed writers into Chisel navigation.",
     tools: "Tools provides scanners, labels, importers, and support utilities."
   };
 
@@ -2346,7 +2347,7 @@ function onClickAddCommonAddressButton() {
       return "send";
     }
 
-    if (value === "review" || value === "portal" || value === "about" || value === "examples" || value === "tools") {
+    if (value === "review" || value === "portal" || value === "about" || value === "examples" || value === "tools" || value === "polygon") {
       return value;
     }
 
