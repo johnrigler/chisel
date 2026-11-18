@@ -169,7 +169,8 @@
     receiveWatchAddress: "",
     receiveWatchCurrency: "",
     receiveWatchHadZero: false,
-    receiveWatchAlerted: false
+    receiveWatchAlerted: false,
+    lastUtxoCurrency: DEFAULT_CURRENCY_KEY
   };
 
   //
@@ -908,7 +909,17 @@ function setCurrencyOptions() {
     elems.currency.append(option);
   });
 
-  elems.currency.value = DEFAULT_CURRENCY_KEY;
+  let requestedCurrency = DEFAULT_CURRENCY_KEY;
+  try {
+    const requested = new URL(window.location.href).searchParams.get("coin");
+    if (requested === "evm" || requested === "polygon") requestedCurrency = "polygon";
+  } catch (error) {}
+  elems.currency.value = requestedCurrency;
+  if (requestedCurrency !== "polygon") state.lastUtxoCurrency = requestedCurrency;
+  const headerCurrency = document.querySelector("#headerCurrency");
+  if (headerCurrency && Array.from(headerCurrency.options).some(function (option) { return option.value === requestedCurrency; })) {
+    headerCurrency.value = requestedCurrency;
+  }
 }
 
 function setCurrencyForm() {
@@ -919,6 +930,12 @@ function setCurrencyForm() {
   }));
 
   const currencyKey = elems.currency.value || DEFAULT_CURRENCY_KEY;
+  if (currencyKey === "polygon") {
+    elems.heroTitle.textContent = "Send on Polygon";
+    elems.heroText.textContent = "Use the Polygon workbench to inspect EVM transactions and send reviewed contract calls through MetaMask or Backpack on Polygon mainnet (chain 137).";
+    elems.currencyHelp.textContent = "Polygon is an EVM ledger. Select it to open the Polygon workbench; the UTXO WIF and OP_RETURN transaction builder does not apply.";
+    return;
+  }
   const coin = CHISEL.getCoin(currencyKey);
 
   elems.heroTitle.textContent = "Send " + (coin.DISPLAY_NAME || coin.NAME);
@@ -2220,6 +2237,11 @@ return;
   }
 
   function onChangeCurrency() {
+    if (elems.currency.value === "polygon") {
+      setGuiMode("polygon");
+      return;
+    }
+    state.lastUtxoCurrency = elems.currency.value || DEFAULT_CURRENCY_KEY;
     clearOutputs();
     setStatusMessage(STATUS_IDLE, false);
     setCurrencyForm();
@@ -2360,6 +2382,18 @@ function onClickAddCommonAddressButton() {
 
   function setGuiMode(mode) {
     const normalizedMode = normalizeMode(mode);
+    if (elems.currency) {
+      if (normalizedMode === "polygon") {
+        if (elems.currency.value && elems.currency.value !== "polygon") state.lastUtxoCurrency = elems.currency.value;
+        elems.currency.value = "polygon";
+      } else if (elems.currency.value === "polygon") {
+        elems.currency.value = state.lastUtxoCurrency || DEFAULT_CURRENCY_KEY;
+        clearOutputs();
+        setCurrencyForm();
+      }
+      const headerCurrency = document.querySelector("#headerCurrency");
+      if (headerCurrency) headerCurrency.value = elems.currency.value;
+    }
     const buttons = Array.from(document.querySelectorAll("[data-mode-target]"));
     const modeHint = document.querySelector("#modeHint");
 
@@ -2378,6 +2412,13 @@ function onClickAddCommonAddressButton() {
       const url = new URL(window.location.href);
       // A bare /chisel/ URL is the canonical Portal entry point.
       // Keep it clean instead of inserting ?mode=portal on initial load.
+      if (normalizedMode === "polygon") {
+        url.searchParams.set("coin", "evm");
+        url.searchParams.set("chain", "137");
+      } else if (url.searchParams.get("coin") === "evm" || url.searchParams.get("coin") === "polygon") {
+        url.searchParams.delete("coin");
+        url.searchParams.delete("chain");
+      }
       if (!(normalizedMode === "portal" && !url.searchParams.has("mode"))) {
         url.searchParams.set("mode", normalizedMode);
         window.history.replaceState(window.history.state, "", url.toString());
@@ -2392,7 +2433,10 @@ function onClickAddCommonAddressButton() {
     let initialMode = "portal";
 
     try {
-      initialMode = new URL(window.location.href).searchParams.get("mode") || "portal";
+      const url = new URL(window.location.href);
+      initialMode = url.searchParams.get("mode") || "portal";
+      const coin = url.searchParams.get("coin");
+      if (coin === "evm" || coin === "polygon") initialMode = "polygon";
     } catch (error) {
       initialMode = "portal";
     }
