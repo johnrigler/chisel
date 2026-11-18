@@ -142,6 +142,9 @@
   try { storage = root.sessionStorage; } catch (_) {}
   const tracker = createTracker({storage, emit(record, reveal) {
     root.CHISEL_PORTAL.presentPublication(record, {reveal});
+    if (typeof root.dispatchEvent === "function" && typeof root.CustomEvent === "function") {
+      root.dispatchEvent(new root.CustomEvent("chisel:publication", {detail: {publication: record}}));
+    }
   }});
 
   function defaultReader(name) {
