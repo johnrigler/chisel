@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-ZzsEBT2AmiKC+LrNTkgMaCjdLtdsfDER1RVh2vRBaZI=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261118-send-confirm-v2851"></script>
+  <script src="chisel.version.js?rev=20261118-polygon-mode-v2852"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -601,11 +601,15 @@
     .aboutMeta { color:#91a4b7; font-size:12px; }
     @media(max-width:760px){.aboutGrid{grid-template-columns:1fr}.aboutActions{display:grid}.aboutAction{width:100%}}
 
+    .polygonWorkbenchFrame { width:100%; height:min(86vh,1100px); min-height:780px; border:1px solid #39434d; border-radius:10px; display:block; background:#101214; }
+    @media(max-width:760px){ .polygonWorkbenchFrame{height:82vh;min-height:680px} }
+
     body[data-mode="send"] .modePanel[data-mode-panel="etch"],
     body[data-mode="etch"] .modePanel[data-mode-panel="etch"],
     body[data-mode="broadcast"] .modePanel[data-mode-panel="etch"],
     body[data-mode="review"] .modePanel[data-mode-panel="review"],
     body[data-mode="portal"] .modePanel[data-mode-panel="portal"],
+    body[data-mode="polygon"] .modePanel[data-mode-panel="polygon"],
     body[data-mode="about"] .modePanel[data-mode-panel="about"],
     body[data-mode="examples"] .modePanel[data-mode-panel="examples"],
     body[data-mode="tools"] .modePanel[data-mode-panel="tools"] {
@@ -2273,6 +2277,7 @@
             <strong>Navigation</strong>
             <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
             <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
+            <button class="modeButton" type="button" data-mode-target="polygon">Polygon</button>
             <details id="activityPanel" class="activityPanel">
               <summary><strong>Activity log</strong></summary>
               <div class="activityControls">
@@ -2324,11 +2329,21 @@
         <button class="modeButton active" type="button" data-mode-target="portal">Portal</button>
         <button class="modeButton" type="button" data-mode-target="send">Send</button>
         <button class="modeButton" type="button" data-mode-target="review">Review</button>
+        <button class="modeButton" type="button" data-mode-target="polygon">Polygon</button>
         <button class="modeButton" type="button" data-mode-target="about">About</button>
       </div>
       <div class="compactHint" id="modeHint">Portal is the home screen. Explore public ledger records without signing in.</div>
     </section>
 
+
+    <section class="modePanel" data-mode-panel="polygon" aria-label="Polygon workbench">
+      <section class="panel hero polygonWorkbenchPanel">
+        <h2>Polygon</h2>
+        <p class="muted">Polygon mainnet workbench (chain ID 137): inspect contract transactions, recover calldata, and use the Gomez, Jethro, and Chisel wallet-reviewed contract writers. Reads use the existing Etherscan and RPC paths; wallet approval is still required for writes.</p>
+        <p class="aboutMeta"><a href="evm.html?rev=20261118-polygon-mode-v2852" target="_blank" rel="noopener noreferrer">Open the Polygon workbench in a separate tab</a> · <a href="tools/m64Artifact/native6-polygon.html">Native M64 Polygon tools</a> · <a href="tools/evmFactory/index.html">EVM Contract Factory</a></p>
+        <iframe class="polygonWorkbenchFrame" src="evm.html?rev=20261118-polygon-mode-v2852" title="Chisel Polygon and EVM workbench" loading="lazy"></iframe>
+      </section>
+    </section>
 
     <section class="modePanel" data-mode-panel="about" aria-label="About Chisel">
       <section class="panel aboutHero">
@@ -3404,7 +3419,7 @@
   <script src="chisel.header-identity.js?rev=20261117-address-qr-v2841"></script>
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.youtube.ui.js?rev=20261117-youtube-v2847"></script>
-  <script src="app.js?rev=20261118-send-confirm-v2851"></script>
+  <script src="app.js?rev=20261118-polygon-mode-v2852"></script>
   <script src="chisel.share-diagnostics.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <script src="chisel.pwa.js?rev=20261117-unified-diag-v2844"></script>
