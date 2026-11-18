@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-ZzsEBT2AmiKC+LrNTkgMaCjdLtdsfDER1RVh2vRBaZI=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261117-og-v2850"></script>
+  <script src="chisel.version.js?rev=20261118-send-confirm-v2851"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -325,6 +325,73 @@
       color: #91a4b7;
       font-size: 13px;
       line-height: 1.5;
+    }
+
+    dialog.transactionReviewDialog {
+      width: min(92vw, 760px);
+      max-width: 760px;
+      max-height: 85vh;
+      overflow: auto;
+      padding: 20px;
+      border: 1px solid #34434f;
+      border-radius: 12px;
+      background: #18222b;
+      color: #e7edf1;
+      box-shadow: 0 24px 72px rgba(0, 0, 0, 0.7);
+    }
+
+    dialog.transactionReviewDialog::backdrop {
+      background: rgba(0, 0, 0, 0.78);
+    }
+
+    .transactionReviewDialog h2 {
+      margin: 0 0 12px;
+      font: 700 25px/1.2 system-ui, sans-serif;
+    }
+
+    .transactionReviewDialog pre {
+      max-height: 55vh;
+      overflow: auto;
+      margin: 0;
+      padding: 14px;
+      border-radius: 8px;
+      background: #10171d;
+      color: #c7d1d9;
+      font: 13px/1.55 system-ui, sans-serif;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .transactionReviewActions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .transactionReviewActions button {
+      min-height: 56px;
+      flex: 1;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 13px 16px;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .transactionReviewCancel {
+      background: #7e252a;
+      border-color: #c4484e !important;
+    }
+
+    .transactionReviewAccept {
+      background: #26964b;
+      border-color: #45c96a !important;
+    }
+
+    @media (max-width: 600px) {
+      dialog.transactionReviewDialog { padding: 16px; }
+      .transactionReviewActions { flex-direction: column-reverse; }
     }
 
     dialog.addressQrDialog {
@@ -3323,7 +3390,7 @@
   <script src="chisel.interactions.ui.js?rev=20261117-transaction-only-v2841"></script>
   <script src="chisel.portal.js?rev=20261117-record-qr-dedupe-v2845"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
-  <script src="chisel.portal.publication.js?rev=20261031-errors-v2817"></script>
+  <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
 
  <script>
@@ -3337,7 +3404,7 @@
   <script src="chisel.header-identity.js?rev=20261117-address-qr-v2841"></script>
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.youtube.ui.js?rev=20261117-youtube-v2847"></script>
-  <script src="app.js?rev=20261117-youtube-v2847"></script>
+  <script src="app.js?rev=20261118-send-confirm-v2851"></script>
   <script src="chisel.share-diagnostics.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <script src="chisel.pwa.js?rev=20261117-unified-diag-v2844"></script>
