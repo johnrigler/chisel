@@ -126,6 +126,21 @@ distribution checks, not authorship checks.
   boot command examples; pass explicit CLI arguments or a private
   configuration file path when needed.
 
+## First implementation: CID static publisher in Mogwai
+
+The operator-side `fileproxy.cid_mirror` module and offline tests are
+now on Mogwai `main` under `fileProxy/fileproxy/cid_mirror.py` and
+`fileProxy/tests/test_cid_mirror.py`. Its instructions live at
+`fileProxy/docs/CID-STATIC-MIRROR.md`.
+
+It uses local Kubo once to export a CID's CAR and decoded files into an
+immutable HTTP root. The offline verifier checks CARv1 root CID, the
+SHA-256 multihashes of present blocks, and each exported file digest.
+There is **no** live rigler.org publication proof, Pinata CAR upload,
+complete UnixFS DAG/decoded-byte validation or authorized-publisher
+attestation yet. Treat those as separate release gates before printing
+physical boot CIDs.
+
 ## Existing code and future work
 
 Mogwai already has `fileproxy.static_publish` for immutable SHA-256
