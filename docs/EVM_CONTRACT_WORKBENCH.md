@@ -189,7 +189,7 @@ No new Solidity contract is deployed by the write panel.
 **Allowlisted write methods and inputs:**
 
 - `mapArtifact(artifact,body)`: writer-scoped dictionary entry. A nonempty
-  key is required; empty body is permitted. UTF-8 input is capped at 64 KiB.
+  key is required; empty body is permitted. Neither this writer nor the deployed function imposes a fixed body-length cap. Practical limits come from wallet/RPC transaction size and Polygon gas/block constraints. `mapArtifact` writes the body to storage and emits it again in `ArtifactMapped`, so the gas estimate reflects duplicated payload costs; large writes may be infeasible.
 - `logRecord(format,data)`: `bytes32` format and nonempty even-length hex
   bytes. Emits an event only; does not store a dictionary entry.
 - `execute(artifact,body,payments,format,data)`: optional combined write,
