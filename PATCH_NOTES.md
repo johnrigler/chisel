@@ -1,3 +1,8 @@
+# 2.8.63 — random sticker URLs
+
+- Make Sticker URL labels contain distinct random 16-hex IDs in the Chisel GitHub Pages URL fragment. Give every sticker its own ID-derived colored frame and print no text below the QR.
+- Remove network and public-address fields. The same sticker opens Chisel and can later be scanned as one of four key fragments.
+
 # 2.8.62 — QR field labels for public address URLs
 
 - Add a QR Field mode that builds a Chisel app URL with `mode=portal`, the selected network, and a public address. The default target is the Chisel GitHub Pages app; the printed label shows the address without the URL.
