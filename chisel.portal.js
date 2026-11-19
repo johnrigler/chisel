@@ -37,6 +37,9 @@
     liveLedgerRefreshMs: 120000,
     liveLedgerRefreshOnFocus: true,
     liveLedgerRefreshFocusStaleMs: 60000,
+    autoSyncEvmContracts: true,
+    autoSyncEvmContractsMs: 60000,
+    autoSyncEvmOverlapBlocks: 16,
     autoSelectNewest: false,
     autoLoadConversationStreams: true,
     autoLoadStaticDataset: true,
@@ -56,10 +59,10 @@
     inlineImageScale: 4,
     inlineImageThumbScale: 2,
     inlineImageExpandedScale: 12,
-    includeEvmGomez: false,
-    includeEvmJethro: false,
-    includeEvmPolygonThunderword: false,
-    autoLoadEvmCatalog: false,
+    includeEvmGomez: true,
+    includeEvmJethro: true,
+    includeEvmPolygonThunderword: true,
+    autoLoadEvmCatalog: true,
     portalFilterDigibyte: true,
     portalFilterRavencoin: true,
     portalFilterLitecoin: true,
@@ -158,12 +161,15 @@
     config: Object.assign({}, DEFAULT_PORTAL_CONFIG),
     localPollTimer: null,
     liveLedgerTimer: null,
+    evmSyncTimer: null,
+    evmSyncPromise: null,
     liveLedgerHistories: Object.create(null),
     mainThunderword: null,
     mainThunderwordReindexTimer: null,
     mainThunderwordReindexPending: false,
     urlMainThunderwordRequest: null,
     evmCatalogLoaded: Object.create(null),
+    evmKnownTxids: Object.create(null),
     staticDatasetLoaded: false,
     staticDatasetReports: [],
     staticManifest: null,
@@ -6056,6 +6062,12 @@
       contractName: profile.contractName,
       contractAddress: profile.contractAddress
     });
+    const known = Object.create(null);
+    safeArray(json.transactions).forEach(function (row) {
+      const txid = String(row && row.txid || "").replace(/^0x/i, "").toLowerCase();
+      if (/^[0-9a-f]{64}$/.test(txid)) known[txid] = true;
+    });
+    state.evmKnownTxids[profile.id] = known;
     return {
       profile: profile,
       json: json,
@@ -6100,6 +6112,181 @@
     setText("#portalThunderwordRaw", pretty({ evmCatalog: reports }));
     setStatus("Loaded " + loaded.length + " EVM catalog transaction(s) into the main Portal feed.", false);
     return loaded;
+  }
+
+  const ETHERSCAN_V2_URL = "https://api.etherscan.io/v2/api";
+  const ETHERSCAN_KEY_STORAGE = "chisel.evm2.etherscanApiKey";
+  const EVM_SYNC_STORAGE = "chisel.portal.evmSync.lastAttempt";
+
+  function savedEtherscanApiKey() {
+    try { return String(window.localStorage.getItem(ETHERSCAN_KEY_STORAGE) || "").trim(); }
+    catch (error) { return ""; }
+  }
+
+  function evmTxPacket(raw, profile) {
+    const hash = String(raw && raw.hash || "").trim();
+    const txid = hash.replace(/^0x/i, "").toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/i.test(hash)) return null;
+    const input = String(raw.input || "0x");
+    const inputHex = input.replace(/^0x/i, "");
+    const methodId = /^([0-9a-f]{8})/i.exec(inputHex);
+    const blockNumber = Number(raw.blockNumber || 0);
+    const timestamp = Number(raw.timeStamp || 0);
+    const transactionIndex = Number(raw.transactionIndex || 0);
+    const name = profile.contractName;
+    const savedAt = new Date().toISOString();
+    return {
+      txid: txid,
+      hash: hash.toLowerCase(),
+      coin: "evm",
+      chainId: "137",
+      chainName: "Polygon Mainnet",
+      contract: { name: name, address: profile.contractAddress, queriedAddress: profile.contractAddress },
+      source: {
+        kind: "etherscan-v2-account-txlist",
+        generatedBy: "chisel.portal.js",
+        savedAt: savedAt,
+        sort: "desc"
+      },
+      tx: raw,
+      decoded: { kind: "evm", methodId: methodId ? "0x" + methodId[1].toLowerCase() : "" },
+      summary: {
+        txid: txid,
+        hash: hash.toLowerCase(),
+        title: name.toUpperCase() + " transaction",
+        methodId: methodId ? "0x" + methodId[1].toLowerCase() : "",
+        from: String(raw.from || ""),
+        to: String(raw.to || ""),
+        contractAddress: profile.contractAddress,
+        blockNumber: blockNumber,
+        blockHeight: blockNumber,
+        blockTime: timestamp,
+        date: timestamp ? new Date(timestamp * 1000).toISOString() : "",
+        value: String(raw.value || "0"),
+        gasUsed: String(raw.gasUsed || ""),
+        inputBytes: Math.floor(inputHex.length / 2),
+        kind: "evm",
+        transactionIndex: transactionIndex,
+        explorerUrl: evmExplorerUrl({ chainId: "137", hash: hash }, hash)
+      }
+    };
+  }
+
+  async function etherscanTxList(profile, apiKey, startBlock, page) {
+    const params = new URLSearchParams({
+      chainid: "137",
+      module: "account",
+      action: "txlist",
+      address: profile.contractAddress,
+      startblock: String(startBlock),
+      endblock: "999999999",
+      page: String(page),
+      offset: "1000",
+      sort: "desc",
+      apikey: apiKey
+    });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(function () { controller.abort(); }, 15000);
+    let response;
+    try {
+      response = await fetch(ETHERSCAN_V2_URL + "?" + params.toString(), {
+        cache: "no-store",
+        signal: controller.signal
+      });
+    } finally {
+      window.clearTimeout(timeout);
+    }
+    if (!response.ok) throw new Error("Etherscan HTTP " + response.status);
+    const payload = await response.json();
+    if (payload && payload.status === "0") {
+      const result = String(payload.result || "");
+      if (/no transactions found/i.test(result)) return [];
+      throw new Error("Etherscan transaction query failed (check API key or rate limit).");
+    }
+    if (!payload || !Array.isArray(payload.result)) throw new Error("Etherscan returned an invalid transaction page.");
+    return payload.result;
+  }
+
+  async function syncEvmProfile(profile, apiKey) {
+    const status = await fileProxyJson("/evm-stream-status", {
+      chainId: profile.chainId,
+      contractName: profile.contractName,
+      contractAddress: profile.contractAddress
+    });
+    const latestBlock = Number(status.latestBlock || 0);
+    const overlap = Math.max(1, Number(configValue("autoSyncEvmOverlapBlocks", 16)) || 16);
+    const startBlock = latestBlock > 0 ? Math.max(0, latestBlock - overlap) : 0;
+    const packets = [];
+    const seen = Object.create(null);
+    const known = state.evmKnownTxids[profile.id] || Object.create(null);
+    // First-time loads can be historical; cap work per open while descending
+    // pages ensure the newest records are captured first.
+    const maxPages = 10;
+    for (let page = 1; page <= maxPages; page += 1) {
+      const rows = await etherscanTxList(profile, apiKey, startBlock, page);
+      rows.forEach(function (row) {
+        const packet = evmTxPacket(row, profile);
+        if (!packet || seen[packet.txid] || known[packet.txid]) return;
+        seen[packet.txid] = true;
+        packets.push(packet);
+      });
+      if (rows.length < 1000) break;
+    }
+    if (!packets.length) return 0;
+    const result = await fileProxyPostJson("/save-evm-batch", {
+      chainId: profile.chainId,
+      chainName: profile.chainName,
+      contractName: profile.contractName,
+      contractAddress: profile.contractAddress,
+      source: { kind: "etherscan-v2-account-txlist", generatedBy: "chisel.portal.js", savedAt: new Date().toISOString() },
+      transactions: packets,
+      filenameMode: "base58"
+    });
+    packets.forEach(function (packet) { known[packet.txid] = true; });
+    state.evmKnownTxids[profile.id] = known;
+    return Number(result.saved || 0);
+  }
+
+  async function syncEvmContractsFromEtherscan() {
+    if (!configBool("autoSyncEvmContracts", true) || document.hidden) return 0;
+    if (state.evmSyncPromise) return state.evmSyncPromise;
+    const apiKey = savedEtherscanApiKey();
+    if (!apiKey) return 0;
+    const now = Date.now();
+    try {
+      const lastAttempt = Number(window.localStorage.getItem(EVM_SYNC_STORAGE) || 0);
+      const minInterval = Math.max(30000, Number(configValue("autoSyncEvmContractsMs", 60000)) || 60000);
+      if (lastAttempt && now - lastAttempt < minInterval) return 0;
+      window.localStorage.setItem(EVM_SYNC_STORAGE, String(now));
+    } catch (error) {}
+
+    state.evmSyncPromise = (async function () {
+      let saved = 0;
+      const profiles = enabledEvmProfiles();
+      for (const profile of profiles) {
+        try { saved += await syncEvmProfile(profile, apiKey); }
+        catch (error) { console.warn("Polygon " + profile.label + " auto-sync skipped:", error); }
+      }
+      if (saved) {
+        await loadSelectedEvmCatalogs({ reset: false });
+        setStatus("Captured and loaded " + saved + " new Polygon contract transaction(s).", false);
+      }
+      return saved;
+    })().finally(function () { state.evmSyncPromise = null; });
+    return state.evmSyncPromise;
+  }
+
+  function startEvmContractPolling() {
+    if (state.evmSyncTimer) window.clearInterval(state.evmSyncTimer);
+    if (!configBool("autoSyncEvmContracts", true)) return;
+    if (!savedEtherscanApiKey()) {
+      console.info("Polygon auto-sync is waiting for the Etherscan key saved by the Polygon workbench; cached FileProxy transactions still load.");
+    }
+    const ms = Math.max(30000, Number(configValue("autoSyncEvmContractsMs", 60000)) || 60000);
+    syncEvmContractsFromEtherscan().catch(function (error) { console.warn("Polygon contract auto-sync failed:", error); });
+    state.evmSyncTimer = window.setInterval(function () {
+      syncEvmContractsFromEtherscan().catch(function (error) { console.warn("Polygon contract auto-sync failed:", error); });
+    }, ms);
   }
 
   function renderLocalTransactionList(rows) {
@@ -7666,11 +7853,12 @@ function getPortalFirstCharacter() {
           setStatus("Local fileProxy load skipped: " + (error.message || String(error)), true);
         });
       }
-      if (configBool("autoLoadEvmCatalog", false)) {
-        loadSelectedEvmCatalogs({ reset: false }).catch(function (error) {
+      const evmCatalogLoad = configBool("autoLoadEvmCatalog", true)
+        ? loadSelectedEvmCatalogs({ reset: false }).catch(function (error) {
           setStatus("Local EVM catalog load skipped: " + (error.message || String(error)), true);
-        });
-      }
+        })
+        : Promise.resolve();
+      evmCatalogLoad.then(startEvmContractPolling);
       startLocalTransactionPolling();
       startLiveLedgerPolling();
     }).catch(function (error) {
@@ -7683,6 +7871,12 @@ function getPortalFirstCharacter() {
           setStatus("Main thunderword URL could not load: " + (loadError.message || String(loadError)), true);
         });
       }
+      const evmCatalogLoad = configBool("autoLoadEvmCatalog", true)
+        ? loadSelectedEvmCatalogs({ reset: false }).catch(function (error) {
+          console.warn("Local EVM catalog load skipped:", error);
+        })
+        : Promise.resolve();
+      evmCatalogLoad.then(startEvmContractPolling);
       if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
       if (state.personalAccount && !state.urlMainThunderwordRequest) {
         loadPersonalAccountStream(state.personalAccount, {filterResults:true, noReloadIfCurrent:false, captureReturnView:false}).catch(function () {});

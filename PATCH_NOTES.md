@@ -1,3 +1,10 @@
+# 2.8.58 — Open-time Polygon contract sync
+
+- Portal loads the Gomez, Jethro, and Polygon Thunderword FileProxy catalogs automatically on startup.
+- When this browser has an Etherscan V2 key saved by the Polygon workbench, Chisel checks those three Polygon addresses on startup and at a 60-second foreground interval. It overlaps the last indexed block range to catch same-block arrivals, filters already-cached transaction IDs, saves new transaction packets through `/save-evm-batch`, then refreshes the portal rows.
+- The API key remains in browser localStorage and is sent only to Etherscan. Without a saved key, Chisel still loads the shared FileProxy catalog; live ingestion then depends on another keyed browser or the Rigler-side indexer job.
+- This fetches normal address transactions and transaction calldata. It does not index internal calls or contract event logs.
+
 # 2.8.28 — interaction history and dated comments
 
 - Add a shared **Viewing now** history with public record titles/synopses, newest-first activity, older pages and record reopening. Log page arrivals, selections, media opens and reconstructed-function activity without logging key fields, keystrokes or browser-only notes.
