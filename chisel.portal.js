@@ -4020,7 +4020,8 @@
       title:String(fields.title || "").trim().slice(0,200),
       description:String(fields.description || "").trim().slice(0,1200),
       previewUrl:image.slice(0,2048),
-      image:safeImage && /^https:\/\//i.test(image) && /\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(image) ? safeImage : "",
+      image:safeImage && /^https:\/\//i.test(image) &&
+        (fields.captureMethod === "facebook-oembed" || /\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(image)) ? safeImage : "",
       capturedAt:previous && previous.capturedAt || new Date().toISOString(),
       updatedAt:new Date().toISOString(),
       captureMethod:String(fields.captureMethod || "manual").slice(0,80),
