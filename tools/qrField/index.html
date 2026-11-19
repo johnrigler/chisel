@@ -86,30 +86,6 @@
       color: #111;
     }
 
-    .toolbar input {
-      min-width: min(100%, 360px);
-      padding: 9px 10px;
-      border: 1px solid #bbb;
-      border-radius: 8px;
-      background: #fff;
-      color: #111;
-      font: inherit;
-    }
-
-    .fieldControl {
-      display: grid;
-      gap: 5px;
-    }
-
-    .addressUrlFields {
-      max-width: 720px;
-      display: grid;
-      grid-template-columns: minmax(180px, 1fr) minmax(240px, 2fr);
-      gap: 10px;
-    }
-
-    .addressUrlFields[hidden] { display: none; }
-
     .toolbarHelp,
     .toolStatus {
       max-width: 720px;
@@ -118,11 +94,6 @@
     }
 
     .toolStatus:empty { display: none; }
-
-    @media screen and (max-width: 640px) {
-      .addressUrlFields { grid-template-columns: 1fr; }
-      .addressUrlFields .fieldControl[style] { grid-column: auto !important; }
-    }
 
     .toolbarControls {
       display: flex;
@@ -226,19 +197,13 @@
       word-break: break-word;
     }
 
-    .label.addressUrlLabel .labelBody {
+    .label.stickerUrlLabel .labelBody {
       gap: 0.02in;
     }
 
-    .label.addressUrlLabel .qrSlot {
+    .label.stickerUrlLabel .qrSlot {
       width: 0.90in;
       height: 0.90in;
-    }
-
-    .label.addressUrlLabel .labelText {
-      font-size: 6.5pt;
-      line-height: 1.05;
-      overflow-wrap: anywhere;
     }
 
     .helpCode {
@@ -278,9 +243,9 @@
   <section class="toolbar">
     <h1>Chisel QR sticker sheet</h1>
     <p>
-      Each sticker opens Chisel with its random eight-byte identifier (16 hex characters).
-      Chisel can read the same ID from the link during a four-sticker key scan.
-      Keep public page stickers separate from private-key stickers.
+      Each sticker opens Chisel with a random eight-byte identifier (16 hex characters) in the URL fragment.
+      The same stickers can later be scanned as four private-key fragments, combined left-to-right.
+      Each label has its own random number and matching color frame. No text is printed below the QR.
     </p>
     <p>
       Print on plain paper first. Then adjust
@@ -296,7 +261,7 @@
         QR content
         <select id="contentModeSelect">
           <option value="sticker">Random Chisel sticker ID</option>
-          <option value="addressUrl">Chisel address URL</option>
+          <option value="stickerUrl">Sticker URL (random ID)</option>
         </select>
       </label>
       <label>
@@ -308,28 +273,8 @@
       </label>
       <button id="printButton" type="button">PRINT</button>
     </div>
-    <div id="addressUrlFields" class="addressUrlFields" hidden>
-      <label class="fieldControl">
-        Network
-        <select id="addressCoinSelect">
-          <option value="litecoin">Litecoin</option>
-          <option value="digibyte">DigiByte</option>
-          <option value="ravencoin">Ravencoin</option>
-          <option value="litecoinTestnet">Litecoin testnet</option>
-          <option value="polygon">Polygon</option>
-        </select>
-      </label>
-      <label class="fieldControl">
-        Public address
-        <input id="publicAddressInput" type="text" spellcheck="false" autocomplete="off" placeholder="L... or 0x...">
-      </label>
-      <label class="fieldControl" style="grid-column: 1 / -1">
-        Chisel app URL
-        <input id="targetUrlInput" type="url" spellcheck="false" value="https://johnrigler.github.io/chisel/">
-      </label>
-    </div>
-    <p id="addressUrlHelp" class="toolbarHelp" hidden>
-      The QR opens Chisel with this network and address. The label prints the address only, without the URL. Address mode makes 20 copies and uses one QR per label.
+    <p id="stickerUrlHelp" class="toolbarHelp" hidden>
+      Each label gets a different random 16-hex sticker ID. The QR opens Chisel with that ID in the URL fragment; the colored frame is derived from the ID. No text is printed below the QR.
     </p>
     <p id="toolStatus" class="toolStatus" role="status" aria-live="polite"></p>
   </section>
@@ -348,11 +293,7 @@
       const TOTAL_LABELS = COLUMNS * ROWS;
       const QR_PIXEL_SIZE = 180;
       const QR_PIXEL_SIZE_DENSE = 128;
-      const QR_PIXEL_SIZE_URL = 360;
       const HEX_LENGTH = 16;
-      const CHISEL_APP_URL = "https://johnrigler.github.io/chisel/";
-      const PRIVATE_KEY_LIKE = /^(?:[5KL9c])[1-9A-HJ-NP-Za-km-z]{50,51}$/;
-      const PRIVATE_HEX_LIKE = /^(?:0x)?[0-9a-f]{64}$/i;
 
       //
       // Elements
@@ -362,11 +303,7 @@
         contentModeSelect: document.querySelector("#contentModeSelect"),
         densitySelect: document.querySelector("#densitySelect"),
         sheet: document.querySelector("#sheet"),
-        addressUrlFields: document.querySelector("#addressUrlFields"),
-        addressUrlHelp: document.querySelector("#addressUrlHelp"),
-        addressCoinSelect: document.querySelector("#addressCoinSelect"),
-        publicAddressInput: document.querySelector("#publicAddressInput"),
-        targetUrlInput: document.querySelector("#targetUrlInput"),
+        stickerUrlHelp: document.querySelector("#stickerUrlHelp"),
         toolStatus: document.querySelector("#toolStatus")
       };
 
@@ -396,38 +333,21 @@
         return "#" + value.slice(0, 6);
       }
 
-      function getAddressBorderColor(value) {
-        let hash = 2166136261;
-        for (let i = 0; i < value.length; i += 1) {
-          hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
-        }
-        return "#" + (hash >>> 0 & 0xffffff).toString(16).padStart(6, "0");
-      }
-
-      function buildAddressUrlLabelData() {
-        const address = elems.publicAddressInput.value.trim();
-        if (!address) throw new Error("Enter a public address first.");
-        if (/[\s/?#]/.test(address) || address.length > 100) {
-          throw new Error("Enter the address only, without a URL, spaces, or extra path text.");
-        }
-        if (PRIVATE_KEY_LIKE.test(address) || PRIVATE_HEX_LIKE.test(address)) {
-          throw new Error("That value looks like private-key material. QR Field accepts public addresses only.");
-        }
-
-        const target = new URL(elems.targetUrlInput.value.trim() || CHISEL_APP_URL);
-        if (!/^https?:$/.test(target.protocol) || target.username || target.password) {
-          throw new Error("Use a public HTTP or HTTPS Chisel app URL.");
-        }
-        target.searchParams.set("mode", "portal");
-        target.searchParams.set("coin", elems.addressCoinSelect.value);
-        target.searchParams.set("address", address);
-        target.hash = "";
-
+      function buildStickerUrlLabelData() {
+        const usedIds = new Set();
+        const usedColors = new Set();
         return Array.from({ length: TOTAL_LABELS }, function () {
+          let id;
+          let borderColor;
+          do {
+            id = getRandomHex(HEX_LENGTH);
+            borderColor = getBorderColorFromValue(id);
+          } while (usedIds.has(id) || usedColors.has(borderColor));
+          usedIds.add(id);
+          usedColors.add(borderColor);
           return {
-            qrValues: [target.toString()],
-            labelText: address,
-            borderColor: getAddressBorderColor(address)
+            qrValues: [ChiselSticker.url(id)],
+            borderColor: borderColor
           };
         });
       }
@@ -510,14 +430,6 @@
         };
       }
 
-      function createLabelText(text) {
-        const div = document.createElement("div");
-        div.className = "labelText";
-        div.textContent = text;
-
-        return div;
-      }
-
       function appendLabel(label) {
         elems.sheet.append(label);
       }
@@ -536,15 +448,14 @@
       }
 
       function renderLabels() {
-        const addressMode = elems.contentModeSelect.value === "addressUrl";
-        const density = addressMode ? 1 : Number(elems.densitySelect.value);
-        elems.addressUrlFields.hidden = !addressMode;
-        elems.addressUrlHelp.hidden = !addressMode;
-        elems.densitySelect.disabled = addressMode;
+        const stickerUrlMode = elems.contentModeSelect.value === "stickerUrl";
+        const density = stickerUrlMode ? 1 : Number(elems.densitySelect.value);
+        elems.stickerUrlHelp.hidden = !stickerUrlMode;
+        elems.densitySelect.disabled = stickerUrlMode;
 
         let labels;
         try {
-          labels = addressMode ? buildAddressUrlLabelData() : getLabelData(density);
+          labels = stickerUrlMode ? buildStickerUrlLabelData() : getLabelData(density);
           elems.toolStatus.textContent = "";
         } catch (error) {
           elems.sheet.innerHTML = "";
@@ -558,7 +469,7 @@
           const rowIndex = Math.floor(index / COLUMNS);
           const columnIndex = index % COLUMNS;
           const labelParts = createLabel();
-          if (addressMode) labelParts.label.classList.add("addressUrlLabel");
+          if (stickerUrlMode) labelParts.label.classList.add("stickerUrlLabel");
 
           setLabelPosition(labelParts.label, columnIndex, rowIndex);
 
@@ -582,8 +493,7 @@
             setLabelBorderColor(labelParts.frame, labelData.borderColor);
             labelParts.body.append(qrSlot);
             const value = labelData.qrValues[0];
-            renderQrCode(qrSlot, addressMode ? value : ChiselSticker.url(value), addressMode ? QR_PIXEL_SIZE_URL : QR_PIXEL_SIZE);
-            if (labelData.labelText) labelParts.body.append(createLabelText(labelData.labelText));
+            renderQrCode(qrSlot, stickerUrlMode ? value : ChiselSticker.url(value), QR_PIXEL_SIZE);
           }
 
           appendLabel(labelParts.label);
@@ -601,9 +511,6 @@
         elems.printButton.onclick = onPrintButtonClick;
         elems.densitySelect.onchange = renderLabels;
         elems.contentModeSelect.onchange = renderLabels;
-        elems.addressCoinSelect.onchange = renderLabels;
-        elems.publicAddressInput.onchange = renderLabels;
-        elems.targetUrlInput.onchange = renderLabels;
       }
 
       //
