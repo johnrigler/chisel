@@ -54,7 +54,7 @@
     if (!COINS.includes(coin) || !TXID.test(txid)) throw new Error("This record has no supported public share identity.");
     const base = new URL(String(fileProxyBase || ""));
     if (base.protocol !== "https:" || base.username || base.password) throw new Error("Facebook previews require a public HTTPS FileProxy URL.");
-    base.pathname = base.pathname.replace(/\\/+$/, "") + "/chisel-share";
+    base.pathname = base.pathname.replace(/\/+$/, "") + "/chisel-share";
     base.search = ""; base.hash = "";
     const metadata = annotation && annotation.metadata && typeof annotation.metadata === "object" ? annotation.metadata : {};
     const summary = row.summary || {};
@@ -67,11 +67,11 @@
     base.searchParams.set("txid", txid);
     base.searchParams.set("title", title);
     base.searchParams.set("description", description);
-    if (/^https:\\/\\//i.test(image)) base.searchParams.set("image", image);
+    if (/^https:\/\//i.test(image)) base.searchParams.set("image", image);
     if (coin === "evm") {
       const chain = String(row.index && row.index.chainId || "");
       const source = store.sourceIdForRow(row);
-      if (/^\\d{1,15}$/.test(chain)) base.searchParams.set("chain", chain);
+      if (/^\d{1,15}$/.test(chain)) base.searchParams.set("chain", chain);
       if (/^(?:evmGomez|evmJethro|evmPolygonThunderword|other)$/.test(source)) base.searchParams.set("source", source);
     }
     return base.href;
