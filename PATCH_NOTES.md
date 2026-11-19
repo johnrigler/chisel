@@ -1,3 +1,7 @@
+# 2.8.64 — match sticker URL label layout
+
+- Keep Sticker URL labels at the same QR size and colored frame proportions as the other single-QR Chisel stickers. Each label has a unique random ID and color, with no text beneath the QR.
+
 # 2.8.63 — random sticker URLs
 
 - Make Sticker URL labels contain distinct random 16-hex IDs in the Chisel GitHub Pages URL fragment. Give every sticker its own ID-derived colored frame and print no text below the QR.
