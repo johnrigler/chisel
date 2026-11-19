@@ -2,7 +2,7 @@
 
 qrField is a satellite utility for generating and printing QR-coded identifiers as physical labels.
 
-Each label encodes a 16-character hexadecimal string, paired with a deterministic color border derived from that value.
+Each sticker QR opens the Chisel GitHub Pages app with a random 16-character hexadecimal value in its URL fragment. Its frame color comes from that value.
 
 It is designed to work alongside a complementary scanning tool, forming a bridge between physical objects and digital transaction workflows.
 
@@ -23,10 +23,10 @@ The system is intentionally simple:
 
 ## Data Format
 
-Each label contains:
+Each sticker contains:
 
 - a randomly generated 16-character HEX string
-- encoded directly into a QR code
+- encoded as the `sticker` fragment of a Chisel URL
 
 Example:
 
@@ -34,15 +34,13 @@ a3f9c1d4e8b27f6a
 
 This value is the only required payload.
 
-## Chisel address URL labels
+## Sticker URLs and key fragments
 
-Choose **Chisel address URL** to make a sheet of 20 labels for one public address. The QR opens the Chisel GitHub Pages app with `mode=portal`, the selected `coin`, and the entered `address` in its query string. The printed text below the QR is only the address; it omits the app URL.
-
-The default app URL is `https://johnrigler.github.io/chisel/`. It can be changed to another Chisel-compatible app URL. The field accepts public addresses only and rejects common WIF/private-hex shapes; never paste a private key. Address labels retain the colored frame; its color is derived deterministically from the address, so all 20 copies match.
+Choose **Sticker URL (random ID)** to make 20 distinct stickers. Each QR points to `https://johnrigler.github.io/chisel/#sticker=<ID>`. Opening it brings up Chisel with that ID; scanning four sticker IDs later combines them left-to-right as the four 16-hex private-key fragments. Each sticker has a different random ID and its own matching frame color. The label has no printed text below the QR.
 
 ## Color Encoding
 
-Each QR code is surrounded by a border color derived from the HEX value itself.
+Each QR code is surrounded by a border color derived from the first six HEX characters of its ID.
 
 This provides:
 
@@ -76,23 +74,7 @@ qrField → physical label → scanner → application → chisel
 
 ## Relationship to Chisel
 
-qrField does not interact with Chisel directly.
-
-Instead, it feeds systems that may later use Chisel.
-
-Typical flow:
-
-1. qrField generates and prints labels
-2. Labels are attached to objects or stored
-3. Scanner reads label
-4. Application interprets HEX value
-5. Value is used in a transaction or lookup via Chisel
-
-This keeps Chisel unaware of:
-
-- physical media
-- QR encoding
-- UI workflows
+The QR URL opens Chisel and passes the sticker ID in the fragment. Chisel's scanner can consume the same ID as one of four key fragments.
 
 ## Why This Is a Satellite
 
