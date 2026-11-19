@@ -48,7 +48,7 @@
     return url.href;
   }
 
-  function facebookShareUrl(row, fileProxyBase, annotation) {
+  function facebookShareUrl(row, fileProxyBase, annotation, pageMetadata) {
     const store = root.CHISEL_PORTAL_STORE, coin = store.canonicalCoinForRow(row);
     const txid = String(row.txid || "").replace(/^0x/i, "").toLowerCase();
     if (!COINS.includes(coin) || !TXID.test(txid)) throw new Error("This record has no supported public share identity.");
@@ -57,12 +57,13 @@
     base.pathname = base.pathname.replace(/\/+$/, "") + "/chisel-share";
     base.search = ""; base.hash = "";
     const metadata = annotation && annotation.metadata && typeof annotation.metadata === "object" ? annotation.metadata : {};
+    pageMetadata = pageMetadata && typeof pageMetadata === "object" ? pageMetadata : {};
     const summary = row.summary || {};
     const cards = Array.isArray(summary.mediaCards) ? summary.mediaCards : [];
-    const title = String(metadata.title || summary.title || (coin.toUpperCase() + " record " + txid.slice(0,12))).trim().slice(0,200);
-    const description = String(annotation && annotation.note || summary.opReturnText || summary.primaryUrl ||
+    const title = String(metadata.title || pageMetadata.title || summary.title || (coin.toUpperCase() + " record " + txid.slice(0,12))).trim().slice(0,200);
+    const description = String(annotation && annotation.note || pageMetadata.description || summary.opReturnText || summary.primaryUrl ||
       (summary.title ? "Public ledger record: " + summary.title : coin.toUpperCase() + " transaction " + txid)).trim().slice(0,500);
-    const image = String(metadata.image || (cards[0] && (cards[0].thumbnailUrl || cards[0].image)) || "").trim();
+    const image = String(metadata.image || pageMetadata.image || (cards[0] && (cards[0].thumbnailUrl || cards[0].image)) || "").trim();
     base.searchParams.set("coin", coin);
     base.searchParams.set("txid", txid);
     base.searchParams.set("title", title);
@@ -271,7 +272,8 @@
         if (!current) return;
         try {
           const annotation = deps.annotation ? deps.annotation(current.row) : null;
-          const url = facebookShareUrl(current.row, deps.fileProxyUrl(), annotation);
+          const pageMetadata = deps.facebookPreviewMetadata ? deps.facebookPreviewMetadata(current.row) : null;
+          const url = facebookShareUrl(current.row, deps.fileProxyUrl(), annotation, pageMetadata);
           deps.copy(url, facebook).catch(function (error) { deps.status(error.message, true); });
         } catch (error) { deps.status(error.message, true); }
       };
