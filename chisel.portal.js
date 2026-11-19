@@ -3990,6 +3990,14 @@
     } catch (error) { return false; }
   }
 
+  function isFacebookLink(url) {
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      return host === "facebook.com" || host.endsWith(".facebook.com") ||
+        host === "fb.watch" || host === "www.fb.watch";
+    } catch (error) { return false; }
+  }
+
   function readPageMetadata(url) {
     try {
       const saved = JSON.parse(localStorage.getItem(pageMetadataKey(url)) || "null");
@@ -4015,7 +4023,11 @@
       image:safeImage && /^https:\/\//i.test(image) && /\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(image) ? safeImage : "",
       capturedAt:previous && previous.capturedAt || new Date().toISOString(),
       updatedAt:new Date().toISOString(),
-      captureMethod:"manual"
+      captureMethod:String(fields.captureMethod || "manual").slice(0,80),
+      provider:String(fields.provider || "").slice(0,100),
+      authorName:String(fields.authorName || "").slice(0,500),
+      metadataSource:String(fields.metadataSource || "").slice(0,2048),
+      fetchedAt:String(fields.fetchedAt || "").slice(0,80)
     };
     try { localStorage.setItem(pageMetadataKey(url), JSON.stringify(metadata)); return metadata; }
     catch (error) { return null; }
@@ -4170,6 +4182,40 @@
       if (url && !row.draftRecord) {
         const controls = document.createElement("div");
         controls.className = "portalEvmMediaBody";
+        if (isFacebookLink(url)) {
+          const fetchFacebook = document.createElement("button");
+          fetchFacebook.type = "button";
+          fetchFacebook.className = "secondaryButton";
+          fetchFacebook.textContent = saved && saved.captureMethod === "facebook-oembed" ? "Refresh Facebook metadata" : "Fetch Facebook metadata";
+          fetchFacebook.onclick = async function () {
+            const label = fetchFacebook.textContent;
+            fetchFacebook.disabled = true;
+            setStatus("Querying Facebook public metadata through FileProxy…", false);
+            try {
+              const result = await fileProxyJson("/facebook-metadata", {url:url});
+              const remote = result && result.metadata || {};
+              const metadata = savePageMetadata(url, {
+                title:remote.title || remote.authorName || card.title || "",
+                description:remote.description || "",
+                image:remote.thumbnailUrl || "",
+                captureMethod:"facebook-oembed",
+                provider:remote.provider || "Facebook",
+                authorName:remote.authorName || "",
+                metadataSource:remote.metadataSource || "",
+                fetchedAt:remote.fetchedAt || ""
+              }, saved);
+              if (!metadata) throw new Error("Facebook metadata could not be saved in this browser.");
+              requestPortalRender();
+              setStatus((result.cached ? "Loaded cached" : "Fetched") + " Facebook metadata into FileProxy and this browser.", false);
+            } catch (error) {
+              setStatus(error && error.message || "Facebook metadata lookup failed.", true);
+            } finally {
+              fetchFacebook.disabled = false;
+              fetchFacebook.textContent = label;
+            }
+          };
+          controls.appendChild(fetchFacebook);
+        }
         const edit = document.createElement("button");
         edit.type = "button";
         edit.className = "secondaryButton";
