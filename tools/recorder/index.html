@@ -356,7 +356,7 @@
 <video id="faceVideo" autoplay muted playsinline></video>
 
 <script src="../../vendor/qrcode.min.js"></script>
-<script src="../../chisel.stickers.js?rev=20261030-v2811"></script>
+<script src="../../chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
 <script src="../../chisel.js"></script>
 <script src="../../chisel.unspendable.js"></script>
 <script src="../../chisel.sign.js"></script>
@@ -940,7 +940,6 @@
     }
 
     const index = await deriveArtifactIndex(state.artifactId);
-    ChiselSticker.markPublic(state.artifactId);
     const target = new URL("../../index.html",window.location.href);
     target.searchParams.set("mode","portal");
     target.searchParams.set("address",index.address);
@@ -1313,9 +1312,6 @@
       return;
     }
 
-    try { ChiselSticker.assertPrivate(fragment); }
-    catch (error) { setStatus(error.message); return; }
-
     if (state.fragments.includes(fragment)) {
       setStatus("Duplicate sticker ignored. Slots stay left-to-right.");
       return;
@@ -1398,7 +1394,6 @@
     const coin = CHISEL.getCoin(els.currency.value);
 
     try {
-      ChiselSticker.assertPrivate(privateKeyHex);
       const wif = await privateKeyHexToWif(privateKeyHex,coin);
       const account = await coin.wifToAccount(wif);
       const publicKey = CHISEL.privateKeyHexToPublicKeyHex(account.privateKeyHex,true);

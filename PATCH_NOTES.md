@@ -1,3 +1,8 @@
+# 2.8.65 — simplify sticker URLs
+
+- Encode `https://johnrigler.github.io/#<16-hex-ID>` with the existing ID-colored frame and no printed caption.
+- Remove the sticker landing page, automatic redirect, and public/private usage tracking.
+
 # 2.8.64 — match sticker URL label layout
 
 - Keep Sticker URL labels at the same QR size and colored frame proportions as the other single-QR Chisel stickers. Each label has a unique random ID and color, with no text beneath the QR.

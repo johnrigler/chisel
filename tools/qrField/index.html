@@ -234,8 +234,7 @@
   <section class="toolbar">
     <h1>Chisel QR sticker sheet</h1>
     <p>
-      Each sticker opens Chisel with a random eight-byte identifier (16 hex characters) in the URL fragment.
-      The same stickers can later be scanned as four private-key fragments, combined left-to-right.
+      Each sticker opens johnrigler.github.io with a random 16-character hex value appended after #.
       Each label has its own random number and matching color frame. No text is printed below the QR.
     </p>
     <p>
@@ -265,7 +264,7 @@
       <button id="printButton" type="button">PRINT</button>
     </div>
     <p id="stickerUrlHelp" class="toolbarHelp" hidden>
-      Each label gets a different random 16-hex sticker ID. The QR opens Chisel with that ID in the URL fragment; the colored frame is derived from the ID. No text is printed below the QR.
+      Each QR opens johnrigler.github.io. Its random hex value sets the frame color. No text is printed below the QR.
     </p>
     <p id="toolStatus" class="toolStatus" role="status" aria-live="polite"></p>
   </section>
@@ -273,7 +272,7 @@
   <main class="sheet" id="sheet"></main>
 
   <script src="../../vendor/qrcode.min.js"></script>
-  <script src="../../chisel.stickers.js?rev=20261030-v2811"></script>
+  <script src="../../chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
   <script>
     (function () {
       //

@@ -72,7 +72,6 @@ jobs:
           node --check tools/recast/render-source.js
           node --check app.js
           node --check chisel.stickers.js
-          node --check sticker.js
           node --input-type=module --check < ctp500.js
           node --input-type=module --check < ctp500-ble.js
           node --input-type=module --check < ctp500-print.js

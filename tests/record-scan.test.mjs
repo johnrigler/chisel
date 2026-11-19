@@ -74,15 +74,13 @@ test('all scanner modes extract the same ID from a sticker URL without navigatin
   }
 });
 
-test('a sticker used publicly is rejected by the private scanner, while public lookup still works',()=>{
-  const id='0123456789abcdef',f=scannerFixture('key4');
-  f.context.ChiselSticker.markPublic(id);
+test('the same sticker remains usable in public lookup and key scans',()=>{
+  const id='0123456789abcdef',f=scannerFixture('artifact1');
   f.context.consumeQr(f.context.ChiselSticker.url(id));
-  assert.equal(f.state.fragments.length,0);
-  assert.match(f.events.statuses.at(-1),/used publicly/);
-  f.state.scanMode='artifact1';f.state.lastQrValueAt=0;
-  f.context.consumeQr(id);
   assert.deepEqual(f.events.artifacts,[id]);
+  f.state.scanMode='key4';f.state.lastQrValueAt=0;
+  f.context.consumeQr(f.context.ChiselSticker.url(id));
+  assert.deepEqual(f.state.fragments,[id]);
 });
 
 function launchFixture({saved='',query=''}={}) {

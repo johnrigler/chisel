@@ -2,7 +2,7 @@
 
 qrField is a satellite utility for generating and printing QR-coded identifiers as physical labels.
 
-Each sticker QR opens the Chisel GitHub Pages app with a random 16-character hexadecimal value in its URL fragment. Its frame color comes from that value.
+Each sticker QR opens johnrigler.github.io with a random 16-character hexadecimal value in its URL fragment. Its frame color comes from that value.
 
 It is designed to work alongside a complementary scanning tool, forming a bridge between physical objects and digital transaction workflows.
 
@@ -26,7 +26,7 @@ The system is intentionally simple:
 Each sticker contains:
 
 - a randomly generated 16-character HEX string
-- encoded as the `sticker` fragment of a Chisel URL
+- appended as a bare URL fragment after `#`
 
 Example:
 
@@ -36,7 +36,7 @@ This value is the only required payload.
 
 ## Sticker URLs and key fragments
 
-Choose **Sticker URL (random ID)** to make 20 distinct stickers. Each QR points to `https://johnrigler.github.io/chisel/#sticker=<ID>`. Opening it brings up Chisel with that ID; scanning four sticker IDs later combines them left-to-right as the four 16-hex private-key fragments. Each sticker has a different random ID and its own matching frame color. The label has no printed text below the QR.
+Choose **Sticker URL (random ID)** to make 20 distinct stickers. Each QR points to `https://johnrigler.github.io/#<ID>`. Opening it shows the homepage and clears the fragment from the address bar. The printed QR retains the hex for later scans. Each sticker has a different random ID and its own matching frame color. The label has no printed text below the QR.
 
 ## Color Encoding
 
@@ -74,7 +74,7 @@ qrField → physical label → scanner → application → chisel
 
 ## Relationship to Chisel
 
-The QR URL opens Chisel and passes the sticker ID in the fragment. Chisel's scanner can consume the same ID as one of four key fragments.
+The QR opens the main GitHub Pages homepage. The hex remains in the printed QR for later use by a scanner.
 
 ## Why This Is a Satellite
 
