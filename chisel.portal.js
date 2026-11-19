@@ -5751,7 +5751,7 @@
       facebookPreviewMetadata: function (row) {
         const cards = collectEvmMediaCards(row);
         for (let i = 0; i < cards.length; i += 1) {
-          const captured = readPageMetadata(cards[i].url);
+          const captured = readPageMetadata(cards[i].sourceUrl || cards[i].url) || readPageMetadata(cards[i].url);
           if (captured) return captured;
         }
         return null;
