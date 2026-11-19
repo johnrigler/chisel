@@ -197,15 +197,6 @@
       word-break: break-word;
     }
 
-    .label.stickerUrlLabel .labelBody {
-      gap: 0.02in;
-    }
-
-    .label.stickerUrlLabel .qrSlot {
-      width: 0.90in;
-      height: 0.90in;
-    }
-
     .helpCode {
       background: #eee;
       padding: 2px 6px;
@@ -469,8 +460,6 @@
           const rowIndex = Math.floor(index / COLUMNS);
           const columnIndex = index % COLUMNS;
           const labelParts = createLabel();
-          if (stickerUrlMode) labelParts.label.classList.add("stickerUrlLabel");
-
           setLabelPosition(labelParts.label, columnIndex, rowIndex);
 
           if (density === 4) {
