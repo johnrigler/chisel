@@ -5748,6 +5748,14 @@
       render: function (content, row) { appendPortalInlineDetails(content, row, {recordPage: true}); },
       status: setStatus, copy: copyPortalText, fileProxyUrl: getFileProxyUrl,
       annotation: function (row) { return notesData.documentFor(row, getPortalAnnotation(row)); },
+      facebookPreviewMetadata: function (row) {
+        const cards = collectEvmMediaCards(row);
+        for (let i = 0; i < cards.length; i += 1) {
+          const captured = readPageMetadata(cards[i].url);
+          if (captured) return captured;
+        }
+        return null;
+      },
       placeholder: function (route) {
         const profile = EVM_PROFILES.find(function (item) { return "evm" + item.label === route.sourceId; });
         const entry = profile ? evmIndexEntry(profile) : getCoinIndexByCoinName(route.coin);
