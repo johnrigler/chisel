@@ -1,3 +1,9 @@
+# 2.8.62 — QR field labels for public address URLs
+
+- Add a QR Field mode that builds a Chisel app URL with `mode=portal`, the selected network, and a public address. The default target is the Chisel GitHub Pages app; the printed label shows the address without the URL.
+- Keep one QR per label and print 20 copies for an address. Give matching address labels the same deterministic colored frame; retain the existing random sticker-ID and 4-QR modes.
+- Reject common WIF and private-hex shapes before generating address labels.
+
 # 2.8.61 — Open the header QR from the active public address
 
 - Let the top-right QR icon show the loaded Portal account, falling back to the public address currently derived in Send when no Portal account is loaded in this browser.

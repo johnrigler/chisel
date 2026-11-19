@@ -86,6 +86,44 @@
       color: #111;
     }
 
+    .toolbar input {
+      min-width: min(100%, 360px);
+      padding: 9px 10px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      background: #fff;
+      color: #111;
+      font: inherit;
+    }
+
+    .fieldControl {
+      display: grid;
+      gap: 5px;
+    }
+
+    .addressUrlFields {
+      max-width: 720px;
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) minmax(240px, 2fr);
+      gap: 10px;
+    }
+
+    .addressUrlFields[hidden] { display: none; }
+
+    .toolbarHelp,
+    .toolStatus {
+      max-width: 720px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .toolStatus:empty { display: none; }
+
+    @media screen and (max-width: 640px) {
+      .addressUrlFields { grid-template-columns: 1fr; }
+      .addressUrlFields .fieldControl[style] { grid-column: auto !important; }
+    }
+
     .toolbarControls {
       display: flex;
       flex-wrap: wrap;
@@ -188,6 +226,21 @@
       word-break: break-word;
     }
 
+    .label.addressUrlLabel .labelBody {
+      gap: 0.02in;
+    }
+
+    .label.addressUrlLabel .qrSlot {
+      width: 0.90in;
+      height: 0.90in;
+    }
+
+    .label.addressUrlLabel .labelText {
+      font-size: 6.5pt;
+      line-height: 1.05;
+      overflow-wrap: anywhere;
+    }
+
     .helpCode {
       background: #eee;
       padding: 2px 6px;
@@ -240,6 +293,13 @@
     </p>
     <div class="toolbarControls">
       <label>
+        QR content
+        <select id="contentModeSelect">
+          <option value="sticker">Random Chisel sticker ID</option>
+          <option value="addressUrl">Chisel address URL</option>
+        </select>
+      </label>
+      <label>
         Density
         <select id="densitySelect">
           <option value="1">1 QR per label (20 total)</option>
@@ -248,6 +308,30 @@
       </label>
       <button id="printButton" type="button">PRINT</button>
     </div>
+    <div id="addressUrlFields" class="addressUrlFields" hidden>
+      <label class="fieldControl">
+        Network
+        <select id="addressCoinSelect">
+          <option value="litecoin">Litecoin</option>
+          <option value="digibyte">DigiByte</option>
+          <option value="ravencoin">Ravencoin</option>
+          <option value="litecoinTestnet">Litecoin testnet</option>
+          <option value="polygon">Polygon</option>
+        </select>
+      </label>
+      <label class="fieldControl">
+        Public address
+        <input id="publicAddressInput" type="text" spellcheck="false" autocomplete="off" placeholder="L... or 0x...">
+      </label>
+      <label class="fieldControl" style="grid-column: 1 / -1">
+        Chisel app URL
+        <input id="targetUrlInput" type="url" spellcheck="false" value="https://johnrigler.github.io/chisel/">
+      </label>
+    </div>
+    <p id="addressUrlHelp" class="toolbarHelp" hidden>
+      The QR opens Chisel with this network and address. The label prints the address only, without the URL. Address mode makes 20 copies and uses one QR per label.
+    </p>
+    <p id="toolStatus" class="toolStatus" role="status" aria-live="polite"></p>
   </section>
 
   <main class="sheet" id="sheet"></main>
@@ -264,15 +348,26 @@
       const TOTAL_LABELS = COLUMNS * ROWS;
       const QR_PIXEL_SIZE = 180;
       const QR_PIXEL_SIZE_DENSE = 128;
+      const QR_PIXEL_SIZE_URL = 360;
       const HEX_LENGTH = 16;
+      const CHISEL_APP_URL = "https://johnrigler.github.io/chisel/";
+      const PRIVATE_KEY_LIKE = /^(?:[5KL9c])[1-9A-HJ-NP-Za-km-z]{50,51}$/;
+      const PRIVATE_HEX_LIKE = /^(?:0x)?[0-9a-f]{64}$/i;
 
       //
       // Elements
       //
       const elems = {
         printButton: document.querySelector("#printButton"),
+        contentModeSelect: document.querySelector("#contentModeSelect"),
         densitySelect: document.querySelector("#densitySelect"),
-        sheet: document.querySelector("#sheet")
+        sheet: document.querySelector("#sheet"),
+        addressUrlFields: document.querySelector("#addressUrlFields"),
+        addressUrlHelp: document.querySelector("#addressUrlHelp"),
+        addressCoinSelect: document.querySelector("#addressCoinSelect"),
+        publicAddressInput: document.querySelector("#publicAddressInput"),
+        targetUrlInput: document.querySelector("#targetUrlInput"),
+        toolStatus: document.querySelector("#toolStatus")
       };
 
       //
@@ -299,6 +394,42 @@
 
       function getBorderColorFromValue(value) {
         return "#" + value.slice(0, 6);
+      }
+
+      function getAddressBorderColor(value) {
+        let hash = 2166136261;
+        for (let i = 0; i < value.length; i += 1) {
+          hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+        }
+        return "#" + (hash >>> 0 & 0xffffff).toString(16).padStart(6, "0");
+      }
+
+      function buildAddressUrlLabelData() {
+        const address = elems.publicAddressInput.value.trim();
+        if (!address) throw new Error("Enter a public address first.");
+        if (/[\s/?#]/.test(address) || address.length > 100) {
+          throw new Error("Enter the address only, without a URL, spaces, or extra path text.");
+        }
+        if (PRIVATE_KEY_LIKE.test(address) || PRIVATE_HEX_LIKE.test(address)) {
+          throw new Error("That value looks like private-key material. QR Field accepts public addresses only.");
+        }
+
+        const target = new URL(elems.targetUrlInput.value.trim() || CHISEL_APP_URL);
+        if (!/^https?:$/.test(target.protocol) || target.username || target.password) {
+          throw new Error("Use a public HTTP or HTTPS Chisel app URL.");
+        }
+        target.searchParams.set("mode", "portal");
+        target.searchParams.set("coin", elems.addressCoinSelect.value);
+        target.searchParams.set("address", address);
+        target.hash = "";
+
+        return Array.from({ length: TOTAL_LABELS }, function () {
+          return {
+            qrValues: [target.toString()],
+            labelText: address,
+            borderColor: getAddressBorderColor(address)
+          };
+        });
       }
 
       //
@@ -395,7 +526,7 @@
         qrSlot.innerHTML = "";
 
         new QRCode(qrSlot, {
-          text: ChiselSticker.url(value),
+          text: value,
           width: pixelSize,
           height: pixelSize,
           colorDark: "#000000",
@@ -405,8 +536,21 @@
       }
 
       function renderLabels() {
-        const density = Number(elems.densitySelect.value);
-        const labels = getLabelData(density);
+        const addressMode = elems.contentModeSelect.value === "addressUrl";
+        const density = addressMode ? 1 : Number(elems.densitySelect.value);
+        elems.addressUrlFields.hidden = !addressMode;
+        elems.addressUrlHelp.hidden = !addressMode;
+        elems.densitySelect.disabled = addressMode;
+
+        let labels;
+        try {
+          labels = addressMode ? buildAddressUrlLabelData() : getLabelData(density);
+          elems.toolStatus.textContent = "";
+        } catch (error) {
+          elems.sheet.innerHTML = "";
+          elems.toolStatus.textContent = error.message || String(error);
+          return;
+        }
 
         elems.sheet.innerHTML = "";
 
@@ -414,6 +558,7 @@
           const rowIndex = Math.floor(index / COLUMNS);
           const columnIndex = index % COLUMNS;
           const labelParts = createLabel();
+          if (addressMode) labelParts.label.classList.add("addressUrlLabel");
 
           setLabelPosition(labelParts.label, columnIndex, rowIndex);
 
@@ -428,7 +573,7 @@
               const miniQr = createMiniQrCell(getBorderColorFromValue(value));
 
               qrGrid.append(miniQr.frame);
-              renderQrCode(miniQr.qrSlot, value, QR_PIXEL_SIZE_DENSE);
+              renderQrCode(miniQr.qrSlot, ChiselSticker.url(value), QR_PIXEL_SIZE_DENSE);
             });
 
             labelParts.body.append(qrGrid);
@@ -436,7 +581,9 @@
             const qrSlot = createQrSlot();
             setLabelBorderColor(labelParts.frame, labelData.borderColor);
             labelParts.body.append(qrSlot);
-            renderQrCode(qrSlot, labelData.qrValues[0], QR_PIXEL_SIZE);
+            const value = labelData.qrValues[0];
+            renderQrCode(qrSlot, addressMode ? value : ChiselSticker.url(value), addressMode ? QR_PIXEL_SIZE_URL : QR_PIXEL_SIZE);
+            if (labelData.labelText) labelParts.body.append(createLabelText(labelData.labelText));
           }
 
           appendLabel(labelParts.label);
@@ -453,6 +600,10 @@
       function addEventListeners() {
         elems.printButton.onclick = onPrintButtonClick;
         elems.densitySelect.onchange = renderLabels;
+        elems.contentModeSelect.onchange = renderLabels;
+        elems.addressCoinSelect.onchange = renderLabels;
+        elems.publicAddressInput.onchange = renderLabels;
+        elems.targetUrlInput.onchange = renderLabels;
       }
 
       //

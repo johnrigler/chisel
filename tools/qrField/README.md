@@ -34,6 +34,12 @@ a3f9c1d4e8b27f6a
 
 This value is the only required payload.
 
+## Chisel address URL labels
+
+Choose **Chisel address URL** to make a sheet of 20 labels for one public address. The QR opens the Chisel GitHub Pages app with `mode=portal`, the selected `coin`, and the entered `address` in its query string. The printed text below the QR is only the address; it omits the app URL.
+
+The default app URL is `https://johnrigler.github.io/chisel/`. It can be changed to another Chisel-compatible app URL. The field accepts public addresses only and rejects common WIF/private-hex shapes; never paste a private key. Address labels retain the colored frame; its color is derived deterministically from the address, so all 20 copies match.
+
 ## Color Encoding
 
 Each QR code is surrounded by a border color derived from the HEX value itself.
