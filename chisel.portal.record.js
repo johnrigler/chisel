@@ -61,7 +61,7 @@
     const cards = Array.isArray(summary.mediaCards) ? summary.mediaCards : [];
     const title = String(metadata.title || summary.title || (coin.toUpperCase() + " record " + txid.slice(0,12))).trim().slice(0,200);
     const description = String(annotation && annotation.note || summary.opReturnText || summary.primaryUrl ||
-      (summary.title ? "Public ledger record: " + summary.title : coin.toUpperCase() + " transaction " + txid)).trim().slice(0,1000);
+      (summary.title ? "Public ledger record: " + summary.title : coin.toUpperCase() + " transaction " + txid)).trim().slice(0,500);
     const image = String(metadata.image || (cards[0] && (cards[0].thumbnailUrl || cards[0].image)) || "").trim();
     base.searchParams.set("coin", coin);
     base.searchParams.set("txid", txid);
