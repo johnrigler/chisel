@@ -8,6 +8,7 @@
   const accountAddress = document.getElementById("portalPersonalAccountAddress");
   const badge = document.getElementById("headerAccountCoin");
   const sendSelect = document.getElementById("headerCurrency");
+  const sendAddress = document.getElementById("senderAddress");
   const qrButton = document.getElementById("headerAddressQrButton");
   const qrDialog = document.getElementById("senderAddressQrDialog");
   const qrCode = document.getElementById("senderAddressQrCode");
@@ -21,27 +22,41 @@
   }
   if (!account || !accountCoin || !accountAddress || !badge || !sendSelect) return;
 
+  function addressContext() {
+    const accountAddressValue = accountAddress && accountAddress.textContent.trim();
+    if (account && !account.hidden && accountAddressValue) {
+      return { address: accountAddressValue, ticker: accountCoin && accountCoin.textContent.trim() || "Public" };
+    }
+    const sendAddressValue = sendAddress && sendAddress.value.trim();
+    if (sendAddressValue) {
+      const option = sendSelect && sendSelect.selectedOptions && sendSelect.selectedOptions[0];
+      return { address: sendAddressValue, ticker: option && option.textContent.trim() || "Public" };
+    }
+    return null;
+  }
+
   function sync() {
-    const address = accountAddress.textContent.trim();
-    const loaded = !account.hidden && Boolean(address);
-    const ticker = loaded ? accountCoin.textContent.trim().slice(0, 12) : "";
+    const loaded = Boolean(account && !account.hidden && accountAddress && accountAddress.textContent.trim());
+    const ticker = loaded && accountCoin ? accountCoin.textContent.trim().slice(0, 12) : "";
     const hasAccountCoin = Boolean(ticker);
     badge.textContent = hasAccountCoin ? ticker : "";
     badge.hidden = !hasAccountCoin;
     badge.title = hasAccountCoin
       ? "Loaded public account network: " + ticker + ". Send currency is selected separately in Send."
       : "";
-    sendSelect.hidden = hasAccountCoin;
-    if (qrButton) qrButton.disabled = !loaded || !address || typeof window.QRCode !== "function";
+    sendSelect.hidden = loaded;
+    if (qrButton) qrButton.disabled = typeof window.QRCode !== "function";
   }
 
   function showAddressQr() {
-    const address = accountAddress.textContent.trim();
-    if (account.hidden || !address || typeof window.QRCode !== "function" ||
-        !qrDialog || !qrCode || !qrValue) return;
+    const context = addressContext();
+    if (!context || typeof window.QRCode !== "function" || !qrDialog || !qrCode || !qrValue) {
+      if (window.chiselActivity) window.chiselActivity("Identity", context ? "Public-address QR is unavailable in this browser." : "Load a public account or derive an address in Send before opening its QR.", "error");
+      return;
+    }
 
-    if (qrTitle) qrTitle.textContent = (accountCoin.textContent.trim() || "Public") + " address";
-    qrValue.textContent = address;
+    if (qrTitle) qrTitle.textContent = context.ticker + " public address";
+    qrValue.textContent = context.address;
     qrCode.textContent = "";
     try {
       if (typeof qrDialog.showModal === "function") {
@@ -50,7 +65,7 @@
         qrDialog.setAttribute("open", "");
       }
       new window.QRCode(qrCode, {
-        text: address,
+        text: context.address,
         width: 320,
         height: 320,
         colorDark: "#000000",
@@ -65,6 +80,11 @@
   }
 
   if (qrButton) qrButton.addEventListener("click", showAddressQr);
+  if (sendAddress) {
+    sendAddress.addEventListener("input", sync);
+    sendAddress.addEventListener("change", sync);
+  }
+  if (sendSelect) sendSelect.addEventListener("change", sync);
 
   new MutationObserver(sync).observe(account, {
     childList: true,

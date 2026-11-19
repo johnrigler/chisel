@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-ZzsEBT2AmiKC+LrNTkgMaCjdLtdsfDER1RVh2vRBaZI=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261119-address-print-v2860"></script>
+  <script src="chisel.version.js?rev=20261119-identity-qr-v2861"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2307,7 +2307,7 @@
           <span class="headerIdentityName" id="headerIdentityName">Public viewer</span>
           <span class="headerIdentityBalance" id="headerIdentityBalance">Balance: —</span>
         </div>
-        <button class="headerIcon" id="headerAddressQrButton" type="button" aria-label="Show loaded public address QR code" title="Show loaded public address as QR code" disabled>▦</button>
+        <button class="headerIcon" id="headerAddressQrButton" type="button" aria-label="Show current public address QR code" title="Show the loaded account address, or the current Send address, as a QR code" disabled>▦</button>
         <a class="headerIcon" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin&amp;v=20261117-rearonly-scanner5" aria-label="Load or switch identity using key stickers" title="Switch identity">♙</a>
         <details class="appMenu" id="appMenu">
           <summary aria-label="Open application menu" title="Menu">☰</summary>
@@ -3457,7 +3457,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-  <script src="chisel.header-identity.js?rev=20261119-address-print-v2860"></script>
+  <script src="chisel.header-identity.js?rev=20261119-identity-qr-v2861"></script>
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.youtube.ui.js?rev=20261117-youtube-v2847"></script>
   <script src="app.js?rev=20261118-polygon-send-v2854"></script>

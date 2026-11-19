@@ -1,3 +1,8 @@
+# 2.8.61 — Open the header QR from the active public address
+
+- Let the top-right QR icon show the loaded Portal account, falling back to the public address currently derived in Send when no Portal account is loaded in this browser.
+- Keep the icon available when no account is loaded and report what source is missing instead of silently disabling it. Advance the service-worker shell cache and preload the current identity QR module.
+
 # 2.8.60 — Print a single public-address QR card
 
 - Add a dedicated PRINT ADDRESS action to the public-address QR dialog.

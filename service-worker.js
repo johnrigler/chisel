@@ -1,7 +1,7 @@
 /* Chisel offline shell. No transaction, RPC, key or API responses are cached. */
 'use strict';
-const CACHE = 'chisel-shell-v2';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './chisel-icon.svg', './chisel.version.js', './app.js', './chisel.js', './chisel.portal.js'];
+const CACHE = 'chisel-shell-v3';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './chisel-icon.svg', './chisel.version.js?rev=20261119-identity-qr-v2861', './app.js', './chisel.js', './chisel.portal.js?rev=20261119-address-print-v2860', './chisel.header-identity.js?rev=20261119-identity-qr-v2861'];
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
