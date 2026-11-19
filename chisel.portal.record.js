@@ -48,6 +48,34 @@
     return url.href;
   }
 
+  function facebookShareUrl(row, fileProxyBase, annotation) {
+    const store = root.CHISEL_PORTAL_STORE, coin = store.canonicalCoinForRow(row);
+    const txid = String(row.txid || "").replace(/^0x/i, "").toLowerCase();
+    if (!COINS.includes(coin) || !TXID.test(txid)) throw new Error("This record has no supported public share identity.");
+    const base = new URL(String(fileProxyBase || ""));
+    if (base.protocol !== "https:" || base.username || base.password) throw new Error("Facebook previews require a public HTTPS FileProxy URL.");
+    base.pathname = base.pathname.replace(/\\/+$/, "") + "/chisel-share";
+    base.search = ""; base.hash = "";
+    const metadata = annotation && annotation.metadata && typeof annotation.metadata === "object" ? annotation.metadata : {};
+    const summary = row.summary || {};
+    const cards = Array.isArray(summary.mediaCards) ? summary.mediaCards : [];
+    const title = String(metadata.title || summary.title || (coin.toUpperCase() + " record " + txid.slice(0,12))).trim().slice(0,200);
+    const description = String(annotation && annotation.note || summary.opReturnText || summary.primaryUrl ||
+      (summary.title ? "Public ledger record: " + summary.title : coin.toUpperCase() + " transaction " + txid)).trim().slice(0,1000);
+    const image = String(metadata.image || (cards[0] && (cards[0].thumbnailUrl || cards[0].image)) || "").trim();
+    base.searchParams.set("coin", coin);
+    base.searchParams.set("txid", txid);
+    base.searchParams.set("title", title);
+    base.searchParams.set("description", description);
+    if (/^https:\\/\\//i.test(image)) base.searchParams.set("image", image);
+    if (coin === "evm") {
+      const chain = String(row.index && row.index.chainId || "");
+      const source = store.sourceIdForRow(row);
+      if (/^\\d{1,15}$/.test(chain)) base.searchParams.set("chain", chain);
+      if (/^(?:evmGomez|evmJethro|evmPolygonThunderword|other)$/.test(source)) base.searchParams.set("source", source);
+    }
+    return base.href;
+  }
   function exportRecord(row, url, source, annotation) {
     const summary = row.summary || {}, presentation = {};
     ["title", "primaryUrl", "opReturnText", "mediaCards", "blockTime", "blockHeight"].forEach(function (field) {
@@ -225,7 +253,7 @@
     function bind() {
       if (bound) return Promise.resolve(null);
       bound = true;
-      const backButton = get("portalRecordBack"), copy = get("portalRecordCopyLink"), download = get("portalRecordDownload");
+      const backButton = get("portalRecordBack"), copy = get("portalRecordCopyLink"), facebook = get("portalRecordFacebookLink"), download = get("portalRecordDownload");
       const saveButton = get("portalRecordSaveView");
       if (saveButton) saveButton.onclick = function () {
         if (!current) return;
@@ -239,6 +267,15 @@
         if (!current) return;
         deps.copy(recordUrl(current.row, root.location.href, deps.sourceUrl(current.row)), copy).catch(function (error) { deps.status(error.message, true); });
       };
+      if (facebook) facebook.onclick = function () {
+        if (!current) return;
+        try {
+          const annotation = deps.annotation ? deps.annotation(current.row) : null;
+          const url = facebookShareUrl(current.row, deps.fileProxyUrl(), annotation);
+          deps.copy(url, facebook).catch(function (error) { deps.status(error.message, true); });
+        } catch (error) { deps.status(error.message, true); }
+      };
+
       if (download) download.onclick = function () {
         if (!current || !current.row.raw) return;
         const source = deps.sourceUrl(current.row), url = recordUrl(current.row, root.location.href, source);
@@ -262,5 +299,5 @@
   }
 
   root.CHISEL_PORTAL_RECORD = {publicDataUrl: publicDataUrl, parseRoute: parseRoute, recordUrl: recordUrl,
-    exportRecord: exportRecord, createController: createController};
+    facebookShareUrl: facebookShareUrl, exportRecord: exportRecord, createController: createController};
 })(window);
