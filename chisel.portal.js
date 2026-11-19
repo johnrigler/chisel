@@ -5746,7 +5746,7 @@
       onOpen: function (row) { recordPortalInteraction("select", row, {action: "open_record"}); },
       find: findPortalRecord, sourceUrl: recordDataUrl,
       render: function (content, row) { appendPortalInlineDetails(content, row, {recordPage: true}); },
-      status: setStatus, copy: copyPortalText,
+      status: setStatus, copy: copyPortalText, fileProxyUrl: getFileProxyUrl,
       annotation: function (row) { return notesData.documentFor(row, getPortalAnnotation(row)); },
       placeholder: function (route) {
         const profile = EVM_PROFILES.find(function (item) { return "evm" + item.label === route.sourceId; });
