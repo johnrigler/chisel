@@ -13,6 +13,12 @@
   const qrCode = document.getElementById("senderAddressQrCode");
   const qrValue = document.getElementById("senderAddressQrValue");
   const qrTitle = document.getElementById("senderAddressQrTitle");
+  const printQrButton = document.getElementById("printSenderAddressQrButton");
+  if (printQrButton) {
+    printQrButton.addEventListener("click", function () {
+      if (qrDialog && qrDialog.open) window.print();
+    });
+  }
   if (!account || !accountCoin || !accountAddress || !badge || !sendSelect) return;
 
   function sync() {

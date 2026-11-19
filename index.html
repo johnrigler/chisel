@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-ZzsEBT2AmiKC+LrNTkgMaCjdLtdsfDER1RVh2vRBaZI=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261119-evm-catalog-timeout-v2859"></script>
+  <script src="chisel.version.js?rev=20261119-address-print-v2860"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -1573,6 +1573,43 @@
 
     @media print {
       .portalTransactionIdDialog { display: none; }
+      body:has(#senderAddressQrDialog[open]) > :not(#senderAddressQrDialog) {
+        display: none !important;
+      }
+      #senderAddressQrDialog[open] {
+        display: block !important;
+        position: static !important;
+        inset: auto !important;
+        width: 90mm !important;
+        max-width: 90mm !important;
+        max-height: none !important;
+        margin: 12mm auto !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        color: #111 !important;
+        box-shadow: none !important;
+      }
+      #senderAddressQrDialog .addressQrDialogBody {
+        gap: 5mm;
+        padding: 0;
+      }
+      #senderAddressQrDialog .addressQrCode {
+        width: 72mm;
+        height: 72mm;
+        padding: 3mm;
+        border: 1px solid #111;
+      }
+      #senderAddressQrDialog .addressQrValue {
+        border: 0;
+        background: #fff;
+        color: #111;
+        font: 10pt monospace;
+      }
+      #senderAddressQrDialog .help { color: #111; }
+      #senderAddressQrDialog .addressQrDialogActions { display: none !important; }
     }
 
     .portalInlineHeader h4 {
@@ -3175,6 +3212,7 @@
       <code id="senderAddressQrValue" class="addressQrValue"></code>
       <p class="help">This QR contains only the public address. It does not contain the sender WIF.</p>
       <form method="dialog" class="actions addressQrDialogActions">
+        <button id="printSenderAddressQrButton" class="secondaryButton" type="button">PRINT ADDRESS</button>
         <button class="secondaryButton" type="submit">CLOSE</button>
       </form>
     </div>
@@ -3406,7 +3444,7 @@
   <script src="chisel.portal.record.js?rev=20261119-facebook-preview-v2857"></script>
   <script src="chisel.interactions.js?rev=20261101-history-v2828"></script>
   <script src="chisel.interactions.ui.js?rev=20261117-transaction-only-v2841"></script>
-  <script src="chisel.portal.js?rev=20261119-evm-catalog-timeout-v2859"></script>
+  <script src="chisel.portal.js?rev=20261119-address-print-v2860"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
@@ -3419,7 +3457,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-  <script src="chisel.header-identity.js?rev=20261117-address-qr-v2841"></script>
+  <script src="chisel.header-identity.js?rev=20261119-address-print-v2860"></script>
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.youtube.ui.js?rev=20261117-youtube-v2847"></script>
   <script src="app.js?rev=20261118-polygon-send-v2854"></script>

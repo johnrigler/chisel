@@ -1,3 +1,8 @@
+# 2.8.60 — Print a single public-address QR card
+
+- Add a dedicated PRINT ADDRESS action to the public-address QR dialog.
+- When that dialog is open, print only its QR card as a single-page layout; hide the rest of the long Chisel page and remove fixed-position dialog behavior from print output.
+
 # 2.8.59 — Load Polygon catalogs within their response time
 
 - Allow EVM FileProxy catalog and stream-status reads up to 20 seconds; the general Portal read timeout was expiring before these larger catalogs returned.
