@@ -1,9 +1,12 @@
+Warning: truncated output (original token count: 34472)
+Total output lines: 3436
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-ZzsEBT2AmiKC+LrNTkgMaCjdLtdsfDER1RVh2vRBaZI=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261119-evm-autosync-v2858"></script>
+  <script src="chisel.version.js?rev=20261119-evm-catalog-timeout-v2859"></script>
   <script src="chisel.stickers.js?rev=20261030-v2811" data-sticker-entry></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2211,210 +2214,7 @@
     .portalViewedMedia { flex:none; }
     .portalViewedThumb { display:block; width:70px; height:40px; object-fit:cover; border:1px solid #354251; border-radius:5px; }
     .portalViewedBody { display:grid; gap:4px; flex:1; min-width:0; }
-    .portalViewedTitle { font-size:12px; line-height:1.35; overflow-wrap:anywhere; }
-    .portalViewedCount { font-size:11px; color:#9eb2c6; }
-    .portalViewedCount.isRepeated { color:#c5f467; font-weight:700; }
-    @media(max-width:600px) {
-      .portalViewingNow { width:100%; justify-self:stretch; }
-      .portalViewingNowThumb { width:100px; height:56px; }
-    }
-
-    .portalHistoryHeading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
-    .portalHistoryHeading h3 { margin:0; font-size:17px; }
-    .portalHistoryHeading .secondaryButton { margin-left:auto; font-size:11px; }
-    .portalHistoryList { max-height:240px; overflow:auto; overscroll-behavior:contain; }
-    .portalHistoryEntry { position:relative; border-top:1px solid #344150; padding:10px 3px; font-size:13px; overflow-wrap:anywhere; }
-    .portalHistoryMeta { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; font-size:11px; color:#93a7b9; margin-bottom:4px; }
-    .portalHistoryKind { font-weight:700; }
-    .portalHistoryRecord { display:block; width:100%; background:none; border:0; padding:0; text-align:left; color:#b7d7ff; font:inherit; font-weight:600; cursor:pointer; }
-    .portalHistoryRecord:hover { text-decoration:underline; }
-    .portalHistorySynopsis { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; margin:4px 0; white-space:pre-wrap; }
-    .portalHistoryAuthor { margin:4px 0 0; color:#93a7b9; font-size:11px; }
-    .portalHistoryAuthor.isVerified { color:#8fd7ae; }
-    .portalHistoryMessage:empty { display:none; }
-    .portalHistorySettings { margin-top:10px; font-size:12px; }
-    .portalHistorySettings .inlineOption { margin:10px 0; }
-    .portalComments { margin:14px 0; padding:14px; border:1px solid #c9ced4; border-radius:8px; background:#fff; color:#15202b; }
-    .portalComments h5 { margin:0 0 8px; font-size:15px; }
-    .portalComments .portalHistoryList { max-height:340px; }
-    .portalComments .portalHistoryEntry { border-color:#d7dee5; }
-    .portalComments .muted,.portalComments .portalHistoryMeta,.portalComments .portalHistoryAuthor { color:#536477; }
-    .portalComments .portalHistoryAuthor.isVerified { color:#185e36; }
-    .portalCommentText { white-space:pre-wrap; margin:5px 0; }
-    .portalCommentForm { margin-top:12px; display:grid; gap:8px; }
-    .portalCommentForm label { display:grid; gap:6px; color:#15202b; font-size:13px; }
-    .portalCommentForm textarea { box-sizing:border-box; width:100%; color:#15202b; background:#fff; border:1px solid #aebbc8; }
-    .portalCommentForm button { justify-self:start; }
-    .portalHistoryExport { font-size:10px; margin-top:5px; padding:4px 8px; }
-    .portalCommentProof { margin-top:6px; font-size:12px; }
-    .portalCommentProof pre { max-height:160px; }
-</style>
-  <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261031-opreturn-v2818" />
-  <link rel="stylesheet" href="chisel.portal.record.css?rev=20261115-subject-v2838" />
-</head>
-<body data-mode="portal">
-  <header>
-    <div class="shell">
-      <div class="topBar">
-        <div class="headerBrand"><h1>Chisel</h1><p id="version" class="muted"></p></div>
-        <div class="headerIdentity" id="headerIdentity" title="Current public identity; open menu for account actions">
-          <label class="headerCurrencyLabel" for="headerCurrency">Currency</label>
-          <select id="headerCurrency" aria-label="Choose active Send currency">
-            <option value="digibyte">DGB</option>
-            <option value="litecoin">LTC</option>
-            <option value="ravencoin">RVN</option>
-            <option value="litecoinTestnet">tLTC</option>
-            <option value="polygon">Polygon</option>
-          </select>
-          <span id="headerAccountCoin" class="headerAccountCoin" aria-label="Loaded public account network" hidden></span>
-          <span class="headerIdentityName" id="headerIdentityName">Public viewer</span>
-          <span class="headerIdentityBalance" id="headerIdentityBalance">Balance: —</span>
-        </div>
-        <button class="headerIcon" id="headerAddressQrButton" type="button" aria-label="Show loaded public address QR code" title="Show loaded public address as QR code" disabled>▦</button>
-        <a class="headerIcon" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin&amp;v=20261117-rearonly-scanner5" aria-label="Load or switch identity using key stickers" title="Switch identity">♙</a>
-        <details class="appMenu" id="appMenu">
-          <summary aria-label="Open application menu" title="Menu">☰</summary>
-          <div class="appMenuContents">
-            <strong>Navigation</strong>
-            <button class="modeButton" type="button" data-mode-target="examples">Examples</button>
-            <button class="modeButton" type="button" data-mode-target="tools">Tools</button>
-            <button class="modeButton" type="button" data-mode-target="polygon">Polygon</button>
-            <details id="activityPanel" class="activityPanel">
-              <summary><strong>Activity log</strong></summary>
-              <div class="activityControls">
-                <span id="activityHealth">Checking components...</span>
-                <button type="button" class="secondaryButton" id="activityCopy">COPY LOG</button>
-                <button type="button" class="secondaryButton" id="activityClear">CLEAR</button>
-              </div>
-              <pre id="activityTrace" class="activityTrace" aria-label="Application activity log"></pre>
-            </details>
-            <strong>Diagnostics</strong>
-            <div class="activityControls"><button type="button" class="secondaryButton" id="shareApiTest">TEST SYSTEM SHARE</button><button type="button" class="secondaryButton" id="shareApiCopy">COPY SHARE TRACE</button></div>
-            <pre id="shareApiTrace" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#b8c7d6;margin:0">Share API: not tested</pre>
-            <div class="activityControls"><button type="button" class="secondaryButton" id="downloadDebugJson">DOWNLOAD DEBUG JSON</button><button type="button" class="secondaryButton" id="clearDebugJson">CLEAR DEBUG HISTORY</button><button type="button" class="secondaryButton" id="copyAiContext">COPY WORK MODE CONTEXT</button></div>
-            <p class="help" id="aiContextStatus" role="status" aria-live="polite">Copies sanitized runtime logs and PWA/share status for ChatGPT Work Mode. Nothing is sent automatically.</p>
-            <textarea id="aiContextPreview" class="aiContextPreview" aria-label="Work Mode context for manual copying" readonly hidden rows="8"></textarea>
-            <strong>Identity and pages</strong>
-            <div id="identityMenuMount"></div>
-            <strong>FileProxy</strong>
-            <div id="portalFileProxyHealth" role="status" style="font-size:12px;color:#91a4b7">FileProxy: checking…</div>
-            <label class="menuCheck"><input type="checkbox" id="fileProxyDiagnostics"> Save non-sensitive Send diagnostics (opt-in)</label>
-            <div id="fileProxyMenuMount"></div>
-          </div>
-        </details>
-      </div>
-    </div>
-  </header>
-
-  <section id="chiselActivityMonitor" class="chiselActivityMonitor" data-state="idle" aria-label="Chisel activity">
-    <div class="activityMonitorTop">
-      <strong>CHISEL / ACTIVITY</strong>
-      <time id="activityClock" aria-label="Local clock">--:--:--</time>
-    </div>
-    <div class="activityMonitorDetail">
-      <span id="activityStream">Waiting for stream</span>
-      <span id="activityPulse">IDLE</span>
-    </div>
-    <div id="activityCurrent" class="chiselStatusLine" role="status" aria-live="polite">Chisel: Starting…</div>
-    <span id="portalIndexCaption" hidden></span>
-    <span id="portalStatus" hidden></span>
-    <div class="activityMonitorMeta">
-      <span id="activityRecords">Records: pending</span>
-      <span id="activityProxyState">FileProxy: untested</span>
-    </div>
-  </section>
-
-  <main>
-    <section class="panel">
-      <div class="modeNav" aria-label="Chisel modes">
-        <button class="modeButton active" type="button" data-mode-target="portal">Portal</button>
-        <button class="modeButton" type="button" data-mode-target="send">Send</button>
-        <button class="modeButton" type="button" data-mode-target="review">Review</button>
-        <button class="modeButton" type="button" data-mode-target="polygon">Polygon</button>
-        <button class="modeButton" type="button" data-mode-target="about">About</button>
-      </div>
-      <div class="compactHint" id="modeHint">Portal is the home screen. Explore public ledger records without signing in.</div>
-    </section>
-
-
-    <section class="modePanel" data-mode-panel="polygon" aria-label="Polygon workbench">
-      <section class="panel hero polygonWorkbenchPanel">
-        <h2>Polygon</h2>
-        <p class="muted">Polygon mainnet workbench (chain ID 137): inspect contract transactions, recover calldata, and use the Gomez, Jethro, and Chisel wallet-reviewed contract writers. Reads use the existing Etherscan and RPC paths; wallet approval is still required for writes.</p>
-        <p class="aboutMeta"><a href="evm.html?rev=20261118-evm-offline-v2856" target="_blank" rel="noopener noreferrer">Open the Polygon workbench in a separate tab</a> · <a href="tools/m64Artifact/native6-polygon.html">Native M64 Polygon tools</a> · <a href="tools/evmFactory/index.html">EVM Contract Factory</a></p>
-        <iframe class="polygonWorkbenchFrame" src="evm.html?rev=20261118-evm-offline-v2856" title="Chisel Polygon and EVM workbench" loading="lazy"></iframe>
-      </section>
-    </section>
-
-    <section class="modePanel" data-mode-panel="about" aria-label="About Chisel">
-      <section class="panel aboutHero">
-        <span class="aboutEyebrow">About Chisel</span>
-        <h2 class="aboutHeadline">Readable records. Recoverable software. Trust that travels with the person.</h2>
-        <p class="aboutLead">Chisel is an open-source, browser-first Web3 workbench for making public-ledger data understandable and useful. It reads transactions as records, supports locally signed publication, and explores how executable software can be rebuilt from independently stored artifacts instead of depending on a particular website or server.</p>
-        <div class="aboutActions">
-          <a class="aboutAction" href="?mode=portal">Explore the Portal</a>
-          <a class="aboutAction secondary" href="?mode=examples">See running examples</a>
-          <a class="aboutAction secondary" href="https://github.com/johnrigler/chisel">Read the source</a>
-        </div>
-        <span class="aboutMeta">Runs as vanilla JavaScript from a static web server, GitHub Pages, or IPFS. A wallet is not required for public reading.</span>
-      </section>
-
-      <section class="panel aboutSection">
-        <h2>Why this project exists</h2>
-        <p>Blockchains are usually presented as balances, trades, and contracts. But their durable fields can also represent publications, references, structured claims, dated records, and relationships between people and artifacts. Those records should remain readable even if a particular application, gateway, or company disappears.</p>
-        <p>Chisel separates the <strong>record</strong> from the site displaying it, the <strong>identity</strong> from the service holding it, and the <strong>code</strong> from the server delivering it. A transaction, CID, digest, or signed statement can be independently inspected, copied, indexed, and reconstructed.</p>
-      </section>
-
-      <section class="panel aboutSection">
-        <h2>What Chisel does</h2>
-        <div class="aboutGrid">
-          <article class="aboutTile"><strong>Portal: read what is on the ledger</strong><p>Browse and interpret transactions, ASCII OP_RETURN, MacDougall-readable address lines, amount tags, QR references, media previews, and locally annotated records.</p><a href="?mode=portal">Open Portal</a></article>
-          <article class="aboutTile"><strong>Send and Review: inspect before publishing</strong><p>Construct UTXO transactions and sign locally in the browser. Review selected inputs, outputs, raw bytes, and intended publication before broadcast.</p><a href="?mode=send">Open Send</a></article>
-          <article class="aboutTile"><strong>M64: reconstruct executable artifacts</strong><p>Dark Star Z demonstrates interactive JavaScript reconstructed using a referenced dictionary. The emerging design uses IPFS and public ledgers as interchangeable recovery surfaces.</p><a href="tools/m64Artifact/dark-star-z.html">Run Dark Star Z</a></article>
-          <article class="aboutTile"><strong>Identity and trust: people make the claims</strong><p>QR stickers connect physical encounters with self-sovereign identities. Signed attestations can endorse or warn against exact artifact bytes across chains; the reader decides whom to trust.</p><a href="docs/WEB3_TRUST_AND_EXECUTABLE_ARTIFACTS.md">Read the trust model</a></article>
-        </div>
-        <p class="aboutMeta">The Portal and transaction workbench are implemented features. Cross-chain trust and recursive IPFS reconstruction are active prototypes and architectural work, not finished universal services.</p>
-      </section>
-
-      <section class="panel aboutSection">
-        <h2>A portable trust model</h2>
-        <ol class="aboutList">
-          <li>Meet someone, scan a public QR identifier, and establish a relationship with their public cryptographic identity. A sticker is an index, not a private key or a proof by itself.</li>
-          <li>Publish an artifact or sign an assertion about its exact digest. The author, publisher, reviewer, contract deployer, and reader may all be different people.</li>
-          <li>Retrieve the same bytes from a ledger, IPFS, or another carrier, reconstruct and check them locally, and evaluate the relevant endorsements or warnings.</li>
-          <li>Choose locally whether to trust the issuer and what an executable artifact is permitted to do. Attestations are evidence of claims, not automatic judgments of truth.</li>
-        </ol>
-        <p>Chisel's proposed thunder-address conventions make this legible: EVM <code>0x1111…1111</code> denotes broadcast and <code>0x2222…2222</code> denotes avoidance or warning. UTXO attestations can carry compact ASCII claims in OP_RETURN, including hash-only warnings that do not republish the subject.</p>
-        <p><a href="docs/CROSS_CHAIN_THUNDER_ATTESTATIONS.md">Cross-chain attestation design</a> · <a href="tools/m64Artifact/README.md">M64 protocol and workbench</a></p>
-      </section>
-
-      <section class="panel aboutSection">
-        <h2>About the author</h2>
-        <p><strong>John Rigler</strong> describes his work as systems hacking: finding useful primitives in existing systems and combining them in ways the original interfaces do not anticipate. His background bridges enterprise computing, UNIX and infrastructure work, blockchain development, and humanities research into identity and community.</p>
-        <p>Chisel grows out of a crypto-linguistic proposal he developed in 2020: a payment transaction can also be a readable, structured publication using ordered outputs, intentionally unspendable addresses, amounts, and optional data fields. Today that idea is expanding into Web3 identity, physically exchanged QR records, recoverable software, M64 dictionaries, IPFS, and user-directed trust.</p>
-        <p>The long-term vision is a web of verifiable artifacts that can be followed across chains and reconstructed without requiring a privileged host. Chisel is intended to give individuals and communities more control over what they publish, how it is preserved, and whose assertions they accept.</p>
-        <p><a href="docs/origin.md">Project origins and technical background</a> · <a href="docs/WHAT_CHISEL_PROVES.md">What Chisel demonstrates</a></p>
-      </section>
-
-      <section class="panel aboutSection">
-        <h2>Get involved</h2>
-        <p>I am interested in hearing from developers, infrastructure engineers, digital archivists, researchers, educators, artists, and people working on self-sovereign identity or open records. Useful contributions include protocol criticism, interoperability tests, source reviews, live demonstrations, documentation, and collaborative experiments.</p>
-        <div class="aboutActions">
-          <a class="aboutAction" href="https://github.com/johnrigler/chisel/issues/new">Start a conversation or propose a collaboration</a>
-          <a class="aboutAction secondary" href="https://github.com/johnrigler">John's GitHub profile</a>
-          <a class="aboutAction secondary" href="https://github.com/johnrigler/chisel">Fork or inspect the repository</a>
-        </div>
-        <p class="aboutMeta">GitHub issues are public. Do not include private keys, credentials, or confidential personal records. For a private discussion, request a private contact channel without posting sensitive details.</p>
-      </section>
-    </section>
-
-    <section class="modePanel" data-mode-panel="examples">
-      <section class="panel hero">
-        <h2>Examples and diagnostics</h2>
-        <p class="muted">Runnable artifacts and technical self-tests. For a project overview, the author, and collaboration opportunities, use the About tab. The origin documents remain available below.</p>
-        <div class="toolGrid">
-          <a class="toolCard" href="docs/origin.md"><strong>Project origin and design</strong><span>The crypto-linguistic proposal, browser signing, QR identifiers, transaction records, and IPFS recovery direction.</span></a>
-          <a class="toolCard" href="docs/ARCHITECTURE.md"><strong>Technical architecture</strong><span>Chisel core, Portal, Send, Review, local data sources, and satellite tools.</span></a>
+    .portalViewedTitle { font-s…4472 tokens truncated…a>
           <a class="toolCard" href="docs/DEMO_SCRIPT.md"><strong>Guided demo notes</strong><span>A practical tour of the Portal, transaction mechanics, and tools.</span></a>
         </div>
       </section>
@@ -3406,7 +3206,7 @@
   <script src="chisel.portal.record.js?rev=20261119-facebook-preview-v2857"></script>
   <script src="chisel.interactions.js?rev=20261101-history-v2828"></script>
   <script src="chisel.interactions.ui.js?rev=20261117-transaction-only-v2841"></script>
-  <script src="chisel.portal.js?rev=20261119-evm-autosync-v2858"></script>
+  <script src="chisel.portal.js?rev=20261119-evm-catalog-timeout-v2859"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>

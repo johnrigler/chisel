@@ -1,3 +1,8 @@
+# 2.8.59 — Load Polygon catalogs within their response time
+
+- Allow EVM FileProxy catalog and stream-status reads up to 20 seconds; the general Portal read timeout was expiring before these larger catalogs returned.
+- Share in-flight catalog requests across startup loaders and reuse the catalog's newest block when checking for new transactions.
+
 # 2.8.58 — Open-time Polygon contract sync
 
 - Portal loads the Gomez, Jethro, and Polygon Thunderword FileProxy catalogs automatically on startup.
