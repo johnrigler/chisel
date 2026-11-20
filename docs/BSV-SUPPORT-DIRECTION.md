@@ -1,5 +1,10 @@
 # BSV support direction
 
+Current direction: [Bitcoin and BSV phases](BITCOIN-BSV-PHASES.md), November 20,
+2026. Phase-one public accounts are implemented; new-network signing and file
+publishing remain later phases. M64 is deferred and PHP is reference material.
+The earlier planning notes below are retained as history.
+
 Recorded October 21, 2026. John Rigler's Chisel direction.
 Status: proposed extension; no BSV implementation or live compatibility test is
 claimed by this note.

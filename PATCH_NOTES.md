@@ -1,3 +1,11 @@
+# 2.8.66 — Bitcoin and BSV public accounts
+
+- Add explicit Bitcoin mainnet, Testnet4, BSV mainnet and BSV testnet receive choices, public balance reads and testnet funding instructions.
+- Reuse a session key across installed chains, preserving compressed/uncompressed WIF form. Show independently checked public addresses in the shared-key network list.
+- Keep new-network transaction building, signing and broadcasting disabled for this phase. Record later ordinary-transaction and native-inscription/file work separately; defer M64 and new PHP development.
+- Keep monitoring funded receive accounts, reject stale results after a network/identity switch, and preserve QR scanner compression information.
+- Verify public API responses and browser switching with public test vectors. New network, crypto, provider, CSP and release tests pass; the broad suite still contains pre-existing failures outside this phase.
+
 # 2.8.65 — simplify sticker URLs
 
 - Encode `https://johnrigler.github.io/#<16-hex-ID>` with the existing ID-colored frame and no printed caption.

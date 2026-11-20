@@ -2,6 +2,13 @@
 
 **Use Chisel in your browser:** explore public ledger artifacts, construct transactions, inspect outputs, and use the QR and identity tools. No framework installation is required to open the hosted application.
 
+**Bitcoin / BSV phase one:** Send now includes Bitcoin, Bitcoin Testnet4, BSV and
+BSV testnet receive accounts. Load one WIF, switch networks, check the independently
+derived P2PKH balances, and use the testnet funding links. Sending and native
+inscription/file publishing on these networks are later phases. New work uses
+vanilla JavaScript; PHP is reference material and M64 development is deferred.
+See [the phased plan](docs/BITCOIN-BSV-PHASES.md).
+
 <p align="center">
   <a href="https://johnrigler.github.io/chisel/"><img src="docs/chisel-readme-preview.svg" alt="Representative preview of the Chisel Portal interface, showing navigation and an artifact search field" width="800"></a>
 </p>

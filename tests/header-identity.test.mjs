@@ -38,7 +38,7 @@ async function page() {
   };
   vm.runInNewContext(source, context, {filename: "chisel.header-identity.js"});
   assert.ok(observer && pageshow);
-  return {account, accountCoin, accountAddress, badge, sendSelect, sync: observer, pageshow};
+  return {account, accountCoin, accountAddress, badge, sendSelect, window:context.window, sync: observer, pageshow};
 }
 
 test("unloaded identity leaves the Send currency unchanged", async () => {
@@ -71,7 +71,17 @@ test("loaded identity network is displayed in every Chisel mode", async () => {
   const html = await read("index.html");
   assert.match(html, /id="headerAccountCoin" class="headerAccountCoin"/);
   assert.match(html, /#headerCurrency\[hidden\], #headerAccountCoin\[hidden\]/);
-  assert.match(html, /chisel\.header-identity\.js\?rev=20261115-identity-network-v2832/);
-  assert.match(html, /chisel\.version\.js\?rev=20261115-identity-network-v2832/);
+  assert.match(html, /chisel\.header-identity\.js\?rev=[^"]+/);
+  assert.match(html, /chisel\.version\.js\?rev=[^"]+/);
   assert.doesNotMatch(html, /body\[data-mode="portal"\] #headerAccountCoin/);
+});
+
+test("account-only network choice labels the header without changing its selected chain", async () => {
+  const ui=await page();
+  ui.sendSelect.value="bsvTestnet";
+  ui.window.CHISEL_ACTIVE_ACCOUNT={currency:"bsvTestnet",network:"testnet",ticker:"tBSV",address:"public-test-address",accountOnly:true};
+  ui.sync();
+  assert.equal(ui.badge.textContent,"tBSV");
+  assert.equal(ui.sendSelect.hidden,false);
+  assert.equal(ui.sendSelect.value,"bsvTestnet");
 });

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-ZzsEBT2AmiKC+LrNTkgMaCjdLtdsfDER1RVh2vRBaZI=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-I+7AUwXmWyjQ8AKvwAMSEANQU4+Z0wkMOeTeWPPBySA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261119-simple-labels-v2865"></script>
+  <script src="chisel.version.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2134,6 +2134,11 @@
     .headerCurrencyLabel { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
     #headerCurrency { width:auto; min-width:56px; padding:4px 6px; font-size:12px; border:1px solid #344150; background:#1d2630; color:#fff; }
     #headerCurrency[hidden], #headerAccountCoin[hidden] { display:none !important; }
+    #sharedAccountsPanel { margin-top:1rem; }
+    .sharedNetworkAccount { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.35rem .75rem; padding:.75rem 0; border-bottom:1px solid #344150; }
+    .sharedNetworkAccount code, .sharedNetworkAccount span { grid-column:1 / -1; }
+    .sharedNetworkAccount button { grid-column:2; grid-row:1; }
+    .testnetFunding { margin:.75rem 0; padding:.75rem; border:1px solid #738443; border-radius:.5rem; }
     .headerAccountCoin { display:inline-flex; padding:4px 8px; align-items:center; border:1px solid #49638a; border-radius:6px; background:#192b40; color:#d7e9ff; font-size:12px; font-weight:700; }
     .headerBrand { flex:0 0 auto; min-width:0; }
     .headerIdentity { margin-left:auto; min-width:0; display:flex; flex-direction:column; align-items:flex-end; gap:2px; text-align:right; font-size:12px; }
@@ -2301,6 +2306,10 @@
             <option value="litecoin">LTC</option>
             <option value="ravencoin">RVN</option>
             <option value="litecoinTestnet">tLTC</option>
+            <option value="bitcoin">BTC</option>
+            <option value="bitcoinTestnet4">BTC Testnet4</option>
+            <option value="bsv">BSV</option>
+            <option value="bsvTestnet">BSV Testnet</option>
             <option value="polygon">Polygon</option>
           </select>
           <span id="headerAccountCoin" class="headerAccountCoin" aria-label="Loaded public account network" hidden></span>
@@ -2510,6 +2519,10 @@
           <option value="digibyte">Digibyte</option>
           <option value="litecoin">Litecoin</option>
           <option value="litecoinTestnet">Litecoin Testnet</option>
+          <option value="bitcoin">Bitcoin</option>
+          <option value="bitcoinTestnet4">Bitcoin Testnet4</option>
+          <option value="bsv">Bitcoin SV</option>
+          <option value="bsvTestnet">Bitcoin SV Testnet</option>
           <option value="polygon">Polygon (EVM)</option>
         </select>
 
@@ -2517,6 +2530,7 @@
         <div class="fieldStack">
           <input id="senderWif" name="password" type="password" autocomplete="current-password" spellcheck="false" />
           <div class="actions">
+            <button id="loadIdentityButton" class="secondaryButton" type="button">LOAD KEY</button>
             <button id="switchIdentityButton" class="secondaryButton" type="button">SWITCH IDENTITY</button>
             <button id="saveCredentialButton" class="secondaryButton" type="button" disabled>SAVE TO PASSWORD MANAGER</button>
             <span class="help">Saves the derived public address as the username and this WIF as the password when your browser supports direct credential storage.</span>
@@ -2535,6 +2549,13 @@
             <button id="checkFundsButton" class="secondaryButton" type="button" disabled>CHECK FUNDS</button>
             <span id="receiveMonitorStatus" class="receiveMonitorStatus">Load a key to watch this address.</span>
           </div>
+          <div id="testnetFunding" class="testnetFunding" hidden></div>
+          <details id="sharedAccountsPanel" hidden>
+            <summary>Same key on other networks</summary>
+            <p class="help">Addresses are derived locally from the loaded key, preserving its compressed or uncompressed form. Balances are checked independently on each known network. This phase checks legacy P2PKH addresses.</p>
+            <button id="checkAllNetworkBalances" class="secondaryButton" type="button">CHECK ALL BALANCES</button>
+            <div id="sharedAccountsList"></div>
+          </details>
         </div>
 
         <label for="wifScanButton">QR scanners</label>
@@ -3255,7 +3276,9 @@
     const identityName = document.getElementById("headerIdentityName");
     const identityBalance = document.getElementById("headerIdentityBalance");
     const updateHeaderIdentity = function () {
-      if (!account || account.hidden) {
+      const active = window.CHISEL_ACTIVE_ACCOUNT;
+      const networkAccount = active && active.accountOnly && sendCurrency && sendCurrency.value === active.currency;
+      if ((!account || account.hidden) && !networkAccount) {
         identityName.textContent = "Public viewer";
         identityBalance.textContent = "Balance: —";
         return;
@@ -3263,13 +3286,13 @@
       const coin = document.getElementById("portalPersonalAccountCoin");
       const address = document.getElementById("portalPersonalAccountAddress");
       const label = document.getElementById("portalPersonalAccountLabel");
-      const addr = address && address.textContent.trim();
+      const addr = networkAccount ? active.address : address && address.textContent.trim();
       const display = label && label.textContent.trim();
-      const accountCoin = coin && coin.textContent.trim() || "";
+      const accountCoin = networkAccount ? active.ticker : coin && coin.textContent.trim() || "";
       // The Portal header always represents the loaded public identity.
       // Send currency is independent and must not hide an LTC account.
       const normalizedAccount = accountCoin.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const coinKey = normalizedAccount.startsWith("ltc") ? "litecoin"
+      const coinKey = networkAccount ? active.currency : normalizedAccount.startsWith("ltc") ? "litecoin"
         : normalizedAccount.startsWith("dgb") ? "digibyte"
         : normalizedAccount.startsWith("rvn") ? "ravencoin"
         : normalizedAccount.startsWith("tltc") ? "litecoinTestnet"
@@ -3316,6 +3339,13 @@
     window.addEventListener("chisel:balance-api-ready", function () {
       updateHeaderIdentity.lastState = null;
       updateHeaderIdentity();
+    });
+    window.addEventListener("chisel:active-account", updateHeaderIdentity);
+    window.addEventListener("chisel:balance", function (event) {
+      const result = event.detail || {}, active = window.CHISEL_ACTIVE_ACCOUNT;
+      if (active && active.accountOnly && sendCurrency.value === result.currency && active.address === result.address) {
+        identityBalance.textContent = result.amount + " " + result.ticker;
+      }
     });
     if (headerCurrency && sendCurrency) { headerCurrency.value = sendCurrency.value; updateHeaderIdentity(); }
     const appMenu = document.getElementById("appMenu");
@@ -3431,6 +3461,7 @@
   <script src="chisel.ravencoin.js?rev=20261017-security1"></script>
   <script src="chisel.digibyte.js?rev=20261017-security1"></script>
   <script src="chisel.litecoin.js?rev=20261017-security1"></script>
+  <script src="chisel.networks.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.thunderwords.js?rev=20261031-history-v2815"></script>
   <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
 <script src="chisel.portal.static-data.js?rev=20261101-queue-v2826"></script>
@@ -3444,7 +3475,7 @@
   <script src="chisel.portal.record.js?rev=20261119-facebook-preview-v2857"></script>
   <script src="chisel.interactions.js?rev=20261101-history-v2828"></script>
   <script src="chisel.interactions.ui.js?rev=20261117-transaction-only-v2841"></script>
-  <script src="chisel.portal.js?rev=20261119-address-print-v2860"></script>
+  <script src="chisel.portal.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
@@ -3457,10 +3488,11 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-  <script src="chisel.header-identity.js?rev=20261119-identity-qr-v2861"></script>
+  <script src="chisel.header-identity.js?rev=20261120-network-accounts-v2866"></script>
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.youtube.ui.js?rev=20261117-youtube-v2847"></script>
-  <script src="app.js?rev=20261118-polygon-send-v2854"></script>
+  <script src="app.js?rev=20261120-network-accounts-v2866"></script>
+  <script src="chisel.networks.ui.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.share-diagnostics.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
   <script src="chisel.pwa.js?rev=20261117-unified-diag-v2844"></script>

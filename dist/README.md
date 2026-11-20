@@ -24,6 +24,11 @@ Excluded on purpose:
 
 ## Coin transport model
 
+Bitcoin, Bitcoin Testnet4, BSV and BSV testnet currently expose phase-one public
+accounts and balance/raw-transaction reads through `chisel.networks.js`.
+`ACCOUNT_ONLY` is true and `CAN_SEND` is false. These adapters reject construction,
+signing and broadcasting. See `docs/BITCOIN-BSV-PHASES.md`.
+
 Chisel labels each installed coin extension with transport metadata. This is the line between the reusable driver and the app shell.
 
 ### Ravencoin

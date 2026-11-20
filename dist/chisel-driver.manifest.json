@@ -62,6 +62,11 @@
       "path": "chisel.litecoin.js",
       "sha256": "5b11f491cc0352172353ea6366ba41784d51de42844d56af6c607ce08f392557",
       "bytes": 8204
+    },
+    {
+      "path": "chisel.networks.js",
+      "sha256": "369674eca2572643189ba18a542f4bb56559b215202ecb6f38d52605e4bb39b6",
+      "bytes": 8120
     }
   ],
   "excludes": [
@@ -88,7 +93,7 @@
     "public-provider": "Driver uses one or more public provider APIs for UTXOs, transaction lookup, and broadcast."
   },
   "keyPrintTool": "tools/keyPrint/index.html",
-  "sha256": "928ece33aa5fb09728cce7479427a552cf687da424bebd4982994bdc61e9184d",
-  "bytes": 311733,
+  "sha256": "3f52f03ee65e1b9a2036ead37c93542c02c22ee21e2e4b2eefb2e78288dd953e",
+  "bytes": 319918,
   "externalRuntimeDependencies": []
 }

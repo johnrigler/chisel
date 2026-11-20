@@ -7511,6 +7511,9 @@ function getPortalFirstCharacter() {
     const reports = [];
     for (let i = 0; i < accounts.length; i += 1) {
       const account = accounts[i] || {};
+      // Account-only networks have explicit balance adapters, but no Portal
+      // history adapter yet. Never infer another chain from a shared address.
+      if (account.accountOnly === true) continue;
       const address = String(account.address || "").trim();
       if (!address) continue;
 

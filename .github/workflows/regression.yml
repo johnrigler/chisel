@@ -34,6 +34,8 @@ jobs:
           node --check chisel.digibyte.js
           node --check chisel.js
           node --check chisel.litecoin.js
+          node --check chisel.networks.js
+          node --check chisel.networks.ui.js
           node --check chisel.secp256k1.js
           node --check chisel.secp256k1.noble.js
           node --check tools/m64Artifact/m64.js

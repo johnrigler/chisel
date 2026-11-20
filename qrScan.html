@@ -5,7 +5,7 @@
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title data-chisel-release-title="QR WIF Loader">Chisel QR WIF Loader</title>
 
-  <script src="chisel.version.js?rev=20261119-simple-labels-v2865"></script>
+  <script src="chisel.version.js?rev=20261120-network-accounts-v2866"></script>
   <script src="vendor/html5-qrcode.min.js"></script>
 
   <style>
@@ -166,6 +166,7 @@
   <script src="chisel.ravencoin.js"></script>
   <script src="chisel.digibyte.js"></script>
   <script src="chisel.litecoin.js"></script>
+  <script src="chisel.networks.js?rev=20261120-network-accounts-v2866"></script>
 
   <script>
 (function () {
@@ -905,6 +906,7 @@ function getPreferredCameraIndex() {
           currency: lastPayload.currency,
           wif: lastPayload.wif,
           address: lastPayload.address,
+          compressed: lastPayload.compressed,
           privateKeyHex: lastPayload.privateKeyHex
         }, window.location.origin);
       }

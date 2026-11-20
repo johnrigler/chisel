@@ -23,6 +23,10 @@
   if (!account || !accountCoin || !accountAddress || !badge || !sendSelect) return;
 
   function addressContext() {
+    const active = window.CHISEL_ACTIVE_ACCOUNT;
+    if (active && active.accountOnly && sendSelect.value === active.currency) {
+      return { address:active.address, ticker:active.ticker };
+    }
     const accountAddressValue = accountAddress && accountAddress.textContent.trim();
     if (account && !account.hidden && accountAddressValue) {
       return { address: accountAddressValue, ticker: accountCoin && accountCoin.textContent.trim() || "Public" };
@@ -36,6 +40,15 @@
   }
 
   function sync() {
+    const active = window.CHISEL_ACTIVE_ACCOUNT;
+    if (active && active.accountOnly && sendSelect.value === active.currency) {
+      badge.textContent = active.ticker;
+      badge.hidden = false;
+      badge.title = "Selected network: " + active.currency + " / " + active.network;
+      sendSelect.hidden = false;
+      if (qrButton) qrButton.disabled = typeof window.QRCode !== "function";
+      return;
+    }
     const loaded = Boolean(account && !account.hidden && accountAddress && accountAddress.textContent.trim());
     const ticker = loaded && accountCoin ? accountCoin.textContent.trim().slice(0, 12) : "";
     const hasAccountCoin = Boolean(ticker);
@@ -84,7 +97,7 @@
     sendAddress.addEventListener("input", sync);
     sendAddress.addEventListener("change", sync);
   }
-  if (sendSelect) sendSelect.addEventListener("change", sync);
+  if (sendSelect && typeof sendSelect.addEventListener === "function") sendSelect.addEventListener("change", sync);
 
   new MutationObserver(sync).observe(account, {
     childList: true,
@@ -94,5 +107,6 @@
     attributeFilter: ["hidden"]
   });
   window.addEventListener("pageshow", sync);
+  window.addEventListener("chisel:active-account", sync);
   sync();
 })();

@@ -1,5 +1,9 @@
 # Chisel: Next Development Sequence
 
+Current Bitcoin/BSV work follows [the November 20 phased plan](BITCOIN-BSV-PHASES.md).
+M64 development is deferred. The M64 sequence below is historical, not the next
+implementation priority.
+
 Status: historical roadmap snapshot, last revised 2026-10-06.
 
 > This document preserves the sequence and assumptions at that date. Some status claims, including statements that the initial Polygon dictionary deployment is still pending, are no longer a reliable description of November 2026 work. Check [the 2026-11-15 infrastructure audit](INFRASTRUCTURE_AUDIT_2026-11-15.md), the current code and concrete chain deployment records before interpreting a listed task as unfinished.

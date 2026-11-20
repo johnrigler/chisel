@@ -43,7 +43,11 @@
       key: "litecoinTestnet",
       label: "Litecoin Testnet",
       aliases: ["litecoinTestnet", "litecoin-testnet", "Litecoin Testnet", "tltc", "TLTC"]
-    }
+    },
+    bitcoin: { key: "bitcoin", label: "Bitcoin", aliases: ["bitcoin", "btc", "BTC"] },
+    bitcoinTestnet4: { key: "bitcoinTestnet4", label: "Bitcoin Testnet4", aliases: ["bitcoinTestnet4", "bitcoin-testnet4", "bitcoinTestnet", "tbtc4"] },
+    bsv: { key: "bsv", label: "Bitcoin SV", aliases: ["bsv", "BSV", "bitcoin-sv"] },
+    bsvTestnet: { key: "bsvTestnet", label: "Bitcoin SV Testnet", aliases: ["bsvTestnet", "bsv-testnet", "tbsv"] }
   };
 
   //
@@ -163,6 +167,7 @@
     sendResult: null,
     manualContext: null,
     identityPrivateKeyHex: "",
+    identityCompressed: true,
     identityAccounts: [],
     receiveWatchTimer: null,
     receiveWatchBusy: false,
@@ -913,6 +918,7 @@ function setCurrencyOptions() {
   try {
     const requested = new URL(window.location.href).searchParams.get("coin");
     if (requested === "evm" || requested === "polygon") requestedCurrency = "polygon";
+    else if (requested && CHISEL.coins[requested]) requestedCurrency = requested;
   } catch (error) {}
   elems.currency.value = requestedCurrency;
   if (requestedCurrency !== "polygon") state.lastUtxoCurrency = requestedCurrency;
@@ -938,8 +944,8 @@ function setCurrencyForm() {
   }
   const coin = CHISEL.getCoin(currencyKey);
 
-  elems.heroTitle.textContent = "Send " + (coin.DISPLAY_NAME || coin.NAME);
-  elems.heroText.textContent = "Receive " + (coin.TICKER || coin.NAME) + " at the derived address, watch for incoming funds, then build, sign, and send locally. " + (coin.HERO_TEXT || "");
+  elems.heroTitle.textContent = (coin.ACCOUNT_ONLY ? "Receive " : "Send ") + (coin.DISPLAY_NAME || coin.NAME);
+  elems.heroText.textContent = coin.ACCOUNT_ONLY ? coin.HERO_TEXT : "Receive " + (coin.TICKER || coin.NAME) + " at the derived address, watch for incoming funds, then build, sign, and send locally. " + (coin.HERO_TEXT || "");
   elems.currencyHelp.textContent = coin.HELP_TEXT || "";
   elems.feeLabel.textContent = "Fee (" + coin.TICKER + ")";
   elems.spendTotalLabel.textContent = "Spend total (" + coin.TICKER + ")";
@@ -952,6 +958,7 @@ function setCurrencyForm() {
   setSuggestedFeeValue(true);
   setInputValue(elems.rpcUrl, coin.DEFAULT_RPC_URL || "");
   setInputValue(elems.explorerUrl, coin.DEFAULT_EXPLORER_URL || "");
+  if (elems.rpcUrl) elems.rpcUrl.disabled = coin.ACCOUNT_ONLY === true;
 
   if (coin.REQUIRES_EXPLORER) {
     showElem(elems.explorerUrl);
@@ -1472,7 +1479,9 @@ function clearOutputs() {
   }
 
   function render() {
-    elems.sendButton.disabled = state.isLoading;
+    const accountOnly = getCoin().ACCOUNT_ONLY === true;
+    elems.sendButton.disabled = state.isLoading || accountOnly;
+    elems.sendButton.title = accountOnly ? "Receiving and balance checks are available. Sending is a later phase." : "";
     const hasSenderAddress = Boolean(elems.senderAddress && elems.senderAddress.value.trim());
     const hasSenderWif = Boolean(elems.senderWif && elems.senderWif.value.trim());
     if (elems.saveCredentialButton) {
@@ -1482,7 +1491,8 @@ function clearOutputs() {
       elems.showSenderAddressQrButton.disabled = state.isLoading || !hasSenderAddress;
     }
     if (elems.searchSenderAddressButton) {
-      elems.searchSenderAddressButton.disabled = state.isLoading || !hasSenderAddress;
+      elems.searchSenderAddressButton.disabled = state.isLoading || !hasSenderAddress || accountOnly;
+      elems.searchSenderAddressButton.title = accountOnly ? "Address-stream indexing for this network is a later phase." : "";
     }
     if (elems.checkFundsButton) {
       elems.checkFundsButton.disabled = state.isLoading || !hasSenderAddress || state.receiveWatchBusy;
@@ -1501,7 +1511,7 @@ function clearOutputs() {
       elems.exportRpcCommandsButton
     ].forEach(function toggleManualButton(button) {
       if (button) {
-        button.disabled = state.isLoading;
+        button.disabled = state.isLoading || accountOnly;
       }
     });
     elems.status.textContent = state.status;
@@ -1527,6 +1537,7 @@ function clearOutputs() {
   }
 
   function stopReceiveMonitor() {
+    state.receiveWatchGeneration = (state.receiveWatchGeneration || 0) + 1;
     if (state.receiveWatchTimer) {
       clearInterval(state.receiveWatchTimer);
       state.receiveWatchTimer = null;
@@ -1557,13 +1568,17 @@ function clearOutputs() {
     if (!address || state.receiveWatchBusy) return null;
 
     const coin = getCoin();
-    if (!coin || typeof coin.getAddressUtxos !== "function") {
+    if (!coin || (typeof coin.getAddressUtxos !== "function" && typeof coin.getAddressBalance !== "function")) {
       setReceiveMonitorStatus("This chain does not expose an address-balance source.","error");
       return null;
     }
 
     const values = getTransportValues();
     const watchKey = coin.NAME + "|" + address;
+    const generation = state.receiveWatchGeneration || 0;
+    const stillCurrent = function () {
+      return generation === (state.receiveWatchGeneration || 0) && getCoin().NAME === coin.NAME && elems.senderAddress.value.trim() === address;
+    };
 
     if (state.receiveWatchCurrency + "|" + state.receiveWatchAddress !== watchKey) {
       state.receiveWatchCurrency = coin.NAME;
@@ -1579,10 +1594,14 @@ function clearOutputs() {
     try {
       validateTransportValues(coin,values);
       const client = await makeClientForValues(coin,values);
-      const rawUtxos = await coin.getAddressUtxos(client,values,address);
+      const balanceReport = typeof coin.getAddressBalance === "function" ? await coin.getAddressBalance(client,values,address) : null;
+      const rawUtxos = balanceReport ? [] : await coin.getAddressUtxos(client,values,address);
+      if (!stillCurrent()) return null;
       const utxos = (rawUtxos || []).map(CHISEL.normalizeUTXO);
-      const totalUnits = CHISEL.sumUtxoSatoshis(utxos);
+      const totalUnits = balanceReport ? balanceReport.totalSats : CHISEL.sumUtxoSatoshis(utxos);
       const balance = coin.unitsToCoin(totalUnits);
+      window.dispatchEvent(new CustomEvent("chisel:balance", { detail:{ currency:coin.NAME, address:address,
+        amount:balance.toFixed(8), ticker:coin.TICKER, network:coin.NETWORK || "" } }));
 
       setUtxoData(utxos);
 
@@ -1591,13 +1610,9 @@ function clearOutputs() {
           state.receiveWatchAlerted = true;
           alertFundsArrived(coin,balance,address);
         } else {
-          setReceiveMonitorStatus(balance.toFixed(8) + " " + coin.TICKER + " available • " + utxos.length + " UTXO" + (utxos.length === 1 ? "" : "s"),"funded");
+          setReceiveMonitorStatus(balance.toFixed(8) + " " + coin.TICKER + " available" + (balanceReport ? " • confirmed " + coin.unitsToCoin(balanceReport.confirmedSats).toFixed(8) + " • pending change " + coin.unitsToCoin(balanceReport.unconfirmedSats).toFixed(8) : " • " + utxos.length + " UTXO" + (utxos.length === 1 ? "" : "s")),"funded");
         }
 
-        if (state.receiveWatchTimer) {
-          clearInterval(state.receiveWatchTimer);
-          state.receiveWatchTimer = null;
-        }
       } else {
         state.receiveWatchHadZero = true;
         setReceiveMonitorStatus("0 " + coin.TICKER + " • watching for incoming funds","waiting");
@@ -1605,22 +1620,26 @@ function clearOutputs() {
 
       return {coin:coin,address:address,utxos:utxos,totalUnits:totalUnits,balance:balance};
     } catch (error) {
-      setReceiveMonitorStatus("Balance check failed: " + (error.message || String(error)),"error");
+      if (stillCurrent()) setReceiveMonitorStatus("Balance check failed: " + (error.message || String(error)),"error");
       return null;
     } finally {
-      state.receiveWatchBusy = false;
-      render();
+      if (stillCurrent()) { state.receiveWatchBusy = false; render(); }
     }
   }
 
   // Read-only balance lookup for the account shown in the header. No signing or broadcasting.
   window.CHISEL_LOOKUP_BALANCE = async function (currencyKey, address) {
     const coin = CHISEL.getCoin(currencyKey);
-    if (!coin || typeof coin.getAddressUtxos !== "function") throw new Error("Balance provider unavailable");
+    if (!coin || (typeof coin.getAddressUtxos !== "function" && typeof coin.getAddressBalance !== "function")) throw new Error("Balance provider unavailable");
     if (!address || address.length < 24) throw new Error("No complete public address");
-    const values = getTransportValues();
+    const values = { rpcUrl: coin.DEFAULT_RPC_URL || "", explorerUrl: coin.DEFAULT_EXPLORER_URL || "" };
     validateTransportValues(coin,values);
     const client = await makeClientForValues(coin,values);
+    if (typeof coin.getAddressBalance === "function") {
+      const report = await coin.getAddressBalance(client,values,address);
+      return { amount:coin.unitsToCoin(report.totalSats).toFixed(8), ticker:coin.TICKER,
+        chain:coin.CHAIN, network:coin.NETWORK, confirmedSats:report.confirmedSats, unconfirmedSats:report.unconfirmedSats };
+    }
     const raw = await coin.getAddressUtxos(client,values,address);
     const utxos = (raw || []).map(CHISEL.normalizeUTXO);
     return {amount:coin.unitsToCoin(CHISEL.sumUtxoSatoshis(utxos)).toFixed(8),ticker:coin.TICKER,utxoCount:utxos.length};
@@ -1634,18 +1653,16 @@ function clearOutputs() {
       return;
     }
 
-    if (state.receiveWatchTimer) {
-      clearInterval(state.receiveWatchTimer);
-      state.receiveWatchTimer = null;
-    }
+    stopReceiveMonitor();
 
     state.receiveWatchAddress = address;
     state.receiveWatchCurrency = getCoin().NAME;
     state.receiveWatchHadZero = false;
     state.receiveWatchAlerted = false;
+    const generation = state.receiveWatchGeneration;
 
     checkSenderFunds({allowArrivalAlert:false}).then(function (result) {
-      if (!result || result.totalUnits > 0) return;
+      if (state.receiveWatchGeneration !== generation) return;
       state.receiveWatchTimer = setInterval(function () {
         if (document.visibilityState === "hidden") return;
         checkSenderFunds({allowArrivalAlert:true});
@@ -1657,6 +1674,7 @@ function clearOutputs() {
   // Validators
   //
   function validateBuildSignSendValues(coin, values) {
+    if (coin.CAN_SEND === false) throw new Error("This network currently supports receiving and balance checks. Sending is a later phase.");
     if (!values.senderWif) {
       throw new Error("Sender WIF is required.");
     }
@@ -2461,6 +2479,13 @@ function onClickAddCommonAddressButton() {
 
   function announcePortalPublicAccount(coin, account, options) {
     if (!account || !account.address || !window.CustomEvent) return false;
+    window.CHISEL_ACTIVE_ACCOUNT = { currency:coin.NAME, ticker:coin.TICKER,
+      network:account.network || coin.NETWORK || "", address:account.address, accountOnly:coin.ACCOUNT_ONLY === true };
+    window.dispatchEvent(new CustomEvent("chisel:active-account", { detail: {
+      currency: coin.NAME, ticker: coin.TICKER, network: account.network || coin.NETWORK || "",
+      address: account.address, accountOnly: coin.ACCOUNT_ONLY === true
+    } }));
+    if (coin.ACCOUNT_ONLY) return true;
     const opts = options || {};
     window.dispatchEvent(new CustomEvent("chisel:main-account", {
       detail: {
@@ -2481,13 +2506,16 @@ function onClickAddCommonAddressButton() {
     const coin = getCoin();
     if (!coin || typeof coin.wifToAccount !== "function") return;
     try {
-      const account = await coin.wifToAccount(wif);
-      if (!elems.senderWif || elems.senderWif.value.trim() !== wif) return;
+      const imported = CHISEL.accountFromSharedWif ? await CHISEL.accountFromSharedWif(wif, coin) : { wif:wif, account:await coin.wifToAccount(wif) };
+      const account = imported.account;
+      if (!elems.senderWif || elems.senderWif.value.trim() !== wif || getCoin().NAME !== coin.NAME) return;
+      elems.senderWif.value = imported.wif;
       state.identityPrivateKeyHex = account.privateKeyHex || state.identityPrivateKeyHex;
-      setInputValue(elems.senderAddress, account.compressedAddress || account.address);
+      state.identityCompressed = account.compressed !== false;
+      setInputValue(elems.senderAddress, account.address);
       render();
       announcePortalPublicAccount(coin, {
-        address: account.compressedAddress || account.address,
+        address: account.address,
         network: account.network
       });
       if (state.identityPrivateKeyHex) {
@@ -2499,6 +2527,9 @@ function onClickAddCommonAddressButton() {
     } catch (error) {
       // A partially typed or wrong-network WIF is normal while editing. Do not
       // expose it in a status message, URL, localStorage, or fileProxy.
+      if (elems.senderWif && elems.senderWif.value.trim() === wif && wif.length >= 50) {
+        setReceiveMonitorStatus("Could not load this WIF. Check its checksum and private-key format.", "error");
+      }
     }
   }
 
@@ -2511,6 +2542,7 @@ function onClickAddCommonAddressButton() {
   }
 
   async function privateKeyHexToWifForCoin(privateKeyHex, coin, compressed) {
+    if (CHISEL.privateKeyToCoinWif) return CHISEL.privateKeyToCoinWif(privateKeyHex, coin, compressed);
     const clean = String(privateKeyHex || "").trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(clean)) throw new Error("Private key hex must be exactly 64 hex characters.");
     const payload = new Uint8Array(compressed === false ? 33 : 34);
@@ -2532,7 +2564,7 @@ function onClickAddCommonAddressButton() {
     for (let i = 0; i < coins.length; i += 1) {
       const coin = coins[i];
       try {
-        const wif = await privateKeyHexToWifForCoin(clean, coin, true);
+        const wif = await privateKeyHexToWifForCoin(clean, coin, state.identityCompressed);
         const account = await coin.wifToAccount(wif);
         accounts.push({
           currency: coin.NAME,
@@ -2540,7 +2572,8 @@ function onClickAddCommonAddressButton() {
           label: coin.DISPLAY_NAME || coin.NAME,
           network: account.network || "",
           wif: wif,
-          address: account.compressedAddress || account.address,
+          address: account.address,
+          accountOnly: coin.ACCOUNT_ONLY === true,
           compressedAddress: account.compressedAddress || account.address
         });
       } catch (error) {
@@ -2548,10 +2581,14 @@ function onClickAddCommonAddressButton() {
       }
     }
 
-    state.identityPrivateKeyHex = clean;
+    if (state.identityPrivateKeyHex !== clean) return [];
     state.identityAccounts = accounts;
 
     if (window.CustomEvent && accounts.length) {
+      window.CHISEL_PUBLIC_ACCOUNTS = accounts.map(function (account) {
+        return { currency:account.currency, ticker:account.ticker, label:account.label, network:account.network,
+          address:account.address, accountOnly:account.accountOnly };
+      });
       window.dispatchEvent(new CustomEvent("chisel:identity-accounts", {
         detail: {
           accounts: accounts.map(function (account) {
@@ -2560,7 +2597,8 @@ function onClickAddCommonAddressButton() {
               ticker: account.ticker,
               label: account.label,
               network: account.network,
-              address: account.address
+              address: account.address,
+              accountOnly: account.accountOnly
             };
           })
         }
@@ -2575,25 +2613,25 @@ function onClickAddCommonAddressButton() {
     if (!privateKeyHex) return false;
 
     const coin = getCoin();
-    const wif = await privateKeyHexToWifForCoin(privateKeyHex, coin, true);
+    const wif = await privateKeyHexToWifForCoin(privateKeyHex, coin, state.identityCompressed);
     const account = await coin.wifToAccount(wif);
 
     if (getCoin().NAME !== coin.NAME || state.identityPrivateKeyHex !== privateKeyHex) return false;
 
     elems.senderWif.value = wif;
-    setInputValue(elems.senderAddress, account.compressedAddress || account.address);
+    setInputValue(elems.senderAddress, account.address);
     setAccountData({
       currency: coin.NAME,
       ticker: coin.TICKER,
       network: account.network,
       compressed: account.compressed,
-      address: account.compressedAddress || account.address,
+      address: account.address,
       compressedAddress: account.compressedAddress || account.address,
       uncompressedAddress: account.uncompressedAddress,
       privateKeyHex: account.privateKeyHex
     });
     announcePortalPublicAccount(coin, {
-      address: account.compressedAddress || account.address,
+      address: account.address,
       network: account.network
     });
     render();
@@ -2666,6 +2704,7 @@ function onClickAddCommonAddressButton() {
 
     if (payload.privateKeyHex) {
       state.identityPrivateKeyHex = String(payload.privateKeyHex).trim().replace(/^0x/i, "").replace(/\s+/g, "").toLowerCase();
+      state.identityCompressed = payload.compressed !== false;
     }
 
     if (payload.currency) {
@@ -2722,6 +2761,7 @@ function onClickAddCommonAddressButton() {
       wif: data.wif,
       address: data.address,
       privateKeyHex: data.privateKeyHex,
+      compressed: data.compressed,
       autosend: false
     }, "scanner window");
   }
@@ -3208,6 +3248,12 @@ function init() {
       switchIdentityButton.onclick = function () {
         stopReceiveMonitor();
         state.identityPrivateKeyHex = "";
+        state.identityAccounts = [];
+        state.identityCompressed = true;
+        window.CHISEL_PUBLIC_ACCOUNTS = [];
+        window.CHISEL_ACTIVE_ACCOUNT = null;
+        window.dispatchEvent(new CustomEvent("chisel:active-account", { detail:{} }));
+        window.dispatchEvent(new CustomEvent("chisel:identity-accounts", { detail:{ accounts:[] } }));
         state.account = null;
         state.utxos = [];
         elems.senderWif.value = "";
@@ -3220,6 +3266,8 @@ function init() {
       };
     }
     elems.senderWif.onkeydown = onKeydownSenderWif;
+    const loadIdentityButton = document.getElementById("loadIdentityButton");
+    if (loadIdentityButton) loadIdentityButton.onclick = promoteEnteredWifToPortal;
     elems.senderWif.onchange = function onSenderWifChange() {
       stopReceiveMonitor();
       promoteEnteredWifToPortal();

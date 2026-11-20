@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 const root = new URL('../', import.meta.url), check = process.argv.includes('--check');
-const files = ['chisel.js', 'chisel.unspendable.js', 'chisel.sign.js', 'vendor/noble-secp256k1-3.2.0.browser.js', 'chisel.secp256k1.js', 'chisel.secp256k1.noble.js', 'chisel.sign.backend.js', 'chisel.safety.js', 'chisel.identity.js', 'chisel.ravencoin.js', 'chisel.digibyte.js', 'chisel.litecoin.js'];
+const files = ['chisel.js', 'chisel.unspendable.js', 'chisel.sign.js', 'vendor/noble-secp256k1-3.2.0.browser.js', 'chisel.secp256k1.js', 'chisel.secp256k1.noble.js', 'chisel.sign.backend.js', 'chisel.safety.js', 'chisel.identity.js', 'chisel.ravencoin.js', 'chisel.digibyte.js', 'chisel.litecoin.js', 'chisel.networks.js'];
 const sha = text => createHash('sha256').update(text).digest('hex');
 const previous = await readFile(new URL('dist/chisel-driver.js', root), 'utf8');
 const metadata = previous.slice(previous.lastIndexOf('(function () {')).replace(/VERSION: "[^"]+"/, 'VERSION: "2.8.1"').replace(/BUILD: "[^"]+"/, 'BUILD: "source-checked"').replace(/SOURCE_MODULES: \[[^\n]*\]/, 'SOURCE_MODULES: ' + JSON.stringify(files));
