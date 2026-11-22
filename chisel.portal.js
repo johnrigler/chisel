@@ -2953,7 +2953,6 @@
     } finally {
       endPortalBatch();
     }
-    state.portalPage = 1;
     if (!(opts && opts.silent)) requestPortalRender();
     return { added: added, updated: updated, total: rows.length };
   }
@@ -3570,6 +3569,12 @@
     return Math.max(1, Math.ceil(rows.length / getPortalPageSize()));
   }
 
+  function portalTransactionCountLabel(rows) {
+    const coin = rows.length && canonicalCoinForRow(rows[0]);
+    const ticker = coin && rows.every(function (row) { return canonicalCoinForRow(row) === coin; }) ? tickerForCoin(coin) : "";
+    return rows.length + (ticker ? " " + ticker : "") + " transaction" + (rows.length === 1 ? "" : "s");
+  }
+
   function clampPortalPage(filteredRows) {
     const count = getPortalPageCount(filteredRows);
     state.portalPage = Math.max(1, Math.min(count, Number(state.portalPage) || 1));
@@ -3699,7 +3704,7 @@
         const source = event.target;
         const button = source && source.closest ? source.closest("button.portalPageButton") : null;
         if (!button || button.disabled || !target.contains(button)) return;
-        setPortalPage(Number(button.dataset.page));
+        setPortalPage(Number(button.getAttribute("data-page")));
       });
     }
 
@@ -3716,15 +3721,21 @@
     const end = Math.min(filteredRows.length, page * size);
 
     const label = document.createElement("span");
-    label.textContent = "page " + page + "/" + count + " · " + start + "–" + end + " of " + filteredRows.length + (filteredRows.length === state.portalRows.length ? "" : " · " + state.portalRows.length + " loaded");
+    label.textContent = count === 1
+      ? "All " + portalTransactionCountLabel(filteredRows) + " shown · Page 1 of 1"
+      : "Page " + page + " of " + count + " · Transactions " + start + "–" + end + " of " + filteredRows.length;
     box.appendChild(label);
+    if (count === 1) {
+      viewApi.patchChildren(target, box);
+      return;
+    }
 
     function addButton(text, targetPage, disabled) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "secondaryButton portalPageButton";
       button.textContent = text;
-      button.dataset.page = String(targetPage);
+      button.setAttribute("data-page", String(targetPage));
       button.setAttribute("aria-label", text === "›" ? "Next page" : "Previous page");
       button.disabled = !!disabled;
       box.appendChild(button);
@@ -3747,7 +3758,7 @@
       button.type = "button";
       button.className = "secondaryButton portalPageButton" + (p === page ? " active" : "");
       button.textContent = "page" + p;
-      button.dataset.page = String(p);
+      button.setAttribute("data-page", String(p));
       button.disabled = p === page;
       box.appendChild(button);
       last = p;
@@ -5720,7 +5731,7 @@
     const page = clampPortalPage(filteredRows);
     const start = ((page - 1) * size) + 1;
     const end = Math.min(filteredRows.length, page * size);
-    setText("#portalExplorerCount", filteredRows.length + " shown · " + state.portalRows.length + " loaded · " + start + "–" + end);
+    setText("#portalExplorerCount", portalTransactionCountLabel(filteredRows) + " · Page " + page + " of " + getPortalPageCount(filteredRows) + (filteredRows.length > size ? " · showing " + start + "–" + end : ""));
     renderPortalPageControls(filteredRows);
 
     pageRows.forEach(function (row) {
@@ -6203,7 +6214,6 @@
       endPortalBatch();
     }
 
-    state.portalPage = 1;
     requestPortalRender();
     setText("#portalThunderwordRaw", pretty({ evmCatalog: reports }));
     setStatus("Loaded " + loaded.length + " EVM catalog transaction(s) into the main Portal feed.", false);
@@ -7292,7 +7302,6 @@ function getPortalFirstCharacter() {
     allRows.sort(compareStreamItems);
     state.conversationRows = allRows;
     state.rabbitTrails = [];
-    state.portalPage = 1;
 
     renderConversationRows(allRows);
     renderConversationStatus(allRows, [], rawReport);
@@ -7579,7 +7588,6 @@ function getPortalFirstCharacter() {
       const search = $("#portalEvmWordSearch");
       if (search && options.filterResults !== false && search.value === prepared.account.address) {
         search.value = prepared.account.address;
-        state.portalPage = 1;
         requestPortalRender();
       }
       return stream;

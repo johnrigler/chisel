@@ -50,3 +50,11 @@ and displays it as an image Blob. BCAT/1Sat reconstruction is not implemented.
 The panel reads Mogwai/FileProxy health and the remote BSV scan feed separately.
 A working daemon can serve cached transactions without running the history
 scanner. Feed status includes checked count and last export, or a fetch error.
+
+## Pagination (2.8.72)
+
+Transaction counts are separate from page counts. The bundled 12-record BSV
+sample fits on one page at the default 20 transactions per page. Single-page
+results show no Previous/Next controls. Larger catalogs paginate normally;
+background static, EVM and ledger catalog merges preserve the selected page.
+Changing a source filter or search still starts at page one.

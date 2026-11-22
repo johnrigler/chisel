@@ -548,3 +548,62 @@ test("a static image that reached its fallback source is retained when its logic
   assert.equal(mounted.firstChild, image); assert.equal(image.src, "https://fallback.example/image.png");
   assert.equal(image.getAttribute("src"), "https://fallback.example/image.png");
 });
+
+function bsvPaginationFixture(count, responder) {
+  const f = fixture(undefined, responder), doc = f.context.document, handlers = new Map();
+  const controls = doc.createElement('div');
+  controls.addEventListener = (name, callback) => { assert.equal(handlers.has(name), false, 'navigation binds once'); handlers.set(name, callback); };
+  f.nodes.set('portalPageControls', controls);
+  f.nodes.set('portalExplorerCount', doc.createElement('span'));
+  Object.assign(f.portal.state.config, {autoFetchVisibleTransactionDates: false, autoFetchVisibleTransactionAmounts: false, portalPageSize: 20});
+  f.portal.state.portalSourceFilters.litecoin = false;
+  f.context.CHISEL_PORTAL_STARTER_DATA = {transactions: [
+    ...Array.from({length: count}, (_, i) => ({coin: 'bsv', txid: (i + 1).toString(16).padStart(64, '0'), summary: {title: 'BSV record ' + i, blockTime: 1700000000 - i * 100}})),
+    {coin: 'litecoin', txid: 'ff'.repeat(32), summary: {title: 'Other chain', blockTime: 1800000000}}
+  ]};
+  f.portal.loadEmbeddedStaticDataset(); paint(f);
+  const navigate = label => {
+    const button = descendants(controls).find(node => node.getAttribute('aria-label') === label);
+    assert.ok(button); assert.equal(button.disabled, false);
+    handlers.get('click')({target: {closest: () => button}});
+  };
+  return {...f, controls, navigate};
+}
+
+test('twelve BSV transactions are labelled as one page without inactive navigation', () => {
+  const f = bsvPaginationFixture(12);
+  assert.equal(f.nodes.get('portalExplorerCount').textContent, '12 BSV transactions · Page 1 of 1');
+  assert.equal(f.controls.textContent, 'All 12 BSV transactions shown · Page 1 of 1');
+  assert.equal(descendants(f.controls).filter(node => node.tagName === 'button').length, 0);
+  assert.equal(f.nodes.get('portalTransactionList').children.length, 12);
+});
+
+test('filtered BSV navigation advances and returns across refreshed page buttons', () => {
+  const f = bsvPaginationFixture(41), list = f.nodes.get('portalTransactionList');
+  assert.match(f.controls.textContent, /Page 1 of 3/);
+  const first = list.children[0].dataset.key;
+  f.navigate('Next page');
+  assert.equal(f.portal.state.portalPage, 2);
+  assert.match(f.nodes.get('portalExplorerCount').textContent, /41 BSV transactions · Page 2 of 3 · showing 21–40/);
+  assert.notEqual(list.children[0].dataset.key, first);
+  assert.ok(list.children.every(node => node.dataset.key.startsWith('bsv:')));
+  refreshStream(f);
+  assert.equal(f.portal.state.portalPage, 2);
+  f.navigate('Next page');
+  assert.equal(f.portal.state.portalPage, 3); assert.equal(list.children.length, 1);
+  assert.equal(descendants(f.controls).find(node => node.getAttribute('aria-label') === 'Next page').disabled, true);
+  f.navigate('Previous page');
+  assert.equal(f.portal.state.portalPage, 2); assert.equal(list.children.length, 20);
+  f.navigate('Previous page');
+  assert.equal(f.portal.state.portalPage, 1); assert.equal(list.children[0].dataset.key, first);
+});
+
+test('an unrelated EVM catalog refresh preserves the current BSV page', async () => {
+  const f = bsvPaginationFixture(41, () => json({ok: true, transactions: []}));
+  Object.assign(f.portal.state.config, {includeEvmGomez: true, includeEvmJethro: false, includeEvmPolygonThunderword: false});
+  f.navigate('Next page');
+  await f.portal.loadSelectedEvmCatalogs({reset: false}); paint(f);
+  assert.equal(f.portal.state.portalPage, 2);
+  assert.match(f.controls.textContent, /Page 2 of 3/);
+  assert.ok(f.nodes.get('portalTransactionList').children.every(node => node.dataset.key.startsWith('bsv:')));
+});
