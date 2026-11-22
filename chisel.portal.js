@@ -46,7 +46,7 @@
     autoSearchLedgersAfterStatic: true,
     staticManifestPaths: [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH],
     staticManifestMirrors: [DEFAULT_REMOTE_MANIFEST_URL],
-    staticDiscoveryManifestPaths: ["data-bsv/manifest.json", "https://rigler.org/chisel-data/bsv/manifest.json"],
+    staticDiscoveryManifestPaths: ["data-bsv/manifest.json", "data-bsv-anchors/manifest.json", "https://rigler.org/chisel-data/bsv/manifest.json"],
     backgroundHydrateTransactions: false,
     autoFetchVisibleTransactionDates: true,
     maxVisibleDateLookups: 20,

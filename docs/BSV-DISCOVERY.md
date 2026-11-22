@@ -58,3 +58,23 @@ sample fits on one page at the default 20 transactions per page. Single-page
 results show no Previous/Next controls. Larger catalogs paginate normally;
 background static, EVM and ledger catalog merges preserve the selected page.
 Changing a source filter or search still starts at page one.
+
+## Two-cursor daemon and Alice anchor (2.8.73)
+
+Mogwai now includes a separate continuous BSV discovery daemon and a user-systemd
+unit. Its `recent` cursor walks backward from the confirmed tip, while `early`
+walks forward from the Alice block (566492). They share deduplicated checked
+blocks and transactions. After their ranges meet, `early` follows new confirmed
+blocks. Coverage shows each job's direction, phase, next height, errors and the
+runner's saved heartbeat. These are exported observations, not a live process
+probe. Setup is documented in [Mogwai's scanner guide](https://github.com/johnrigler/mogwai/blob/main/docs/BSV-HISTORY-SCANNER.md).
+
+A separate `data-bsv-anchors/` feed adds the transaction referenced by unwriter's
+original Alice in BitcoinLand app: `b742886801560f57b4dc824ce3a1719613d8b2d38530909fe988c1ca04cc82af`.
+It was mined on January 23, 2019 in block 566492. The serialized transaction
+hash was checked, and its native output contains 17100 pushed bytes of
+looking-glass text. Original provider JSON, serialized hex and provenance are
+retained. This individual lookup adds one record without changing the bundled
+history sample's 66-transaction / five-block scan coverage. Treat Alice as the
+best located match for the user's rabbit-hole reference, not as proof of the
+first BSV file or a block-size activation transaction.

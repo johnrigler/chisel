@@ -1,0 +1,20 @@
+{
+  "kind": "historical-anchor-lookup",
+  "observedAt": "2026-11-22T22:01:42Z",
+  "creatorSource": "https://github.com/unwriter/alice/blob/8b6c8fa05822de3cc3301fbe6c5dd2182f470dca/index.html",
+  "firstCommit": "811c1e8ef957c17adba2ccaf5879d140a45df659",
+  "creatorAttribution": "Referenced by unwriter’s Alice app; no separate signer-identity claim.",
+  "provider": "https://api.whatsonchain.com/v1/bsv/main",
+  "txid": "b742886801560f57b4dc824ce3a1719613d8b2d38530909fe988c1ca04cc82af",
+  "blockHeight": 566492,
+  "blockHash": "000000000000000006cfc5b97a070212957574975f3b03d92fe4e009301b786d",
+  "blockTime": 1548248044,
+  "transactionBytes": 17360,
+  "dataOutput": 1,
+  "dataBytes": 17100,
+  "serializedTxHashMatched": true,
+  "serializedHexPath": "transactions/bsv/b742886801560f57b4dc824ce3a1719613d8b2d38530909fe988c1ca04cc82af.hex",
+  "rawPath": "transactions/bsv/b742886801560f57b4dc824ce3a1719613d8b2d38530909fe988c1ca04cc82af.json",
+  "scope": "Individual lookup. This does not add the containing block to scanned coverage.",
+  "interpretation": "Candidate for the user’s rabbit-hole reference. Payload is looking-glass text, not a post titled Rabbit Hole."
+}

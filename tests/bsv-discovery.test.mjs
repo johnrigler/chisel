@@ -115,3 +115,42 @@ test("coverage notes render as text, including provider errors and partial rows"
   assert.ok(nodes.some(n => n.textContent === "<script>untrusted</script>"));
   assert.ok(!nodes.some(n => n.tag === "script" || n.tag === "img"));
 });
+
+test('the Alice anchor preserves a hash-checked native transaction without adding block coverage', async () => {
+  const manifest = JSON.parse(await read('data-bsv-anchors/manifest.json'));
+  const anchors = JSON.parse(await read('data-bsv-anchors/' + manifest.defaultIndex));
+  const provenance = JSON.parse(await read('data-bsv-anchors/provenance.json'));
+  assert.equal(anchors.transactions.length, 1); assert.equal(anchors.scan, undefined);
+  const row = anchors.transactions[0], raw = JSON.parse(await read('data-bsv-anchors/' + row.rawPath));
+  const hex = (await read('data-bsv-anchors/' + provenance.serializedHexPath)).trim();
+  const bytes = Buffer.from(hex, 'hex');
+  const first = await webcrypto.subtle.digest('SHA-256', bytes);
+  const txid = Buffer.from(await webcrypto.subtle.digest('SHA-256', first)).reverse().toString('hex');
+  assert.equal(txid, 'b742886801560f57b4dc824ce3a1719613d8b2d38530909fe988c1ca04cc82af');
+  assert.equal(txid, row.txid); assert.equal(txid, raw.txid);
+  assert.equal(bytes.length, 17360); assert.equal(row.summary.blockHeight, 566492);
+  assert.equal(raw.blockhash, provenance.blockHash); assert.equal(row.summary.dataBytes, 17100);
+  assert.ok(bytes.includes(Buffer.from(raw.vout[1].scriptPubKey.hex, 'hex')));
+  const payload = fixture().context.CHISEL_PORTAL_PAYLOAD.fromOutput(raw.vout[1]);
+  assert.ok(payload.text.includes('Big data time')); assert.ok(payload.text.includes('looking glass'));
+  assert.equal(row.discoverySource, 'anchor-lookup');
+  assert.equal(index.scan.transactionsChecked, 66, 'a separate lookup must not inflate block scan coverage');
+});
+
+test('coverage describes both cursor directions and saved daemon heartbeat as text', () => {
+  const element = tag => ({tag, children: [], textContent: '', appendChild(child) { this.children.push(child); }, replaceChildren() { this.children = []; }});
+  const container = element('div'); container.ownerDocument = {createElement: element};
+  const scan = {...index.scan, jobs: [
+    {name: 'recent', direction: 'backward', anchorHeight: 976000, nextHeight: 975990, phase: 'scanning'},
+    {name: 'early', direction: 'forward', anchorHeight: 566492, nextHeight: 566497, phase: 'error', lastError: '<script>untrusted</script>'}
+  ], runner: {lastReportedState: 'running', heartbeatAt: '2026-11-22T21:00:00Z'}};
+  const api = fixture().context.CHISEL_PORTAL_DISCOVERY;
+  api.renderCoverage(container, scan);
+  const text = container.children.map(n => n.textContent).join('\n');
+  assert.match(api.coverageLabel(scan), /2 scan cursors/);
+  assert.match(text, /recent · backward from block 976,000 · next block 975990/);
+  assert.match(text, /early · forward from block 566,492 · next block 566497/);
+  assert.match(text, /Daemon last reported running · heartbeat/);
+  assert.match(text, /<script>untrusted<\/script>/);
+  assert.ok(!container.children.some(n => n.tag === 'script'));
+});

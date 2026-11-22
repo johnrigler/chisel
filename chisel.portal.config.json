@@ -62,6 +62,7 @@
   "autoTrackRecognizedAddresses": true,
   "staticDiscoveryManifestPaths": [
     "data-bsv/manifest.json",
+    "data-bsv-anchors/manifest.json",
     "https://rigler.org/chisel-data/bsv/manifest.json"
   ],
   "portalFilterBsv": true

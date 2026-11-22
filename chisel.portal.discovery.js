@@ -13,9 +13,11 @@
   }
 
   function coverageLabel(scan) {
+    const jobs = Array.isArray(scan.jobs) ? scan.jobs : [];
     return number(scan.transactionsChecked) + " transactions checked · " +
       number(scan.blocksComplete) + "/" + number(scan.blocksChecked) + " visited blocks complete · " +
-      number(scan.candidates) + " candidates · next block " + (scan.nextHeight === null ? "unstarted" : number(scan.nextHeight));
+      number(scan.candidates) + " candidates" + (jobs.length ? " · " + jobs.length + " scan cursors" :
+        " · next block " + (scan.nextHeight === null ? "unstarted" : number(scan.nextHeight)));
   }
 
   function renderCoverage(container, scan) {
@@ -29,7 +31,14 @@
     paragraph("Saved public-provider observations. Last check: " + String(scan.lastCheckedAt || "unknown") +
       ". Candidates: transaction ≥ " + number(scan.minTransactionBytes) + " bytes or data output ≥ " +
       number(scan.minDataBytes) + " bytes. Sizes identify candidates; they do not establish file type or authorship.");
-    if (scan.lastError) paragraph("Scan paused: " + String(scan.lastError));
+    (Array.isArray(scan.jobs) ? scan.jobs : []).slice(0, 12).forEach(function (job) {
+      paragraph(String(job.name || "scan") + " · " + String(job.direction || "unknown direction") +
+        " from block " + number(job.anchorHeight) + " · next block " + String(job.nextHeight) +
+        " · " + String(job.phase || "unknown") + (job.lastError ? " · " + String(job.lastError) : ""));
+    });
+    if (scan.runner && scan.runner.heartbeatAt) paragraph("Daemon last reported " + String(scan.runner.lastReportedState || "unknown") +
+      " · heartbeat " + String(scan.runner.heartbeatAt) + ". This is the saved export's observation time.");
+    if (scan.lastError) paragraph("Scanner report: " + String(scan.lastError));
     const table = doc.createElement("table");
     table.className = "portalBsvCoverageTable";
     const caption = doc.createElement("caption"); caption.textContent = "Blocks ranked by data bytes observed"; table.appendChild(caption);
