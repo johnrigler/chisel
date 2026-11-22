@@ -3445,6 +3445,8 @@
   }
 
   function focusPortalSources(ids) {
+    const search = $("#portalEvmWordSearch");
+    if (search) search.value = "";
     const allowed = Object.create(null);
     ids.forEach(function (id) { allowed[id] = true; });
     PORTAL_FILTER_IDS.forEach(function (id) { setPortalFilterValue(id, !!allowed[id]); });
@@ -7512,7 +7514,7 @@ function getPortalFirstCharacter() {
       }
     ).then(function (stream) {
       const search = $("#portalEvmWordSearch");
-      if (search && options.filterResults !== false) {
+      if (search && options.filterResults !== false && search.value === prepared.account.address) {
         search.value = prepared.account.address;
         state.portalPage = 1;
         requestPortalRender();
