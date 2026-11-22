@@ -573,9 +573,7 @@
 
   function extractUrls(value) {
     const text = String(value || "");
-    const urls = (text.match(/https?:\/\/[^\s"'<>]+/gi) || []).map(function (url) {
-      return url.replace(/[),.;]+$/g, "");
-    });
+    const urls = extractUrlsFromText(text);
     const spotify = text.match(/spotify:track:([A-Za-z0-9]+)/i);
     if (spotify) urls.push("https://open.spotify.com/track/" + spotify[1]);
     const youtubeId = text.match(/youtube:(?:video:)?([A-Za-z0-9_-]{6,})/i);
@@ -1007,7 +1005,7 @@
         if (target.subtitle) {
           const subtitle = document.createElement("small");
           subtitle.className = "portalLedgerSubtitle";
-          subtitle.textContent = target.subtitle;
+          appendLinkedTransactionText(subtitle, target.subtitle);
           if (target.rawScript) subtitle.title = target.rawScript;
           line.appendChild(subtitle);
         }
@@ -3970,13 +3968,51 @@
     return printableText(out).replace(/\s+/g, " ").trim();
   }
 
-  function extractUrlsFromText(text) {
-    const out = [];
-    String(text || "").replace(/https?:\/\/[^\s'"<>]+/gi, function (url) {
-      out.push(url.replace(/[),.;]+$/, ""));
-      return url;
+  function transactionTextUrlRanges(value) {
+    const text = String(value || ""), links = [];
+    const pattern = /https?:\/\/[^\s'"<>]+/gi;
+    let match;
+    while ((match = pattern.exec(text))) {
+      // A Markdown label and its destination can contain adjacent URLs.
+      let url = match[0].split(/\]\(|\]\[/)[0], previous;
+      do {
+        previous = url;
+        url = url.replace(/[.,;!?]+$/, "");
+        [["(", ")"], ["[", "]"], ["{", "}"]].forEach(function (pair) {
+          while (url.endsWith(pair[1]) && url.split(pair[1]).length > url.split(pair[0]).length) url = url.slice(0, -1);
+        });
+      } while (url !== previous);
+      pattern.lastIndex = match.index + url.length;
+      const href = CHISEL.safeWebUrl(decodeHtmlEntities(url), window.location.href);
+      if (href) links.push({start: match.index, end: pattern.lastIndex, raw: url, href: href});
+    }
+    return links;
+  }
+
+  function appendLinkedTransactionText(container, value) {
+    const text = String(value || ""), links = transactionTextUrlRanges(text);
+    if (!links.length) { container.textContent = text; return; }
+    let offset = 0;
+    function appendText(fragment) {
+      if (!fragment) return;
+      const span = document.createElement("span"); span.textContent = fragment; container.appendChild(span);
+    }
+    links.forEach(function (link) {
+      appendText(text.slice(offset, link.start));
+      const anchor = document.createElement("a");
+      setSafeHref(anchor, link.href);
+      anchor.className = "isDirectLink portalPayloadLink";
+      anchor.target = "_blank"; anchor.rel = "noopener noreferrer";
+      anchor.textContent = link.raw;
+      anchor.onclick = function (event) { event.stopPropagation(); };
+      container.appendChild(anchor);
+      offset = link.end;
     });
-    return uniqueStrings(out);
+    appendText(text.slice(offset));
+  }
+
+  function extractUrlsFromText(text) {
+    return uniqueStrings(transactionTextUrlRanges(text).map(function (link) { return link.raw; }));
   }
 
   function makeRecordLink(url, text) {
@@ -5357,7 +5393,7 @@
     if (opText) {
       const payload = document.createElement("span");
       payload.className = "portalStreamOpReturn";
-      payload.textContent = opText;
+      appendLinkedTransactionText(payload, opText);
       titleWrap.appendChild(payload);
       item.classList.add("hasOpReturnText");
     }

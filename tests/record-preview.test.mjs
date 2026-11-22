@@ -84,6 +84,21 @@ test("cached OP_RETURN notes display in full before raw data loads without repea
   assert.match(container.firstChild.className, /hasOpReturnText/);
 });
 
+test("BSV payload URLs are clickable while Markdown punctuation and HTML remain literal text", () => {
+  const text = 'See https://example.org/page.html?x=1&y=2. [https://example.org/a_(b)](https://example.org/a_(b)) <a href="https://example.net/?a=1&amp;b=2">HTML</a> <img src=x onerror=alert(1)> javascript:alert(1)';
+  const row = {key: "bsv-links", coin: "bsv", txid: "7".repeat(64), summary: {title: "BSV data output", opReturnText: text}};
+  const container = new Element("div"); portal.renderStreamItem(container, row, {expanded: false});
+  const payload = descendants(container).find(node => node.className === "portalStreamOpReturn");
+  const links = descendants(payload).filter(node => node.tagName === "a");
+  assert.equal(payload.textContent, text, "linking preserves the original transaction text");
+  assert.deepEqual(links.map(link => link.href), ["https://example.org/page.html?x=1&y=2", "https://example.org/a_(b)", "https://example.org/a_(b)", "https://example.net/?a=1&b=2"]);
+  for (const link of links) {
+    assert.equal(link.target, "_blank"); assert.equal(link.rel, "noopener noreferrer");
+    let stopped = false; link.onclick({stopPropagation() { stopped = true; }}); assert.equal(stopped, true);
+  }
+  assert.ok(!descendants(payload).some(node => node.tagName === "img" || node.tagName === "script"));
+});
+
 test("binary OP_RETURN has a lossless encoding selector and no corrupted text in either view", async () => {
   const raw = JSON.parse(await readFile(new URL("fixtures/portal-binary-opreturn.json", import.meta.url), "utf8"));
   const row = {key: "binary-opreturn", coin: "litecoin", txid: raw.txid, raw,
