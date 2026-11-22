@@ -20,6 +20,13 @@
   font-weight: 500;
 }
 
+.portalStreamOpReturn a.portalPayloadLink,
+.portalLedgerSubtitle a.portalPayloadLink {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
 /* No redundant "details" or "verify" links on a collapsed transaction. */
 .portalStreamItem:not(.isExpanded) .portalStreamVerify {
   display: none;
