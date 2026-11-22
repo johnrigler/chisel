@@ -46,6 +46,7 @@
     autoSearchLedgersAfterStatic: true,
     staticManifestPaths: [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH],
     staticManifestMirrors: [DEFAULT_REMOTE_MANIFEST_URL],
+    staticDiscoveryManifestPaths: ["data-bsv/manifest.json", "https://rigler.org/chisel-data/bsv/manifest.json"],
     backgroundHydrateTransactions: false,
     autoFetchVisibleTransactionDates: true,
     maxVisibleDateLookups: 20,
@@ -67,6 +68,7 @@
     portalFilterRavencoin: true,
     portalFilterLitecoin: true,
     portalFilterBitcoin: true,
+    portalFilterBsv: true,
     portalFilterDogecoin: true,
     portalFilterEcash: true,
     portalFilterEvmGomez: true,
@@ -2981,6 +2983,9 @@
       remoteBaseUrls: loaded.manifest.remoteBaseUrls || []
     });
     const report = mergeStaticRows(rows, { silent: opts && opts.silent });
+    if (loaded.index.scan && window.CHISEL_PORTAL_DISCOVERY) {
+      window.CHISEL_PORTAL_DISCOVERY.renderCoverage($("#portalBsvScanCoverage"), loaded.index.scan);
+    }
     state.staticManifest = loaded.manifest;
     state.staticDatasetReports.push(Object.assign({ source: label, manifest: manifestUrl, records: rows.length }, report));
     return report;
@@ -3007,6 +3012,13 @@
       }
     }
     const http = await httpLoad;
+    // Discovery feeds supplement the legacy mirror fallbacks. Load every
+    // configured feed so an available general mirror never hides BSV history.
+    const discovery = normalizePathList(configValue("staticDiscoveryManifestPaths", null), []);
+    for (const manifest of discovery) {
+      try { reports.push(await loadStaticManifest(manifest, {label: "BSV public history", badge: "scan", silent: true})); }
+      catch (error) { reports.push({source: manifest, error: error.message || String(error)}); }
+    }
     reports.push.apply(reports, http.reports);
     requestPortalRender();
     setText("#portalThunderwordRaw", pretty({ staticDatasets: reports }));
@@ -3336,7 +3348,7 @@
   }
 
   const PORTAL_FILTER_IDS = [
-    "digibyte", "ravencoin", "litecoin", "bitcoin", "dogecoin", "ecash", "evmGomez", "evmJethro", "evmPolygonThunderword", "other"
+    "digibyte", "ravencoin", "litecoin", "bitcoin", "bsv", "dogecoin", "ecash", "evmGomez", "evmJethro", "evmPolygonThunderword", "other"
   ];
 
   function portalFilterConfigKey(id) {
@@ -4856,6 +4868,7 @@
     meta.className = "muted";
     meta.textContent = [
       summary.blockHeight ? "block " + summary.blockHeight : "",
+      window.CHISEL_PORTAL_DISCOVERY ? window.CHISEL_PORTAL_DISCOVERY.recordLabel(summary) : "",
       row.localPath ? "local " + row.localPath : ""
     ].filter(Boolean).join(" · ");
 
@@ -5334,6 +5347,11 @@
       titleWrap.textContent = genericTitle || titleText === truncateText(opText, 96) ? "" : titleText;
     }
     if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
+    if (window.CHISEL_PORTAL_DISCOVERY && canonicalCoinForRow(row) === "bsv") {
+      const facts = document.createElement("span"); facts.className = "portalStreamOpReturn";
+      facts.textContent = window.CHISEL_PORTAL_DISCOVERY.recordLabel(row.summary);
+      titleWrap.appendChild(facts);
+    }
     if (opText) {
       const payload = document.createElement("span");
       payload.className = "portalStreamOpReturn";
@@ -7802,6 +7820,8 @@ function getPortalFirstCharacter() {
     if (focusGomez) focusGomez.onclick = function () { focusPortalSources(["evmGomez"]); };
     const focusJethro = $("#portalFocusJethroButton");
     if (focusJethro) focusJethro.onclick = function () { focusPortalSources(["evmJethro"]); };
+    const focusBsv = $("#portalFocusBsvButton");
+    if (focusBsv) focusBsv.onclick = function () { focusPortalSources(["bsv"]); };
     const showAll = $("#portalShowAllSourcesButton");
     if (showAll) showAll.onclick = function () { focusPortalSources(PORTAL_FILTER_IDS.slice()); };
 

@@ -19,6 +19,10 @@
       litecointestnet: "litecoinTestnet",
       btc: "bitcoin",
       bitcoin: "bitcoin",
+      bsv: "bsv",
+      bitcoinsv: "bsv",
+      bsvtestnet: "bsvTestnet",
+      tbsv: "bsvTestnet",
       doge: "dogecoin",
       dogecoin: "dogecoin",
       xec: "ecash",
@@ -40,6 +44,8 @@
     if (coin === "litecoin") return "LTC";
     if (coin === "litecoinTestnet") return "tLTC";
     if (coin === "bitcoin") return "BTC";
+    if (coin === "bsv") return "BSV";
+    if (coin === "bsvTestnet") return "tBSV";
     if (coin === "dogecoin") return "DOGE";
     if (coin === "ecash") return "XEC";
     if (coin === "evm") return "EVM";
@@ -83,6 +89,7 @@
     if (coin === "ravencoin") return "ravencoin";
     if (coin === "litecoin") return "litecoin";
     if (coin === "bitcoin") return "bitcoin";
+    if (coin === "bsv" || coin === "bsvTestnet") return "bsv";
     if (coin === "dogecoin") return "dogecoin";
     if (coin === "ecash") return "ecash";
     if (coin === "evm" || contractName || contractAddress.match(/^0x/)) {

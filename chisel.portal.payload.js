@@ -32,9 +32,9 @@
 
   function fromScript(script) {
     const clean = String(script || "").toLowerCase();
-    if (!/^6a(?:[0-9a-f]{2})*$/.test(clean)) throw new Error("Invalid OP_RETURN script HEX.");
+    if (!/^(?:00)?6a(?:[0-9a-f]{2})*$/.test(clean)) throw new Error("Invalid OP_RETURN script HEX.");
     const bytes = Uint8Array.from(clean.match(/../g), function (pair) { return parseInt(pair, 16); });
-    let offset = 1, hex = "";
+    let offset = clean.startsWith("006a") ? 2 : 1, hex = "";
     while (offset < bytes.length) {
       const op = bytes[offset++];
       let length = op;
@@ -55,10 +55,12 @@
     const entry = output || {}, scriptPubKey = entry.scriptPubKey || {};
     const script = String(entry.script || entry.scriptpubkey || scriptPubKey.hex || "");
     const asm = String(entry.scriptpubkey_asm || scriptPubKey.asm || "").trim();
-    if (!/^6a/i.test(script) && !/^OP_RETURN(?:\s|$)/i.test(asm)) return null;
+    if (!/^(?:00)?6a/i.test(script) && !/^(?:(?:OP_FALSE|0)\s+)?OP_RETURN(?:\s|$)/i.test(asm)) return null;
+    if (scriptPubKey.isTruncated) return {hex: "", scriptHex: script, bytes: null, kind: "truncated", text: "", base64: "",
+      label: "Truncated OP_RETURN preview", error: "Provider omitted payload bytes."};
     try {
-      if (/^6a/i.test(script)) return fromScript(script);
-      const parts = asm.split(/\s+/).slice(1).filter(function (part) { return !/^OP_/i.test(part); });
+      if (/^(?:00)?6a/i.test(script)) return fromScript(script);
+      const parts = asm.replace(/^(?:(?:OP_FALSE|0)\s+)?OP_RETURN\s*/i, "").split(/\s+/).filter(function (part) { return part && !/^OP_/i.test(part); });
       return Object.assign(describe(parts.map(function (part) { return part.replace(/^0x/i, ""); }).join("")), {scriptHex: ""});
     } catch (error) {
       return {hex: "", scriptHex: script, bytes: null, kind: "invalid", text: "", base64: "",

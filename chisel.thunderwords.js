@@ -559,6 +559,21 @@
     note: "First-pass eCash feed adapter. Address history comes from explorer.e.cash JSON. Full transaction hydration is intentionally deferred until Chisel has a native Chronik/protobuf adapter."
   });
 
+  installIndex("bsvGeneral", {
+    label: "BSV public history",
+    group: "general",
+    coin: "bsv",
+    ticker: "BSV",
+    address: "",
+    sourceType: "explorer-json",
+    canFetchAddress: false,
+    canFetchTx: true,
+    txApiUrlTemplate: "https://api.whatsonchain.com/v1/bsv/main/tx/hash/{txid}",
+    addressUrlTemplate: "https://whatsonchain.com/address/{address}",
+    txUrlTemplate: "https://whatsonchain.com/tx/{txid}",
+    note: "Public transaction reads. Background block discovery runs in Mogwai; no wallet or balance required."
+  });
+
   installIndex("polygonGeneral", {
     label: "Polygon / EVM general thunderword contract",
     group: "general",

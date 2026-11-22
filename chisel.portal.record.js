@@ -2,7 +2,7 @@
   "use strict";
 
   const TXID = /^[0-9a-f]{64}$/;
-  const COINS = ["litecoin", "litecoinTestnet", "digibyte", "ravencoin", "bitcoin", "dogecoin", "ecash", "evm"];
+  const COINS = ["litecoin", "litecoinTestnet", "digibyte", "ravencoin", "bitcoin", "bsv", "bsvTestnet", "dogecoin", "ecash", "evm"];
 
   // Share only public, credential-free file URLs. Local API configuration and
   // unrelated URL parameters must never be copied into a record link.

@@ -2,7 +2,7 @@
   "use strict";
   const SCHEMA = "chisel-interaction-v1", COMMENT_TYPE = "chisel-comment-v1", STORAGE = "chisel.interactions.v1";
   const KINDS = ["visit", "select", "engage", "comment"], MODES = ["portal", "send", "review", "examples", "tools"];
-  const COINS = ["litecoin", "litecoinTestnet", "digibyte", "ravencoin", "bitcoin", "dogecoin", "ecash", "evm"];
+  const COINS = ["litecoin", "litecoinTestnet", "digibyte", "ravencoin", "bitcoin", "bsv", "bsvTestnet", "dogecoin", "ecash", "evm"];
   const KEYS = ["schema", "id", "session", "kind", "at", "mode", "action", "subject", "title", "synopsis", "url", "comment", "author"];
 
   function text(value, maximum, name, required) {

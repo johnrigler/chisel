@@ -39,6 +39,14 @@ login requirements and request limits are controlled by their operators.
 BSV was spoken as “BSC” during the phase-one request. This implementation follows
 the preceding BSV discussion. Binance Smart Chain is not included by that alias.
 
+## BSV discovery before funded writes
+
+The November 22 direction adds [public BSV history discovery](BSV-DISCOVERY.md)
+before new-network writes. Mogwai runs a Python scanner on rigler.org, measures
+transactions while walking backward through blocks, saves checkpoints/notes,
+and exports selected candidates to Chisel's static portal feed. No BSV balance
+is needed. Size-based discovery and complete file reconstruction are separate.
+
 ## Phase two: ordinary transactions
 
 Establish fixtures for construction, input verification, chain-specific signing,

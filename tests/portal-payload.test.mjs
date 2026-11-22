@@ -57,3 +57,17 @@ test("Base64 conversion round-trips every byte value without browser or Node-spe
     assert.equal(P.describe(bytes.toString("hex")).base64, bytes.toString("base64"));
   }
 });
+
+test("BSV OP_FALSE OP_RETURN keeps the original script and recognizes provider truncation", () => {
+  const script = "006a4c024142";
+  const payload = P.fromOutput({scriptPubKey: {hex: script}});
+  assert.equal(payload.text, "AB");
+  assert.equal(payload.scriptHex, script);
+  assert.equal(P.fromOutput({scriptPubKey: {asm: "0 OP_RETURN 4142"}}).text, "AB");
+  assert.equal(P.fromOutput({scriptPubKey: {asm: "OP_FALSE OP_RETURN 4142"}}).text, "AB");
+  const truncated = P.fromOutput({scriptPubKey: {hex: script, isTruncated: true}});
+  assert.equal(truncated.kind, "truncated");
+  assert.equal(truncated.bytes, null);
+  assert.equal(truncated.text, "");
+  assert.match(truncated.label, /Truncated/);
+});
