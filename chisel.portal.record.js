@@ -169,6 +169,7 @@
       if (download) download.disabled = !row.raw;
       const status = get("portalRecordStatus");
       if (status) status.textContent = row.loadError || (!row.raw ? "Reading transaction…" : "");
+      if (deps.onRefresh) deps.onRefresh(row);
     }
 
     function show() {

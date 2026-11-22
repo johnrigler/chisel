@@ -224,7 +224,7 @@
     update: function (node, row) { renderPortalStreamItem(null, row, {item: node}); },
     dispose: function (node) { noteFunction.disposeWithin(node); }
   });
-  let recordView = null;
+  let recordView = null, recordExplore = null;
   let interactionClient = null, interactionView = null;
   const deferredInteractions = [];
   const annotationReads = new Map();
@@ -1690,7 +1690,7 @@
       return record.kind === "artifact-index" && record.artifactId;
     });
 
-    return {
+    const summary = {
       txid: txid,
       artifactId: artifact ? artifact.artifactId : "",
       artifactAddress: artifact ? artifact.line : "",
@@ -1711,6 +1711,10 @@
       blockTimeEstimated: !!(value && value.summary && value.summary.blockTimeEstimated),
       explorerUrl: indexEntry && txid && window.CHISEL_THUNDERWORDS ? window.CHISEL_THUNDERWORDS.getTxUrl(indexEntry, txid) : ""
     };
+    if (/^(?:bsv|bsvTestnet)$/.test(normalizeCoinName(indexEntry && (indexEntry.coin || indexEntry.ticker))) && window.CHISEL_BSV_MEDIA) {
+      Object.assign(summary, window.CHISEL_BSV_MEDIA.summarize(value));
+    }
+    return summary;
   }
 
   function renderSemantics(semantics) {
@@ -5002,19 +5006,17 @@
       container.appendChild(supporting);
       supportTarget = body;
     }
-    const transactionIdControl = appendPortalTransactionQr(supportTarget, row);
-    if (options && options.recordPage && transactionIdControl) {
-      const toolbar = document.querySelector(".portalRecordToolbar");
-      const copyLink = document.querySelector("#portalRecordCopyLink");
-      if (toolbar) {
-        // This toolbar persists while Portal rebuilds the record body. Replace the
-        // previous transaction-ID control so each rerender cannot add another QR icon.
-        toolbar.querySelectorAll(".portalTransactionQr").forEach(function (existing) {
-          existing.remove();
-        });
-        toolbar.insertBefore(transactionIdControl, copyLink || null);
+    const toolbar = options && options.recordPage && document.querySelector(".portalRecordToolbar");
+    if (toolbar) {
+      const identity = qualifiedTransactionIdForRow(row), existing = toolbar.querySelector(".portalTransactionQr");
+      // Keep the same button and open dialog through background hydration.
+      if (existing && existing.dataset.transactionId !== identity) existing.remove();
+      if (identity && !toolbar.querySelector(".portalTransactionQr")) {
+        const control = appendPortalTransactionQr(toolbar, row);
+        control.dataset.transactionId = identity;
+        toolbar.insertBefore(control, document.querySelector("#portalRecordCopyLink"));
       }
-    }
+    } else appendPortalTransactionQr(supportTarget, row);
     if (!subjectVisible) appendPortalInterpretedRecord(supportTarget, row);
 
 
@@ -5807,8 +5809,32 @@
 
   function initializeRecordView() {
     if (recordView) return recordView;
+    if (window.CHISEL_PORTAL_EXPLORE) recordExplore = window.CHISEL_PORTAL_EXPLORE.createController({
+      document: document, rows: function () { return state.portalRows; },
+      open: openPortalRecord, recordUrl: portalRecordUrl,
+      hydrate: function (row) { return hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true}); },
+      refresh: async function () {
+        const results = await Promise.allSettled([loadConfiguredStaticDatasets({quiet: true}), listLocalTransactions()]);
+        if (results.every(function (result) { return result.status === "rejected"; })) throw new Error("Catalog refresh failed; saved records remain available.");
+      },
+      checkFileProxy: async function () {
+        const result = await fileProxyJson("/ping", {}, 12000);
+        if (!result || !result.ok) throw new Error("unavailable");
+        return "connected";
+      },
+      checkScanner: async function () {
+        const paths = state.config.staticDiscoveryManifestPaths || [];
+        const manifest = paths.find(function (path) { return /^https?:/.test(path) && /\/bsv\/manifest\.json$/.test(path); });
+        if (!manifest) return "no remote feed configured";
+        const response = await fetch(manifest.replace(/manifest\.json$/, "scan.json"), {cache: "no-store", signal: AbortSignal.timeout(12000)});
+        if (!response.ok) throw new Error("unavailable (HTTP " + response.status + ")");
+        const scan = await response.json();
+        return String(scan.transactionsChecked || 0) + " checked · last export " + String(scan.generatedAt || "unknown");
+      }
+    });
     recordView = window.CHISEL_PORTAL_RECORD.createController({document: document, state: state,
       onOpen: function (row) { recordPortalInteraction("select", row, {action: "open_record"}); },
+      onRefresh: function (row) { if (recordExplore) recordExplore.setRow(row); },
       find: findPortalRecord, sourceUrl: recordDataUrl,
       render: function (content, row) { appendPortalInlineDetails(content, row, {recordPage: true}); },
       status: setStatus, copy: copyPortalText, fileProxyUrl: getFileProxyUrl,
@@ -5836,6 +5862,7 @@
         return loaded;
       },
       onReturn: function () {
+        if (recordExplore) recordExplore.clear();
         if (state.portalListDirty) { state.portalListDirty = false; window.setTimeout(requestPortalRender, 0); }
       }
     });
