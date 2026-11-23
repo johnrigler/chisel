@@ -27,6 +27,17 @@ function createStore(options = {}) {
   });
 }
 
+test("Gomez decoded titles, text and receiver words survive generic catalog refreshes", () => {
+  const store = createStore();
+  const rich = {title: "Useful ledger message", cleanText: "Readable content", evmWords: ["subject"],
+    evmReceivers: ["0x" + "00".repeat(20)], evmAmounts: ["1"], recordKind: "gomez.tell"};
+  const merged = store.mergeSummary(rich, {title: "GOMEZ transaction", cleanText: "GOMEZ transaction",
+    evmWords: [], evmReceivers: [], evmAmounts: []});
+  assert.equal(merged.title, rich.title); assert.equal(merged.cleanText, rich.cleanText);
+  assert.deepEqual(Array.from(merged.evmWords), ["subject"]);
+  assert.deepEqual(Array.from(merged.evmAmounts), ["1"]);
+});
+
 for (const scenario of fixture.scenarios) {
   test("2.8.18 parity: " + scenario.name, () => {
     const store = createStore();

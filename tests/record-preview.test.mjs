@@ -3,13 +3,16 @@ import {readFile} from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
+// The renderer has one fixed QR glyph. Permit that exact static icon while
+// continuing to reject transaction payloads passed through innerHTML.
+const qrGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.75 3.75h6.5v6.5h-6.5zM13.75 3.75h6.5v6.5h-6.5zM3.75 13.75h6.5v6.5h-6.5z"/><path d="M13.75 13.75h2.5v2.5h-2.5zM18 13.75h2.25M18 18h2.25v2.25M13.75 18v2.25"/></svg>';
 class Element {
   constructor(tag) { this.tagName = tag; this.children = []; this.dataset = {}; this.attributes = {}; this.style = {}; this.className = ""; this.value = ""; this.ownText = ""; }
   get textContent() { return this.ownText + this.children.map(child => child.textContent).join(""); }
   set textContent(value) { this.ownText = String(value); this.children = []; }
   get firstChild() { return this.children[0] || null; }
   get childNodes() { return this.children; }
-  set innerHTML(value) { assert.equal(value, ""); this.replaceChildren(); }
+  set innerHTML(value) { assert.ok(value === "" || value === qrGlyph, "untrusted markup must never be inserted as HTML"); this.replaceChildren(); }
   appendChild(child) { if (child.parentNode) child.parentNode.removeChild(child); this.children.push(child); child.parentNode = this; return child; }
   removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parentNode = null; }
   replaceChildren(...children) { this.children.forEach(child => { child.parentNode = null; }); this.children = []; this.ownText = ""; children.forEach(child => this.appendChild(child)); }
@@ -30,7 +33,7 @@ const context = vm.createContext({URL, URLSearchParams, TextEncoder, TextDecoder
   fetch() { assert.fail("preview fetched a transaction or saved data"); }, location: {href: "https://chisel.example/"}
 });
 context.window = context;
-for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.queue.js", "chisel.portal.view.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
+for (const file of ["chisel.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.evm.decode.js", "chisel.portal.queue.js", "chisel.portal.view.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js", "chisel.record-preview.js"]) {
   vm.runInContext(await readFile(new URL("../" + file, import.meta.url), "utf8"), context);
 }
 const P = context.CHISEL_RECORD_PREVIEW, portal = context.CHISEL_PORTAL;
@@ -42,6 +45,46 @@ const record = {schema: "chisel-shared-record-v1", opReturnText: url,
   metadata: {title: "A complete shared title", authorName: "Synthetic channel", fetchedAt: "2026-10-31T12:00:00Z", metadataSource: "https://www.youtube.com/oembed", extra: "Inspect every metadata field"}};
 const values = {coin: "litecoin", ascii: url, hex: "", fee: "0.0001", ipfs: "", recipients: [{address: "LLxPUBLIC", amount: "0.00000546", outputType: "unspendable"}]};
 const descendants = node => [node, ...node.children.flatMap(descendants)];
+
+for (const [name, expected] of [["ascii", "test"], ["html", "HUFFLEPUFF"], ["legacy-image", "silly"]]) {
+  const packet = JSON.parse(await readFile(new URL("fixtures/gomez-tell-" + name + ".json", import.meta.url), "utf8"));
+  test("Gomez " + name + " recovers meaningful presentation in closed and expanded records", () => {
+    const raw = JSON.parse(JSON.stringify(packet));
+    const row = {key: "gomez-" + name, coin: "evm", txid: raw.txid, raw, summary: {...raw.summary}, sourceId: "evmGomez"};
+    if (name === "legacy-image") row.imageAsset = {path: "data-root:assets/evm/stale-legacy-copy.png"};
+    for (const expanded of [false, true, false]) {
+      const container = new Element("div"); portal.renderStreamItem(container, row, {expanded, onToggle() {}});
+      assert.match(container.textContent, new RegExp(expected, "i"));
+      assert.doesNotMatch(portal.displayTitleForRow(row), /^GOMEZ transaction$/i);
+      assert.equal(row.summary.recordKind, "gomez.tell");
+      if (name === "legacy-image") {
+        const images = descendants(container).filter(node => node.tagName === "img" && node.src?.startsWith("data:image/png;base64,"));
+        assert.equal(images.length, expanded ? 2 : 1);
+        assert.equal(descendants(container).filter(node => node.tagName === "img").length, images.length);
+        assert.equal(Buffer.from(images[0].src.split(",")[1], "base64").length, 36853);
+      }
+      if (name === "html" && expanded) {
+        assert.match(container.textContent, /Harry Potter/); assert.match(container.textContent, /Sorting Hat Quiz/);
+        assert.ok(descendants(container).some(node => node.tagName === "a" && node.href?.includes("brainfall.com")));
+        assert.ok(descendants(container).some(node => node.tagName === "pre" && node.textContent.includes("<a href=")));
+      }
+      assert.equal(descendants(container).filter(node => node.tagName === "script" || node.tagName === "iframe").length, 0);
+    }
+    assert.equal(JSON.stringify(raw), JSON.stringify(packet), "native transaction bytes and saved metadata stay unchanged");
+  });
+}
+
+test("decoded image tags produce actual thumbnails without executing HTML handlers", () => {
+  const row = {key: "gomez-image-link", coin: "evm", txid: "c".repeat(64), sourceId: "evmGomez",
+    raw: {coin: "evm", txid: "c".repeat(64), tx: {hash: "0x" + "c".repeat(64), input: "0x"},
+      decoded: {message: '<h1>Picture title</h1><img src="https://images.example/asset" onerror="alert(1)">'},
+      summary: {title: "GOMEZ transaction"}}};
+  const container = new Element("div"); portal.renderStreamItem(container, row, {expanded: false});
+  assert.equal(portal.displayTitleForRow(row), "Picture title");
+  const images = descendants(container).filter(node => node.tagName === "img");
+  assert.equal(images.length, 1); assert.equal(images[0].src, "https://images.example/asset");
+  assert.equal(images[0].onerror, undefined);
+});
 
 test("BlockCypher OP_RETURN script text appears in closed records even with a generic saved title", () => {
   const text = "Testing, testing.";

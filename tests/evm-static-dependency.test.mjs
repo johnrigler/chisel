@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {access, readFile} from "node:fs/promises";
 import test from "node:test";
+import vm from "node:vm";
 
 const source = name => readFile(new URL("../" + name, import.meta.url), "utf8");
 
@@ -20,4 +21,21 @@ test("main Send navigation retains the Polygon workbench", async () => {
   assert.match(main, /data-mode-panel="polygon"/);
   assert.match(main, /<iframe class="polygonWorkbenchFrame" src="evm\.html\?rev=[^"]+"/);
   assert.match(app, /setGuiMode\("polygon"\)/);
+});
+
+test("an explicit Gomez Portal record opens Portal while a bare EVM link opens the workbench", async () => {
+  const app = await source('app.js');
+  const start = app.indexOf('  function bindGuiModeShell() {');
+  const end = app.indexOf('\n  //\n  // Console tools', start);
+  const bind = app.slice(start, end);
+  for (const [query, expected] of [
+    ['?mode=portal&coin=evm&txid=' + 'a'.repeat(64) + '&chain=137', 'portal'],
+    ['?coin=evm', 'polygon'], ['?mode=polygon&coin=evm', 'polygon'], ['', 'portal']
+  ]) {
+    let selected;
+    vm.runInNewContext(bind + '\nbindGuiModeShell();', {URL,
+      window: {location: {href: 'https://chisel.example/' + query}},
+      document: {querySelectorAll() { return []; }}, setGuiMode(value) { selected = value; }});
+    assert.equal(selected, expected);
+  }
 });

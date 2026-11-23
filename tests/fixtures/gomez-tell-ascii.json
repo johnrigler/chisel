@@ -1,0 +1,64 @@
+{
+  "txid": "8cb9e81316cf34aeaee0e0f55fb54da0411fcb083bb32b4088f81d0397e1a575",
+  "hash": "0x8cb9e81316cf34aeaee0e0f55fb54da0411fcb083bb32b4088f81d0397e1a575",
+  "coin": "evm",
+  "chainId": "137",
+  "chainName": "Polygon Mainnet",
+  "contract": {
+    "name": "gomez",
+    "address": "0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2",
+    "queriedAddress": "0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2"
+  },
+  "source": {
+    "kind": "etherscan-v2-account-txlist",
+    "generatedBy": "mogwai-tools/evm_indexer.py",
+    "savedAt": "2026-11-18T04:35:13.491077Z",
+    "sort": "asc",
+    "startBlock": "1",
+    "endBlock": "97514023"
+  },
+  "tx": {
+    "blockNumber": "72495284",
+    "blockHash": "0x6835807f118a687beff981c3aa8223b87d9a0baf2fe584d83a73531e2b3b8e5c",
+    "timeStamp": "1749343989",
+    "hash": "0x8cb9e81316cf34aeaee0e0f55fb54da0411fcb083bb32b4088f81d0397e1a575",
+    "nonce": "284",
+    "transactionIndex": "44",
+    "from": "0xf7e9857afd27ba03493bdc57f2588e71c976739f",
+    "to": "0x5a2220d56f56db9c9f5b0cb83ff35b42746503a2",
+    "value": "0",
+    "gas": "28718",
+    "gasPrice": "30070000000",
+    "input": "0x3740071f00000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000047465737400000000000000000000000000000000000000000000000000000000",
+    "methodId": "0x3740071f",
+    "functionName": "tell(string message, address receiver1, uint256 amount1, address receiver2, uint256 amount2, address receiver3, uint256 amount3, address receiver4, uint256 amount4)",
+    "contractAddress": "",
+    "cumulativeGasUsed": "4902566",
+    "txreceipt_status": "1",
+    "gasUsed": "28371",
+    "confirmations": "25018742",
+    "isError": "0"
+  },
+  "decoded": {
+    "kind": "evm",
+    "methodId": "0x3740071f"
+  },
+  "summary": {
+    "txid": "8cb9e81316cf34aeaee0e0f55fb54da0411fcb083bb32b4088f81d0397e1a575",
+    "hash": "0x8cb9e81316cf34aeaee0e0f55fb54da0411fcb083bb32b4088f81d0397e1a575",
+    "title": "GOMEZ transaction",
+    "methodId": "0x3740071f",
+    "from": "0xf7e9857afd27ba03493bdc57f2588e71c976739f",
+    "to": "0x5a2220d56f56db9c9f5b0cb83ff35b42746503a2",
+    "contractAddress": "0x5a2220d56f56db9C9F5B0cb83ff35b42746503a2",
+    "blockNumber": 72495284,
+    "blockHeight": 72495284,
+    "blockTime": 1749343989,
+    "date": "2025-06-08T00:53:09Z",
+    "value": "0",
+    "gasUsed": "28371",
+    "inputBytes": 356,
+    "kind": "evm",
+    "transactionIndex": 44
+  }
+}

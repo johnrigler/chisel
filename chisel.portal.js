@@ -541,6 +541,7 @@
   }
 
   function displayTitleForRow(row) {
+    prepareEvmRow(row);
     const notedTitle = getPortalAnnotation(row).metadata.title;
     if (typeof notedTitle === "string" && notedTitle.trim()) return truncateText(notedTitle, 96);
     const target = recordTargetUrlForRow(row);
@@ -561,7 +562,7 @@
     if (title.includes("\ufffd")) title = "";
 
     if (isLikelyUrl(title) || isPlainAddressDerivedTitle(row, title) || looksLikeEncodedPortalTitle(title)) title = "";
-    if (/^untitled transaction$/i.test(title) || /^(?:evm )?transaction(?:\s+[0-9a-f]{6,}(?:…[0-9a-f]{4,})?)?$/i.test(title)) title = "";
+    if (isGenericEvmTitle(title)) title = "";
     if (!title) {
       const media = collectEvmMediaCards(row).map(mediaCardPresentation).find(function (card) { return card.title; });
       if (media) title = media.title;
@@ -662,6 +663,31 @@
 
   function txObject(value) {
     return value && value.tx && typeof value.tx === "object" ? value.tx : value;
+  }
+
+  const evmDecodedCache = new WeakMap();
+  function decodedEvmValue(value) {
+    if (!value || typeof value !== "object") return {};
+    if (evmDecodedCache.has(value)) return evmDecodedCache.get(value);
+    const saved = value.decoded && typeof value.decoded === "object" ? value.decoded : {};
+    const tx = txObject(value);
+    let decoded = saved;
+    if (window.CHISEL_EVM_DECODE) {
+      try {
+        const parsed = window.CHISEL_EVM_DECODE.decode(tx && (tx.input || tx.data));
+        if (parsed) decoded = Object.assign({}, saved, parsed);
+      } catch (error) { decoded = Object.assign({}, saved, {decodeError: error.message}); }
+    }
+    evmDecodedCache.set(value, decoded);
+    return decoded;
+  }
+
+  function prepareEvmRow(row) {
+    if (!row || !row.raw || !isEvmTransactionJson(row.raw, row.index)) return;
+    const cache = portalRowCacheFor(row);
+    if (cache.evmSummaryReady) return;
+    row.summary = mergePortalSummary(row.summary, extractEvmSummary(row.raw, row.index));
+    cache.evmSummaryReady = true;
   }
 
   function extractBlockTime(value) {
@@ -1368,6 +1394,13 @@
   }
 
   function collectEvmImageAssets(row) {
+    const raw = row && row.raw ? row.raw : row;
+    const image = decodedEvmValue(raw).image;
+    // Gomez has one native image payload. Its recovered bytes supersede old
+    // extracted copies, which can include ABI padding or a stale server path.
+    if (image && /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+=*$/.test(image.src)) {
+      return [{path: image.src, mime: image.mime, bytes: image.bytes, inline: true}];
+    }
     const out = [];
     const seen = Object.create(null);
     function add(asset) {
@@ -1379,7 +1412,6 @@
     }
     if (row && row.imageAsset) add(row.imageAsset);
     if (row && row.summary) add(imageAssetFromSummary(row.summary));
-    const raw = row && row.raw ? row.raw : row;
     if (raw && raw.summary) add(imageAssetFromSummary(raw.summary));
     const assets = raw && raw.assets && typeof raw.assets === "object" ? raw.assets : {};
     safeArray(assets.images).forEach(add);
@@ -1452,6 +1484,7 @@
 
   function mediaKindForUrl(url) {
     const u = String(url || "").toLowerCase();
+    if (/\.(?:png|jpe?g|gif|webp)(?:[?#].*)?$/i.test(u)) return "image";
     if (youtubeIdFromUrl(u)) return "youtube";
     if (tiktokUrlFromUrl(url)) return "tiktok";
     if (u.indexOf("open.spotify.com") >= 0) return "spotify";
@@ -1517,6 +1550,10 @@
     return /<\/?[a-z]/i.test(text) || /href\s*=|src\s*=/i.test(text);
   }
 
+  function isGenericEvmTitle(value) {
+    return /^(?:(?:gomez|jethro|evm|polygon-main-thunderword)\s+)?(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(String(value || "").trim());
+  }
+
   function compactMediaTitle(value) {
     const clean = cleanHtmlishText(value).replace(/^>+\s*/, "");
     return clean.length > 140 ? clean.slice(0, 137) + "…" : clean;
@@ -1526,6 +1563,10 @@
     const rawText = values.map(function (item) { return String(item || ""); }).filter(Boolean).join("\n");
     const urls = htmlAttributeUrls(rawText);
     const anchors = anchorTextsFromHtml(rawText);
+    const imageUrls = [];
+    rawText.replace(/<img\b[^>]*\bsrc\s*=\s*["']?([^\s"'<>]+)/gi, function (_, url) {
+      imageUrls.push(normalizeMediaUrl(decodeHtmlEntities(url))); return _;
+    });
     const wordTitle = uniqueStrings(words || []).slice(0, 3).join(" | ");
     const cards = [];
     urls.forEach(function (url, index) {
@@ -1548,6 +1589,9 @@
         card.tiktokUrl = tiktokUrl;
         card.tiktokVideoId = tiktokVideoIdFromUrl(tiktokUrl);
         card.thumbnailUrl = tiktokThumbnailProxyUrl(tiktokUrl);
+      } else if (card.kind === "image" || imageUrls.indexOf(normalized) !== -1) {
+        card.kind = "image";
+        card.thumbnailUrl = normalized;
       }
       cards.push(card);
     });
@@ -1571,6 +1615,7 @@
       copy.sourceUrl = CHISEL.safeWebUrl(copy.sourceUrl, window.location.href);
       copy.thumbnailUrl = CHISEL.safeWebUrl(copy.thumbnailUrl, window.location.href);
       if (!copy.kind && url) copy.kind = mediaKindForUrl(url);
+      if (copy.kind === "image" && !copy.thumbnailUrl) copy.thumbnailUrl = normalizedUrl;
       const vid = copy.videoId || youtubeIdFromUrl(copy.sourceUrl || copy.url || url);
       if (vid) {
         copy.videoId = vid;
@@ -1591,7 +1636,7 @@
     const raw = row && row.raw ? row.raw : row;
     const summary = row && row.summary ? row.summary : {};
     const rawSummary = raw && raw.summary && typeof raw.summary === "object" ? raw.summary : {};
-    const decoded = raw && raw.decoded && typeof raw.decoded === "object" ? raw.decoded : {};
+    const decoded = decodedEvmValue(raw);
     safeArray(summary.mediaCards).forEach(add);
     const noteMetadata = getPortalAnnotation(row).metadata;
     safeArray(noteMetadata.mediaCards).forEach(add);
@@ -1630,25 +1675,32 @@
     const tx = txObject(value);
     const txid = extractTxid(value);
     const existing = value && value.summary && typeof value.summary === "object" ? value.summary : {};
-    const decoded = value && value.decoded && typeof value.decoded === "object" ? value.decoded : {};
+    const decoded = decodedEvmValue(value);
     const assets = value && value.assets && typeof value.assets === "object" ? value.assets : {};
     const imageAssets = safeArray(assets.images).filter(function (asset) { return asset && asset.path; });
     const firstImage = imageAssets[0] || imageAssetFromSummary(existing) || {};
     const valuesForCards = [
-      existing.primaryUrl, existing.title, existing.cleanText,
+      existing.primaryUrl, isGenericEvmTitle(existing.title) ? "" : existing.title, isGenericEvmTitle(existing.cleanText) ? "" : existing.cleanText,
       decoded.message, decoded.text, decoded.body, decoded.artifact
     ].concat(safeArray(existing.opReturnUrls));
     const mediaCards = [];
     safeArray(existing.mediaCards).forEach(function (card) { mediaCards.push(card); });
     buildEvmMediaCardsFromValues(valuesForCards, safeArray(existing.evmWords).concat(safeArray(decoded.words), decoded.artifact ? [decoded.artifact] : [])).forEach(function (card) { mediaCards.push(card); });
     const firstMedia = mediaCards[0] || {};
-    const cleanTitle = compactMediaTitle(decoded.message || decoded.text || decoded.body || existing.cleanText || "");
-    const existingTitle = isRawHtmlTitle(existing.title) ? "" : printableText(existing.title || "");
-    const title = existingTitle || firstMedia.title || cleanTitle || (tx && (tx.functionName || tx.methodId)) || (txid ? "EVM transaction " + shortTxid(txid) : "EVM transaction");
+    const cleanText = cleanHtmlishText(decoded.message || decoded.text || decoded.body || (isGenericEvmTitle(existing.cleanText) ? "" : existing.cleanText) || "");
+    const cleanTitle = compactMediaTitle(cleanText);
+    const existingTitle = isRawHtmlTitle(existing.title) || isGenericEvmTitle(existing.title) || isLikelyUrl(existing.title) ? "" : printableText(existing.title || "");
+    const imageTitle = decoded.image ? (safeArray(decoded.words).join(" · ") || decoded.image.mime.replace("image/", "").toUpperCase() + " image") : "";
+    const title = existingTitle || cleanTitle || imageTitle || firstMedia.title || safeArray(decoded.words).join(" · ") || (tx && (tx.functionName || tx.methodId)) || (txid ? "EVM transaction " + shortTxid(txid) : "EVM transaction");
     return {
       txid: txid,
       hash: evmHashForExplorer(value, txid),
       title: title,
+      cleanText: cleanText,
+      evmWords: safeArray(decoded.words).length ? decoded.words : existing.evmWords || [],
+      evmReceivers: decoded.receivers || existing.evmReceivers || [],
+      evmAmounts: decoded.amounts || existing.evmAmounts || [],
+      recordKind: decoded.kind || existing.recordKind || "",
       primaryUrl: existing.primaryUrl || firstMedia.url || "",
       lines: 0,
       imageLines: 0,
@@ -1656,7 +1708,7 @@
       ipfsCount: 0,
       opReturnText: "",
       opReturnUrls: existing.opReturnUrls || [],
-      imageCount: Number(existing.imageCount || imageAssets.length || (firstImage.path ? 1 : 0)) || 0,
+      imageCount: Number(existing.imageCount || imageAssets.length || (firstImage.path || decoded.image ? 1 : 0)) || 0,
       imageAssetPath: existing.imageAssetPath || firstImage.path || "",
       imageMime: existing.imageMime || firstImage.mime || "",
       imageBytes: existing.imageBytes || firstImage.bytes || 0,
@@ -2222,7 +2274,7 @@
       img.alt = "EVM image thumbnail";
       img.title = evmImages[0].assetId || "EVM image asset";
       img.loading = "lazy";
-      const imageUrl = setPortalAssetImage(img, evmImages[0].path, row);
+      const imageUrl = evmImages[0].inline ? (img.src = evmImages[0].path, "") : setPortalAssetImage(img, evmImages[0].path, row);
       cell.appendChild(img);
       return imageUrl;
     }
@@ -3380,7 +3432,7 @@
 
   function rawDecodedForRow(row) {
     const raw = row && row.raw && typeof row.raw === "object" ? row.raw : {};
-    return raw.decoded && typeof raw.decoded === "object" ? raw.decoded : {};
+    return decodedEvmValue(raw);
   }
 
   function summaryWordsForRow(row) {
@@ -3804,6 +3856,7 @@
     const merged = transactionStore.upsert(row, opts);
 
     invalidatePortalRowCache(merged);
+    prepareEvmRow(merged);
     state.portalSortPending = true;
     if (!state.portalBatchDepth && !(opts && opts.deferSort)) sortPortalRows();
     if (!(opts && opts.silent)) requestPortalRender();
@@ -4334,7 +4387,7 @@
     const receivers = safeArray(summary.evmReceivers && summary.evmReceivers.length ? summary.evmReceivers : decoded.receivers);
     const amounts = safeArray(summary.evmAmounts && summary.evmAmounts.length ? summary.evmAmounts : decoded.amounts);
     const kind = summary.recordKind || decoded.kind || summary.functionName || summary.methodId || "EVM record";
-    const rawText = summary.cleanText || decoded.message || decoded.text || decoded.body || summary.title || "";
+    const rawText = summary.cleanText || decoded.message || decoded.text || decoded.body || (decoded.image ? "" : summary.title) || "";
     const cleanText = cleanHtmlishText(rawText);
     const urls = uniqueStrings([summary.primaryUrl].concat(safeArray(summary.opReturnUrls), extractUrlsFromText(rawText), extractUrlsFromText(summary.title)));
     const mediaCards = collectEvmMediaCards(row);
@@ -4357,6 +4410,9 @@
       summary.methodId || ""
     ].filter(Boolean).join(" | ");
     block.appendChild(meta);
+
+    if (decoded.decodeError) block.appendChild(makeInlinePre("Input decoding error", decoded.decodeError, false));
+    if (decoded.message || decoded.body) block.appendChild(makeInlinePre("Original ledger message", decoded.message || decoded.body, false));
 
     if (cleanText) {
       const message = document.createElement("p");
@@ -4433,7 +4489,8 @@
       img.alt = asset.assetId || "EVM image asset";
       img.title = asset.assetId || asset.path || "EVM image asset";
       img.loading = "lazy";
-      setPortalAssetImage(img, asset.path, row);
+      if (asset.inline) img.src = asset.path;
+      else setPortalAssetImage(img, asset.path, row);
       frame.appendChild(img);
 
       const caption = document.createElement("p");
@@ -5290,6 +5347,7 @@
   }
 
   function renderPortalStreamItem(list, row, options) {
+    prepareEvmRow(row);
     const opts = options || {};
     const expanded = opts.expanded === undefined ? !!state.expandedRowKeys[row.key] : !!opts.expanded;
     const existing = opts.item && streamViews.get(opts.item);
@@ -5691,6 +5749,34 @@
     }, 0);
   }
 
+  let visibleEvmLookupScheduled = false;
+  const attemptedEvmLookup = new WeakMap();
+  function scheduleVisiblePortalEvm(pageRows) {
+    if (!configBool("backgroundHydrateTransactions", true) || visibleEvmLookupScheduled) return;
+    const candidates = safeArray(pageRows).filter(function (row) {
+      return canonicalCoinForRow(row) === "evm" && !row.raw && rowCanHydrate(row) &&
+        !state.pendingHydration[row.key] && Date.now() - (attemptedEvmLookup.get(row) || 0) > 30000;
+    });
+    if (!candidates.length) return;
+    visibleEvmLookupScheduled = true;
+    const generation = state.portalLoadGeneration;
+    window.setTimeout(function () {
+      (async function () {
+        for (let offset = 0; offset < candidates.length; offset += 4) {
+          if (generation !== state.portalLoadGeneration) return;
+          await Promise.all(candidates.slice(offset, offset + 4).map(async function (row) {
+            if (row.raw || !isVisiblePortalRow(row)) return;
+            attemptedEvmLookup.set(row, Date.now());
+            await hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true, deferSort: true, deferCache: true});
+          }));
+          requestPortalRender();
+          await yieldPortalThread();
+        }
+      })().catch(function (error) { console.warn("Visible EVM input lookup failed:", error); })
+        .finally(function () { visibleEvmLookupScheduled = false; requestPortalRender(); });
+    }, 0);
+  }
+
   function renderPortalRows() {
     cancelScheduledPortalRender();
     if (recordView && recordView.active()) {
@@ -5741,6 +5827,7 @@
     loadingQueue.reprioritize(portalReadPriority);
     scheduleVisiblePortalDates(pageRows);
     scheduleVisiblePortalFinance(pageRows);
+    scheduleVisiblePortalEvm(pageRows);
     scheduleVisiblePortalAnnotations(pageRows);
   }
 
@@ -7102,7 +7189,7 @@ function getPortalFirstCharacter() {
       // Defer full JSON until expansion rather than refetching it on every boot.
       const cachedTitle = String(row.summary && row.summary.title || "").trim();
       if (!row.raw && row.cachedSummaryReady &&
-          cachedTitle && !/^transaction(?:\\s|$)/i.test(cachedTitle) &&
+          cachedTitle && !isGenericEvmTitle(cachedTitle) &&
           !state.expandedRowKeys[key]) {
         if ((i + 1) % 4 === 0) await yieldPortalThread();
         continue;
