@@ -388,3 +388,20 @@ test("a new confirmed ledger read retains reviewed media and supplies the sent r
   assert.equal(f.portal.extractBlockTime(row.raw), row.summary.blockTime);
   assert.equal(row.publication, publication);
 });
+
+ test("clearing the Portal word search preserves identity and source selection", () => {
+  const f = fixture(() => { throw Error("No network lookup expected"); });
+  const search = f.nodes.get("#portalEvmWordSearch");
+  search.value = address;
+  f.portal.state.portalPage = 7;
+  f.portal.state.portalSourceFilters.litecoin = true;
+  f.portal.state.portalSourceFilters.bsv = false;
+  const account = f.portal.state.personalAccount;
+  f.portal.clearPortalSearch();
+  assert.equal(search.value, "");
+  assert.equal(f.portal.state.portalPage, 1);
+  assert.equal(f.portal.state.personalAccount, account);
+  assert.equal(f.portal.state.portalSourceFilters.litecoin, true);
+  assert.equal(f.portal.state.portalSourceFilters.bsv, false);
+  assert.equal(f.calls.length, 0);
+});

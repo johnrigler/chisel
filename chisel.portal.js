@@ -3425,6 +3425,14 @@
     if (box) box.checked = !!value;
   }
 
+  function clearPortalSearch() {
+    const box = $("#portalEvmWordSearch");
+    if (!box) return;
+    box.value = "";
+    state.portalPage = 1;
+    requestPortalRender();
+  }
+
   function getPortalSearchText() {
     const box = $("#portalEvmWordSearch");
     return String(box && box.value ? box.value : "").trim().toLowerCase();
@@ -7990,6 +7998,9 @@ function getPortalFirstCharacter() {
       requestPortalRender();
     };
 
+    const clearWordSearch = $("#portalClearWordSearchButton");
+    if (clearWordSearch) clearWordSearch.onclick = clearPortalSearch;
+
     const focusGomez = $("#portalFocusGomezButton");
     if (focusGomez) focusGomez.onclick = function () { focusPortalSources(["evmGomez"]); };
     const focusJethro = $("#portalFocusJethroButton");
@@ -8163,6 +8174,7 @@ function getPortalFirstCharacter() {
     loadStaticHttpSources: loadStaticHttpSources,
     loadConfiguredStaticDatasets: loadConfiguredStaticDatasets,
     validateStaticDataset: validateStaticDataset,
+    clearPortalSearch: clearPortalSearch,
     clearPortalStream: clearPortalStream,
     loadSelectedEvmCatalogs: loadSelectedEvmCatalogs,
     fetchEvmCatalogRows: fetchEvmCatalogRows,
