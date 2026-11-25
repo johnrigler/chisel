@@ -7998,7 +7998,18 @@ function getPortalFirstCharacter() {
       requestPortalRender();
     };
 
-    const clearWordSearch = $("#portalClearWordSearchButton");
+    // An installed PWA may briefly have an older HTML shell than this script.
+    // Add the control to that shell as well instead of depending on its markup.
+    let clearWordSearch = $("#portalClearWordSearchButton");
+    if (!clearWordSearch && searchBox && searchBox.parentNode) {
+      clearWordSearch = document.createElement("button");
+      clearWordSearch.id = "portalClearWordSearchButton";
+      clearWordSearch.className = "secondaryButton portalPageButton";
+      clearWordSearch.type = "button";
+      clearWordSearch.textContent = "Clear search";
+      clearWordSearch.setAttribute("aria-label", "Clear search filter");
+      searchBox.parentNode.insertBefore(clearWordSearch, searchBox.nextSibling);
+    }
     if (clearWordSearch) clearWordSearch.onclick = clearPortalSearch;
 
     const focusGomez = $("#portalFocusGomezButton");
