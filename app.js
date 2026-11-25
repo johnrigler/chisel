@@ -2433,7 +2433,7 @@ function onClickAddCommonAddressButton() {
       if (normalizedMode === "polygon") {
         url.searchParams.set("coin", "evm");
         url.searchParams.set("chain", "137");
-      } else if (!(normalizedMode === "portal" && url.searchParams.has("txid")) &&
+      } else if (!(normalizedMode === "portal" && (url.searchParams.has("txid") || (window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href)))) &&
           (url.searchParams.get("coin") === "evm" || url.searchParams.get("coin") === "polygon")) {
         url.searchParams.delete("coin");
         url.searchParams.delete("chain");
@@ -2457,7 +2457,8 @@ function onClickAddCommonAddressButton() {
       const coin = url.searchParams.get("coin");
       // A Portal record keeps its explicit view and chain identity. A bare
       // ?coin=evm link still opens the Polygon workbench.
-      if (!url.searchParams.has("mode") && (coin === "evm" || coin === "polygon")) initialMode = "polygon";
+      if (!url.searchParams.has("mode") && (coin === "evm" || coin === "polygon") &&
+          !(window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href))) initialMode = "polygon";
     } catch (error) {
       initialMode = "portal";
     }

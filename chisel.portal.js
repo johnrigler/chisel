@@ -224,7 +224,7 @@
     update: function (node, row) { renderPortalStreamItem(null, row, {item: node}); },
     dispose: function (node) { noteFunction.disposeWithin(node); }
   });
-  let recordView = null, recordExplore = null;
+  let recordView = null, recordExplore = null, recordCatalogConfig = null;
   let interactionClient = null, interactionView = null;
   const deferredInteractions = [];
   const annotationReads = new Map();
@@ -2450,7 +2450,7 @@
     if (!stream || stream.source === "wif" || !window.history || !window.history.replaceState) return;
     try {
       const url = new URL(window.location.href);
-      if (url.searchParams.has("txid")) return;
+      if (url.searchParams.has("txid") || (window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href))) return;
       url.searchParams.set("mode", "portal");
       url.searchParams.set("address", stream.address);
       url.searchParams.set("coin", stream.coin);
@@ -5845,7 +5845,21 @@
   }
 
   function portalRecordUrl(row) {
-    return window.CHISEL_PORTAL_RECORD.recordUrl(row, window.location.href, recordDataUrl(row));
+    return window.CHISEL_PORTAL_RECORD.compactRecordUrl(row, window.location.href);
+  }
+
+  async function lookupPortalRecords(route) {
+    // Initial configuration and embedded records may still be loading when
+    // an external fragment is opened. Refresh all configured local catalogs
+    // before choosing a chain, even if the starter bundle already matches.
+    await Promise.resolve();
+    if (recordCatalogConfig) await recordCatalogConfig;
+    loadEmbeddedStaticDataset();
+    await Promise.allSettled([loadConfiguredStaticDatasets({quiet: true}), listLocalTransactions()]);
+    return state.portalRows.filter(function (row) {
+      return !row.draftRecord && String(row.txid || "").replace(/^0x/i, "").toLowerCase() === route.txid &&
+        window.CHISEL_PORTAL_RECORD.compactRecordUrl(row, window.location.href);
+    });
   }
 
   function findPortalRecord(route) {
@@ -5933,7 +5947,7 @@
     recordView = window.CHISEL_PORTAL_RECORD.createController({document: document, state: state,
       onOpen: function (row) { recordPortalInteraction("select", row, {action: "open_record"}); },
       onRefresh: function (row) { if (recordExplore) recordExplore.setRow(row); },
-      find: findPortalRecord, sourceUrl: recordDataUrl,
+      find: findPortalRecord, lookup: lookupPortalRecords, sourceUrl: recordDataUrl,
       render: function (content, row) { appendPortalInlineDetails(content, row, {recordPage: true}); },
       status: setStatus, copy: copyPortalText, fileProxyUrl: getFileProxyUrl,
       annotation: function (row) { return notesData.documentFor(row, getPortalAnnotation(row)); },
@@ -8019,13 +8033,15 @@ function getPortalFirstCharacter() {
       setStatus(error.message || String(error), true);
     });
 
-    loadPortalConfig().then(function (config) {
+    recordCatalogConfig = loadPortalConfig().then(function (config) {
       applyPortalConfig(config);
       applyEvmProfileConfig();
+    });
+    recordCatalogConfig.then(function () {
       initializePortalInteractions();
       // A saved public identity is the homepage. The generic indexes remain
       // available through explicit navigation, never as an automatic takeover.
-      if (state.personalAccount && !state.urlMainThunderwordRequest) {
+      if (state.personalAccount && !state.urlMainThunderwordRequest && !(recordView && recordView.active())) {
         loadPersonalAccountStream(state.personalAccount, {
           filterResults:true, noReloadIfCurrent:false,
           captureReturnView:false, source:"remembered", updateUrl:false

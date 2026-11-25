@@ -17,12 +17,49 @@
     } catch (_) { return ""; }
   }
 
+  const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const BASE58_ID = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+  function encodeTxid(value) {
+    const hex = String(value || "").replace(/^0x/i, "").toLowerCase();
+    if (!TXID.test(hex)) throw new Error("Expected a 32-byte transaction ID.");
+    let n = BigInt("0x" + hex), encoded = "", zeros = 0;
+    while (hex.slice(zeros * 2, zeros * 2 + 2) === "00") zeros++;
+    while (n > 0n) { encoded = BASE58[Number(n % 58n)] + encoded; n /= 58n; }
+    return "1".repeat(zeros) + encoded;
+  }
+  function decodeTxid(value) {
+    if (typeof value !== "string" || !BASE58_ID.test(value)) throw new Error("Invalid Base58 transaction ID.");
+    let n = 0n;
+    for (const char of value) n = n * 58n + BigInt(BASE58.indexOf(char));
+    if (n >= (1n << 256n)) throw new Error("Base58 transaction ID exceeds 32 bytes.");
+    const hex = n.toString(16).padStart(64, "0");
+    if (encodeTxid(hex) !== value) throw new Error("Noncanonical Base58 transaction ID.");
+    return hex;
+  }
+
+  // A bare Base58 fragment is distinct from the older query-based format.
+  function compactRecordUrl(row, base, qualify) {
+    const coin = root.CHISEL_PORTAL_STORE.canonicalCoinForRow(row);
+    const txid = String(row.txid || "").replace(/^0x/i, "").toLowerCase();
+    if (!COINS.includes(coin) || !TXID.test(txid)) return "";
+    const url = new URL(base);
+    url.search = ""; url.hash = "";
+    // Only the established Pages directory is known to have this redirect.
+    // Preserve arbitrary static/IPFS gateway paths.
+    if (url.origin === "https://johnrigler.github.io" && /^\/chisel(?:\/index\.html|\/)?$/.test(url.pathname)) url.pathname = "/chisel";
+    if (qualify) url.searchParams.set("coin", coin);
+    url.hash = encodeTxid(txid);
+    return url.href;
+  }
+
   function parseRoute(value) {
     const url = new URL(value), params = url.searchParams;
-    if (!params.has("txid")) return null;
-    const txid = String(params.get("txid") || "").replace(/^0x/i, "").toLowerCase();
+    const fragment = url.hash.slice(1);
+    const compact = !params.has("txid") && BASE58_ID.test(fragment) && (!params.has("mode") || params.get("mode") === "portal");
+    if (!params.has("txid") && !compact) return null;
+    const txid = compact ? decodeTxid(fragment) : String(params.get("txid") || "").replace(/^0x/i, "").toLowerCase();
     const coin = root.CHISEL_PORTAL_STORE.normalizeCoinName(params.get("coin"));
-    if (!TXID.test(txid) || !COINS.includes(coin)) throw new Error("Record URL needs a supported currency and a 64-hex TXID.");
+    if (!TXID.test(txid) || ((!compact || params.has("coin")) && !COINS.includes(coin))) throw new Error("Record URL needs a valid TXID and, if specified, a supported currency.");
     const source = coin === "evm" && /^(?:evmGomez|evmJethro|evmPolygonThunderword|other)$/.test(params.get("source")) ? params.get("source") : "";
     const chain = coin === "evm" && /^\d{1,15}$/.test(params.get("chain")) ? params.get("chain") : "";
     return {coin: coin, txid: txid, sourceId: source, chainId: chain, dataUrl: publicDataUrl(params.get("data"), url.href)};
@@ -137,7 +174,7 @@
     const active = function () { return !!current; };
 
     function refresh(force) {
-      if (!current) return;
+      if (!current || current.lookup) return;
       const row = deps.find(current) || current.row;
       if (!row) return;
       current.row = row;
@@ -185,6 +222,58 @@
         listScroll: list && list.scrollTop || 0, focus: doc.activeElement};
     }
 
+    function setRecordControls(visible) {
+      ["portalRecordSaveView", "portalRecordCopyLink", "portalRecordCopyQualifiedLink", "portalRecordFacebookLink",
+        "portalRecordDownload", "portalRecordSource", "portalRecordExplore"].forEach(function (id) {
+        const node = get(id); if (node) node.hidden = !visible;
+      });
+    }
+
+    async function openUnqualified(route) {
+      rememberList();
+      const token = ++sequence;
+      current = Object.assign({}, route, {lookup: true});
+      lastRender = null;
+      show();
+      setRecordControls(false);
+      const content = get("portalRecordContent"), status = get("portalRecordStatus");
+      if (content) content.textContent = "";
+      if (status) status.textContent = "Searching transaction catalogs across currencies…";
+      let matches = [];
+      try { matches = await deps.lookup(route); }
+      catch (error) {
+        if (token === sequence && status) status.textContent = "Catalog lookup failed: " + (error.message || String(error));
+        return null;
+      }
+      if (token !== sequence || !current) return null;
+      if (matches.length === 1) {
+        const row = matches[0];
+        const qualified = parseRoute(recordUrl(row, root.location.href, deps.sourceUrl(row)));
+        return open(qualified, row, false);
+      }
+      if (status) status.textContent = matches.length ? matches.length + " matching ledger records in the available catalogs." :
+        "Transaction not found in the available catalogs. Try a currency-qualified link or refresh the catalogs.";
+      if (content) {
+        matches.forEach(function (row) {
+          const section = doc.createElement("section"), title = doc.createElement("a");
+          const store = root.CHISEL_PORTAL_STORE, coin = store.canonicalCoinForRow(row);
+          title.href = recordUrl(row, root.location.href, deps.sourceUrl(row));
+          title.textContent = (store.tickerForCoin(coin) || coin) + " · " + (row.summary && row.summary.title || row.txid);
+          title.onclick = function (event) {
+            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            open(parseRoute(title.href), row, true);
+          };
+          section.appendChild(title);
+          const detail = doc.createElement("p");
+          detail.textContent = String(row.summary && (row.summary.opReturnText || row.summary.primaryUrl) || row.txid);
+          section.appendChild(detail);
+          content.appendChild(section);
+        });
+      }
+      return matches;
+    }
+
     async function open(route, row, push) {
       rememberList();
       const token = ++sequence;
@@ -192,6 +281,7 @@
       if (deps.onOpen) deps.onOpen(current.row);
       lastRender = null;
       show();
+      setRecordControls(true);
       if (push && root.history) {
         try { root.history.pushState({chiselRecord: true}, "", recordUrl(current.row, root.location.href, deps.sourceUrl(current.row))); }
         catch (_) { /* The copyable link still works when local-file history is unavailable. */ }
@@ -239,6 +329,7 @@
       else {
         const url = new URL(snapshot ? snapshot.url : root.location.href);
         ["txid", "data", "source", "chain"].forEach(function (key) { url.searchParams.delete(key); });
+        if (BASE58_ID.test(url.hash.slice(1))) { url.hash = ""; url.searchParams.delete("coin"); }
         if (root.history) { try { root.history.replaceState(null, "", url.href); } catch (_) {} }
         returnToList();
       }
@@ -248,7 +339,7 @@
       try {
         const route = parseRoute(root.location.href);
         if (!route) { if (current) returnToList(); return Promise.resolve(null); }
-        return open(route, deps.find(route), false);
+        return route.coin ? open(route, deps.find(route), false) : openUnqualified(route);
       } catch (error) { deps.status(error.message, true); return Promise.resolve(null); }
     }
 
@@ -267,7 +358,13 @@
       if (backButton) backButton.onclick = back;
       if (copy) copy.onclick = function () {
         if (!current) return;
-        deps.copy(recordUrl(current.row, root.location.href, deps.sourceUrl(current.row)), copy).catch(function (error) { deps.status(error.message, true); });
+        if (!current.row) return;
+        deps.copy(compactRecordUrl(current.row, root.location.href), copy).catch(function (error) { deps.status(error.message, true); });
+      };
+      const qualifiedCopy = get("portalRecordCopyQualifiedLink");
+      if (qualifiedCopy) qualifiedCopy.onclick = function () {
+        if (!current || !current.row) return;
+        deps.copy(compactRecordUrl(current.row, root.location.href, true), qualifiedCopy).catch(function (error) { deps.status(error.message, true); });
       };
       if (facebook) facebook.onclick = function () {
         if (!current) return;
@@ -302,5 +399,6 @@
   }
 
   root.CHISEL_PORTAL_RECORD = {publicDataUrl: publicDataUrl, parseRoute: parseRoute, recordUrl: recordUrl,
+    compactRecordUrl: compactRecordUrl, encodeTxid: encodeTxid, decodeTxid: decodeTxid,
     facebookShareUrl: facebookShareUrl, exportRecord: exportRecord, createController: createController};
 })(window);

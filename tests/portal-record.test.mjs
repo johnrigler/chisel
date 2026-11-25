@@ -97,6 +97,36 @@ test("record URLs preserve the app/IPFS path, identify currency and source, and 
   assert.throws(() => f.record.parseRoute("https://chisel.example/?coin=litecoin&txid=broken"));
 });
 
+test("compact Base58 links round-trip full hashes and fit an 80-byte Pages payload", () => {
+  const f = fixture();
+  for (const hex of ["00".repeat(32), "ff".repeat(32), "00".repeat(3) + "ab".repeat(29), txid]) {
+    const url = f.record.compactRecordUrl({coin: "ltc", txid: hex}, "https://johnrigler.github.io/chisel/?mode=portal");
+    assert.ok(Buffer.byteLength(url) <= 80);
+    assert.equal(f.record.parseRoute(url).txid, hex);
+    assert.equal(f.record.parseRoute(url).coin, "");
+    assert.equal(f.record.parseRoute(f.record.compactRecordUrl({coin: "ltc", txid: hex}, url, true)).coin, "litecoin");
+  }
+  assert.throws(() => f.record.decodeTxid("z".repeat(44)));
+  assert.throws(() => f.record.decodeTxid("1".repeat(33)));
+  assert.throws(() => f.record.decodeTxid("0".repeat(43)));
+  assert.ok(f.record.compactRecordUrl({coin:"ltc",txid}, f.context.location.href).startsWith("https://chisel.example/ipfs/bafyApp/#"));
+});
+
+test("unqualified fragment displays every matching record rather than selecting one currency", async () => {
+  const f = fixture();
+  const rows = [{coin:"litecoin",txid,summary:{title:"LTC match"}}, {coin:"bsv",txid,summary:{title:"BSV match"}}];
+  f.context.location.href = f.record.compactRecordUrl(rows[0], f.context.location.href);
+  const view = f.record.createController({document:f.context.document,state:{portalPage:1},
+    lookup:async()=>rows, sourceUrl:()=>"", status:()=>{}});
+  await view.bind();
+  assert.match(f.nodes.get("portalRecordContent").textContent, /LTC match/);
+  assert.match(f.nodes.get("portalRecordContent").textContent, /BSV match/);
+  assert.equal(f.nodes.get("portalRecordContent").children.length, 2);
+  view.back();
+  assert.equal(f.nodes.get("portalRecordPage").hidden, true);
+  assert.equal(new URL(f.context.location.href).hash, "");
+});
+
 test("shared links exclude API credentials, private hosts and token-bearing source URLs", () => {
   const f = fixture();
   for (const source of ["javascript:alert(1)", "https://user:secret@example.com/a.json", "https://example.com/a.json?token=secret",
@@ -115,7 +145,9 @@ test("open and Back preserve the existing list nodes, page, filter, expansion an
   assert.match(f.nodes.get("portalRecordContent").textContent, /Testing/);
   assert.equal(f.record.parseRoute(f.context.location.href).txid, txid);
   f.nodes.get("portalRecordCopyLink").onclick(); await flush();
-  assert.equal(f.record.parseRoute(f.clipboard[0]).dataUrl, dataUrl);
+  assert.equal(f.record.parseRoute(f.clipboard[0]).dataUrl, "");
+  assert.equal(f.record.parseRoute(f.clipboard[0]).coin, "");
+  assert.equal(f.record.parseRoute(f.clipboard[0]).txid, txid);
   f.nodes.get("portalRecordBack").onclick();
   assert.equal(f.nodes.get("portalListView").hidden, false); assert.equal(f.nodes.get("portalRecordPage").hidden, true);
   assert.equal(list.children[0], existing); assert.equal(list.scrollTop, 225); assert.equal(f.context.scrollY, 450);

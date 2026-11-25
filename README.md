@@ -43,11 +43,16 @@ The record page has **COPY RECORD LINK**, **DOWNLOAD JSON**, **SOURCE JSON**
 existing list and its page, filters, expansion and scroll. Background data
 changes can update that list after it becomes visible again.
 
-Record URLs use `?mode=portal&coin=litecoin&txid=<64-hex-TXID>` under the current
-Chisel path, including an IPFS gateway path. An optional `data=<JSON-URL>`
-lets a fresh browser read the transaction directly from a published file;
-otherwise the existing static/FileProxy/ledger readers resolve it. The TXID
-in the source JSON must match. EVM links also retain the source view and chain.
+COPY RECORD LINK uses a bare, case-sensitive Base58 fragment representing the full
+32-byte TXID. The GitHub Pages URL `https://johnrigler.github.io/chisel#<Base58-TXID>`
+is at most 80 ASCII bytes; other hosting paths may be longer. Portal refreshes
+the available static/FileProxy catalogs and displays one match or lists all
+matching chain records. COPY CURRENCY LINK adds an optional `?coin=litecoin`
+before the fragment; it may exceed 80 bytes. No match in the catalogs does not
+prove absence from a blockchain. Older links such as
+`?mode=portal&coin=litecoin&txid=<64-hex-TXID>` remain readable, including
+optional `data=<JSON-URL>` and EVM source/chain metadata. The TXID in the source
+JSON must match.
 The copied link excludes unrelated account parameters and local API settings.
 
 If a recipient or an AI cannot run the Chisel UI, use **SOURCE JSON** or attach
