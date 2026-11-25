@@ -914,14 +914,19 @@ function setCurrencyOptions() {
     elems.currency.append(option);
   });
 
+  // Polygon is a navigation target, not a registered UTXO coin plugin.
+  const polygonOption = document.createElement("option");
+  polygonOption.value = "polygon";
+  polygonOption.textContent = "Polygon (POL)";
+  elems.currency.append(polygonOption);
+
   let requestedCurrency = DEFAULT_CURRENCY_KEY;
   try {
     const requested = new URL(window.location.href).searchParams.get("coin");
-    if (requested === "evm" || requested === "polygon") requestedCurrency = "polygon";
-    else if (requested && CHISEL.coins[requested]) requestedCurrency = requested;
+    if (requested && requested !== "polygon" && requested !== "evm" && CHISEL.coins[requested]) requestedCurrency = requested;
   } catch (error) {}
   elems.currency.value = requestedCurrency;
-  if (requestedCurrency !== "polygon") state.lastUtxoCurrency = requestedCurrency;
+  state.lastUtxoCurrency = requestedCurrency;
   const headerCurrency = document.querySelector("#headerCurrency");
   if (headerCurrency && Array.from(headerCurrency.options).some(function (option) { return option.value === requestedCurrency; })) {
     headerCurrency.value = requestedCurrency;
@@ -2260,6 +2265,7 @@ return;
       return;
     }
     state.lastUtxoCurrency = elems.currency.value || DEFAULT_CURRENCY_KEY;
+    if (document.body.dataset.mode === "polygon") setGuiMode("send");
     clearOutputs();
     setStatusMessage(STATUS_IDLE, false);
     setCurrencyForm();
@@ -2401,16 +2407,15 @@ function onClickAddCommonAddressButton() {
   function setGuiMode(mode) {
     const normalizedMode = normalizeMode(mode);
     if (elems.currency) {
-      if (normalizedMode === "polygon") {
-        if (elems.currency.value && elems.currency.value !== "polygon") state.lastUtxoCurrency = elems.currency.value;
-        elems.currency.value = "polygon";
-      } else if (elems.currency.value === "polygon") {
+      // Keep the hidden UTXO form on a real coin so its render, QR, and
+      // identity handlers cannot accidentally resolve Polygon as a UTXO plugin.
+      if (elems.currency.value === "polygon") {
         elems.currency.value = state.lastUtxoCurrency || DEFAULT_CURRENCY_KEY;
-        clearOutputs();
-        setCurrencyForm();
+      } else if (elems.currency.value && CHISEL.coins[elems.currency.value]) {
+        state.lastUtxoCurrency = elems.currency.value;
       }
       const headerCurrency = document.querySelector("#headerCurrency");
-      if (headerCurrency) headerCurrency.value = elems.currency.value;
+      if (headerCurrency) headerCurrency.value = normalizedMode === "polygon" ? "polygon" : elems.currency.value;
     }
     const buttons = Array.from(document.querySelectorAll("[data-mode-target]"));
     const modeHint = document.querySelector("#modeHint");
@@ -2457,7 +2462,8 @@ function onClickAddCommonAddressButton() {
       const coin = url.searchParams.get("coin");
       // A Portal record keeps its explicit view and chain identity. A bare
       // ?coin=evm link still opens the Polygon workbench.
-      if (!url.searchParams.has("mode") && (coin === "evm" || coin === "polygon") &&
+      if ((!url.searchParams.has("mode") || normalizeMode(initialMode) === "send") &&
+          (coin === "evm" || coin === "polygon") &&
           !(window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href))) initialMode = "polygon";
     } catch (error) {
       initialMode = "portal";
