@@ -154,3 +154,21 @@ test("root discovery enumerates every published chain directory and skips extern
   assert.ok(calls.every(url => url.startsWith(root) && !url.includes("nested/private")));
   assert.equal(calls.filter(url => url === tx + "bsv/").length, 1);
 });
+
+test("plain text inventories work without directory listings, indexes, or live services", async () => {
+  const base = "https://records.example/chisel_data/", tx = base + "transactions/", calls = [];
+  const transport = S.createTransport({fetch: async url => {
+    calls.push(url);
+    if (url === tx + ".files") return response("bsv\ndigibyte\n../private\nbsv\n");
+    if (url === tx + "bsv/.files") return response(id + ".json\n../" + other + ".json\n" + id + ".json\n");
+    if (url === tx + "digibyte/.files") return response(other + ".json\n");
+    if (url === tx + "bsv/" + id + ".json") return response({txid:id,vout:[]});
+    return response({}, 403);
+  }});
+  const loaded = await transport.loadCatalog(base);
+  assert.deepEqual(Array.from(loaded.index.transactions, row=>row.coin), ["bsv","digibyte"]);
+  const rows = S.createNormalizer().normalizeStaticDatasetRows(loaded.index,{baseUrl:base});
+  assert.equal((await transport.fetchStaticRawFromRow(rows[0])).json.txid,id);
+  assert.ok(!calls.includes(tx) && !calls.includes(tx+"bsv/"));
+  assert.ok(calls.every(url=>url.startsWith(base)));
+});

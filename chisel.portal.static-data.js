@@ -89,6 +89,25 @@
     return Array.from(found.values());
   }
 
+  function inventoryLines(text) {
+    return Array.from(new Set(String(text || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean)));
+  }
+
+  function inventoryDirectories(text, directory) {
+    return inventoryLines(text).filter(name => /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(name))
+      .map(name => ({directory: new URL(name + "/", directory).href, coin: normalizeProbeCoin(name)}));
+  }
+
+  function inventoryFiles(text, directory) {
+    const rows = new Map();
+    for (const name of inventoryLines(text)) {
+      if (!/^[A-Za-z0-9-]+\.json$/.test(name)) continue;
+      const txid = txidFromFilename(name);
+      if (txid && !rows.has(txid)) rows.set(txid, {txid, rawUrl: new URL(name, directory).href});
+    }
+    return Array.from(rows.values());
+  }
+
   function normalizePathList(value, fallback) {
     if (Array.isArray(value)) return value.map(String).filter(Boolean);
     if (typeof value === "string" && value.trim()) return [value.trim()];
@@ -275,8 +294,11 @@
       let targets = [{directory: location.url, coin: location.coin}];
       if (!location.coin) {
         const transactionRoot = joinDataPath(location.baseUrl, "transactions/");
-        try { targets = currencyDirectories(await readListing(transactionRoot), transactionRoot); }
-        catch (error) { errors.push(error.message || String(error)); targets = []; }
+        try { targets = inventoryDirectories(await readListing(transactionRoot + ".files"), transactionRoot); }
+        catch (_) {
+          try { targets = currencyDirectories(await readListing(transactionRoot), transactionRoot); }
+          catch (error) { errors.push(error.message || String(error)); targets = []; }
+        }
         // Servers can disable the parent listing but still expose individual currencies.
         if (!targets.length) {
           const known = ["litecoin", "bsv", "digibyte", "ravencoin", "bitcoin", "dogecoin", "ecash", "evm",
@@ -293,8 +315,10 @@
       for (let i = 0; i < targets.length; i += 6) {
         const batch = await Promise.all(targets.slice(i, i + 6).map(async function ({directory, coin}) {
           try {
-            const rows = directoryFiles(await readListing(directory), directory)
-              .map(row => Object.assign({coin: coin}, row));
+            let files;
+            try { files = inventoryFiles(await readListing(directory + ".files"), directory); }
+            catch (_) { files = directoryFiles(await readListing(directory), directory); }
+            const rows = files.map(row => Object.assign({coin: coin}, row));
             if (!rows.length) throw new Error("No transaction JSON files found at " + directory);
             return {directory, rows};
           } catch (error) { errors.push(error.message || String(error)); return null; }

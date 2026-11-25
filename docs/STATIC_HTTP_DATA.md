@@ -65,3 +65,11 @@ be automated separately. Browser reads cannot write back to a static directory;
 imports and saving new data still need an authoring tool or writable service.
 Saved JSON also cannot complete a submitted transaction's independent live
 ledger verification.
+
+## Plain-text publication
+
+Mogwai's `tools/publish-files.sh` writes `transactions/.files` (currency names)
+and each currency's `.files` (transaction JSON filenames). Chisel prefers
+these inventories over HTML directory listings. A missing inventory falls back
+to the corresponding listing. Apache must permit these exact public dotfiles
+and CORS. No PHP or running indexer is needed to read the last publication.

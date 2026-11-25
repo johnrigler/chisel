@@ -9,7 +9,7 @@
 <button id="run" type="button">CHECK DATA ACCESS</button>
 <p id="status" role="status" aria-live="polite"></p><div id="results"></div>
 <p class="muted">A failed browser fetch may mean CORS, DNS, TLS or a network failure. JavaScript cannot reliably distinguish them. A successful navigation alone does not establish cross-origin access. A scanner heartbeat describes the last published observation, not a live process check.</p>
-<script src="../chisel.portal.static-data.js?rev=20261124-static-bsv-v2875"></script>
+<script src="../chisel.portal.static-data.js?rev=20261124-files-v2877"></script>
 <script>
 (function () {
   "use strict";
@@ -37,9 +37,10 @@
       if(!/^https?:$/.test(root.protocol)||root.username||root.password||root.search||root.hash)throw Error("Enter a public HTTP(S) data root.");
       root.pathname=root.pathname.replace(/\/?$/,"/");
       const url=p=>new URL(p,root).href;
-      const dir=card("Transaction directory listing"), manifest=card("Main static manifest"), cat=card("Saved transaction catalog"), sample=card("Sample saved transaction JSON"), scan=card("BSV scanner / last published status"), proxy=card("FileProxy (optional)");
+      const inv=card("Static .files inventory"), dir=card("Transaction directory listing"), manifest=card("Main static manifest"), cat=card("Saved transaction catalog"), sample=card("Sample saved transaction JSON"), scan=card("BSV scanner / last published status"), proxy=card("FileProxy (optional)");
       const catalog=transport.loadCatalog(root.href);
       const tasks=[
+        check(inv,async()=>{const u=url("transactions/.files"),text=await readText(u);const names=Array.from(new Set(text.split(/\r?\n/).map(s=>s.trim()).filter(s=>/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(s))));if(!names.length)throw Error("No currency names in inventory.");return names.length+" currency directories: "+names.join(", ");}),
         check(dir,async()=>{const u=url("transactions/"),html=await readText(u),links=new Set();for(const m of html.matchAll(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi)){try{const target=new URL(m[2],u),name=target.pathname.slice(new URL(u).pathname.length);if(target.origin===root.origin&&target.pathname.startsWith(new URL(u).pathname)&&!target.search&&!target.hash&&/^[a-z0-9][a-z0-9_-]*\/$/i.test(name))links.add(name.slice(0,-1));}catch(_){}}if(!links.size)throw Error("No currency subdirectories listed; Apache autoindex may be disabled.");return links.size+" directories: "+Array.from(links).join(", ");}),
         check(manifest,async()=>{const x=await transport.loadManifest(url("manifest.json"));const rows=x.index.transactions||x.index.records||x.index.rows||x.index; if(!Array.isArray(rows))throw Error("Index has no record array.");return rows.length+" indexed records · "+x.indexUrl;}),
         check(cat,async()=>{const x=await catalog,rows=x.index.transactions||x.index.records||x.index.rows||x.index;if(!Array.isArray(rows)||!rows.length)throw Error("No saved records.");const counts=new Map();for(const row of rows){const coin=String(row.coin||row.summary?.coin||"unknown").toLowerCase();counts.set(coin,(counts.get(coin)||0)+1);}return rows.length+" records\n"+Array.from(counts).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>k+": "+v).join("\n");}),
