@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-I+7AUwXmWyjQ8AKvwAMSEANQU4+Z0wkMOeTeWPPBySA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261125-metamask-v2883"></script>
+  <script src="chisel.version.js?rev=20261125-local-polygon-v2884"></script>
   <script src="chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2537,6 +2537,7 @@
 
     <section class="panel">
       <div class="actions">
+        <button id="sendLocalPolygonButton" class="secondaryButton" type="button">CHISEL LOCAL WIF (POLYGON)</button>
         <button id="sendMetaMaskButton" class="secondaryButton" type="button">USE METAMASK (POLYGON)</button>
         <span class="help">Use your MetaMask account instead of a saved Chisel key. Opens the Polygon short-record writer with the public text draft; UTXO recipients and fees are not carried over.</span>
         <span id="sendMetaMaskStatus" role="status"></span>
@@ -3551,9 +3552,9 @@
   <script src="chisel.safety.js?20261017-security1"></script>
   <script src="chisel.header-identity.js?rev=20261120-network-accounts-v2866"></script>
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
-  <script src="chisel.evm.share.js?rev=20261125-metamask-v2883"></script>
-  <script src="chisel.youtube.ui.js?rev=20261125-metamask-v2883"></script>
-  <script src="app.js?rev=20261125-polygon-send-v2882"></script>
+  <script src="chisel.evm.share.js?rev=20261125-local-polygon-v2884"></script>
+  <script src="chisel.youtube.ui.js?rev=20261125-local-polygon-v2884"></script>
+  <script src="app.js?rev=20261125-local-polygon-v2884"></script>
   <script src="chisel.networks.ui.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.share-diagnostics.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>

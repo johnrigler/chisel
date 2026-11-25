@@ -18,6 +18,7 @@
   // same vetted writer handles preflight, account checks and wallet approval.
   const wallets = [], panels = [];
   const CHISEL = root.CHISEL_EVM_CHISEL;
+  const local = root.CHISEL_EVM_LOCAL ? root.CHISEL_EVM_LOCAL.createLocalWallet(root.ethers) : null;
 
   function parseChiselPayments(raw) {
     return String(raw || "").split(/\r?\n/).map(function (line) { return line.trim(); })
@@ -121,6 +122,7 @@
   function discover() {
     if (root.backpack && root.backpack.ethereum) addWallet(root.backpack.ethereum, "Backpack", "backpack");
     if (root.ethereum) addWallet(root.ethereum, injectedWalletName(root.ethereum), "injected");
+    if (local) addWallet(local, "Chisel local WIF (Polygon)", "local");
     panels.forEach(function (panel) { panel.renderWallets(); });
     root.dispatchEvent(new Event("eip6963:requestProvider"));
   }
@@ -149,6 +151,7 @@
     function invalidate(message) {
       revision += 1;
       writer.invalidate();
+      if (local && config.prefix === "chisel") local.invalidate();
       get("SendBtn").disabled = true;
       get("Review").textContent = "No reviewed calldata.";
       if (message) status(message, "warn");
@@ -164,17 +167,19 @@
       const select = get("Wallet");
       const previous = select.value;
       select.replaceChildren();
-      wallets.forEach(function (wallet) {
+      wallets.filter(wallet => wallet.id !== "local" || config.prefix === "chisel").forEach(function (wallet) {
         const option = root.document.createElement("option");
         option.value = wallet.id;
         option.textContent = wallet.name;
         select.appendChild(option);
       });
-      if (!wallets.length) {
+      if (!wallets.some(wallet => wallet.id !== "local" || config.prefix === "chisel")) {
         const option = root.document.createElement("option");
         option.value = "";
         option.textContent = "No injected wallet detected";
         select.appendChild(option);
+      } else if (config.prefix === "chisel" && !connection && local && new URLSearchParams(root.location.hash.slice(1)).get("wallet") === "local" && !previous) {
+        select.value = "local";
       } else if (config.prefix === "chisel" && !connection && new URLSearchParams(root.location.hash.slice(1)).get("wallet") === "metamask" && wallets.some(wallet => /metamask/i.test(wallet.name)) && !previous) {
         select.value = wallets.find(wallet => /metamask/i.test(wallet.name)).id;
       } else if (wallets.some(function (wallet) { return wallet.id === previous; })) {
@@ -196,6 +201,7 @@
 
     get("RefreshWalletsBtn").addEventListener("click", discover);
     get("Wallet").addEventListener("change", function () {
+      if (local && config.prefix === "chisel") local.lock();
       disconnect("Wallet selection changed. Connect and review again.");
     });
 
@@ -204,10 +210,17 @@
         const wallet = selectedWallet();
         disconnect();
         const token = revision;
+        if (wallet.provider === local) {
+          const key = $("chiselLocalWif");
+          try { if (key.value.trim()) local.unlock(key.value); } finally { key.value = ""; }
+          if (!local.address) throw Error("Enter a WIF in the local signing field.");
+        }
         const connected = await writer.connect(wallet.provider);
         if (token !== revision || selectedWallet() !== wallet) return;
         connection = {wallet, from: connected.from, chainId: connected.chainId};
-        get("WalletStatus").textContent = wallet.name + " · " + connected.from + " · chain " + connected.chainId;
+        const funds = wallet.provider === local ? " · " + await local.balance() + " POL" : "";
+        if (token !== revision || selectedWallet() !== wallet) return;
+        get("WalletStatus").textContent = wallet.name + " · " + connected.from + " · chain " + connected.chainId + funds;
         status(connected.chainId === profile.deployment.chainId
           ? "Connected to Polygon. Enter " + label + " arguments, then review."
           : "Wrong chain. Click Switch to Polygon, then reconnect.",
@@ -215,6 +228,12 @@
       } catch (error) { status(error.message || String(error), "bad"); }
     });
 
+    if (local && config.prefix === "chisel") {
+      $("chiselLocalLock").addEventListener("click", function () {
+        local.lock(); $("chiselLocalWif").value = ""; disconnect("Local key cleared.");
+      });
+      $("chiselLocalWif").addEventListener("input", function () { local.lock(); disconnect("Local key changed. Connect again."); });
+    }
     get("SwitchChainBtn").addEventListener("click", async function () {
       try {
         const wallet = selectedWallet();
@@ -240,16 +259,18 @@
         const token = revision;
         const review = await writer.prepare(wallet.provider, config.parameters(get));
         if (token !== revision || !connection || connection.wallet !== wallet) return;
+        const fees = wallet.provider === local ? await local.quote({from:review.from,to:review.to,data:review.data,value:review.value}, review.gasEstimate) : undefined;
+        if (token !== revision || !connection || connection.wallet !== wallet) { if (fees) local.invalidate(); return; }
         get("Review").textContent = JSON.stringify({
           chainId: review.chainId, contract: review.to, from: review.from,
           interface: review.interfaceId, implementation: review.implementationId,
           function: review.functionSignature, ...config.display(review),
           nativeValueWei: review.nativeValueWei || "0", utf8Bytes: review.byteLength,
           estimatedGasUnits: review.gasEstimate, calldata: review.data,
-          deployedCodeHash: review.codeHash
+          deployedCodeHash: review.codeHash, localSigningFees: fees
         }, null, 2);
         get("SendBtn").disabled = false;
-        status("Simulation passed and gas was estimated. Inspect calldata and contract before wallet approval.", "ok");
+        status(fees ? "Inspect the exact calldata and maximum POL cost. Send is the final local signing approval." : "Simulation passed and gas was estimated. Inspect calldata and contract before wallet approval.", "ok");
       } catch (error) {
         get("SendBtn").disabled = true;
         status(error.message || String(error), "bad");
@@ -261,6 +282,7 @@
       try {
         const wallet = selectedWallet();
         if (!connection || connection.wallet !== wallet || !writer.review) throw new Error("A new review is required.");
+        if (wallet.provider === local && !root.confirm("Sign and broadcast the reviewed Polygon transaction locally?")) { get("SendBtn").disabled = false; return; }
         const submitted = await writer.submit(wallet.provider, writer.review);
         latest = {wallet, ...submitted};
         get("ReceiptBtn").disabled = false;
@@ -354,7 +376,7 @@
       shortStatus.textContent = "Using manually entered hex bytes.";
     });
     const incoming = bridge.sharedText(root.location.hash);
-    if (incoming === null && new URLSearchParams(root.location.hash.slice(1)).get("wallet") === "metamask") {
+    if (incoming === null && ["metamask","local"].includes(new URLSearchParams(root.location.hash.slice(1)).get("wallet"))) {
       $("chiselMethod").value = "logRecord";
       $("chiselMethod").dispatchEvent(new Event("change", {bubbles:true}));
       $("chiselWriteWorkbench").scrollIntoView({block:"start"});

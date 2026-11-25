@@ -943,8 +943,8 @@ function setCurrencyForm() {
   const currencyKey = elems.currency.value || DEFAULT_CURRENCY_KEY;
   if (currencyKey === "polygon") {
     elems.heroTitle.textContent = "Send on Polygon";
-    elems.heroText.textContent = "Use the Polygon workbench to inspect EVM transactions and send reviewed contract calls through MetaMask or Backpack on Polygon mainnet (chain 137).";
-    elems.currencyHelp.textContent = "Polygon is an EVM ledger. Select it to open the Polygon workbench; the UTXO WIF and OP_RETURN transaction builder does not apply.";
+    elems.heroText.textContent = "Use the Polygon workbench to inspect EVM transactions and send reviewed contract calls through a local Chisel WIF, MetaMask or Backpack on Polygon mainnet (chain 137).";
+    elems.currencyHelp.textContent = "Polygon is an EVM ledger. Select it to open the Polygon workbench; the same WIF can derive a Polygon account for local signing.";
     return;
   }
   const coin = CHISEL.getCoin(currencyKey);

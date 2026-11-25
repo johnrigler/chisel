@@ -32,9 +32,14 @@
     const available = !!(provider && (provider.isMetaMask || (provider.providers || []).some(p => p.isMetaMask)));
     root.location.href = metamaskUrl(root.location.href, value, mobile, available);
   }
+  function localUrl(base, value) {
+    const text = String(value || "");
+    const url = text.trim() ? new URL(workbenchUrl(base,text)) : new URL("evm.html",base);
+    const fields = new URLSearchParams(url.hash.slice(1)); fields.set("wallet","local"); url.hash = fields.toString(); return url.href;
+  }
   function sharedText(hash) {
     const fields = new URLSearchParams(String(hash || "").replace(/^#/, ""));
     return fields.has("chiselText") ? fields.get("chiselText") : null;
   }
-  root.CHISEL_EVM_SHARE = Object.freeze({MAX_BYTES, encodeText, workbenchUrl, sharedText, metamaskUrl, openMetaMask});
+  root.CHISEL_EVM_SHARE = Object.freeze({MAX_BYTES, encodeText, workbenchUrl, sharedText, localUrl, metamaskUrl, openMetaMask});
 })(typeof window !== "undefined" ? window : globalThis);

@@ -412,8 +412,12 @@
                 <input id="chiselDeployment" readonly>
             </div>
             <div>
-                <label for="chiselWallet">Injected wallet</label>
+                <label for="chiselWallet">Signing method</label>
                 <select id="chiselWallet"><option value="">Detecting wallets...</option></select>
+                <label for="chiselLocalWif">Local signing WIF (only for Chisel local WIF)</label>
+                <input id="chiselLocalWif" name="password" type="password" autocomplete="current-password" spellcheck="false">
+                <button id="chiselLocalLock" type="button">Clear local key</button>
+                <p>WIF is used in memory only; do not enter it unless you trust this page and its scripts. Select Chisel local WIF and connect to derive the Polygon account.</p>
                 <button id="chiselRefreshWalletsBtn" type="button">Refresh wallets</button>
                 <button id="chiselConnectBtn" type="button">Connect wallet</button>
                 <button id="chiselSwitchChainBtn" type="button">Switch to Polygon</button>
@@ -453,11 +457,11 @@
         </div>
         <p class="status mono" id="chiselValuePreview">Native value: 0 wei.</p>
         <button id="chiselReviewBtn" class="primary" type="button">Review and simulate</button>
-        <button id="chiselSendBtn" class="primary" type="button" disabled>Send via wallet</button>
+        <button id="chiselSendBtn" class="primary" type="button" disabled>Sign and send</button>
         <button id="chiselReceiptBtn" type="button" disabled>Check receipt</button>
         <label for="chiselReview">Transaction review (generated calldata, native wei and gas)</label>
         <pre class="payloadBox mono" id="chiselReview">No reviewed calldata.</pre>
-        <p class="status" id="chiselWriteStatus" role="status">Connect an injected wallet on Polygon 137 and review the exact transaction before sending. No transaction is sent without a separate wallet approval.</p>
+        <p class="status" id="chiselWriteStatus" role="status">Choose a local WIF or injected wallet on Polygon 137 and review the exact transaction before sending.</p>
         <p><a id="chiselTxLink" hidden target="_blank" rel="noopener noreferrer"></a></p>
     </section>
 
@@ -504,8 +508,9 @@
 <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
 <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
 <script src="chisel.evm.write.js?rev=20261105-chisel-write"></script>
-<script src="chisel.evm.share.js?rev=20261125-metamask-v2883"></script>
-<script src="chisel.evm.write.ui.js?rev=20261125-metamask-v2883"></script>
+<script src="chisel.evm.share.js?rev=20261125-local-polygon-v2884"></script>
+<script src="chisel.evm.local.js?rev=20261125-local-polygon-v2884"></script>
+<script src="chisel.evm.write.ui.js?rev=20261125-local-polygon-v2884"></script>
 <script>
 (function () {
     "use strict";
