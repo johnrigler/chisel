@@ -2,7 +2,7 @@
   "fileProxyUrl": "https://rigler.org/fileproxy",
   "fileProxyReadTimeoutMs": 2000,
   "staticDataSources": [
-    "https://rigler.org/chisel-data/"
+    "https://rigler.org/chisel_data/"
   ],
   "autoLoadTransactionNotes": true,
   "annotationFilePrefix": "data/",
@@ -57,13 +57,13 @@
     "data-bundled/manifest.json"
   ],
   "staticManifestMirrors": [
-    "https://rigler.org/chisel-data/manifest.json"
+    "https://rigler.org/chisel_data/manifest.json"
   ],
   "autoTrackRecognizedAddresses": true,
   "staticDiscoveryManifestPaths": [
     "data-bsv/manifest.json",
     "data-bsv-anchors/manifest.json",
-    "https://rigler.org/chisel-data/bsv/manifest.json"
+    "https://rigler.org/chisel_data/bsv/manifest.json"
   ],
   "portalFilterBsv": true
 }

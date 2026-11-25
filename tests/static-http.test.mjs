@@ -104,3 +104,53 @@ test("a hung reader cannot hold fallback open even if fetch ignores abort", asyn
   await assert.rejects(pending, /timed out after 2000 ms/);
   assert.equal(signal.aborted, true);
 });
+
+test("a data root merges unindexed BSV files independently of FileProxy and scan manifests", async () => {
+  const root = "https://records.example/chisel_data/", bsv = root + "transactions/bsv/";
+  const calls = [];
+  const transport = S.createTransport({fetch: async url => {
+    calls.push(url);
+    if (url === root + "index/transactions.index.json") return response({transactions: [
+      {coin: "BSV", txid: id, summary: {title: "Saved metadata"}},
+      {coin: "litecoin", txid: id}]});
+    if (url === bsv) return response('<a href="' + id + '.json">one</a><a href="' + other + '.json">two</a>');
+    if (url === bsv + other + ".json") return response({txid: other, vout: []});
+    return response({}, 404);
+  }});
+  const loaded = await transport.loadCatalog(root);
+  assert.equal(loaded.index.transactions.length, 3);
+  const rows = Array.from(loaded.index.transactions);
+  assert.equal(rows.find(row => row.coin === "bsv" && row.txid === id).summary.title, "Saved metadata");
+  const row = S.createNormalizer().normalizeStaticDatasetRows(loaded.index, {baseUrl: root}).find(row => row.txid === other);
+  assert.equal((await transport.fetchStaticRawFromRow(row)).json.txid, other);
+  assert.ok(calls.every(url => !url.includes("/fileproxy") && !url.includes("/bsv/manifest.json")));
+});
+
+test("root directory discovery survives missing indexes and a forbidden Litecoin listing", async () => {
+  const bsv = root + "transactions/bsv/";
+  const transport = S.createTransport({fetch: async url => url === bsv ?
+    response('<a href="' + id + '.json">record</a>') : response({}, 403)});
+  const loaded = await transport.loadCatalog(root);
+  assert.equal(loaded.index.transactions.length, 1);
+  assert.equal(loaded.index.transactions[0].coin, "bsv");
+});
+
+test("root discovery enumerates every published chain directory and skips external or nested links", async () => {
+  const root = "https://records.example/chisel_data/", tx = root + "transactions/", calls = [];
+  const transport = S.createTransport({fetch: async url => {
+    calls.push(url);
+    if (url === tx) return response('<a href="bsv/">BSV</a><a href="digibyte/">DGB</a>' +
+      '<a href="evm/">EVM</a><a href="future-chain/">future</a><a href="bsv/">duplicate</a>' +
+      '<a href="../">parent</a><a href="nested/private/">nested</a>' +
+      '<a href="https://other.example/">external</a><a href="bsv/?sort=1">query</a>');
+    if (url === tx + "bsv/" || url === tx + "digibyte/" || url === tx + "future-chain/")
+      return response('<a href="' + id + '.json">transaction</a>');
+    if (url === tx + "evm/") return response('<a href="0x' + other + '.json">transaction</a>');
+    return response({}, 404);
+  }});
+  const loaded = await transport.loadCatalog(root);
+  assert.deepEqual(Array.from(loaded.index.transactions, row => row.coin), ["bsv", "digibyte", "evm", "futurechain"]);
+  assert.equal(loaded.index.transactions[2].txid, other);
+  assert.ok(calls.every(url => url.startsWith(root) && !url.includes("nested/private")));
+  assert.equal(calls.filter(url => url === tx + "bsv/").length, 1);
+});

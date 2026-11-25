@@ -8,7 +8,7 @@ In **File portal / storage**, set **Static data URL** to a data root, a currency
 directory or a JSON index. For example:
 
 ```text
-https://rigler.org/chisel-data/transactions/litecoin/
+https://rigler.org/chisel_data/transactions/litecoin/
 ```
 
 Portal leaves this field as entered. The separate **FileProxy URL (optional)**
@@ -23,9 +23,12 @@ HTML directory listing, recognized transaction JSON filenames are merged into
 the catalog, including files missing from an older index. A listing can also
 work without an index. Supported names are `<64-hex-txid>.json` and Chisel's
 `<Base58-txid>-<first-12-hex>.json`. Only direct child files on the same origin
-are accepted from a listing. For a root without a usable index, directory
-discovery defaults to `transactions/litecoin/`; use a currency URL for another
-chain. Servers without directory listings need a published index.
+are accepted from a listing. For a data root, directory discovery enumerates every direct currency folder in
+`transactions/` and merges its transaction files even if a usable index exists.
+If the parent listing is unavailable, it probes known chain directories instead.
+The exact currency URL remains available for a targeted view. Saved files remain
+browsable without a scanner or FileProxy when Apache exposes their listings. EVM
+filenames may also use a `0x` prefix. Servers without directory listings need a published index.
 
 Catalog paths such as `data-root:transactions/litecoin/example.json` or
 `data/transactions/litecoin/example.json` resolve under the static data root.
@@ -46,7 +49,7 @@ The relevant deployment settings in `chisel.portal.config.json` are:
 
 ```json
 {
-  "staticDataSources": ["https://rigler.org/chisel-data/"],
+  "staticDataSources": ["https://rigler.org/chisel_data/"],
   "fileProxyUrl": "https://rigler.org/fileproxy",
   "fileProxyReadTimeoutMs": 2000,
   "autoLoadStaticDataset": true,
@@ -56,7 +59,7 @@ The relevant deployment settings in `chisel.portal.config.json` are:
 
 The URL field uses the first configured static source. Without that field,
 the loader supports all configured sources. Cross-origin servers must permit
-browser reads with CORS; `rigler.org/chisel-data` currently supplies this header.
+browser reads with CORS; `rigler.org/chisel_data` must supply this header.
 Static HTTP reading needs no cron job. Publishing updated files or indexes can
 be automated separately. Browser reads cannot write back to a static directory;
 imports and saving new data still need an authoring tool or writable service.

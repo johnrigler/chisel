@@ -40,7 +40,7 @@
 
   function txidFromFilename(value) {
     const name = decodeURIComponent(String(value || "").split("/").pop());
-    if (/^[0-9a-f]{64}\.json$/i.test(name)) return name.slice(0, -5).toLowerCase();
+    if (/^(?:0x)?[0-9a-f]{64}\.json$/i.test(name)) return name.slice(0, -5).replace(/^0x/i, "").toLowerCase();
     const match = name.match(/^([1-9A-HJ-NP-Za-km-z]{1,45})-([0-9a-f]{12})\.json$/i);
     if (!match) return "";
     const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -70,6 +70,23 @@
       } catch (_) {}
     }
     return out;
+  }
+
+  // Only direct, same-origin children of the public transactions directory.
+  function currencyDirectories(html, directoryUrl) {
+    const base = new URL(directoryUrl);
+    const found = new Map();
+    for (const match of String(html || "").matchAll(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi)) {
+      try {
+        const url = new URL(match[2].replace(/&amp;/g, "&"), base);
+        const name = url.pathname.slice(base.pathname.length);
+        if (url.origin !== base.origin || url.username || url.password ||
+            !url.pathname.startsWith(base.pathname) || url.search || url.hash ||
+            !/^[a-zA-Z0-9][a-zA-Z0-9_-]*\/$/.test(name)) continue;
+        found.set(url.href, {directory: url.href, coin: normalizeProbeCoin(name.slice(0, -1))});
+      } catch (_) {}
+    }
+    return Array.from(found.values());
   }
 
   function normalizePathList(value, fallback) {
@@ -251,26 +268,48 @@
           break;
         } catch (error) { errors.push(error.message || String(error)); }
       }
-      const directories = location.coin ? [location.url] : [joinDataPath(location.baseUrl, "transactions/litecoin/")];
-      for (const directory of directories) {
-        try {
-          const html = await request(directory, {cache: "no-store"}, function (response) {
-            if (!response.ok) throw new Error(directory + " failed with HTTP " + response.status);
-            return response.text();
-          }, deps.timeoutMs || 8000);
-          const coin = location.coin || "litecoin";
-          const rows = directoryFiles(html, directory).map(function (row) { return Object.assign({coin: coin}, row); });
-          if (!rows.length) throw new Error("No transaction JSON files found at " + directory);
-          const combined = new Map();
-          if (catalog) catalog.index.transactions.forEach(function (row) { combined.set((row.coin || "") + ":" + row.txid, row); });
-          rows.forEach(function (row) {
-            const key = row.coin + ":" + row.txid;
-            combined.set(key, Object.assign({}, combined.get(key), row));
-          });
-          return Object.assign({}, location, {index: {transactions: Array.from(combined.values())}, indexUrl: catalog ? catalog.indexUrl : directory});
-        } catch (error) { errors.push(error.message || String(error)); }
+      const readListing = directory => request(directory, {cache: "no-store"}, function (response) {
+        if (!response.ok) throw new Error(directory + " failed with HTTP " + response.status);
+        return response.text();
+      }, deps.timeoutMs || 8000);
+      let targets = [{directory: location.url, coin: location.coin}];
+      if (!location.coin) {
+        const transactionRoot = joinDataPath(location.baseUrl, "transactions/");
+        try { targets = currencyDirectories(await readListing(transactionRoot), transactionRoot); }
+        catch (error) { errors.push(error.message || String(error)); targets = []; }
+        // Servers can disable the parent listing but still expose individual currencies.
+        if (!targets.length) {
+          const known = ["litecoin", "bsv", "digibyte", "ravencoin", "bitcoin", "dogecoin", "ecash", "evm",
+            "litecointestnet", "bitcointestnet3", "bitcointestnet4", "bsvtestnet"];
+          targets = known.map(coin => ({directory: joinDataPath(transactionRoot, coin + "/"), coin}));
+        }
       }
-      if (catalog) return catalog;
+      const combined = new Map();
+      if (catalog) catalog.index.transactions.forEach(function (row) {
+        combined.set(normalizeProbeCoin(row.coin || row.summary && row.summary.coin || "") + ":" + String(row.txid || row.hash || "").replace(/^0x/i, "").toLowerCase(), row);
+      });
+      const discovered = [];
+      // Limit concurrent requests; directory discovery never downloads transaction bodies.
+      for (let i = 0; i < targets.length; i += 6) {
+        const batch = await Promise.all(targets.slice(i, i + 6).map(async function ({directory, coin}) {
+          try {
+            const rows = directoryFiles(await readListing(directory), directory)
+              .map(row => Object.assign({coin: coin}, row));
+            if (!rows.length) throw new Error("No transaction JSON files found at " + directory);
+            return {directory, rows};
+          } catch (error) { errors.push(error.message || String(error)); return null; }
+        }));
+        discovered.push(...batch);
+      }
+      for (const result of discovered) {
+        if (!result) continue;
+        result.rows.forEach(function (row) {
+          const key = row.coin + ":" + row.txid;
+          combined.set(key, Object.assign({}, combined.get(key), row));
+        });
+      }
+      if (combined.size) return Object.assign({}, location, {index: {transactions: Array.from(combined.values())},
+        indexUrl: catalog ? catalog.indexUrl : discovered.find(Boolean).directory});
       throw new Error("Static HTTP data unavailable: " + errors.join(" | "));
     }
 

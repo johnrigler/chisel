@@ -14,8 +14,8 @@
   const DEFAULT_CONFIG_PATH = "chisel.portal.config.json";
   const DEFAULT_STATIC_MANIFEST_PATH = "data/manifest.json";
   const DEFAULT_BUNDLED_MANIFEST_PATH = "data-bundled/manifest.json";
-  const DEFAULT_REMOTE_MANIFEST_URL = "https://rigler.org/chisel-data/manifest.json";
-  const DEFAULT_STATIC_DATA_URL = "https://rigler.org/chisel-data/";
+  const DEFAULT_REMOTE_MANIFEST_URL = "https://rigler.org/chisel_data/manifest.json";
+  const DEFAULT_STATIC_DATA_URL = "https://rigler.org/chisel_data/";
   const PORTAL_ANNOTATIONS_STORAGE_KEY = "chisel.portal.annotations.v1";
   const PORTAL_PERSONAL_ACCOUNT_STORAGE_KEY = "chisel.portal.personalAccount.v1";
   const DEFAULT_PORTAL_CONFIG = {
@@ -46,7 +46,7 @@
     autoSearchLedgersAfterStatic: true,
     staticManifestPaths: [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH],
     staticManifestMirrors: [DEFAULT_REMOTE_MANIFEST_URL],
-    staticDiscoveryManifestPaths: ["data-bsv/manifest.json", "data-bsv-anchors/manifest.json", "https://rigler.org/chisel-data/bsv/manifest.json"],
+    staticDiscoveryManifestPaths: ["data-bsv/manifest.json", "data-bsv-anchors/manifest.json", "https://rigler.org/chisel_data/bsv/manifest.json"],
     backgroundHydrateTransactions: false,
     autoFetchVisibleTransactionDates: true,
     maxVisibleDateLookups: 20,
@@ -3016,7 +3016,7 @@
       baseUrl: "./data-bundled/",
       sourceLabel: "bundled static index",
       sourceBadge: "bundled",
-      remoteBaseUrls: ["https://rigler.org/chisel-data/"]
+      remoteBaseUrls: ["https://rigler.org/chisel_data/"]
     });
     const report = mergeStaticRows(rows, { silent: true });
     state.staticDatasetLoaded = true;
