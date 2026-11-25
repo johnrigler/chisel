@@ -14,7 +14,7 @@
   ui.innerHTML = '<div class="ytEyebrow">CHISEL / YOUTUBE</div><h2 id="ytTitle">YouTube video</h2>' +
     '<img id="ytImage" alt="Video thumbnail" referrerpolicy="no-referrer">' +
     '<p id="ytLink" class="ytLink"></p><p id="ytIdentity"></p><p id="ytStatus" role="status" aria-live="polite"></p>' +
-    '<label for="ytPublishChain">Publish using</label><select id="ytPublishChain"><option value="utxo">Selected UTXO currency</option><option value="polygon">Polygon (POL)</option></select>' +
+    '<label for="ytPublishChain">Publish using</label><select id="ytPublishChain"><option value="utxo">Saved Chisel key (UTXO)</option><option value="metamask">MetaMask (Polygon / POL)</option><option value="polygon">Other Polygon wallet</option></select>' +
     '<button id="ytSettings" type="button">Transaction settings</button>' +
     '<div class="ytActions"><button id="ytCancel" type="button">Cancel</button><button id="ytGo" type="button">Go</button></div>' +
     '<p class="ytNote">Go opens the final transaction review. No signing or broadcast occurs before your approval.</p>';
@@ -41,7 +41,7 @@
   let title = "", titledContent = "";
   const chainChoice = $("ytPublishChain");
   const chainPreference = "chisel.youtube.publishChain.v1";
-  try { if (root.localStorage.getItem(chainPreference) === "polygon") chainChoice.value = "polygon"; } catch (_) {}
+  try { const saved = root.localStorage.getItem(chainPreference); if (saved === "polygon" || saved === "metamask") chainChoice.value = saved; } catch (_) {}
   chainChoice.addEventListener("change", function() {
     try { root.localStorage.setItem(chainPreference, chainChoice.value); } catch (_) {}
     $("ytStatus").textContent = "";
@@ -64,8 +64,8 @@
     $("ytLink").textContent = value;
     const address = $("senderAddress")?.value.trim() || "";
     const coin = $("currency")?.selectedOptions[0]?.textContent || $("currency")?.value || "Selected chain";
-    $("ytIdentity").textContent = chainChoice.value === "polygon"
-      ? "Polygon mainnet (137) · Chisel contract · wallet approval required."
+    $("ytIdentity").textContent = chainChoice.value !== "utxo"
+      ? (chainChoice.value === "metamask" ? "MetaMask" : "External wallet") + " · Polygon mainnet (137) · no saved Chisel key required."
       : address ? coin+" · "+address : coin+" · Select a signing identity in Transaction settings.";
     $("ytSettings").textContent = workbench.classList.contains("youtube-editing") ? "Hide transaction settings" : "Transaction settings";
   }
@@ -80,11 +80,12 @@
     render();
   };
   $("ytGo").onclick = function () {
-    if (chainChoice.value === "polygon") {
+    if (chainChoice.value !== "utxo") {
       try {
         const bridge = root.CHISEL_EVM_SHARE;
         if (!bridge) throw new Error("Polygon share bridge unavailable. Refresh Chisel.");
-        root.location.href = bridge.workbenchUrl(root.location.href, content.value);
+        if (chainChoice.value === "metamask") bridge.openMetaMask(content.value);
+        else root.location.href = bridge.workbenchUrl(root.location.href, content.value);
       } catch (error) { $("ytStatus").textContent = error.message || String(error); }
       return;
     }
@@ -111,5 +112,10 @@
     if (!ui.hidden) $("ytStatus").textContent = $("status").textContent;
     render();
   }).observe($("status"),{subtree:true,childList:true,characterData:true});
+  const metaButton = $("sendMetaMaskButton");
+  if (metaButton) metaButton.onclick = function () {
+    try { root.CHISEL_EVM_SHARE.openMetaMask(content.value); }
+    catch (error) { $("sendMetaMaskStatus").textContent = error.message || String(error); }
+  };
   render();
 })(typeof window === "object" ? window : globalThis);

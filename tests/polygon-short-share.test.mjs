@@ -35,3 +35,20 @@ test("decode execute with one payment plus log",async()=>{
   assert.equal(result.receivers[0],"0x"+address);
   assert.equal(result.amounts[0],"7");
 });
+
+test("MetaMask route retains only public draft and wallet preference", async () => {
+  const api = (await load("chisel.evm.share.js")).CHISEL_EVM_SHARE;
+  const base = "https://example.org/chisel/?mode=send&private=discard";
+  const value = "https://youtu.be/abcdefghijk";
+  const local = new URL(api.metamaskUrl(base, value, true, true));
+  assert.equal(local.search, "");
+  assert.equal(api.sharedText(local.hash), value);
+  assert.equal(new URLSearchParams(local.hash.slice(1)).get("wallet"), "metamask");
+  const mobile = new URL(api.metamaskUrl(base, value, true, false));
+  assert.equal(mobile.origin, "https://link.metamask.io");
+  const nested = new URL("https://" + decodeURIComponent(mobile.pathname.slice("/dapp/".length)));
+  assert.equal(api.sharedText(nested.hash), value);
+  assert.equal(nested.search, "");
+  assert.equal(api.sharedText(new URL(api.metamaskUrl(base, "", false, false)).hash), null);
+  assert.throws(() => api.metamaskUrl(base, "x".repeat(81), false, false), /80/);
+});

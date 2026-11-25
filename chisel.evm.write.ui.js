@@ -175,6 +175,8 @@
         option.value = "";
         option.textContent = "No injected wallet detected";
         select.appendChild(option);
+      } else if (config.prefix === "chisel" && !connection && new URLSearchParams(root.location.hash.slice(1)).get("wallet") === "metamask" && wallets.some(wallet => /metamask/i.test(wallet.name)) && !previous) {
+        select.value = wallets.find(wallet => /metamask/i.test(wallet.name)).id;
       } else if (wallets.some(function (wallet) { return wallet.id === previous; })) {
         select.value = previous;
       }
@@ -352,6 +354,11 @@
       shortStatus.textContent = "Using manually entered hex bytes.";
     });
     const incoming = bridge.sharedText(root.location.hash);
+    if (incoming === null && new URLSearchParams(root.location.hash.slice(1)).get("wallet") === "metamask") {
+      $("chiselMethod").value = "logRecord";
+      $("chiselMethod").dispatchEvent(new Event("change", {bubbles:true}));
+      $("chiselWriteWorkbench").scrollIntoView({block:"start"});
+    }
     if (incoming !== null) {
       $("chiselMethod").value = "logRecord";
       $("chiselMethod").dispatchEvent(new Event("change", {bubbles:true}));
