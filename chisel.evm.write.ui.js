@@ -47,6 +47,8 @@
         const fn = get("Method").value;
         const hasDictionary = fn === "mapArtifact" || fn === "execute";
         const hasLog = fn === "logRecord" || fn === "execute";
+        const shortText = $("chiselShortText");
+        if (hasLog && shortText && !shortText.checkValidity()) throw new Error(shortText.validationMessage);
         const hasPayments = fn === "execute" || fn === "distribute" || fn === "distributeChecked";
         return {
           deploymentId: "chisel.polygon.137",
@@ -320,4 +322,43 @@
   $("chiselPayments").addEventListener("input", updateChiselFields);
   updateChiselFields();
   discover();
+
+  // URL fragments contain public draft text only. They never connect a wallet,
+  // trigger review, set recipients, or submit a transaction.
+  const bridge = root.CHISEL_EVM_SHARE;
+  const shortText = $("chiselShortText"), hexField = $("chiselLogData");
+  const shortStatus = $("chiselShortTextStatus");
+  if (bridge && shortText && hexField && shortStatus) {
+    let syncing = false;
+    shortText.addEventListener("input", function () {
+      syncing = true;
+      try {
+        const encoded = bridge.encodeText(shortText.value);
+        shortText.setCustomValidity("");
+        hexField.value = encoded.hex;
+        shortStatus.textContent = encoded.byteLength + " / 80 UTF-8 bytes; review the exact calldata before signing.";
+      } catch (error) {
+        shortText.setCustomValidity(error.message);
+        hexField.value = "0x";
+        shortStatus.textContent = error.message;
+      }
+      hexField.dispatchEvent(new Event("input", {bubbles:true}));
+      syncing = false;
+    });
+    hexField.addEventListener("input", function () {
+      if (syncing) return;
+      shortText.value = "";
+      shortText.setCustomValidity("");
+      shortStatus.textContent = "Using manually entered hex bytes.";
+    });
+    const incoming = bridge.sharedText(root.location.hash);
+    if (incoming !== null) {
+      $("chiselMethod").value = "logRecord";
+      $("chiselMethod").dispatchEvent(new Event("change", {bubbles:true}));
+      shortText.value = incoming;
+      shortText.dispatchEvent(new Event("input", {bubbles:true}));
+      shortStatus.textContent += " Connect a Polygon wallet in its browser if no wallet is detected here.";
+      $("chiselWriteWorkbench").scrollIntoView({block:"start"});
+    }
+  }
 }(window));

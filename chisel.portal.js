@@ -62,6 +62,7 @@
     inlineImageExpandedScale: 12,
     includeEvmGomez: true,
     includeEvmJethro: true,
+    includeEvmChisel: true,
     includeEvmPolygonThunderword: true,
     autoLoadEvmCatalog: true,
     portalFilterDigibyte: true,
@@ -73,6 +74,7 @@
     portalFilterEcash: true,
     portalFilterEvmGomez: true,
     portalFilterEvmJethro: true,
+    portalFilterEvmChisel: true,
     portalFilterEvmPolygonThunderword: true,
     portalFilterOther: true
   };
@@ -97,6 +99,11 @@
       chainName: "Polygon Mainnet",
       contractName: "jethro",
       contractAddress: "0x0076416C84c7151CaEfA74C3e09d6eBF2f296BA0"
+    },
+    {
+      id: "chisel", label: "Chisel", coin: "evm", ticker: "EVM",
+      chainId: "137", chainName: "Polygon Mainnet", contractName: "mogwai",
+      contractAddress: "0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3"
     },
     {
       id: "polygonThunderword",
@@ -3401,7 +3408,7 @@
   }
 
   const PORTAL_FILTER_IDS = [
-    "digibyte", "ravencoin", "litecoin", "bitcoin", "bsv", "dogecoin", "ecash", "evmGomez", "evmJethro", "evmPolygonThunderword", "other"
+    "digibyte", "ravencoin", "litecoin", "bitcoin", "bsv", "dogecoin", "ecash", "evmGomez", "evmJethro", "evmChisel", "evmPolygonThunderword", "other"
   ];
 
   function portalFilterConfigKey(id) {

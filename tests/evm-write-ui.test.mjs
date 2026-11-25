@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 const code = await Promise.all([
-  "chisel.evm.contracts.js", "chisel.evm.chisel.js", "chisel.evm.write.js", "chisel.evm.write.ui.js"
+  "chisel.evm.contracts.js", "chisel.evm.chisel.js", "chisel.evm.write.js", "chisel.evm.share.js", "chisel.evm.write.ui.js"
 ].map(name => readFile(new URL("../" + name, import.meta.url), "utf8")));
 const ZERO = "0x" + "0".repeat(40);
 const ACCOUNT = "0x" + "12".repeat(20);
@@ -19,8 +19,13 @@ class Element {
     this.children = [];
     this.handlers = new Map();
     this.hidden = true;
+    this.validationMessage = "";
   }
-  addEventListener(name, callback) { this.handlers.set(name, callback); }
+  addEventListener(name, callback) { const handlers=this.handlers.get(name)||[]; handlers.push(callback); this.handlers.set(name,handlers); }
+  dispatchEvent(event) { for (const callback of this.handlers.get(event.type)||[]) callback.call(this,event); }
+  checkValidity(){ return !this.validationMessage; }
+  setCustomValidity(message){this.validationMessage=message;}
+  scrollIntoView(){}
   appendChild(child) {
     this.children.push(child);
     if (this.children.length === 1) this.value = child.value || "";
@@ -31,13 +36,13 @@ class Element {
     this.value = children[0]?.value || "";
   }
   async fire(name) {
-    const callback = this.handlers.get(name);
-    assert.equal(typeof callback, "function", this.id + " " + name + " registered");
-    return callback.call(this, {target: this});
+    const handlers = this.handlers.get(name);
+    assert.ok(handlers?.length, this.id + " " + name + " registered");
+    for(const callback of handlers) await callback.call(this,{type:name,target:this});
   }
 }
 
-function fixture() {
+function fixture(hash = "") {
   const nodes = new Map();
   const suffixes = ["WriteStatus","Interface","Deployment","ContractLink","Wallet","WalletStatus",
     "RefreshWalletsBtn","ConnectBtn","SwitchChainBtn","ReviewBtn","SendBtn","ReceiptBtn",
@@ -48,13 +53,13 @@ function fixture() {
   nodes.set("chiselWriteContractLink",new Element("chiselWriteContractLink"));
   for (const suffix of ["Artifact","Body"]) nodes.set("jethro"+suffix,new Element("jethro"+suffix));
   nodes.set("gomezMessage",new Element("gomezMessage"));
-  for (const suffix of ["Method","Artifact","Body","LogFormat","LogData","Payments"]) {
+  for (const suffix of ["Method","Artifact","Body","LogFormat","LogData","Payments","ShortText","ShortTextStatus"]) {
     nodes.set("chisel"+suffix,new Element("chisel"+suffix));
   }
   nodes.get("chiselMethod").value="mapArtifact";
   nodes.get("chiselLogFormat").value="0x"+"0".repeat(64);
   nodes.get("chiselLogData").value="0x";
-  for (const id of ["chiselDictionaryFields","chiselLogFields","chiselPaymentsFields","chiselValuePreview"]) {
+  for (const id of ["chiselDictionaryFields","chiselLogFields","chiselPaymentsFields","chiselValuePreview","chiselWriteWorkbench"]) {
     nodes.set(id,new Element(id));
   }
   for (let i=1;i<=4;i++) {
@@ -93,7 +98,7 @@ function fixture() {
     createElement(tag) { return new Element(tag); }
   };
   const context=vm.createContext({
-    document, TextEncoder, console, Event:class { constructor(type){this.type=type;} },
+    document, TextEncoder, URL, URLSearchParams, location:{hash}, console, Event:class { constructor(type){this.type=type;} },
     ethereum:provider,
     addEventListener(name,callback){listeners.set(name,callback);},
     dispatchEvent(event){ listeners.get(event.type)?.(event); },
@@ -237,4 +242,25 @@ test("Chisel invalid amounts fail before simulation and sending", async () => {
   assert.equal(f.get("chiselSendBtn").disabled,true);
   assert.match(f.get("chiselWriteStatus").textContent,/decimal integer|decimal wei/);
   assert.equal(f.calls.filter(x=>x.method==="eth_sendTransaction").length,0);
+});
+
+
+test("Polygon short-text handoff preloads only public bytes; wallet review remains explicit", async () => {
+  const url = "https://youtu.be/abcdefghijk";
+  const f = fixture("#" + new URLSearchParams({chiselText:url}));
+  assert.equal(f.get("chiselMethod").value,"logRecord");
+  assert.equal(f.get("chiselShortText").value,url);
+  assert.equal(f.get("chiselLogData").value,"0x"+Buffer.from(url).toString("hex"));
+  assert.equal(f.calls.length,0);
+  await f.get("chiselConnectBtn").fire("click");
+  await f.get("chiselReviewBtn").fire("click");
+  assert.equal(f.get("chiselSendBtn").disabled,false);
+  assert.equal(f.calls.filter(x=>x.method==="eth_sendTransaction").length,0);
+  f.get("chiselShortText").value="é".repeat(41);
+  await f.get("chiselShortText").fire("input");
+  assert.equal(f.get("chiselSendBtn").disabled,true);
+  assert.equal(f.get("chiselLogData").value,"0x");
+  await f.get("chiselReviewBtn").fire("click");
+  assert.equal(f.get("chiselSendBtn").disabled,true);
+  assert.match(f.get("chiselWriteStatus").textContent,/80/);
 });

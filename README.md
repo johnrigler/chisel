@@ -100,6 +100,8 @@ and metadata are external display data, not extra OP_RETURN bytes; they can
 be retrieved again from the ledger's URL when reading the transaction. Chain
 payload limits and the existing built-transaction review still apply.
 
+The YouTube preview can remember an explicitly selected **Polygon (POL)** publishing route on this browser. Go carries only the public URL to the existing Chisel/Mogwai writer on chain 137, preselects `logRecord`, and encodes the exact UTF-8 bytes (1–80) without a JSON wrapper. Connect and review in an injected wallet browser; no funds other than gas are requested for the log-only call. For optional recipient/amount pairs select `execute` and review all fields. No automatic wallet connection or broadcast occurs. Polygon Chisel records have their own Portal stream; catalog discovery still depends on the provider/indexer. The registered deployment must pass the existing wallet simulation before signing.
+
 Mogwai bounds its outgoing text/link payload to **80 UTF-8 bytes**, retaining
 oversized receipts for editing and keeping metadata outside that byte budget.
 Closed Portal rows show media metadata and a small picture, including saved
