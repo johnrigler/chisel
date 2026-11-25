@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chisel data connectivity</title>
+<style>
+:root{color-scheme:light dark;font:16px system-ui,sans-serif}body{max-width:48rem;margin:auto;padding:1rem}h1{font-size:1.5rem}label{display:block;font-weight:600;margin-top:1rem}input,button{box-sizing:border-box;font:inherit;padding:.65rem;max-width:100%}input{width:100%}button{margin:1rem 0}article{border:1px solid #8886;border-radius:.5rem;margin:.6rem 0;padding:.8rem;overflow-wrap:anywhere}article h2{font-size:1rem;margin:0 0 .4rem}article p{margin:.3rem 0;white-space:pre-wrap}.muted{opacity:.8}a{color:inherit} 
+</style></head><body>
+<a href="../index.html">← Chisel</a><h1>Data connectivity / BSV status</h1>
+<p>Read-only browser checks. No wallet, FileProxy, or running scanner is needed to read public static files.</p>
+<label for="root">Static data root</label><input id="root" type="url" value="https://rigler.org/chisel_data/">
+<button id="run" type="button">CHECK DATA ACCESS</button>
+<p id="status" role="status" aria-live="polite"></p><div id="results"></div>
+<p class="muted">A failed browser fetch may mean CORS, DNS, TLS or a network failure. JavaScript cannot reliably distinguish them. A successful navigation alone does not establish cross-origin access. A scanner heartbeat describes the last published observation, not a live process check.</p>
+<script src="../chisel.portal.static-data.js?rev=20261124-static-bsv-v2875"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const transport = CHISEL_PORTAL_STATIC_DATA.createTransport({fetch: window.fetch.bind(window), baseUrl: location.href});
+  function card(name) {
+    const a=document.createElement("article"), h=document.createElement("h2"), p=document.createElement("p");
+    h.textContent=name; p.textContent="Checking…"; a.append(h,p); $("results").append(a);
+    return {pass: text=>{p.textContent="PASS · "+text;}, fail: text=>{p.textContent="UNAVAILABLE · "+text;}};
+  }
+  async function check(card, fn) {
+    try { card.pass(await fn()); return true; }
+    catch(error) { card.fail(error.message || String(error)); return false; }
+  }
+  async function readText(url) {
+    return transport.request(url,{cache:"no-store"},async r=>{
+      if(!r.ok)throw Error("HTTP "+r.status+" · "+url);
+      return r.text();
+    },8000);
+  }
+  async function run() {
+    $("run").disabled=true; $("results").replaceChildren(); $("status").textContent="Checking from this browser…";
+    try {
+      const root=new URL($("root").value.trim());
+      if(!/^https?:$/.test(root.protocol)||root.username||root.password||root.search||root.hash)throw Error("Enter a public HTTP(S) data root.");
+      root.pathname=root.pathname.replace(/\/?$/,"/");
+      const url=p=>new URL(p,root).href;
+      const dir=card("Transaction directory listing"), manifest=card("Main static manifest"), cat=card("Saved transaction catalog"), sample=card("Sample saved transaction JSON"), scan=card("BSV scanner / last published status"), proxy=card("FileProxy (optional)");
+      const catalog=transport.loadCatalog(root.href);
+      const tasks=[
+        check(dir,async()=>{const u=url("transactions/"),html=await readText(u),links=new Set();for(const m of html.matchAll(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi)){try{const target=new URL(m[2],u),name=target.pathname.slice(new URL(u).pathname.length);if(target.origin===root.origin&&target.pathname.startsWith(new URL(u).pathname)&&!target.search&&!target.hash&&/^[a-z0-9][a-z0-9_-]*\/$/i.test(name))links.add(name.slice(0,-1));}catch(_){}}if(!links.size)throw Error("No currency subdirectories listed; Apache autoindex may be disabled.");return links.size+" directories: "+Array.from(links).join(", ");}),
+        check(manifest,async()=>{const x=await transport.loadManifest(url("manifest.json"));const rows=x.index.transactions||x.index.records||x.index.rows||x.index; if(!Array.isArray(rows))throw Error("Index has no record array.");return rows.length+" indexed records · "+x.indexUrl;}),
+        check(cat,async()=>{const x=await catalog,rows=x.index.transactions||x.index.records||x.index.rows||x.index;if(!Array.isArray(rows)||!rows.length)throw Error("No saved records.");const counts=new Map();for(const row of rows){const coin=String(row.coin||row.summary?.coin||"unknown").toLowerCase();counts.set(coin,(counts.get(coin)||0)+1);}return rows.length+" records\n"+Array.from(counts).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>k+": "+v).join("\n");}),
+        check(sample,async()=>{const x=await catalog,rows=x.index.transactions||x.index.records||x.index.rows||x.index;const norm=CHISEL_PORTAL_STATIC_DATA.createNormalizer().normalizeStaticDatasetRows(rows,{baseUrl:x.baseUrl});const row=norm.find(r=>r.coin==="bsv"&&(r.staticRawUrl||r.staticRawPath))||norm.find(r=>r.staticRawUrl||r.staticRawPath);if(!row)throw Error("No sample with a static file URL.");const saved=await transport.fetchStaticRawFromRow(row);return row.coin+" · transaction ID matched\n"+saved.url;}),
+        check(scan,async()=>{const s=await transport.fetchJsonNoStore(url("bsv/scan.json"));const lines=["Last export: "+(s.generatedAt||"unknown"),"Heartbeat: "+(s.runner?.heartbeatAt||"unknown"),"Runner last reported: "+(s.runner?.lastReportedState||"unknown"),"Transactions checked: "+(s.transactionsChecked??"unknown"),"Candidates: "+(s.candidates??"unknown"),"Completed blocks: "+(s.blocksComplete??"unknown")];for(const j of s.jobs||[])lines.push(j.name+": "+j.progress+(j.lastError?" · ERROR: "+j.lastError:""));if(s.lastError)lines.push("Last saved error: "+s.lastError);return lines.join("\n");}),
+        check(proxy,async()=>{const p=await transport.fetchJsonNoStore("https://rigler.org/fileproxy/ping");if(!p.ok)throw Error("Ping did not return ok.");return "Connected";})
+      ];
+      await Promise.all(tasks);$("status").textContent="Checks finished. Static results are independent of scanner and FileProxy status.";
+    }catch(error){$("status").textContent=error.message||String(error);}
+    finally{$("run").disabled=false;}
+  }
+  $("run").addEventListener("click",run);run();
+})();
+</script></body></html>
