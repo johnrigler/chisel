@@ -439,6 +439,9 @@
         <div id="chiselLogFields" hidden>
             <label for="chiselLogFormat">Log format (bytes32, 0x plus 64 hex characters)</label>
             <input id="chiselLogFormat" spellcheck="false" value="0x0000000000000000000000000000000000000000000000000000000000000000">
+            <label for="chiselShortText">Short public text / URL (1–80 UTF-8 bytes)</label>
+            <textarea id="chiselShortText" spellcheck="false" placeholder="https://youtu.be/..."></textarea>
+            <p id="chiselShortTextStatus" role="status">Optional: converts public text to the exact log bytes below. Larger or binary records can use the hex field directly.</p>
             <label for="chiselLogData">Log data (0x-prefixed, even-length hex bytes)</label>
             <textarea id="chiselLogData" spellcheck="false" placeholder="0x68656c6c6f">0x</textarea>
             <p>Logs persist in transaction receipts, not contract dictionary storage. Empty log data is permitted only in <code>execute</code> when another operation is present.</p>
@@ -501,7 +504,8 @@
 <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
 <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
 <script src="chisel.evm.write.js?rev=20261105-chisel-write"></script>
-<script src="chisel.evm.write.ui.js?rev=20261118-wallet-discovery-v2853"></script>
+<script src="chisel.evm.share.js?rev=20261125-polygon-share-v2881"></script>
+<script src="chisel.evm.write.ui.js?rev=20261125-polygon-share-v2881"></script>
 <script>
 (function () {
     "use strict";

@@ -95,6 +95,7 @@
     if (coin === "evm" || contractName || contractAddress.match(/^0x/)) {
       if (contractName.indexOf("gomez") !== -1 || contractAddress.indexOf("5a2220d56f56") !== -1) return "evmGomez";
       if (contractName.indexOf("jethro") !== -1 || contractAddress.indexOf("0076416c84c7") !== -1) return "evmJethro";
+      if (contractAddress === "0x683cfa103fe5dbd0a47402d78fbf818d4160b1d3" || /^(mogwai|chisel)$/.test(contractName)) return "evmChisel";
       if (contractName.indexOf("polygon-main-thunderword") !== -1 ||
           contractAddress === "0x1111111111111111111111111111111111111111" &&
           String(entry.chainId || raw.chainId || "").trim() === "137") return "evmPolygonThunderword";

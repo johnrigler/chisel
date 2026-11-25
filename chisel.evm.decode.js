@@ -5,6 +5,8 @@
   // are bytes relative to the ABI arguments after the four-byte selector.
   const GOMEZ = "3740071f"; // tell(string,address,uint256,address,uint256,address,uint256,address,uint256)
   const JETHRO = "16fb242a"; // mapArtifact(string,string)
+  const CHISEL_LOG = "5d9c3e43"; // logRecord(bytes32,bytes)
+  const CHISEL_EXECUTE = "3becb236"; // execute(string,string,(address,uint256)[],bytes32,bytes)
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
   function base64(bytes) {
@@ -41,9 +43,9 @@
   function decode(input) {
     const hex = String(input || "").replace(/^0x/i, "").toLowerCase();
     const selector = hex.slice(0, 8);
-    if (selector !== GOMEZ && selector !== JETHRO) return null;
+    if (![GOMEZ, JETHRO, CHISEL_LOG, CHISEL_EXECUTE].includes(selector)) return null;
     if (!/^[0-9a-f]+$/.test(hex) || hex.length % 2) throw new Error("Malformed EVM input hex.");
-    const args = hex.slice(8), size = args.length / 2, head = selector === GOMEZ ? 288 : 64;
+    const args = hex.slice(8), size = args.length / 2, head = selector === GOMEZ ? 288 : selector === CHISEL_EXECUTE ? 160 : 64;
     function word(offset) {
       if (offset < 0 || offset + 32 > size) throw new Error("Truncated ABI word.");
       return args.slice(offset * 2, (offset + 32) * 2);
@@ -61,6 +63,29 @@
       return Uint8Array.from((args.slice(start * 2, (start + count) * 2).match(/../g) || []), function (part) { return parseInt(part, 16); });
     }
     if (size < head) throw new Error("Truncated ABI argument head.");
+    if (selector === CHISEL_LOG || selector === CHISEL_EXECUTE) {
+      const combined = selector === CHISEL_EXECUTE;
+      const format = "0x" + word(combined ? 96 : 0);
+      const log = stringBytes(combined ? 4 : 1);
+      const receivers = [], amounts = [];
+      if (combined) {
+        const offset = length(64);
+        if (offset < head || offset % 32) throw new Error("Invalid ABI payment offset.");
+        const count = length(offset), start = offset + 32;
+        if (count > Math.floor((size - start) / 64)) throw new Error("Truncated ABI payment array.");
+        for (let i = 0; i < count; i++) {
+          const address = word(start + i * 64);
+          if (!/^0{24}/.test(address)) throw new Error("Invalid ABI address padding.");
+          receivers.push("0x" + address.slice(24));
+          amounts.push(BigInt("0x" + word(start + i * 64 + 32)).toString());
+        }
+      }
+      return {kind:combined ? "chisel.execute" : "chisel.logRecord", methodId:"0x"+selector,
+        artifact:combined ? text(stringBytes(0)) : "", body:combined ? text(stringBytes(1)) : "",
+        logFormat:format, logData:"0x"+Array.from(log, b => b.toString(16).padStart(2,"0")).join(""),
+        text:format === "0x"+"00".repeat(32) ? text(log) : "", payloadBytes:log.length,
+        receivers, amounts, words:Array.from(new Set(receivers.map(addressWord).filter(Boolean)))};
+    }
     const bytes = stringBytes(0), message = text(bytes);
     if (selector === JETHRO) return {kind: "jethro.mapArtifact", methodId: "0x" + selector,
       artifact: message, body: text(stringBytes(1))};
