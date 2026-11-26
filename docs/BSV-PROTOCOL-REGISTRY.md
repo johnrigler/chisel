@@ -1,3 +1,7 @@
 # BSV protocol registry
 
 The existing BSV media library now dispatches B://, 1Sat Ordinals and MAP independently. The initial ordinal decoder handles a single typed payload push in an envelope at script start or after standard P2PKH. It does not certify ordinal ownership or all script variants. Truncated previews are explicitly marked; complete retrieval checks output identity, protocol, length, declared MIME and available prefix, not independent transaction inclusion. GLB metadata is parsed from the bounded JSON chunk; download is explicit. No 3D renderer, writing, signing or FileProxy dependency is added. Test with the Zoide transaction e8f394c79169cad3f6cbdf9889c1eca2dfde773bf778f6b3e02cb997b4e1c46e, output 0 and MAP output 3. The regression test uses the exact script prefix and MAP output plus a synthetic complete GLB. See Commons for the research essay.
+
+## Encrypted BSV wrapper
+
+The BSVWRAPPER_MERKLE_E OP_RETURN marker identifies a separate envelope format. Indelible's indelible.claude-code JSON contains protocol, encrypted and wrap_owner. Sample transaction a18479a46e4b4053bc639e2db3dd178ad4e8e26f9a553f85f8bb2a93204d3904 output 0 contains a 17,046-byte JSON push with Base64 component sizes 12, 16 and 12,559 bytes. Algorithm and plaintext remain unverified. Chisel displays metadata and downloads original JSON push bytes, preserving the key wrap. No decryption is attempted.

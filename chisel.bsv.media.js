@@ -131,7 +131,39 @@
     }
     return [{protocol:"MAP",output:output.n==null?index:output.n,action:"SET",fields:fields}];
   }
+  const ENCRYPTED_WRAPPER="BSVWRAPPER_MERKLE_E";
+  function base64Bytes(value) {
+    if (typeof value!=="string" || !value.length || !/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length%4) return null;
+    return value.length/4*3-(value.endsWith("==")?2:value.endsWith("=")?1:0);
+  }
+  function encryptedFiles(output,index) {
+    const script=output && (output.scriptPubKey || output.script) || {};
+    const parts=pushes(typeof script==="string"?script:script.hex);
+    if (!parts[0] || !parts[0].complete || decoder.decode(parts[0].data)!==ENCRYPTED_WRAPPER || !parts[1]) return [];
+    const body=parts[1];
+    let protocol="", componentBytes=[], hasOwnerWrap=false;
+    if (body.complete) {
+      try {
+        const json=JSON.parse(decoder.decode(body.data));
+        if (json && typeof json.protocol==="string" && /^[a-zA-Z0-9._-]{1,100}$/.test(json.protocol)) protocol=json.protocol;
+        if (json && typeof json.encrypted==="string") {
+          const sizes=json.encrypted.split(":").map(base64Bytes);
+          if (sizes.length===3 && sizes.every(n=>n!==null)) componentBytes=sizes;
+        }
+        hasOwnerWrap=!!(json && typeof json.wrap_owner==="string" && json.wrap_owner.length);
+      } catch (_) {}
+    }
+    return [{protocol:ENCRYPTED_WRAPPER,output:output.n==null?index:output.n,part:1,
+      mime:"application/json",mimeSource:"wrapper",bytes:body.bytes,availableBytes:body.data.length,
+      complete:body.complete,data:body.data,name:protocol==="indelible.claude-code"?"Indelible · Claude Code":protocol.startsWith("indelible.")?"Indelible · "+protocol.slice(10):"Encrypted BSV envelope",
+      encrypted:true,metadata:{application:protocol,componentBytes:componentBytes,ciphertextBytes:componentBytes.length===3?componentBytes[2]:null,hasOwnerWrap:hasOwnerWrap,validEnvelope:!!protocol && componentBytes.length===3 && hasOwnerWrap}}];
+  }
+  function encryptedLabel(file) {
+    const meta=file.metadata||{};
+    return ["Encrypted artifact",Number.isFinite(meta.ciphertextBytes)?meta.ciphertextBytes.toLocaleString()+" bytes ciphertext":file.complete?"Envelope format unverified":"Partial envelope"].join(" · ");
+  }
   const registry=Object.freeze([
+    {id:"encrypted-wrapper",files:encryptedFiles},
     {id:"B",files:bFiles},
     {id:"1sat",files:ordinalFiles},
     {id:"map",metadata:mapMetadata}
@@ -189,5 +221,5 @@
   // Small, independently checked public records, loaded only when requested.
   const archivedTransactions=Object.freeze({"7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d":"data/related/bsv/7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d.json"});
   function archivePath(coin,txid) { return coin==="bsv" && Object.prototype.hasOwnProperty.call(archivedTransactions,txid) ? archivedTransactions[txid] : ""; }
-  root.CHISEL_BSV_MEDIA = {archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
+  root.CHISEL_BSV_MEDIA = {encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
 })(window);

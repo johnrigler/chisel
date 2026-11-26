@@ -26,13 +26,14 @@
     const uniq=values=>Array.from(new Map(values.filter(v=>typeof v==="string"&&v.trim()).map(v=>[norm(v),v.trim()])).values());
     const parents=list(raw && api ? api.parentInputs(raw) : []).concat(list(summary.parentInputs)).filter(p=>p && typeof p.txid==="string" && /^[a-f0-9]{64}$/i.test(p.txid) && Number.isInteger(p.vout) && p.vout>=0);
     const named=files.find(f=>f && f.protocol==="1Sat Ordinals" && f.name);
+    const encrypted=files.find(f=>f && f.encrypted);
     const mapFields=map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields));
     const app=mapFields.find(f=>f&&f.key==="app"&&typeof f.value==="string");
     const type=mapFields.find(f=>f&&f.key==="type"&&typeof f.value==="string");
-    const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>f.value))),
+    const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>f.value)).concat(files.filter(f=>f&&f.encrypted&&f.metadata&&/^indelible\./.test(f.metadata.application)).map(()=>"Indelible"))),
       collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
       parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
-      name:named ? named.name+(named.mime==="model/gltf-binary"?" · 3D ordinal":" · inscription") : app && type ? app.value+" · "+type.value.replace(/_/g," ") : ""};
+      name:encrypted ? encrypted.name : named ? named.name+(named.mime==="model/gltf-binary"?" · 3D ordinal":" · inscription") : app && type ? app.value+" · "+type.value.replace(/_/g," ") : ""};
     recordFacts.set(row,{raw,summary,value});return value;
   }
   function matchesFacet(row,facet) {
@@ -157,8 +158,8 @@
         }
         view.file = file;
         view.label.textContent = [file.name || file.mime, file.protocol, file.metadata && file.metadata.collection, file.metadata && file.metadata.meshCount ? file.metadata.meshCount+" meshes" : "", file.metadata && file.metadata.traits && (file.metadata.traits.find(t=>t.trait==="Rarity") || {}).value, file.bytes.toLocaleString() + " bytes", "output " + file.output,
-          file.mimeSource === "signature" ? "type from file signature" : "declared type"].filter(Boolean).join(" · ");
-        if (!view.url && !view.abort) view.status.textContent = file.complete ? "File bytes available." : "Saved preview is incomplete. Retrieve the complete output on demand.";
+          file.encrypted ? "encrypted envelope" : file.mimeSource === "signature" ? "type from file signature" : "declared type"].filter(Boolean).join(" · ");
+        if (!view.url && !view.abort) view.status.textContent = file.encrypted ? "Use Download encrypted envelope in the record. No plaintext preview." : file.complete ? "File bytes available." : "Saved preview is incomplete. Retrieve the complete output on demand.";
         const links = root.CHISEL_BSV_MEDIA ? root.CHISEL_BSV_MEDIA.externalLinks(coin, current.txid, file, map) : [];
         const linkStamp = JSON.stringify(links);
         if (view.linkStamp !== linkStamp) {

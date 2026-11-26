@@ -942,6 +942,8 @@
     const asm = String(raw && (raw.scriptpubkey_asm || (raw.scriptPubKey && raw.scriptPubKey.asm)) || "");
     const script = String(raw && (raw.script || raw.scriptpubkey ||
       (raw.scriptPubKey && raw.scriptPubKey.hex)) || "");
+    const encrypted=direction==="output" && window.CHISEL_BSV_MEDIA && window.CHISEL_BSV_MEDIA.encryptedFiles(raw,0)[0];
+    if(encrypted) return {label:encrypted.name,address:"",kind:"data",subtitle:window.CHISEL_BSV_MEDIA.encryptedLabel(encrypted)};
     if (direction === "output" && (/^OP_RETURN(?:\s|$)/i.test(asm) || /^6a/i.test(script))) {
       const payload = payloadData.fromOutput(raw);
       return { label: "OP_RETURN", address: "", kind: "data",
@@ -1094,7 +1096,8 @@
     return safeArray(tx && (tx.vout || tx.outputs)).map(function (entry, index) {
       const address = getOutputAddress(entry);
       const type = getOutputType(entry);
-      const payload = payloadData.fromOutput(entry);
+      const encrypted=window.CHISEL_BSV_MEDIA && window.CHISEL_BSV_MEDIA.encryptedFiles(entry,index)[0];
+      const payload=encrypted?{text:window.CHISEL_BSV_MEDIA.encryptedLabel(encrypted),label:encrypted.name,kind:"encrypted",bytes:encrypted.bytes}:payloadData.fromOutput(entry);
       return {
         n: typeof entry.n === "number" ? entry.n : index,
         address: address,
@@ -1111,10 +1114,13 @@
   function opReturnTextForRow(row) {
     // Read the same output scripts used by the expanded transaction flow.
     // Older cached summaries may have only a generic title or no OP_RETURN.
+    const encrypted=encryptedBsvFilesForRow(row);
+    if (encrypted.length) return encrypted.map(window.CHISEL_BSV_MEDIA.encryptedLabel).join("\n");
     const payloads = extractOutputs(row && row.raw).map(function (output) { return output.opReturnPayload; }).filter(Boolean);
     if (payloads.length) return payloads.map(function (payload) { return payload.text || payload.label; }).join("\n");
     const text = String(row && row.summary && row.summary.opReturnText ||
       row && row.draftRecord && row.draftRecord.ledger.opReturnText || "").trim();
+    if (/^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row)) && /BSVWRAPPER_MERKLE_E|indelible\.claude-code/.test(text)) return "Encrypted artifact · open record to inspect envelope";
     return text.includes("\ufffd") ? "OP_RETURN data · open record to inspect bytes" : text;
   }
 
@@ -1790,6 +1796,8 @@
       Object.assign(summary, window.CHISEL_BSV_MEDIA.summarize(value));
       const named = summary.files.find(file => file.protocol === "1Sat Ordinals" && file.name);
       if (named) summary.title = named.name + (named.mime === "model/gltf-binary" ? " · 3D ordinal" : " · inscription");
+      const encrypted=summary.files.find(file=>file.encrypted);
+      if(encrypted) summary.title=encrypted.name;
     }
     return summary;
   }
@@ -5361,6 +5369,47 @@
 
   }
 
+  const encryptedBsvCache=new WeakMap();
+  function encryptedBsvFilesForRow(row) {
+    const api=window.CHISEL_BSV_MEDIA;
+    if(!row||!api||!/^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))) return [];
+    if(!row.raw) return safeArray(row.summary && row.summary.files).filter(f=>f.encrypted);
+    if(!encryptedBsvCache.has(row.raw)){
+      const tx=row.raw.tx||row.raw;
+      encryptedBsvCache.set(row.raw,safeArray(tx.vout||tx.outputs).flatMap(api.encryptedFiles));
+    }
+    return encryptedBsvCache.get(row.raw);
+  }
+  function appendEncryptedBsvDetails(container,row,files) {
+    const api=window.CHISEL_BSV_MEDIA;
+    files.forEach(file=>{
+      const section=document.createElement("section");section.className="portalInterpretedRecord";
+      const title=document.createElement("div");title.className="stepTitle";title.textContent=file.name;section.appendChild(title);
+      const details=document.createElement("p"),meta=file.metadata||{};
+      details.textContent=[api.encryptedLabel(file),file.protocol,meta.application,
+        "Output "+file.output,file.bytes.toLocaleString()+" bytes envelope",
+        meta.componentBytes && meta.componentBytes.length===3?"Base64 components: "+meta.componentBytes.join(" / ")+" bytes":"",
+        meta.hasOwnerWrap?"Owner key wrap present":"",
+        "Encryption algorithm not verified; plaintext not available."].filter(Boolean).join(" · ");
+      section.appendChild(details);
+      const button=document.createElement("button");button.type="button";button.className="secondaryButton";button.textContent="Download encrypted envelope";
+      const status=document.createElement("p");status.className="muted";status.setAttribute("role","status");
+      button.onclick=async event=>{
+        event.preventDefault();event.stopPropagation();button.disabled=true;
+        try{
+          let full=file;
+          if(!full.complete) full=await api.loadFile(canonicalCoinForRow(row),row.txid,file,window.fetch.bind(window),AbortSignal.timeout(30000));
+          if(!full.data||!full.complete||full.data.length!==full.bytes) throw Error("Complete envelope not available.");
+          const url=URL.createObjectURL(new Blob([full.data],{type:"application/json"}));
+          const link=document.createElement("a");link.href=url;link.download="bsv-"+row.txid+"-"+file.output+"-encrypted.json";
+          document.body.appendChild(link);try{link.click();}finally{link.remove();window.setTimeout(()=>URL.revokeObjectURL(url),60000);}
+          status.textContent="Download requested: "+full.data.length.toLocaleString()+" bytes.";
+        }catch(error){status.textContent="Download failed: "+(error.message||String(error));}
+        finally{button.disabled=false;}
+      };
+      section.appendChild(button);section.appendChild(status);container.appendChild(section);
+    });
+  }
   function appendPortalInlineBody(container, row, options) {
     // Linked media leads the expanded record. Ledger flow and supporting
     // interpretation remain available immediately below it.
@@ -5430,6 +5479,8 @@
       return;
     }
 
+    const encryptedFiles=encryptedBsvFilesForRow(row);
+    if(encryptedFiles.length) appendEncryptedBsvDetails(supportTarget,row,encryptedFiles);
     const lines = extractLines(row.raw);
     const imageLines = getImageLines(lines);
     const hasInlineImage = imageLines.length > 0;
@@ -5479,7 +5530,7 @@
       dataContainer.appendChild(links);
     }
 
-    dataContainer.appendChild(makeInlinePre("Raw transaction JSON", pretty(row.raw), false));
+    if (!encryptedFiles.length) dataContainer.appendChild(makeInlinePre("Raw transaction JSON", pretty(row.raw), false));
 
     if (appendDataContainer) supportTarget.appendChild(dataContainer);
   }
