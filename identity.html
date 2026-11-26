@@ -19,7 +19,7 @@ h1,h2,p { margin: 0; }
 .muted { color: #91a4b7; }
 .warning { color: #ffd166; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; }
-button, textarea, input {
+button, textarea, input, select {
   font: inherit;
   color: inherit;
   background: #171d24;
@@ -55,7 +55,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
 <main>
   <section class="panel">
     <h1>Chisel identity</h1>
-    <p class="muted">Create an identity you can use with Lantern and other Chisel tools. You do not need to put any money in it. The twelve recovery words are the part you must keep private.</p>
+    <p class="muted">Create an identity you can use with Lantern and other Chisel tools. You do not need to put any money in it. Your recovery words are the part you must keep private.</p>
   </section>
 
   <section class="panel">
@@ -75,8 +75,8 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     </div>
 
     <div id="recovery" class="hidden">
-      <label for="phrase">Twelve words</label>
-      <textarea id="phrase" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="word1 word2 ... word12"></textarea>
+      <label for="phrase">BIP-39 recovery words (12, 15, 18, 21 or 24)</label>
+      <textarea id="phrase" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Enter recovery words in order"></textarea>
       <div class="actions">
         <button id="recoverUse" type="button">USE THIS IDENTITY</button>
       </div>
@@ -85,13 +85,22 @@ code { overflow-wrap: anywhere; color: #c5f467; }
 
   <section id="result" class="panel hidden">
     <h2>Your identity</h2>
-    <p class="muted">This Litecoin address is the public name for this identity. It is safe to share.</p>
-    <code id="litecoinAddress"></code>
+    <label for="addressNetwork">Address format</label>
+    <select id="addressNetwork">
+      <option value="litecoin">Litecoin (LTC)</option>
+      <option value="bitcoin">Bitcoin / Bitcoin SV / Bitcoin Cash (legacy)</option>
+      <option value="digibyte">DigiByte (DGB)</option>
+      <option value="dogecoin">Dogecoin (DOGE)</option>
+      <option value="ravencoin">Ravencoin (RVN)</option>
+      <option value="polygon">Polygon / EVM</option>
+    </select>
+    <p class="muted">This is a public address for the same identity. Switching formats does not change the recovery words, private key or derivation path. It does not switch the network used to send funds.</p>
+    <code id="publicAddress" aria-live="polite"></code>
     <details>
       <summary>Technical details</summary>
       <p class="muted">Chisel also keeps a machine-readable identifier for applications such as Lantern.</p>
       <code id="identity"></code>
-      <p class="muted">Derivation: <code>chisel-identity-v1</code> · BIP-39 English · <code>m/44'/0'/0'/0/0</code> · compressed secp256k1 public key. Litecoin address: legacy P2PKH from the same key.</p>
+      <p class="muted">Derivation: <code>chisel-identity-v1</code> · BIP-39 English · <code>m/44'/0'/0'/0/0</code> · compressed secp256k1 public key. UTXO addresses use legacy P2PKH; Polygon uses the EVM address of the same key. Other wallets may use different derivation paths.</p>
     </details>
     <div id="signRequest" class="panel hidden">
       <h2>Signature request</h2>
@@ -129,7 +138,8 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   const recoverUse = document.getElementById("recoverUse");
   const result = document.getElementById("result");
   const identityOut = document.getElementById("identity");
-  const litecoinAddressOut = document.getElementById("litecoinAddress");
+  const addressNetwork = document.getElementById("addressNetwork");
+  const publicAddressOut = document.getElementById("publicAddress");
   const continueButton = document.getElementById("continue");
   const openChisel = document.getElementById("openChisel");
   const signRequest = document.getElementById("signRequest");
@@ -145,7 +155,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   let currentPhrase = "";
   let currentPrivateKey = "";
   let currentIdentity = "";
-  let currentLitecoinAddress = "";
+  let currentPublicKey = "";
   let challengeIndexes = [];
   let challengeStage = false;
 
@@ -153,17 +163,26 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
   }
 
-  function litecoinAddressFromCompressedPublicKey(compressed) {
+  function addressFromPublicKey(compressed, network) {
+    if (network === "polygon") return ethers.computeAddress(compressed);
+    const prefixes = { litecoin: "30", bitcoin: "00", digibyte: "1e", dogecoin: "1e", ravencoin: "3c" };
+    if (!Object.prototype.hasOwnProperty.call(prefixes, network)) throw new Error("Unknown address format.");
     const pubkeyHash = ethers.ripemd160(ethers.sha256(compressed));
-    const payload = "0x30" + pubkeyHash.replace(/^0x/, "");
+    const payload = "0x" + prefixes[network] + pubkeyHash.slice(2);
     const checksum = ethers.sha256(ethers.sha256(payload)).slice(2, 10);
     return ethers.encodeBase58(payload + checksum);
   }
 
+  function renderPublicAddress() {
+    if (currentPublicKey) publicAddressOut.textContent = addressFromPublicKey(currentPublicKey, addressNetwork.value);
+  }
+
+  addressNetwork.addEventListener("change", renderPublicAddress);
+
   function derive(value) {
     const clean = normalizePhrase(value);
     const parts = clean.split(" ");
-    if (parts.length !== 12) throw new Error("Expected exactly 12 words.");
+    if (![12, 15, 18, 21, 24].includes(parts.length)) throw new Error("Expected 12, 15, 18, 21 or 24 BIP-39 words.");
 
     const wallet = ethers.HDNodeWallet.fromPhrase(clean, "", PATH);
     const compressed = ethers.SigningKey.computePublicKey(wallet.privateKey, true);
@@ -171,7 +190,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
       phrase: clean,
       privateKey: wallet.privateKey.replace(/^0x/, ""),
       identity: "chisel:v1:" + compressed.replace(/^0x/, ""),
-      litecoinAddress: litecoinAddressFromCompressedPublicKey(compressed)
+      publicKey: compressed
     };
   }
 
@@ -179,8 +198,8 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     currentPhrase = derived.phrase;
     currentPrivateKey = derived.privateKey;
     currentIdentity = derived.identity;
-    currentLitecoinAddress = derived.litecoinAddress;
-    litecoinAddressOut.textContent = currentLitecoinAddress;
+    currentPublicKey = derived.publicKey;
+    renderPublicAddress();
     identityOut.textContent = CHISEL.shortIdentity(currentIdentity);
     identityOut.title = currentIdentity;
     if (hasSignRequest) {
