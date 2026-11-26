@@ -2289,7 +2289,102 @@
     return !!matched.behavior.renderExpanded(container, matched.record, row);
   }
 
+  // Session-only compact raster previews. No full-size image blobs retained.
+  const bsvRowThumbnails = new WeakMap();
+  let visibleBsvThumbnailsScheduled = false;
+  function bsvThumbnailForRow(row) {
+    const entry = bsvRowThumbnails.get(row);
+    return entry && entry.url || "";
+  }
+
+  function isBsvRasterImage(file) {
+    return file && /^image\/(?:jpeg|png|gif|webp|avif|bmp|x-icon)$/.test(file.mime);
+  }
+
+  async function makeBsvRowThumbnail(row) {
+    const api = window.CHISEL_BSV_MEDIA;
+    if (!api || !row.raw) return "";
+    let file = api.files(row.raw).find(isBsvRasterImage);
+    if (!file || file.bytes > 32 * 1024 * 1024) return "";
+    if (!file.complete) {
+      file = await api.loadFile(canonicalCoinForRow(row), row.txid, file,
+        window.fetch.bind(window), AbortSignal.timeout(30000));
+    }
+    if (!file.data || !file.data.length || file.data.length > 32 * 1024 * 1024) return "";
+    const source = URL.createObjectURL(new Blob([file.data], {type: file.mime}));
+    try {
+      const img = document.createElement("img");
+      img.src = source;
+      await img.decode();
+      if (!img.naturalWidth || !img.naturalHeight) return "";
+      const scale = Math.min(1, 208 / img.naturalWidth, 112 / img.naturalHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/png");
+    } finally {
+      URL.revokeObjectURL(source);
+    }
+  }
+
+  function scheduleVisibleBsvThumbnails(pageRows) {
+    if (!window.CHISEL_BSV_MEDIA || visibleBsvThumbnailsScheduled) return;
+    const candidates = safeArray(pageRows).filter(function (row) {
+      if (!/^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))) return false;
+      const previous = bsvRowThumbnails.get(row);
+      if (previous && (previous.url || previous.raw === row.raw && previous.summary === row.summary)) return false;
+      return !!row.raw || rowCanHydrate(row);
+    });
+    if (!candidates.length) return;
+    visibleBsvThumbnailsScheduled = true;
+    const generation = state.portalLoadGeneration;
+    window.setTimeout(function () {
+      (async function () {
+        for (let offset = 0; offset < candidates.length; offset += 2) {
+          if (generation !== state.portalLoadGeneration) return;
+          await Promise.all(candidates.slice(offset, offset + 2).map(async function (row) {
+            if (!isVisiblePortalRow(row)) return;
+            try {
+              if (!row.raw) await hydratePortalRow(row.key, {
+                quiet: true, silent: true, suppressRender: true, deferSort: true, deferCache: true, refreshIndex: false
+              });
+              if (generation !== state.portalLoadGeneration || state.portalRowKeys[row.key] !== row) return;
+              if (!isVisiblePortalRow(row)) return;
+              const entry = {raw: row.raw, summary: row.summary, url: ""};
+              bsvRowThumbnails.set(row, entry);
+              if (row.raw) entry.url = await makeBsvRowThumbnail(row);
+            } catch (_) {
+              // Unavailable media must not interrupt the ledger feed.
+              bsvRowThumbnails.set(row, {raw: row.raw, summary: row.summary, url: ""});
+            } finally {
+              if (generation === state.portalLoadGeneration && isVisiblePortalRow(row)) requestPortalRender();
+            }
+          }));
+          await yieldPortalThread();
+        }
+      })().catch(function (error) {
+        console.warn("BSV thumbnail lookup failed:", error);
+      }).finally(function () {
+        visibleBsvThumbnailsScheduled = false;
+        requestPortalRender();
+      });
+    }, 0);
+  }
+
   function appendRowThumbnail(cell, row) {
+    const bsvThumbnail = bsvThumbnailForRow(row);
+    if (bsvThumbnail) {
+      const img = document.createElement("img");
+      img.className = "portalStreamThumbImage portalStreamThumbRemote";
+      img.alt = "BSV transaction image";
+      img.title = "Image embedded in this transaction";
+      img.loading = "lazy";
+      img.src = bsvThumbnail;
+      cell.appendChild(img);
+      return "";
+    }
+
     // Record-specific renderers belong in the expanded interpretation area.
     // The compact thumbnail remains reserved for actual media/image previews.
     const evmImages = collectEvmImageAssets(row);
@@ -5028,7 +5123,7 @@
   }
 
   function portalDisplayStamp(row) {
-    return JSON.stringify([row.raw, row.summary, row.publication, row.index, row.localPath,
+    return JSON.stringify([bsvThumbnailForRow(row), row.raw, row.summary, row.publication, row.index, row.localPath,
       row.rawSourceUrl, row.blockTime, row.confirmed, row.ledgerObserved, row.loadError, row.dateLookupError,
       getPortalAnnotation(row), state.personalAccount, !!state.pendingHydration[row.key],
       !!state.pendingDateLookup[row.key], !!state.attemptedFinanceLookup[row.key],
@@ -5665,7 +5760,7 @@
     const titleText = displayTitleForRow(row);
     const opText = opReturnTextForRow(row);
     const genericTitle = /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
-    const compactGeneric = !primaryUrl && !opText && genericTitle;
+    const compactGeneric = !primaryUrl && !opText && genericTitle && thumb.classList.contains("isEmpty");
     if (compactGeneric) item.classList.add("isCompactGeneric");
     titleWrap.title = compactGeneric ? (recordLink ? "Open Chisel record page" : "Expand for transaction details") : titleText;
     if (primaryUrl) {
@@ -6063,6 +6158,7 @@
     scheduleVisiblePortalDates(pageRows);
     scheduleVisiblePortalFinance(pageRows);
     scheduleVisiblePortalEvm(pageRows);
+    scheduleVisibleBsvThumbnails(pageRows);
     scheduleVisiblePortalAnnotations(pageRows);
     scheduleVisibleYoutubeMetadata(pageRows);
   }
