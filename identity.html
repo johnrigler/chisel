@@ -30,6 +30,7 @@ button, textarea, input, select {
 button { cursor: pointer; font-weight: 700; }
 button.primary { background: #705dff; border-color: #8b7bff; }
 button:disabled { opacity: .5; cursor: default; }
+.navButton { color: inherit; background: #171d24; border: 1px solid #3b4653; border-radius: 8px; padding: 10px 12px; font-weight: 700; text-decoration: none; }
 textarea { width: 100%; min-height: 96px; resize: vertical; }
 .words {
   display: grid;
@@ -57,6 +58,14 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     <h1>Chisel identity</h1>
     <p class="muted">Create an identity you can use with Lantern and other Chisel tools. You do not need to put any money in it. Your recovery words are the part you must keep private.</p>
   </section>
+
+  <nav class="panel" id="identityEntryLinks" aria-label="Identity options">
+    <div class="actions">
+      <a class="navButton" href="tools/recorder/index.html?scanMode=key4&amp;currency=litecoin&amp;v=20261117-rearonly-scanner5">SCAN FOUR KEYS</a>
+      <a class="navButton" href="tools/recorder/index.html?scanMode=artifact1&amp;currency=litecoin&amp;v=20261117-rearonly-scanner5">SCAN ARTIFACT</a>
+      <a class="navButton" href="index.html">BACK TO CHISEL</a>
+    </div>
+  </nav>
 
   <section class="panel">
     <h2>Create or recover</h2>
@@ -151,6 +160,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   const requestedApp = String(requestParams.get("app") || "").trim();
   const requestedNonce = String(requestParams.get("request") || "").trim();
   const hasSignRequest = /^[0-9a-f]{64}$/.test(requestedDigest) && requestedType.length > 0;
+  if (hasSignRequest || requestParams.get("return")) document.getElementById("identityEntryLinks").classList.add("hidden");
 
   let currentPhrase = "";
   let currentPrivateKey = "";
