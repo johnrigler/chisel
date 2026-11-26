@@ -143,6 +143,10 @@
       const map = current.raw && root.CHISEL_BSV_MEDIA ? root.CHISEL_BSV_MEDIA.metadata(current.raw) : list((current.summary||{}).metadata);
       const mapText = map.map(m=>m.protocol+" output "+m.output+": "+m.fields.map(f=>f.key+" = "+f.value).join(" · ")).join(" | ");
       get("portalRecordFileStatus").textContent = (files.length ? "Files in this transaction" : !current.raw ? "File inventory requires transaction data." : "No recognized BSV files in this transaction.") + (mapText ? " · "+mapText : "");
+      // Only the first reasonably sized raster image auto-loads on record open.
+      // Remaining images, large payloads and SVG retain explicit user controls.
+      const autoImage = files.find(file => /^image\/(?:jpeg|png|gif|webp|avif|bmp|x-icon)$/.test(file.mime) &&
+        Number.isFinite(file.bytes) && file.bytes > 0 && file.bytes <= 4 * 1024 * 1024);
       files.forEach(function (file) {
         const key = file.output + ":" + file.protocol + ":" + file.part; visible.add(key);
         let view = fileNodes.get(key);
@@ -200,6 +204,7 @@
         if (/^image\/(?:jpeg|png|gif|webp|svg\+xml|avif|bmp|x-icon)$/.test(file.mime) && !view.button) {
           const button = doc.createElement("button"); button.type = "button"; button.className = "secondaryButton"; button.textContent = "LOAD IMAGE"; view.button = button; view.node.appendChild(button);
           button.onclick = async function () {
+            if (view.abort || view.url) return;
             const token = generation, selected = current, abort = new AbortController(); view.abort = abort; button.disabled = true;
             const timeout = root.setTimeout(function () { abort.abort(); }, 30000);
             view.status.textContent = "Loading image bytes…";
@@ -211,12 +216,33 @@
               if (!full.complete) full = await root.CHISEL_BSV_MEDIA.loadFile(coin, selected.txid, full, root.fetch.bind(root), abort.signal);
               if (generation !== token) return;
               if (!view.image) { view.image = doc.createElement("img"); view.image.alt = full.name || "BSV transaction image"; view.node.appendChild(view.image); }
-              view.url = URL.createObjectURL(new Blob([full.data], {type: full.mime})); view.image.src = view.url;
-              view.status.textContent = "Loaded " + full.data.length.toLocaleString() + " bytes."; button.hidden = true;
-              view.image.onerror = function () { view.status.textContent = "The browser could not display this image."; };
-            } catch (error) { if (generation === token) view.status.textContent = abort.signal.aborted ? "Image request timed out. Try loading it again." : error.message || String(error); }
+              view.url = URL.createObjectURL(new Blob([full.data], {type: full.mime}));
+              const imageUrl = view.url;
+              view.image.onload = function () {
+                if (generation !== token || view.url !== imageUrl) return;
+                view.status.textContent = "Loaded " + full.data.length.toLocaleString() + " bytes.";
+                button.hidden = true;
+              };
+              view.image.onerror = function () {
+                if (generation !== token || view.url !== imageUrl) return;
+                URL.revokeObjectURL(imageUrl); view.url = null;
+                view.status.textContent = "The browser could not display this image.";
+                button.hidden = false; button.textContent = "RETRY IMAGE"; button.disabled = false;
+              };
+              view.status.textContent = "Decoding image…";
+              view.image.src = imageUrl;
+            } catch (error) {
+              if (generation === token) {
+                view.status.textContent = abort.signal.aborted ? "Image request timed out. Try loading it again." : error.message || String(error);
+                button.textContent = "RETRY IMAGE";
+              }
+            }
             finally { root.clearTimeout(timeout); if (generation === token) { view.abort = null; button.disabled = false; } }
           };
+        }
+        if (file === autoImage && current.raw && view.button && !view.autoAttempted && !view.abort && !view.url) {
+          view.autoAttempted = true;
+          view.button.click();
         }
       });
       fileNodes.forEach(function (view, key) { if (!visible.has(key)) { if (view.abort) view.abort.abort(); if (view.url) URL.revokeObjectURL(view.url); view.node.remove(); fileNodes.delete(key); } });
