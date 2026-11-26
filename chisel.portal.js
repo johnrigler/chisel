@@ -6547,12 +6547,153 @@
     return proxyCatalogRefresh;
   }
 
+
+  // Browser-owned Polygon discovery. FileProxy is only a supplementary cache.
+  const DIRECT_POLYGON_RPC = ["https://polygon.drpc.org", "https://polygon-bor-rpc.publicnode.com"];
+  let directPolygonRefresh = null, directPolygonLastAttempt = 0;
+  let directPolygonTip = null, directPolygonBackfill = null;
+  const directPolygonSeen = new Set();
+  async function directPolygonJson(url, options) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(function () { controller.abort(); }, 8000);
+    try {
+      const response = await fetch(url, Object.assign({cache:"no-store",signal:controller.signal}, options));
+      if (!response.ok) throw Error("Polygon provider HTTP " + response.status);
+      return await response.json();
+    } finally { window.clearTimeout(timer); }
+  }
+  async function directPolygonRpc(url, method, params) {
+    const body = await directPolygonJson(url, {method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({jsonrpc:"2.0",id:1,method:method,params:params})});
+    if (!body || body.error || !Object.prototype.hasOwnProperty.call(body,"result"))
+      throw Error("Polygon RPC " + method + " failed");
+    return body.result;
+  }
+  function acceptDirectPolygon(raw, profile, source, receipt) {
+    if (!raw || String(raw.to || "").toLowerCase() !== profile.contractAddress.toLowerCase() ||
+        !/^0x[0-9a-f]{64}$/i.test(String(raw.hash || "")) ||
+        !Number.isFinite(Number(raw.timeStamp)) || Number(raw.timeStamp) <= 0 ||
+        !/^0x(?:[0-9a-f]{2})*$/i.test(String(raw.input || ""))) return false;
+    const packet = evmTxPacket(raw,profile);
+    packet.source.kind = source;
+    if (receipt) packet.receipt = receipt;
+    const reverted = raw.isError === "1";
+    const row = upsertPortalRow({coin:"evm",txid:packet.txid,index:evmIndexEntry(profile),
+      raw:packet,summary:packet.summary,blockTime:packet.summary.blockTime,confirmed:true,
+      polygonReceiptStatus:reverted ? "execution reverted" : "receipt confirmed",
+      discoverySource:source}, {ledgerObserved:true});
+    if (row) directPolygonSeen.add(packet.hash);
+    return !!row;
+  }
+  async function discoverPolygonAddressHistory(profile) {
+    // Use the browser's own Etherscan credential if present. Never fetch a server secret.
+    const key = savedEtherscanApiKey();
+    if (key) {
+      try {
+        const rows = await etherscanTxList(profile,key,0,1);
+        rows.forEach(function (raw) {
+          if (raw.isError === "0" || raw.isError === "1") acceptDirectPolygon(raw,profile,"etherscan-v2",null);
+        });
+        return;
+      } catch (error) { console.warn("Direct Polygon Etherscan history:",error); }
+    }
+    const url = "https://polygon.blockscout.com/api/v2/addresses/" +
+      encodeURIComponent(profile.contractAddress) + "/transactions?filter=to";
+    const data = await directPolygonJson(url);
+    if (!data || !Array.isArray(data.items)) throw Error("Invalid Polygon address history");
+    data.items.forEach(function (tx) {
+      const status = String(tx.status || "").toLowerCase();
+      if (!["ok","error"].includes(status) || !Number(tx.block_number)) return;
+      acceptDirectPolygon({hash:tx.hash,from:tx.from && tx.from.hash,to:tx.to && tx.to.hash,
+        input:tx.raw_input,blockNumber:tx.block_number,transactionIndex:tx.position || 0,
+        timeStamp:Date.parse(tx.timestamp)/1000,value:tx.value,gasUsed:tx.gas_used,
+        isError:status === "ok" ? "0" : "1"},profile,"polygon-blockscout",null);
+    });
+  }
+  async function discoverPolygonLogs(profile) {
+    // Recent blocks first; advance a cursor and fill older blocks in bounded batches.
+    // Logs cannot discover reverted or eventless calls; address history handles those.
+    let lastError;
+    for (const url of DIRECT_POLYGON_RPC) {
+      try {
+        const rpc = function (method,params) { return directPolygonRpc(url,method,params); };
+        if (Number(await rpc("eth_chainId",[])) !== 137) throw Error("Wrong Polygon network");
+        const tip = Number(await rpc("eth_blockNumber",[]));
+        if (!Number.isSafeInteger(tip) || tip < 1) throw Error("Invalid Polygon tip");
+        const hex = function (n) { return "0x" + n.toString(16); };
+        const span = 1000, floor = Math.max(0,tip-50000);
+        async function scan(from,to) {
+          if (from > to) return;
+          const logs = await rpc("eth_getLogs",[{address:profile.contractAddress,fromBlock:hex(from),toBlock:hex(to)}]);
+          if (!Array.isArray(logs)) throw Error("Invalid Polygon logs");
+          const hashes = Array.from(new Set(logs.filter(function (log) {
+            return !log.removed && String(log.address).toLowerCase() === profile.contractAddress.toLowerCase();
+          }).map(function (log) { return String(log.transactionHash).toLowerCase(); })));
+          // Limit simultaneous RPC requests; do not advance the cursor on incomplete reads.
+          for (const hash of hashes) {
+            if (directPolygonSeen.has(hash)) continue;
+            const pair = await Promise.all([rpc("eth_getTransactionByHash",[hash]),rpc("eth_getTransactionReceipt",[hash])]);
+            const tx = pair[0], receipt = pair[1];
+            if (!tx || !receipt || String(tx.hash).toLowerCase() !== hash ||
+                String(receipt.transactionHash).toLowerCase() !== hash || receipt.status !== "0x1")
+              throw Error("Incomplete Polygon receipt");
+            if (String(tx.to || "").toLowerCase() !== profile.contractAddress.toLowerCase()) continue;
+            const block = await rpc("eth_getBlockByNumber",[receipt.blockNumber,false]);
+            if (!block || block.hash !== receipt.blockHash) throw Error("Polygon block changed");
+            if (!acceptDirectPolygon(Object.assign({},tx,{timeStamp:Number(block.timestamp),
+                gasUsed:receipt.gasUsed,isError:"0"}),profile,"polygon-rpc",receipt))
+              throw Error("Invalid Polygon transaction");
+          }
+        }
+        if (directPolygonTip === null) {
+          const start = Math.max(0,tip-span+1);
+          await scan(start,tip);
+          directPolygonTip = tip;
+          directPolygonBackfill = start-1;
+        } else {
+          const start = Math.max(0, directPolygonTip-15);
+          const end = Math.min(tip,start+span-1);
+          await scan(start,end);
+          directPolygonTip = Math.max(directPolygonTip,end);
+        }
+        // Catch up history without holding up the newest results or scanning all of Polygon.
+        for (let i=0;i<3 && directPolygonBackfill >= floor;i++) {
+          const start = Math.max(floor,directPolygonBackfill-span+1);
+          await scan(start,directPolygonBackfill);
+          directPolygonBackfill = start-1;
+        }
+        return;
+      } catch (error) { lastError = error; }
+    }
+    throw lastError || Error("Polygon RPC unavailable");
+  }
+  function refreshDirectPolygon() {
+    if (document.hidden || document.body.dataset.mode !== "portal") return Promise.resolve();
+    if (directPolygonRefresh) return directPolygonRefresh;
+    const profile = enabledEvmProfiles().find(function (item) { return item.id === "chisel"; });
+    if (!profile || Date.now()-directPolygonLastAttempt < 15000) return Promise.resolve();
+    directPolygonLastAttempt = Date.now();
+    directPolygonRefresh = Promise.allSettled([discoverPolygonAddressHistory(profile),discoverPolygonLogs(profile)])
+      .then(function (results) {
+        results.forEach(function (result) {
+          if (result.status === "rejected") console.warn("Direct Polygon discovery:",result.reason);
+        });
+        if (results.every(function (result) { return result.status === "rejected"; }))
+          setStatus("Polygon discovery providers unavailable; retrying. Cached records remain visible.",true);
+      }).finally(function () { directPolygonRefresh = null; });
+    return directPolygonRefresh;
+  }
+
   function startIndexedChiselPolling() {
     if (state.indexedChiselTimer) window.clearInterval(state.indexedChiselTimer);
     const ms = Number(configValue("indexedChiselRefreshMs", 30000));
     if (!Number.isFinite(ms) || ms < 1000) return;
+    refreshDirectPolygon();
     refreshOptionalFileProxy();
-    state.indexedChiselTimer = window.setInterval(refreshOptionalFileProxy, Math.max(15000, ms));
+    state.indexedChiselTimer = window.setInterval(function () {
+      refreshDirectPolygon();
+      refreshOptionalFileProxy();
+    }, Math.max(15000, ms));
   }
 
   const ETHERSCAN_V2_URL = "https://api.etherscan.io/v2/api";
@@ -8283,18 +8424,18 @@ function getPortalFirstCharacter() {
     });
     window.addEventListener("focus", function () {
       if (configBool("liveLedgerRefreshOnFocus", true)) refreshLiveLedger();
-      if (recordCatalogConfig) recordCatalogConfig.then(refreshOptionalFileProxy).catch(function () {});
+      if (recordCatalogConfig) recordCatalogConfig.then(function () { refreshDirectPolygon(); refreshOptionalFileProxy(); }).catch(function () {});
     });
     window.addEventListener("chisel:mode", function (event) {
       if (event.detail && event.detail.mode === "portal") {
         restoreRecentPolygon();
         revealRecentPolygon();
         refreshLiveLedger();
-        if (recordCatalogConfig) recordCatalogConfig.then(refreshOptionalFileProxy).catch(function () {});
+        if (recordCatalogConfig) recordCatalogConfig.then(function () { refreshDirectPolygon(); refreshOptionalFileProxy(); }).catch(function () {});
       }
     });
     document.addEventListener("visibilitychange", function () {
-      if (!document.hidden && configBool("liveLedgerRefreshOnFocus", true)) refreshLiveLedger();
+      if (!document.hidden && configBool("liveLedgerRefreshOnFocus", true)) { refreshLiveLedger(); refreshDirectPolygon(); }
     });
 
     recordCatalogConfig = loadPortalConfig().then(function (config) {
