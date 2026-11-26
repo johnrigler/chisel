@@ -109,8 +109,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
       <code id="signRequestDigest"></code>
     </div>
     <div class="actions">
-      <button id="continue" class="primary" type="button">CONTINUE</button>
-      <button id="openChisel" type="button">OPEN CHISEL WITH THIS IDENTITY</button>
+      <button id="continue" class="primary" type="button">OPEN CHISEL WITH THIS IDENTITY</button>
     </div>
   </section>
 </main>
@@ -143,7 +142,6 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   const publicAddressOut = document.getElementById("publicAddress");
   const addressError = document.getElementById("addressError");
   const continueButton = document.getElementById("continue");
-  const openChisel = document.getElementById("openChisel");
   const signRequest = document.getElementById("signRequest");
   const signRequestText = document.getElementById("signRequestText");
   const signRequestDigest = document.getElementById("signRequestDigest");
@@ -226,11 +224,9 @@ code { overflow-wrap: anywhere; color: #c5f467; }
       signRequestDigest.title = requestedDigest;
       signRequest.classList.remove("hidden");
       continueButton.textContent = "SIGN & RETURN";
-      openChisel.classList.add("hidden");
     } else {
       signRequest.classList.add("hidden");
-      continueButton.textContent = "CONTINUE";
-      openChisel.classList.remove("hidden");
+      continueButton.textContent = requestParams.get("return") ? "RETURN WITH THIS IDENTITY" : "OPEN CHISEL WITH THIS IDENTITY";
     }
     result.classList.remove("hidden");
     result.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -370,15 +366,19 @@ code { overflow-wrap: anywhere; color: #c5f467; }
       return;
     }
 
-    const target = returnUrl();
-    if (target) {
+    if (requestParams.get("return")) {
+      const target = returnUrl();
+      if (!target) {
+        alert("Identity request has no valid return URL.");
+        return;
+      }
       location.href = target;
       return;
     }
-    location.href = "index.html?mode=portal";
+    openChiselWithIdentity();
   });
 
-  openChisel.addEventListener("click", () => {
+  function openChiselWithIdentity() {
     if (!currentPrivateKey) return;
     const currency = addressNetwork.value;
     if (!["litecoin", "bitcoin", "digibyte", "ravencoin"].includes(currency)) {
@@ -397,7 +397,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
       return;
     }
     location.href = "index.html?mode=portal&coin=" + encodeURIComponent(currency);
-  });
+  }
 })();
 </script>
 </body>
