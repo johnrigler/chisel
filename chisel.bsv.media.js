@@ -186,5 +186,8 @@
     if (file.data && !file.data.every(function (byte, i) { return result.data[i] === byte; })) throw new Error("Provider file differs from the saved preview.");
     return result;
   }
-  root.CHISEL_BSV_MEDIA = {pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
+  // Small, independently checked public records, loaded only when requested.
+  const archivedTransactions=Object.freeze({"7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d":"data/related/bsv/7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d.json"});
+  function archivePath(coin,txid) { return coin==="bsv" && Object.prototype.hasOwnProperty.call(archivedTransactions,txid) ? archivedTransactions[txid] : ""; }
+  root.CHISEL_BSV_MEDIA = {archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
 })(window);

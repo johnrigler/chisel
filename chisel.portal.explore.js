@@ -26,10 +26,13 @@
     const uniq=values=>Array.from(new Map(values.filter(v=>typeof v==="string"&&v.trim()).map(v=>[norm(v),v.trim()])).values());
     const parents=list(raw && api ? api.parentInputs(raw) : []).concat(list(summary.parentInputs)).filter(p=>p && typeof p.txid==="string" && /^[a-f0-9]{64}$/i.test(p.txid) && Number.isInteger(p.vout) && p.vout>=0);
     const named=files.find(f=>f && f.protocol==="1Sat Ordinals" && f.name);
+    const mapFields=map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields));
+    const app=mapFields.find(f=>f&&f.key==="app"&&typeof f.value==="string");
+    const type=mapFields.find(f=>f&&f.key==="type"&&typeof f.value==="string");
     const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>f.value))),
       collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
       parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
-      name:named ? named.name+(named.mime==="model/gltf-binary"?" · 3D ordinal":" · inscription") : ""};
+      name:named ? named.name+(named.mime==="model/gltf-binary"?" · 3D ordinal":" · inscription") : app && type ? app.value+" · "+type.value.replace(/_/g," ") : ""};
     recordFacts.set(row,{raw,summary,value});return value;
   }
   function matchesFacet(row,facet) {
@@ -39,6 +42,13 @@
     if(facet.kind==="collection")return f.collections.some(a=>norm(a)===value);
     if(facet.kind==="parent")return norm(row.txid)===value||f.parents.some(p=>p.txid===value);
     return false;
+  }
+  function interpretationLines(row) {
+    if(!/^bsv(?::|Testnet|$)/.test(scope(row)))return [];
+    const raw=row.raw, summary=row.summary||{}, api=root.CHISEL_BSV_MEDIA;
+    const map=list(raw&&api?api.metadata(raw):summary.metadata);
+    const files=fileList(row);
+    return files.map(f=>[f.name||f.mime,f.protocol,f.metadata&&f.metadata.collection,f.metadata&&f.metadata.meshCount?f.metadata.meshCount+" meshes":"",f.metadata&&list(f.metadata.traits).find(t=>t.trait==="Rarity")?.value,Number.isFinite(f.bytes)?f.bytes.toLocaleString()+" bytes":"","output "+f.output,f.complete?"complete":"partial preview"].filter(Boolean).join(" · ")).concat(map.map(m=>m.protocol+" output "+m.output+": "+list(m.fields).map(f=>f.key+" = "+f.value).join(" · ")));
   }
   function imageRow(row) {
     return fileList(row).some(function (file) { return /^image\//.test(file.mime); }) ||
@@ -116,10 +126,13 @@
       f.collections.forEach(a=>add("collection",a,"Collection: "+a));
       Array.from(new Set(f.parents.map(p=>p.txid))).forEach(txid=>{
         add("parent",txid,"Related: parent "+txid.slice(0,12)+"…");
-        const a=doc.createElement("a");a.className="secondaryButton";a.textContent="View parent transaction";
-        a.href="https://whatsonchain.com/tx/"+txid; a.target="_blank";a.rel="noopener noreferrer";
-        if(store().canonicalCoinForRow(current)==="bsv")facetPanel.appendChild(a);
+        const a=doc.createElement("a");a.className="secondaryButton";a.textContent="Open parent in Chisel";
+        const coin=store().canonicalCoinForRow(current);
+        a.href=deps.parentUrl(coin,txid);
+        a.onclick=event=>{if(event.button>0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();deps.openParent(coin,txid);};
+        facetPanel.appendChild(a);
       });
+      if(/^bsv(?:Testnet)?$/.test(store().canonicalCoinForRow(current))&&deps.rows().some(row=>scope(row)===scope(current)&&facts(row).parents.some(p=>p.txid===current.txid)))add("parent",current.txid,"Explore funded transactions");
       if(facet){const b=doc.createElement("button");b.type="button";b.className="secondaryButton";b.textContent="Clear "+facet.kind+" filter";b.onclick=()=>{facet=null;renderFacets();renderResults();};facetPanel.appendChild(b);}
     }
     function renderFiles() {
@@ -235,5 +248,5 @@
       if (!checkedServices) { checkedServices = true; services(); }
     }, clear: function () { clearFiles(); current = null; facet=null; facetPanel.replaceChildren(); }};
   }
-  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, matchesFacet: matchesFacet, search: search, createController: createController};
+  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, interpretationLines: interpretationLines, matchesFacet: matchesFacet, search: search, createController: createController};
 })(window);

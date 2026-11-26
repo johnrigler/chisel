@@ -5137,13 +5137,9 @@
 
     const title = document.createElement("h4");
     title.textContent = displayTitleForRow(row);
-    // Decode hydrated records even when an older catalog supplied the title.
     const bsv = /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row));
-    const bsvFiles = bsv && window.CHISEL_PORTAL_EXPLORE ? window.CHISEL_PORTAL_EXPLORE.fileList(row) : [];
-    const ordinal = bsvFiles.find(file => file.protocol === "1Sat Ordinals");
-    if (ordinal && !getPortalAnnotation(row).metadata.title) {
-      title.textContent = (ordinal.name || ordinal.mime) + (ordinal.mime === "model/gltf-binary" ? " · 3D ordinal" : " · inscription");
-    }
+    const interpreted=bsv && window.CHISEL_PORTAL_EXPLORE;
+    if(interpreted && !getPortalAnnotation(row).metadata.title)title.textContent=interpreted.facts(row).name||title.textContent;
 
     const tx = document.createElement("code");
     tx.textContent = row.txid || "";
@@ -5252,14 +5248,16 @@
     }
 
     header.appendChild(title);
-    if (ordinal) {
-      const info = document.createElement("p");
-      const model = ordinal.metadata || {};
-      const rarity = (model.traits || []).find(trait => trait.trait === "Rarity");
-      info.textContent = [ordinal.protocol, model.collection, rarity && rarity.value, model.meshCount && model.meshCount + " meshes",
-        ordinal.bytes.toLocaleString() + " bytes", "output " + ordinal.output,
-        ordinal.complete ? "payload available" : "partial preview"].filter(Boolean).join(" · ");
-      header.appendChild(info);
+    if(interpreted){
+      interpreted.interpretationLines(row).forEach(line=>{const info=document.createElement("p");info.textContent=line;header.appendChild(info);});
+      if(!(options&&options.recordPage)){
+        Array.from(new Set(interpreted.facts(row).parents.map(p=>p.txid))).slice(0,4).forEach(txid=>{
+          const a=document.createElement("a");a.className="secondaryButton";a.textContent="Open parent "+txid.slice(0,12)+"…";
+          const coin=canonicalCoinForRow(row);a.href=relatedRecordUrl(coin,txid);
+          a.onclick=event=>{if(event.button>0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();openRelatedRecord(coin,txid);};
+          header.appendChild(a);
+        });
+      }
     }
     header.appendChild(tx);
     if (meta.textContent) header.appendChild(meta);
@@ -6162,7 +6160,7 @@
     if (recordView) return recordView;
     if (window.CHISEL_PORTAL_EXPLORE) recordExplore = window.CHISEL_PORTAL_EXPLORE.createController({
       document: document, rows: function () { return state.portalRows; },
-      open: openPortalRecord, recordUrl: portalRecordUrl,
+      open: openPortalRecord, recordUrl: portalRecordUrl, parentUrl: relatedRecordUrl, openParent: openRelatedRecord,
       hydrate: function (row) { return hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true}); },
       refresh: async function () {
         const results = await Promise.allSettled([loadConfiguredStaticDatasets({quiet: true}), listLocalTransactions()]);
@@ -6220,6 +6218,14 @@
     return recordView;
   }
 
+  function relatedRecordUrl(coin,txid) {
+    return window.CHISEL_PORTAL_RECORD.compactRecordUrl({coin,txid},window.location.href,true);
+  }
+  function openRelatedRecord(coin,txid) {
+    if(!/^(?:bsv|bsvTestnet)$/.test(coin)||!TXID_RE.test(txid))return Promise.resolve(null);
+    const row=findPortalRecord({coin,txid})||upsertPortalRow({coin,txid,index:getCoinIndexByCoinName(coin)||{coin},summary:{title:"transaction "+shortTxid(txid)}},{silent:true});
+    return openPortalRecord(row);
+  }
   function openPortalRecord(rowOrKey) {
     const row = typeof rowOrKey === "string" ? state.portalRowKeys[rowOrKey] : rowOrKey;
     if (!row) return Promise.resolve(null);
@@ -6241,6 +6247,17 @@
       } catch (error) {
         row.localPathLoadError = error.message || String(error);
       }
+    }
+    const archivePath=window.CHISEL_BSV_MEDIA && window.CHISEL_BSV_MEDIA.archivePath(canonicalCoinForRow(row),row.txid);
+    if(archivePath){
+      try{
+        const url=new URL(archivePath,document.baseURI).href;
+        const response=await fetch(url,{signal:AbortSignal.timeout(12000)});
+        if(!response.ok)throw Error("Archive HTTP "+response.status);
+        const json=await response.json();
+        if(extractTxid(json).toLowerCase()!==row.txid.toLowerCase())throw Error("Archive transaction ID mismatch");
+        return {json,source:"archive",coin:"bsv",url};
+      }catch(error){row.archiveLoadError=error.message||String(error);}
     }
     if (sourceIdForRow(row) === "evmChisel") {
       try {
