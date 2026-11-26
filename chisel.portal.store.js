@@ -213,6 +213,18 @@
       return recentPortalSummaries;
     }
 
+    function restoreRecent() {
+      return Array.from(readRecentPortalSummaries(), function (item) {
+        const match = /^([^:]+):([0-9a-f]{64})$/i.exec(item[0]);
+        if (!match) return null;
+        const source = match[1], summary = item[1];
+        const coin = source.startsWith("evm") ? "evm" : normalizeCoinName(source);
+        if (!tickerForCoin(coin)) return null;
+        return {sourceId:source, coin:coin, txid:match[2].toLowerCase(), summary:summary,
+          cachedSummaryReady:true, discoverySource:"recent-cache", blockTime:normalizeUnixTime(summary.blockTime)};
+      }).filter(Boolean);
+    }
+
     function snapshotRecent(orderedRows, persist) {
       const previous = readRecentPortalSummaries();
       const next = new Map();
@@ -224,7 +236,7 @@
           "lines", "imageLines", "imageChordLines", "ipfsCount", "imageCount", "imageAssetPath",
           "imageMime", "imageBytes", "imageWidth", "imageHeight", "imageAssetId", "artifactId",
           "artifactAddress", "blockHeight", "blockTime", "blockTimeEstimated", "ledgerFinance",
-          "recordKind", "evmWords", "evmReceivers", "evmAmounts"].forEach(function (field) {
+          "recordKind", "evmWords", "evmReceivers", "evmAmounts", "contractName", "contractAddress", "from", "to", "explorerUrl", "functionName", "methodId"].forEach(function (field) {
           if (row.summary && row.summary[field] !== undefined) summary[field] = row.summary[field];
         });
         if (JSON.stringify(summary).length <= 32768) next.set(row.key || rowKey(row), summary);
@@ -299,6 +311,7 @@
       upsert: upsert,
       mergeSummary: mergeSummary,
       snapshotRecent: snapshotRecent,
+      restoreRecent: restoreRecent,
       reset: reset
     };
   }

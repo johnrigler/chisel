@@ -3882,6 +3882,22 @@
     });
   }
 
+  function restoreRecentFeed() {
+    if (state.portalRows.length && state.recentFeedRestored) return;
+    state.recentFeedRestored = true;
+    const rows = transactionStore.restoreRecent ? transactionStore.restoreRecent() : [];
+    rows.forEach(function (row) {
+      const profile = EVM_PROFILES.find(function (item) {
+        return row.sourceId === "evm" + item.label.replace(/[^A-Za-z0-9]/g,"");
+      }) || (row.sourceId === "evmChisel" ? getEvmProfileById("chisel") : null);
+      row.index = profile ? evmIndexEntry(profile) : getCoinIndexByCoinName(row.coin);
+    });
+    if (rows.length) {
+      mergeStaticRows(rows);
+      setStatus("Showing cached public records; refreshing ledger in background.",false);
+    }
+  }
+
   function snapshotRecentPortalSummaries(persist) {
     transactionStore.snapshotRecent(prioritizePortalRows(state.portalRows), persist);
   }
@@ -6203,13 +6219,7 @@
         let raw = null;
         let summary = row.summary || makeBasicSummary(row.txid, row, entry);
 
-        if (!usedIndex && i < getPortalPageSize()) {
-          try {
-            const loaded = await loadLocalTransaction(row.txid, localCoin);
-            raw = loaded.raw;
-            summary = extractSummary(raw, entry);
-          } catch (error) {}
-        }
+        // Paint summary rows now; hydrate through the existing background queue.
 
         const portalRow = upsertPortalRow({
           index: entry,
@@ -6342,27 +6352,24 @@
     const loaded = [];
     const reports = [];
 
-    beginPortalBatch();
-    try {
-      for (let i = 0; i < profiles.length; i += 1) {
+    await Promise.all(profiles.map(async function (profile) {
         try {
-          const result = await fetchEvmCatalogRows(profiles[i]);
+          const result = await fetchEvmCatalogRows(profile);
           reports.push({
             profile: result.profile.label,
             count: result.rows.length,
             streams: result.json.streams || []
           });
-          result.rows.forEach(function (row) {
-            loaded.push(upsertPortalRow(row, { silent: true }));
-          });
-          state.evmCatalogLoaded[result.profile.id] = true;
+          beginPortalBatch();
+          try {
+            result.rows.forEach(function (row) { loaded.push(upsertPortalRow(row, {silent:true})); });
+            state.evmCatalogLoaded[result.profile.id] = true;
+          } finally { endPortalBatch(); }
+          requestPortalRender();
         } catch (error) {
-          reports.push({profile: profiles[i].label, error: error.message || String(error)});
+          reports.push({profile: profile.label, error: error.message || String(error)});
         }
-      }
-    } finally {
-      endPortalBatch();
-    }
+    }));
 
     requestPortalRender();
     setText("#portalThunderwordRaw", pretty({ evmCatalog: reports }));
@@ -6486,6 +6493,7 @@
       return result.rows.length;
     }).catch(function (error) {
       console.warn("Rigler Chisel catalog refresh:", error);
+      setStatus("Chisel (POL) catalog unavailable: " + (error.message || String(error)), true);
       return null;
     }).finally(function () { state.indexedChiselRefresh = null; });
     return state.indexedChiselRefresh;
@@ -8025,6 +8033,10 @@ function getPortalFirstCharacter() {
         setStatus(error.message || String(error), true);
       });
     });
+    if (document.body.dataset.mode === "portal") {
+      applyPortalFilterConfig();
+      restoreRecentFeed();
+    }
     renderEmptyTransactionList(state.personalAccount ? "Restoring your account stream…" : "Loading bundled static dataset; live ledger searches can add newer records after first paint.");
     // Starter data is loaded when Portal or an explicit duplicate lookup needs it.
 
@@ -8236,7 +8248,21 @@ function getPortalFirstCharacter() {
     function startPortalBackground() {
       if (portalBackgroundStarted || document.body.dataset.mode !== "portal") return;
       portalBackgroundStarted = true;
-      ensureStarterDataset();
+      applyPortalFilterConfig();
+      restoreRecentFeed();
+      // Small bundled first page only on a cold start; full archive follows.
+      if (!state.portalRows.length) {
+        const script = document.createElement("script");
+        script.src = "data-bundled/portal-first-page.js?rev=20261125-fast-feed-v2894";
+        script.onload = function () {
+          const data = window.CHISEL_PORTAL_FIRST_PAGE;
+          if (data) mergeStaticRows(normalizeStaticDatasetRows(data,{baseUrl:"./data-bundled/",sourceLabel:"bundled first page",sourceBadge:"bundled"}));
+          window.setTimeout(ensureStarterDataset,100);
+        };
+        script.onerror = ensureStarterDataset;
+        document.head.appendChild(script);
+      } else window.setTimeout(ensureStarterDataset,100);
+      recordCatalogConfig.then(refreshIndexedChisel).catch(function () {});
       loadColorMap(DEFAULT_COLOR_PATH).catch(function (error) {
         setStatus(error.message || String(error), true);
       });
@@ -8246,7 +8272,7 @@ function getPortalFirstCharacter() {
       // available through explicit navigation, never as an automatic takeover.
       if (state.personalAccount && !state.urlMainThunderwordRequest && !(recordView && recordView.active())) {
         loadPersonalAccountStream(state.personalAccount, {
-          filterResults:true, noReloadIfCurrent:false,
+          filterResults:false, noReloadIfCurrent:false,
           captureReturnView:false, source:"remembered", updateUrl:false
         }).catch(function (error) {
           setStatus("Your account could not refresh: " + (error.message || String(error)) + ". Public identity remains saved.",true);
@@ -8301,7 +8327,7 @@ function getPortalFirstCharacter() {
       startIndexedChiselPolling();
       if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
       if (state.personalAccount && !state.urlMainThunderwordRequest) {
-        loadPersonalAccountStream(state.personalAccount, {filterResults:true, noReloadIfCurrent:false, captureReturnView:false}).catch(function () {});
+        loadPersonalAccountStream(state.personalAccount, {filterResults:false, noReloadIfCurrent:false, captureReturnView:false}).catch(function () {});
       }
       startLiveLedgerPolling();
       });
