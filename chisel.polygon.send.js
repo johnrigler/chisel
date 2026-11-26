@@ -17,7 +17,35 @@
   }
   const local = root.CHISEL_EVM_LOCAL.createLocalWallet(root.ethers);
   const writer = root.CHISEL_EVM_WRITE.createWriter({registry:root.CHISEL_EVM_CONTRACTS, ethers:root.ethers});
-  let provider = null, reviewed = null, generation = 0, busy = false;
+  let provider = null, reviewed = null, generation = 0, busy = false, unresolved = "";
+  const hashField = $("polygonSendHash"), checkTx = $("polygonSendCheckTx"), txStatus = $("polygonSendTxStatus");
+  function showHash(hash) {
+    hashField.value = hash;
+    txLink.href = "https://polygonscan.com/tx/" + hash;
+    txLink.hidden = false;
+  }
+  checkTx.onclick = async function () {
+    const hash = hashField.value.trim();
+    if (!/^0x[0-9a-f]{64}$/i.test(hash)) { txStatus.textContent = "Enter a 32-byte transaction hash."; return; }
+    checkTx.disabled = true;
+    showHash(hash);
+    try {
+      // Public lookup works without loading or unlocking any private key.
+      const receipt = await local.request({method:"eth_getTransactionReceipt",params:[hash]});
+      if (receipt) {
+        if (String(receipt.transactionHash).toLowerCase() !== hash.toLowerCase()) throw Error("Receipt hash mismatch.");
+        const state = BigInt(receipt.status);
+        if (state !== 0n && state !== 1n) throw Error("Unrecognized receipt status.");
+        txStatus.textContent = (state === 1n ? "Confirmed successfully" : "Confirmed, execution reverted") + " in block " + BigInt(receipt.blockNumber).toString() + ".";
+        if (unresolved.toLowerCase() === hash.toLowerCase()) unresolved = "";
+      } else {
+        const tx = await local.request({method:"eth_getTransactionByHash",params:[hash]});
+        if (tx && String(tx.hash).toLowerCase() !== hash.toLowerCase()) throw Error("Transaction hash mismatch.");
+        txStatus.textContent = tx ? "Transaction found; awaiting receipt." : "Not found by this RPC. This is not proof of rejection; check PolygonScan before resending.";
+      }
+    } catch (_) { txStatus.textContent = "Receipt lookup failed. Check PolygonScan or another Polygon RPC."; }
+    finally { checkTx.disabled = false; }
+  };
   function message(s) { status.textContent = s; }
   function invalidate() {
     generation++; writer.invalidate(); local.invalidate(); reviewed = null;
@@ -110,6 +138,7 @@
   };
   reviewButton.onclick = async function() {
     if (busy) return;
+    if (unresolved) { message("Check the unresolved transaction before reviewing another send."); return; }
     invalidate(); setBusy(true);
     try {
       if (!provider || !address.value) throw Error("Load or connect a key first.");
@@ -131,9 +160,18 @@
     try {
       const result = await writer.submit(provider,reviewed);
       invalidate();
-      txLink.href = "https://polygonscan.com/tx/" + result.hash;
-      txLink.hidden = false; message("Submitted: " + result.hash);
-    } catch(error) { invalidate(); message(error.message); } finally { setBusy(false); }
+      showHash(result.hash);
+      message("Submitted: " + result.hash);
+      txStatus.textContent = "Submitted; check receipt to confirm execution.";
+    } catch(error) {
+      invalidate();
+      if (/^0x[0-9a-f]{64}$/i.test(error.transactionHash || "")) {
+        unresolved = error.transactionHash;
+        showHash(unresolved);
+        txStatus.textContent = "Submission uncertain; check receipt before another send.";
+      }
+      message(error.message);
+    } finally { setBusy(false); }
   };
   // One-time QR handoff; only same-tab sessionStorage and no secret in URL.
   const url = new URL(root.location.href);

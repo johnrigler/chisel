@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-I+7AUwXmWyjQ8AKvwAMSEANQU4+Z0wkMOeTeWPPBySA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261125-native-polygon-v2886"></script>
+  <script src="chisel.version.js?rev=20261125-broadcast-v2887"></script>
   <script src="chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2570,7 +2570,14 @@
       </div>
       <p id="polygonSendStatus" role="status" aria-live="polite">Load a key to begin.</p>
       <pre id="polygonSendPreview" hidden></pre>
-      <p><a id="polygonSendTx" target="_blank" rel="noopener noreferrer" hidden>View transaction on PolygonScan</a></p>
+      <div class="grid">
+        <label for="polygonSendHash">Transaction hash</label>
+        <div class="fieldStack">
+          <input id="polygonSendHash" type="text" autocomplete="off" spellcheck="false" placeholder="0x transaction hash">
+          <div class="actions"><button id="polygonSendCheckTx" type="button" class="secondaryButton">CHECK RECEIPT</button><a id="polygonSendTx" target="_blank" rel="noopener noreferrer" hidden>PolygonScan</a></div>
+          <span id="polygonSendTxStatus" role="status" aria-live="polite"></span>
+        </div>
+      </div>
       <p class="help">This Send form publishes a short record through the existing Chisel contract. For advanced contract calls use Tools / EVM Workbench.</p>
     </section>
     <section class="panel" id="utxoSendPanel">
@@ -3597,8 +3604,8 @@
   <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
   <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
   <script src="chisel.evm.write.js?rev=20261105-chisel-write"></script>
-  <script src="chisel.evm.local.js?rev=20261125-polygon-qr-v2885"></script>
-  <script src="chisel.polygon.send.js?rev=20261125-native-polygon-v2886"></script>
+  <script src="chisel.evm.local.js?rev=20261125-broadcast-v2887"></script>
+  <script src="chisel.polygon.send.js?rev=20261125-broadcast-v2887"></script>
   <script src="chisel.networks.ui.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.share-diagnostics.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
