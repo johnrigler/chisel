@@ -4794,7 +4794,7 @@
         (row.index && row.index.chainId) ||
         (row.summary && row.summary.chainId) ||
         (row.raw && row.raw.chainId) ||
-        ((sourceId === "evmGomez" || sourceId === "evmJethro") ? "137" : "")
+        (["evmGomez", "evmJethro", "evmChisel", "evmPolygonThunderword"].includes(sourceId) ? "137" : "")
       ).trim();
       const networks = {
         "1": "ethereum",
@@ -5089,7 +5089,14 @@
         const comments = document.createElement("div"); comments.style.display = "contents";
         container.appendChild(comments); view.parts.comments = {node: comments};
       }
-      interactionView.comments(view.parts.comments.node, describeInteractionRecord(row));
+      // Comments/history are optional. A rejected identity or unavailable
+      // interaction renderer must not suppress the ledger record itself.
+      try {
+        interactionView.comments(view.parts.comments.node, describeInteractionRecord(row));
+      } catch (error) {
+        view.parts.comments.node.textContent = "Comments unavailable for this record.";
+        console.warn("Portal comments:", error);
+      }
     }
     updatePortalDetailPart(view, "body", JSON.stringify([row.raw, row.summary, row.loadError,
       !!state.pendingHydration[row.key], row.index, state.personalAccount, getPortalAnnotation(row).metadata,

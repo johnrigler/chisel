@@ -326,3 +326,12 @@ test("the actual Portal history descriptor uses lossless binary text and include
   const shared = descriptor({note: "A program that draws a trapezoid.", metadata: {title: "Trapezoid"}, updatedAt: 100}, {source: "FileProxy", remoteUpdatedAt: 100})(row);
   assert.equal(shared.title, "Trapezoid"); assert.equal(shared.synopsis, "A program that draws a trapezoid.");
 });
+
+test("Polygon Chisel and Thunderword records have valid distinct comment identities", () => {
+  const evm = {...subject,coin:"evm",chainId:"137"};
+  for (const sourceId of ["evmChisel","evmPolygonThunderword","evmGomez","evmJethro","other"]) {
+    assert.equal(A.subjectKey({...evm,sourceId}),"evm:137:"+sourceId+":"+evm.txid);
+  }
+  assert.throws(() => A.subjectKey({...evm,sourceId:"evmChisel",chainId:""}),/source and chain/);
+  assert.throws(() => A.subjectKey({...evm,sourceId:"invented"}),/source and chain/);
+});

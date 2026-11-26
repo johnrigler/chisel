@@ -60,7 +60,7 @@
     const txid = compact ? decodeTxid(fragment) : String(params.get("txid") || "").replace(/^0x/i, "").toLowerCase();
     const coin = root.CHISEL_PORTAL_STORE.normalizeCoinName(params.get("coin"));
     if (!TXID.test(txid) || ((!compact || params.has("coin")) && !COINS.includes(coin))) throw new Error("Record URL needs a valid TXID and, if specified, a supported currency.");
-    const source = coin === "evm" && /^(?:evmGomez|evmJethro|evmPolygonThunderword|other)$/.test(params.get("source")) ? params.get("source") : "";
+    const source = coin === "evm" && /^(?:evmGomez|evmJethro|evmChisel|evmPolygonThunderword|other)$/.test(params.get("source")) ? params.get("source") : "";
     const chain = coin === "evm" && /^\d{1,15}$/.test(params.get("chain")) ? params.get("chain") : "";
     return {coin: coin, txid: txid, sourceId: source, chainId: chain, dataUrl: publicDataUrl(params.get("data"), url.href)};
   }
@@ -76,8 +76,8 @@
     url.searchParams.set("coin", coin);
     url.searchParams.set("txid", txid);
     if (coin === "evm") {
-      const source = store.sourceIdForRow(row), chain = String(row.index && row.index.chainId || "");
-      if (/^(?:evmGomez|evmJethro|evmPolygonThunderword|other)$/.test(source)) url.searchParams.set("source", source);
+      const source = store.sourceIdForRow(row), chain = String(row.index && row.index.chainId || row.raw && row.raw.chainId || row.summary && row.summary.chainId || "");
+      if (/^(?:evmGomez|evmJethro|evmChisel|evmPolygonThunderword|other)$/.test(source)) url.searchParams.set("source", source);
       if (/^\d{1,15}$/.test(chain)) url.searchParams.set("chain", chain);
     }
     const source = publicDataUrl(dataUrl, base);
@@ -107,10 +107,10 @@
     base.searchParams.set("description", description);
     if (/^https:\/\//i.test(image)) base.searchParams.set("image", image);
     if (coin === "evm") {
-      const chain = String(row.index && row.index.chainId || "");
+      const chain = String(row.index && row.index.chainId || row.raw && row.raw.chainId || row.summary && row.summary.chainId || "");
       const source = store.sourceIdForRow(row);
       if (/^\d{1,15}$/.test(chain)) base.searchParams.set("chain", chain);
-      if (/^(?:evmGomez|evmJethro|evmPolygonThunderword|other)$/.test(source)) base.searchParams.set("source", source);
+      if (/^(?:evmGomez|evmJethro|evmChisel|evmPolygonThunderword|other)$/.test(source)) base.searchParams.set("source", source);
     }
     return base.href;
   }
@@ -142,7 +142,7 @@
   function savedViewKey(row) {
     const store = root.CHISEL_PORTAL_STORE, coin = store.canonicalCoinForRow(row);
     const txid = String(row.txid || "").replace(/^0x/i, "").toLowerCase();
-    const chain = String(row.index && row.index.chainId || "");
+    const chain = String(row.index && row.index.chainId || row.raw && row.raw.chainId || row.summary && row.summary.chainId || "");
     return [coin, txid, coin === "evm" ? store.sourceIdForRow(row) : "", coin === "evm" ? chain : ""].join(":");
   }
   function isSavedView(row) {

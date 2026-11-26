@@ -23,7 +23,7 @@
     if (!subject || Object.keys(subject).sort().join(",") !== "chainId,coin,dataUrl,sourceId,txid" || !COINS.includes(subject.coin) || !/^[0-9a-f]{64}$/.test(subject.txid)) throw new Error("Invalid record identity.");
     publicUrl(subject.dataUrl, true);
     if (subject.coin === "evm") {
-      if (!["evmGomez", "evmJethro", "other"].includes(subject.sourceId) || !/^\d{1,15}$/.test(subject.chainId)) throw new Error("An EVM record needs its source and chain.");
+      if (!["evmGomez", "evmJethro", "evmChisel", "evmPolygonThunderword", "other"].includes(subject.sourceId) || !/^\d{1,15}$/.test(subject.chainId)) throw new Error("An EVM record needs its source and chain.");
       return "evm:" + subject.chainId + ":" + subject.sourceId + ":" + subject.txid;
     }
     if (subject.sourceId !== "" || subject.chainId !== "") throw new Error("UTXO records use currency and transaction identity.");

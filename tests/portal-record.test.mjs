@@ -639,3 +639,17 @@ test('an unrelated EVM catalog refresh preserves the current BSV page', async ()
   assert.match(f.controls.textContent, /Page 2 of 3/);
   assert.ok(f.nodes.get('portalTransactionList').children.every(node => node.dataset.key.startsWith('bsv:')));
 });
+
+test("Chisel and Thunderword qualified URLs and Facebook shares retain their source and chain", () => {
+  const f = fixture();
+  const url = "https://johnrigler.github.io/chisel/";
+  for (const sourceId of ["evmChisel","evmPolygonThunderword"]) {
+    const row = {coin:"evm",sourceId,txid,index:{chainId:"137"}};
+    const route = f.record.parseRoute(f.record.recordUrl(row,url));
+    assert.equal(route.sourceId,sourceId);
+    assert.equal(route.chainId,"137");
+    const share = new URL(f.record.facebookShareUrl(row,"https://rigler.org/fileproxy"));
+    assert.equal(share.searchParams.get("source"),sourceId);
+    assert.equal(share.searchParams.get("chain"),"137");
+  }
+});
