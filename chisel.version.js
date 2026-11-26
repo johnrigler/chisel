@@ -3,7 +3,7 @@
 
   // Single source of truth for the Chisel application release.
   // Increment for every published update to main; preserve earlier ledger protocol versions.
-  const version = '2.9.4';
+  const version = '2.9.5';
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
     throw new Error('Invalid Chisel release version.');
   }
@@ -36,7 +36,7 @@
         // Fetch the transaction entry point early, without changing execution order.
         const preload = document.createElement('link');
         preload.rel = 'preload'; preload.as = 'script';
-        preload.href = 'app.js?rev=20261125-route-boot-v2891'; preload.fetchPriority = 'high';
+        preload.href = 'app.js?rev=20261126-send-registry-v295'; preload.fetchPriority = 'high';
         document.head.appendChild(preload);
         if (polygon) {
           const ethers = document.createElement('link');

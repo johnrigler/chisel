@@ -599,6 +599,9 @@
     .aboutMeta { color:#91a4b7; font-size:12px; }
     @media(max-width:760px){.aboutGrid{grid-template-columns:1fr}.aboutActions{display:grid}.aboutAction{width:100%}}
 
+    #bsvWritePanel[hidden], body[data-send-workspace="bsv"] #feeLabel, body[data-send-workspace="bsv"] #feeLabel ~ *, body[data-send-workspace="bsv"] #utxoAdvancedSend, body[data-send-workspace="bsv"] #utxoPolygonShortcuts, body[data-send-workspace="bsv"] #sendButton, body[data-send-workspace="bsv"] #draftRecordPreview { display:none!important; }
+    #bsvWriteResult { white-space:pre-wrap;overflow-wrap:anywhere; }
+    #sendWorkspaceNav button[aria-pressed="true"] { outline:2px solid currentColor; }
     #polygonSendPanel[hidden], body[data-send-network="polygon"] #utxoSendPanel, body[data-send-network="polygon"] #utxoSendHero, body[data-send-network="polygon"] #youtubeDriver { display:none!important; }
     #polygonSendPanel { overflow-wrap:anywhere; }
     #polygonSendPanel pre { white-space:pre-wrap; }
@@ -2328,7 +2331,7 @@
   <header>
     <div class="shell">
       <div class="topBar">
-        <div class="headerBrand"><h1>Chisel</h1><p id="version" class="muted">chisel v2.9.0</p></div>
+        <div class="headerBrand"><h1>Chisel</h1><p id="version" class="muted">chisel v2.9.5</p></div>
         <div class="headerIdentity" id="headerIdentity" title="Current public identity; open menu for account actions">
           <label class="headerCurrencyLabel" for="headerCurrency">Currency</label>
           <select id="headerCurrency" aria-label="Choose active Send currency">
@@ -2400,7 +2403,7 @@
     </div>
   </section>
 
-  <script src="chisel.version.js?rev=20261126-bitcom-v294"></script>
+  <script src="chisel.version.js?rev=20261126-send-registry-v295"></script>
   <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
@@ -2535,6 +2538,7 @@
     </section>
 
     <section class="modePanel" data-mode-panel="etch">
+      <section class="panel"><h2 id="sendWorkspaceTitle">Send</h2><div id="sendWorkspaceNav" class="actions" aria-label="Send network pages"></div><p class="help" id="sendWorkspaceFormats"></p></section>
     <section class="panel hero" id="utxoSendHero">
       <h2 id="heroTitle">Send crypto</h2>
       <p id="heroText">
@@ -2596,7 +2600,7 @@
       <p class="help">This Send form publishes a short record through the existing Chisel contract. For advanced contract calls use Tools / EVM Workbench.</p>
     </section>
     <section class="panel" id="utxoSendPanel">
-      <div class="actions">
+      <div class="actions" id="utxoPolygonShortcuts">
         <button id="sendLocalPolygonButton" class="secondaryButton" type="button">CHISEL LOCAL WIF (POLYGON)</button>
         <button id="sendMetaMaskButton" class="secondaryButton" type="button">USE METAMASK (POLYGON)</button>
         <span class="help">Use your MetaMask account instead of a saved Chisel key. Opens the Polygon short-record writer with the public text draft; UTXO recipients and fees are not carried over.</span>
@@ -2724,6 +2728,18 @@
         <input id="explorerUrl" class="hide" type="text" />
       </form>
 
+      <section id="bsvWritePanel" hidden>
+        <h2>Bitcom B</h2><p class="help">Build a public zero-satoshi BSV data output locally from text or a binary file. This release exports the complete serialized output, not a funded or signed transaction. The BSV signer and broadcast are not enabled.</p>
+        <div class="grid">
+          <label for="bsvWriteText">Text</label><textarea id="bsvWriteText" rows="4"></textarea>
+          <label for="bsvWriteFile">Or file (takes precedence)</label><input id="bsvWriteFile" type="file">
+          <label for="bsvWriteMime">MIME type</label><input id="bsvWriteMime" value="text/plain">
+          <label for="bsvWriteEncoding">Encoding (optional)</label><input id="bsvWriteEncoding" value="UTF-8">
+          <label for="bsvWriteFilename">Filename (optional)</label><input id="bsvWriteFilename">
+        </div><p class="help">Local preview limit: 1 MiB of content. Files are not uploaded. Published blockchain data is public and permanent.</p>
+        <div class="actions"><button id="bsvWriteBuild" type="button">BUILD BITCOM B OUTPUT</button><button id="bsvWriteDownload" type="button" class="secondaryButton" disabled>DOWNLOAD OUTPUT JSON</button></div>
+        <p id="bsvWriteStatus" role="status">No output built.</p><pre id="bsvWriteResult" hidden></pre>
+      </section>
       <section id="draftRecordPreview" aria-labelledby="draftRecordHeading" hidden>
         <h3 id="draftRecordHeading">Record preview</h3>
         <p id="draftRecordStatus" class="help" role="status"></p>
@@ -2740,7 +2756,7 @@
         Ravencoin uses the RPC/API server directly for UTXOs, create, decode, and send.
       </div>
 
-      <details>
+      <details id="utxoAdvancedSend">
         <summary>Advanced send pipeline</summary>
         <p class="help">Use this when you want to stop between createrawtransaction, signrawtransaction, and sendrawtransaction. You can copy any box out, paste edited JSON or hex back in, then continue from that step. Sending a signed raw transaction does not require the WIF.</p>
 
@@ -3416,6 +3432,7 @@
       headerCurrency.addEventListener("change", function () {
         sendCurrency.value = headerCurrency.value;
         sendCurrency.dispatchEvent(new Event("change", { bubbles: true }));
+        if (typeof window.setGuiMode === "function") window.setGuiMode("send");
         if (window.chiselActivity) window.chiselActivity("Currency", "Selected " + headerCurrency.selectedOptions[0].textContent + " for Send");
         updateHeaderIdentity();
       });
@@ -3657,7 +3674,10 @@
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.evm.share.js?rev=20261125-polygon-qr-v2885"></script>
   <script src="chisel.youtube.ui.js?rev=20261125-native-polygon-v2886"></script>
-  <script src="app.js?rev=20261125-route-boot-v2891" fetchpriority="high"></script>
+  <script src="chisel.send.registry.js?rev=20261126-send-registry-v295"></script>
+  <script src="chisel.bsv.write.js?rev=20261126-send-registry-v295"></script>
+  <script src="app.js?rev=20261126-send-registry-v295" fetchpriority="high"></script>
+  <script src="chisel.send.workspace.js?rev=20261126-send-registry-v295"></script>
   <script src="vendor/ethers-6.6.0.umd.min.js"></script>
   <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
   <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>

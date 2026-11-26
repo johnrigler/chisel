@@ -1,0 +1,6 @@
+# Currency Send workspaces (2.9.5)
+The currency registry describes Send navigation, the transaction workspace and format availability. Portal read filters remain separate. Deep links use ?mode=send&coin=bsv (or another installed currency); Polygon retains ?mode=send&coin=evm&chain=137.
+
+Three distinct layers: network (BSV), encoding/protocol (Bitcom B, MAP, AIP), application (Twetch, etc.). Twetch is currently read-only and not a synonym for Bitcom B. Coin extensions can register a Send descriptor; legacy UTXO formats are inferred from existing coin capabilities, not enabled by the UI. Ravencoin IPFS output is not enabled by this release because the current adapter does not advertise that capability.
+
+BSV supports an offline Bitcom B output composer on mainnet and testnet. It encodes OP_FALSE OP_RETURN, protocol marker, raw bytes, MIME type, optional encoding and filename as separate pushes (including PUSHDATA4), zero value and CompactSize script length. The output is exportable as JSON; it is NOT a complete transaction. The 1 MiB limit is local UI policy, not a chain limit. BSV funding, ForkID signing, fee quote, review and broadcast are deliberately not enabled until implemented and independently verified. No private key is needed for the composer.

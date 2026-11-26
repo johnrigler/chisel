@@ -2267,7 +2267,7 @@ return;
     }
     document.body.dataset.sendNetwork = "utxo";
     state.lastUtxoCurrency = elems.currency.value || DEFAULT_CURRENCY_KEY;
-    if (document.body.dataset.mode === "polygon") setGuiMode("send");
+    if (["polygon","send"].includes(document.body.dataset.mode)) setGuiMode("send");
     clearOutputs();
     setStatusMessage(STATUS_IDLE, false);
     setCurrencyForm();
@@ -2415,6 +2415,7 @@ function onClickAddCommonAddressButton() {
 
   function setGuiMode(mode) {
     const normalizedMode = normalizeMode(mode);
+    const previousMode = document.body.dataset.mode;
     if (elems.currency) {
       // Keep the hidden UTXO form on a real coin so its render, QR, and
       // identity handlers cannot accidentally resolve Polygon as a UTXO plugin.
@@ -2451,6 +2452,12 @@ function onClickAddCommonAddressButton() {
           (url.searchParams.get("coin") === "evm" || url.searchParams.get("coin") === "polygon")) {
         url.searchParams.delete("coin");
         url.searchParams.delete("chain");
+      }
+      if (normalizedMode === "send" && document.body.dataset.sendNetwork !== "polygon") {
+        url.searchParams.set("coin", elems.currency.value);
+        url.searchParams.delete("chain");
+      } else if (previousMode === "send" && normalizedMode === "portal" && !url.searchParams.has("txid") && !(window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href))) {
+        url.searchParams.delete("coin"); url.searchParams.delete("chain");
       }
       if (!(normalizedMode === "portal" && !url.searchParams.has("mode"))) {
         url.searchParams.set("mode", normalizedMode);
