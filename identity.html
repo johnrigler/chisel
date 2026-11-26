@@ -96,6 +96,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     </select>
     <p class="muted">This is a public address for the same identity. Switching formats does not change the recovery words, private key or derivation path. It does not switch the network used to send funds.</p>
     <code id="publicAddress" aria-live="polite"></code>
+    <p id="addressError" class="warning hidden" role="alert"></p>
     <details>
       <summary>Technical details</summary>
       <p class="muted">Chisel also keeps a machine-readable identifier for applications such as Lantern.</p>
@@ -140,6 +141,7 @@ code { overflow-wrap: anywhere; color: #c5f467; }
   const identityOut = document.getElementById("identity");
   const addressNetwork = document.getElementById("addressNetwork");
   const publicAddressOut = document.getElementById("publicAddress");
+  const addressError = document.getElementById("addressError");
   const continueButton = document.getElementById("continue");
   const openChisel = document.getElementById("openChisel");
   const signRequest = document.getElementById("signRequest");
@@ -170,13 +172,29 @@ code { overflow-wrap: anywhere; color: #c5f467; }
     const pubkeyHash = ethers.ripemd160(ethers.sha256(compressed));
     const payload = "0x" + prefixes[network] + pubkeyHash.slice(2);
     const checksum = ethers.sha256(ethers.sha256(payload)).slice(2, 10);
-    return ethers.encodeBase58(payload + checksum);
+    const bytes = ethers.getBytes(payload + checksum);
+    // ethers 6.6.0 encodes an integer, dropping leading zero bytes.
+    // Base58Check requires one leading 1 for each leading zero byte.
+    let zeros = 0;
+    while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
+    return "1".repeat(zeros) + ethers.encodeBase58(bytes);
   }
 
   function renderPublicAddress() {
-    if (currentPublicKey) publicAddressOut.textContent = addressFromPublicKey(currentPublicKey, addressNetwork.value);
+    if (!currentPublicKey) return;
+    // Never leave a previous network's address visible if conversion fails.
+    publicAddressOut.textContent = "";
+    addressError.textContent = "";
+    addressError.classList.add("hidden");
+    try {
+      publicAddressOut.textContent = addressFromPublicKey(currentPublicKey, addressNetwork.value);
+    } catch (error) {
+      addressError.textContent = "Could not display the selected address format: " + (error.message || String(error));
+      addressError.classList.remove("hidden");
+    }
   }
 
+  addressNetwork.addEventListener("input", renderPublicAddress);
   addressNetwork.addEventListener("change", renderPublicAddress);
 
   function derive(value) {

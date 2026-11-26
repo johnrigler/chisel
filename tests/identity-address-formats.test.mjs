@@ -10,7 +10,7 @@ const html = await readFile(new URL('../identity.html', import.meta.url), 'utf8'
 const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)[1];
 const nodes = new Map();
 const document = { getElementById(id) {
-  if (!nodes.has(id)) nodes.set(id, { value: id === 'addressNetwork' ? 'litecoin' : '', addEventListener(event, fn) { this[event] = fn; } });
+  if (!nodes.has(id)) nodes.set(id, { value: id === 'addressNetwork' ? 'litecoin' : '', classList: { add() {}, remove() {} }, addEventListener(event, fn) { this[event] = fn; } });
   return nodes.get(id);
 }};
 const instrumented = script.replace(/\}\)\(\);\s*$/, 'globalThis.identityTest = { derive, addressFromPublicKey, setKey: key => { currentPublicKey = key; renderPublicAddress(); } }; })();');
@@ -39,9 +39,15 @@ test('format change updates the public output with the same key', () => {
   setKey(d.publicKey);
   for (const network of ['bitcoin', 'polygon', 'litecoin']) {
     selector.value = network;
+    selector.input();
+    assert.equal(output.textContent, addressFromPublicKey(d.publicKey, network));
     selector.change();
     assert.equal(output.textContent, addressFromPublicKey(d.publicKey, network));
   }
+  selector.value = 'invalid';
+  selector.change();
+  assert.equal(output.textContent, '');
+  assert.match(nodes.get('addressError').textContent, /Unknown address format/);
 });
 
 test('standard 24-word phrase recovers; invalid phrase rejects', () => {
