@@ -141,6 +141,11 @@
     const normalizeMediaUrl = deps.normalizeMediaUrl;
     const TXID_RE = /^[0-9a-fA-F]{64}$/;
     let recentPortalSummaries = null;
+    let recentPortalPaths = new Map();
+    function publicPath(value) {
+      const path = String(value || "").replace(/^\/+/, "");
+      return /^transactions\/[a-z0-9._/-]+\.json$/i.test(path) && !path.split("/").includes("..") ? path : "";
+    }
 
     function mergeSummary(existingSummary, incomingSummary) {
       const previous = existingSummary && typeof existingSummary === "object" ? existingSummary : {};
@@ -207,6 +212,8 @@
         safeArray(saved).slice(0, RECENT_PORTAL_CACHE_LIMIT).forEach(function (row) {
           if (row && typeof row.key === "string" && row.summary && typeof row.summary === "object") {
             recentPortalSummaries.set(row.key, row.summary);
+            const path = publicPath(row.path);
+            if (path) recentPortalPaths.set(row.key,path);
           }
         });
       } catch (error) {}
@@ -221,6 +228,7 @@
         const coin = source.startsWith("evm") ? "evm" : normalizeCoinName(source);
         if (!tickerForCoin(coin)) return null;
         return {sourceId:source, coin:coin, txid:match[2].toLowerCase(), summary:summary,
+          localPath:recentPortalPaths.get(item[0]) || "",
           cachedSummaryReady:true, discoverySource:"recent-cache", blockTime:normalizeUnixTime(summary.blockTime)};
       }).filter(Boolean);
     }
@@ -239,16 +247,22 @@
           "recordKind", "evmWords", "evmReceivers", "evmAmounts", "contractName", "contractAddress", "from", "to", "explorerUrl", "functionName", "methodId"].forEach(function (field) {
           if (row.summary && row.summary[field] !== undefined) summary[field] = row.summary[field];
         });
-        if (JSON.stringify(summary).length <= 32768) next.set(row.key || rowKey(row), summary);
+        if (JSON.stringify(summary).length <= 32768) {
+          const key = row.key || rowKey(row);
+          next.set(key,summary);
+          const path = publicPath(row.localPath || row.staticRawPath);
+          if (path) recentPortalPaths.set(key,path);
+        }
       });
       previous.forEach(function (summary, key) {
         if (next.size < RECENT_PORTAL_CACHE_LIMIT && !next.has(key)) next.set(key, summary);
       });
       recentPortalSummaries = next;
+      recentPortalPaths = new Map(Array.from(recentPortalPaths).filter(function (entry) { return next.has(entry[0]); }));
       if (persist === false) return;
       try {
         if (deps.writeStorage) deps.writeStorage(RECENT_PORTAL_CACHE_KEY, JSON.stringify(Array.from(next, function (entry) {
-          return {key: entry[0], summary: entry[1]};
+          return {key: entry[0], summary: entry[1], path: recentPortalPaths.get(entry[0]) || ""};
         })));
       } catch (error) { if (deps.onStorageError) deps.onStorageError(error); }
     }

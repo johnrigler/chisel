@@ -1,7 +1,7 @@
 /* Chisel offline shell. No transaction, RPC, key or API responses are cached. */
 'use strict';
-const CACHE = 'chisel-shell-v31';
-const SHELL = ['./data-bundled/portal-first-page.js?rev=20261125-fast-feed-v2894', './chisel.polygon.send.js?rev=20261125-polygon-recent-v2893', './chisel.evm.local.js?rev=20261125-polygon-fees-v2890', './chisel.evm.share.js?rev=20261125-local-polygon-v2884', './chisel.youtube.ui.js?rev=20261125-local-polygon-v2884', './chisel.evm.decode.js?rev=20261125-polygon-share-v2881', './chisel.bsv.media.js?rev=20261122-record-explore-v2871', './chisel.portal.explore.js?rev=20261122-record-explore-v2871', './chisel.portal.record.css?rev=20261122-record-explore-v2871', './', './index.html', './chisel.portal.mobile.css?rev=20261122-visible-payload-links-v2870', './tools/qrField/index.html?rev=20261119-simple-labels-v2865', './manifest.webmanifest', './chisel-icon.svg', './chisel.version.js?rev=20261125-fast-feed-v2894', './app.js?rev=20261125-route-boot-v2891', './chisel.js', './chisel.portal.discovery.js?rev=20261122-bsv-daemon-v2873', './chisel.portal.store.js?rev=20261125-fast-feed-v2894', './chisel.portal.payload.js?rev=20261122-bsv-scan-v2867', './chisel.portal.record.js?rev=20261124-base58-v2878', './chisel.interactions.js?rev=20261122-bsv-scan-v2867', './chisel.thunderwords.js?rev=20261122-bsv-scan-v2867', './chisel.portal.static-data.js?rev=20261124-files-v2877', './chisel.portal.js?rev=20261125-fast-feed-v2894', './chisel.header-identity.js?rev=20261125-polygon-fees-v2890', './chisel.networks.js?rev=20261120-network-accounts-v2866', './chisel.networks.ui.js?rev=20261120-network-accounts-v2866'];
+const CACHE = 'chisel-shell-v32';
+const SHELL = ['./data-bundled/portal-first-page.js?rev=20261125-fast-feed-v2894', './chisel.polygon.send.js?rev=20261125-polygon-recent-v2893', './chisel.evm.local.js?rev=20261125-polygon-fees-v2890', './chisel.evm.share.js?rev=20261125-local-polygon-v2884', './chisel.youtube.ui.js?rev=20261125-local-polygon-v2884', './chisel.evm.decode.js?rev=20261125-polygon-share-v2881', './chisel.bsv.media.js?rev=20261122-record-explore-v2871', './chisel.portal.explore.js?rev=20261122-record-explore-v2871', './chisel.portal.record.css?rev=20261122-record-explore-v2871', './', './index.html', './chisel.portal.mobile.css?rev=20261122-visible-payload-links-v2870', './tools/qrField/index.html?rev=20261119-simple-labels-v2865', './manifest.webmanifest', './chisel-icon.svg', './chisel.version.js?rev=20261125-offline-feed-v2895', './app.js?rev=20261125-route-boot-v2891', './chisel.js', './chisel.portal.discovery.js?rev=20261122-bsv-daemon-v2873', './chisel.portal.store.js?rev=20261125-offline-feed-v2895', './chisel.portal.payload.js?rev=20261122-bsv-scan-v2867', './chisel.portal.record.js?rev=20261124-base58-v2878', './chisel.interactions.js?rev=20261122-bsv-scan-v2867', './chisel.thunderwords.js?rev=20261122-bsv-scan-v2867', './chisel.portal.static-data.js?rev=20261124-files-v2877', './chisel.portal.js?rev=20261125-offline-feed-v2895', './chisel.header-identity.js?rev=20261125-polygon-fees-v2890', './chisel.networks.js?rev=20261120-network-accounts-v2866', './chisel.networks.ui.js?rev=20261120-network-accounts-v2866'];
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
@@ -31,6 +31,11 @@ self.addEventListener('fetch', event => {
   if (/\/(?:api|rpc|fileproxy|chisel[-_]data)\//i.test(url.pathname)) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
+    const versionedShell = !isNav && url.searchParams.has("rev") && SHELL.some(path => new URL(path,self.registration.scope).href === req.url);
+    if (versionedShell) {
+      const saved = await cache.match(req);
+      if (saved) return saved;
+    }
     try {
       // Revalidate online navigations and versioned shell assets so a fresh
       // release label cannot be paired with an HTTP-cached older index page.

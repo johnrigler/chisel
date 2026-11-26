@@ -2736,8 +2736,7 @@
 
   async function loadPortalConfig() {
     const directUrls = [DEFAULT_CONFIG_PATH];
-    const proxyBase = String((state.config && state.config.fileProxyUrl) || DEFAULT_FILE_PROXY_URL).replace(/\/+$/, "");
-    directUrls.push(proxyBase + "/config?path=" + encodeURIComponent(DEFAULT_CONFIG_PATH));
+    // Configuration must never depend on FileProxy being online.
 
     for (let i = 0; i < directUrls.length; i += 1) {
       try {
@@ -2750,7 +2749,7 @@
         }, 2000);
         if (!json) continue;
         if (json && json.ok && json.config) return Object.assign({}, DEFAULT_PORTAL_CONFIG, json.config);
-        if (json && !json.ok) continue;
+        if (json.ok === false || typeof json !== "object" || Array.isArray(json)) continue;
         return Object.assign({}, DEFAULT_PORTAL_CONFIG, json);
       } catch (error) { recordPortalError("portal.config", error, {endpoint:directUrls[i], method:"GET"}); }
     }
@@ -3883,7 +3882,7 @@
   }
 
   function restoreRecentFeed() {
-    if (state.portalRows.length && state.recentFeedRestored) return;
+    if (state.recentFeedRestored) return;
     state.recentFeedRestored = true;
     const rows = transactionStore.restoreRecent ? transactionStore.restoreRecent() : [];
     rows.forEach(function (row) {
@@ -3891,6 +3890,8 @@
         return row.sourceId === "evm" + item.label.replace(/[^A-Za-z0-9]/g,"");
       }) || (row.sourceId === "evmChisel" ? getEvmProfileById("chisel") : null);
       row.index = profile ? evmIndexEntry(profile) : getCoinIndexByCoinName(row.coin);
+      // Stored public relative transaction paths can be read from Apache
+      // even when the FileProxy process is stopped.
     });
     if (rows.length) {
       mergeStaticRows(rows);
@@ -5238,7 +5239,7 @@
 
   function rowCanHydrate(row) {
     if (!row || row.raw) return false;
-    if (row.staticRawPath || row.staticRawUrl) return true;
+    if (row.staticRawPath || row.staticRawUrl || sourceIdForRow(row) === "evmChisel") return true;
     if (isLocalPortalRow(row)) return true;
     if (indexCanFetch(rowIndexEntry(row))) return true;
     return false;
@@ -5852,6 +5853,9 @@
     state.visiblePortalRowKeys = Object.create(null);
 
     if (!state.portalRows.length) {
+      // The HTML shell can already show real cached/bundled summaries.
+      // Keep it in place until the full feed has actual rows.
+      if (list.querySelector("[data-portal-boot-preview]")) return;
       streamList.clear();
       list.classList.add("muted");
       list.textContent = "◷ Loading ThunderWords…";
@@ -6063,6 +6067,27 @@
       } catch (error) {
         row.localPathLoadError = error.message || String(error);
       }
+    }
+    if (sourceIdForRow(row) === "evmChisel") {
+      try {
+        const hash = "0x" + row.txid;
+        const profile = getEvmProfileById("chisel");
+        if (BigInt(await readRecentPolygon("eth_chainId", [])) !== 137n) throw Error("Unexpected Polygon chain");
+        const [tx,receipt] = await Promise.all([readRecentPolygon("eth_getTransactionByHash",[hash]),readRecentPolygon("eth_getTransactionReceipt",[hash])]);
+        if (!tx || String(tx.hash).toLowerCase() !== hash || String(tx.to).toLowerCase() !== profile.contractAddress.toLowerCase()) throw Error("Polygon transaction not found for Chisel");
+        if (receipt && String(receipt.transactionHash).toLowerCase() !== hash) throw Error("Polygon receipt hash mismatch");
+        let timestamp = 0;
+        if (receipt && receipt.blockNumber) {
+          try {
+            const block = await readRecentPolygon("eth_getBlockByNumber",[receipt.blockNumber,false]);
+            if (block && block.hash === receipt.blockHash) timestamp = Number(block.timestamp);
+          } catch (_) {}
+        }
+        const packet = evmTxPacket(Object.assign({},tx,{timeStamp:timestamp,gasUsed:receipt ? receipt.gasUsed : ""}),profile);
+        packet.source.kind = "polygon-rpc-hash";
+        if (receipt) packet.receipt = receipt;
+        return {json:packet,source:"live",coin:"evm",url:"https://polygonscan.com/tx/"+hash};
+      } catch (error) { row.polygonLookupError = error.message || String(error); }
     }
     return loadTransactionLocalFirst(rowIndexEntry(row), row.txid, canonicalCoinForRow(row), opts);
   }
@@ -6461,16 +6486,20 @@
     hash = String(hash || "").toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(hash)) return;
     const at = Number(restoredAt) || Date.now();
-    if (at > Date.now() || Date.now()-at >= 900000) return;
+    if (at > Date.now()) return;
     if (recentPolygonTimer) window.clearTimeout(recentPolygonTimer);
     recentPolygonTimer = null;
     recentPolygon = {hash:hash,at:at};
-    recentPolygonReveal = true;
+    recentPolygonReveal = Date.now()-at < 900000;
     try { window.localStorage.setItem(RECENT_POLYGON_KEY,JSON.stringify(recentPolygon)); } catch (_) {}
     refreshRecentPolygon();
   }
   function restoreRecentPolygon() {
-    if (recentPolygon) { revealRecentPolygon(); return; }
+    if (recentPolygon) {
+      revealRecentPolygon();
+      if (!state.portalRows.some(function (row) { return row.txid === recentPolygon.hash.slice(2) && row.polygonReceiptStatus === "receipt confirmed"; })) refreshRecentPolygon();
+      return;
+    }
     try {
       const saved = JSON.parse(window.localStorage.getItem(RECENT_POLYGON_KEY) || "null");
       if (saved && Number(saved.at) > 0) trackPolygonHash(saved.hash,saved.at);
@@ -6499,11 +6528,31 @@
     return state.indexedChiselRefresh;
   }
 
+  let proxyCatalogRefresh = null, proxyCatalogConnected = false;
+  async function refreshOptionalFileProxy() {
+    if (document.hidden || document.body.dataset.mode !== "portal") return;
+    if (proxyCatalogRefresh) return proxyCatalogRefresh;
+    proxyCatalogRefresh = (async function () {
+      const online = await checkFileProxyHealth();
+      if (!online) { proxyCatalogConnected = false; return; }
+      const recovered = !proxyCatalogConnected;
+      proxyCatalogConnected = true;
+      const jobs = [];
+      if (recovered && configBool("autoLoadLocalTransactions", false)) jobs.push(listLocalTransactions());
+      if (configBool("autoLoadEvmCatalog", true)) {
+        jobs.push(recovered ? loadSelectedEvmCatalogs({reset:false}) : refreshIndexedChisel());
+      }
+      await Promise.allSettled(jobs);
+    })().finally(function () { proxyCatalogRefresh = null; });
+    return proxyCatalogRefresh;
+  }
+
   function startIndexedChiselPolling() {
     if (state.indexedChiselTimer) window.clearInterval(state.indexedChiselTimer);
     const ms = Number(configValue("indexedChiselRefreshMs", 30000));
     if (!Number.isFinite(ms) || ms < 1000) return;
-    state.indexedChiselTimer = window.setInterval(refreshIndexedChisel, Math.max(15000, ms));
+    refreshOptionalFileProxy();
+    state.indexedChiselTimer = window.setInterval(refreshOptionalFileProxy, Math.max(15000, ms));
   }
 
   const ETHERSCAN_V2_URL = "https://api.etherscan.io/v2/api";
@@ -6892,6 +6941,7 @@
 
   function renderEmptyTransactionList(message) {
     if (!state.portalRows.length) {
+      if ($("#portalTransactionList [data-portal-boot-preview]")) return;
       const text = message || "◷ Loading ThunderWords…";
       const list = $("#portalTransactionList");
       if (list) {
@@ -7951,22 +8001,27 @@ function getPortalFirstCharacter() {
 
   async function checkFileProxyHealth() {
     const element = $("#portalFileProxyHealth");
-    if (!element) return;
     const base = getFileProxyUrl().replace(new RegExp("/+$"), "");
     let label = "configured endpoint";
     try { label = new URL(base, window.location.href).host; } catch (_) {}
-    element.textContent = "FileProxy: checking " + label + "…";
+    if (element) element.textContent = "FileProxy: checking " + label + "…";
     const controller = new AbortController();
     const timeout = window.setTimeout(function () { controller.abort(); }, 6000);
     try {
       await requestFileProxyJson(base + "/ping", {
         method:"GET", cache:"no-store", signal:controller.signal
       });
-      element.textContent = "FileProxy: connected (" + label + ")";
-      element.style.color = "#a2d889";
+      if (element) {
+        element.textContent = "FileProxy: connected (" + label + ")";
+        element.style.color = "#a2d889";
+      }
+      return true;
     } catch (error) {
-      element.textContent = "FileProxy: " + label + " unavailable. Direct HTTP reading does not require it.";
-      element.style.color = "#ffb39f";
+      if (element) {
+        element.textContent = "FileProxy: offline · cached records and direct HTTP/RPC still available.";
+        element.style.color = "#ffb39f";
+      }
+      return false;
     } finally {
       window.clearTimeout(timeout);
     }
@@ -8002,7 +8057,9 @@ function getPortalFirstCharacter() {
     if ($("#portalFileProxyUrl")) $("#portalFileProxyUrl").addEventListener("change", function () {
       state.fileProxyAvailable = null;
       fileProxyRetryAfter = 0;
-      checkFileProxyHealth();
+      failedFileProxyBase = "";
+      proxyCatalogConnected = false;
+      refreshOptionalFileProxy();
     });
     const staticInput = $("#portalStaticDataUrl");
     if (staticInput) {
@@ -8226,14 +8283,14 @@ function getPortalFirstCharacter() {
     });
     window.addEventListener("focus", function () {
       if (configBool("liveLedgerRefreshOnFocus", true)) refreshLiveLedger();
-      if (recordCatalogConfig) recordCatalogConfig.then(refreshIndexedChisel).catch(function () {});
+      if (recordCatalogConfig) recordCatalogConfig.then(refreshOptionalFileProxy).catch(function () {});
     });
     window.addEventListener("chisel:mode", function (event) {
       if (event.detail && event.detail.mode === "portal") {
         restoreRecentPolygon();
         revealRecentPolygon();
         refreshLiveLedger();
-        if (recordCatalogConfig) recordCatalogConfig.then(refreshIndexedChisel).catch(function () {});
+        if (recordCatalogConfig) recordCatalogConfig.then(refreshOptionalFileProxy).catch(function () {});
       }
     });
     document.addEventListener("visibilitychange", function () {
@@ -8262,7 +8319,6 @@ function getPortalFirstCharacter() {
         script.onerror = ensureStarterDataset;
         document.head.appendChild(script);
       } else window.setTimeout(ensureStarterDataset,100);
-      recordCatalogConfig.then(refreshIndexedChisel).catch(function () {});
       loadColorMap(DEFAULT_COLOR_PATH).catch(function (error) {
         setStatus(error.message || String(error), true);
       });
@@ -8278,7 +8334,6 @@ function getPortalFirstCharacter() {
           setStatus("Your account could not refresh: " + (error.message || String(error)) + ". Public identity remains saved.",true);
         });
       }
-      checkFileProxyHealth();
       if (state.urlMainThunderwordRequest) {
         loadMainThunderwordFromUrl().catch(function (error) {
           setStatus("Main thunderword URL could not load: " + (error.message || String(error)), true);
@@ -8294,17 +8349,7 @@ function getPortalFirstCharacter() {
       } else if (configBool("autoSearchLedgersAfterStatic", true)) {
         maybeAutoLoadConversationStreams();
       }
-      if (configBool("autoLoadLocalTransactions", false)) {
-        listLocalTransactions().catch(function (error) {
-          setStatus("Local fileProxy load skipped: " + (error.message || String(error)), true);
-        });
-      }
-      const evmCatalogLoad = configBool("autoLoadEvmCatalog", true)
-        ? loadSelectedEvmCatalogs({ reset: false }).catch(function (error) {
-          setStatus("Local EVM catalog load skipped: " + (error.message || String(error)), true);
-        })
-        : Promise.resolve();
-      evmCatalogLoad.then(startEvmContractPolling);
+      startEvmContractPolling();
       startIndexedChiselPolling();
       startLocalTransactionPolling();
       startLiveLedgerPolling();
@@ -8318,12 +8363,7 @@ function getPortalFirstCharacter() {
           setStatus("Main thunderword URL could not load: " + (loadError.message || String(loadError)), true);
         });
       }
-      const evmCatalogLoad = configBool("autoLoadEvmCatalog", true)
-        ? loadSelectedEvmCatalogs({ reset: false }).catch(function (error) {
-          console.warn("Local EVM catalog load skipped:", error);
-        })
-        : Promise.resolve();
-      evmCatalogLoad.then(startEvmContractPolling);
+      startEvmContractPolling();
       startIndexedChiselPolling();
       if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
       if (state.personalAccount && !state.urlMainThunderwordRequest) {
