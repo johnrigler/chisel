@@ -37,7 +37,8 @@
     liveLedgerRefreshMs: 120000,
     liveLedgerRefreshOnFocus: true,
     liveLedgerRefreshFocusStaleMs: 60000,
-    autoSyncEvmContracts: true,
+    autoSyncEvmContracts: false,
+    indexedChiselRefreshMs: 30000,
     autoSyncEvmContractsMs: 60000,
     autoSyncEvmOverlapBlocks: 16,
     autoSelectNewest: false,
@@ -171,6 +172,8 @@
     localPollTimer: null,
     liveLedgerTimer: null,
     evmSyncTimer: null,
+    indexedChiselTimer: null,
+    indexedChiselRefresh: null,
     evmSyncPromise: null,
     liveLedgerHistories: Object.create(null),
     mainThunderword: null,
@@ -6319,7 +6322,7 @@
   }
 
   async function loadSelectedEvmCatalogs(opts) {
-    const profiles = enabledEvmProfiles();
+    const profiles = enabledEvmProfiles().sort(function (a, b) { return Number(b.id === "chisel") - Number(a.id === "chisel"); });
     if (!profiles.length) {
       setStatus("Choose at least one EVM stream (Gomez, Jethro, or Polygon Thunderword) before loading the FileProxy catalog.", true);
       return [];
@@ -6335,16 +6338,20 @@
     beginPortalBatch();
     try {
       for (let i = 0; i < profiles.length; i += 1) {
-        const result = await fetchEvmCatalogRows(profiles[i]);
-        reports.push({
-          profile: result.profile.label,
-          count: result.rows.length,
-          streams: result.json.streams || []
-        });
-        result.rows.forEach(function (row) {
-          loaded.push(upsertPortalRow(row, { silent: true }));
-        });
-        state.evmCatalogLoaded[result.profile.id] = true;
+        try {
+          const result = await fetchEvmCatalogRows(profiles[i]);
+          reports.push({
+            profile: result.profile.label,
+            count: result.rows.length,
+            streams: result.json.streams || []
+          });
+          result.rows.forEach(function (row) {
+            loaded.push(upsertPortalRow(row, { silent: true }));
+          });
+          state.evmCatalogLoaded[result.profile.id] = true;
+        } catch (error) {
+          reports.push({profile: profiles[i].label, error: error.message || String(error)});
+        }
       }
     } finally {
       endPortalBatch();
@@ -6352,8 +6359,40 @@
 
     requestPortalRender();
     setText("#portalThunderwordRaw", pretty({ evmCatalog: reports }));
-    setStatus("Loaded " + loaded.length + " EVM catalog transaction(s) into the main Portal feed.", false);
+    const failures = reports.filter(function (report) { return report.error; });
+    setStatus("Loaded " + loaded.length + " EVM catalog transaction(s) into the main Portal feed." +
+      (failures.length ? " Unavailable: " + failures.map(function (report) { return report.profile; }).join(", ") + "." : ""), failures.length === reports.length);
     return loaded;
+  }
+
+  // Rigler's scheduled indexer owns discovery. Refresh its Chisel catalog
+  // independently of the optional browser Etherscan adapter.
+  function refreshIndexedChisel() {
+    if (document.hidden || document.body.dataset.mode !== "portal" ||
+        !configBool("autoLoadEvmCatalog", true)) return Promise.resolve(null);
+    if (state.indexedChiselRefresh) return state.indexedChiselRefresh;
+    const profile = enabledEvmProfiles().find(function (item) { return item.id === "chisel"; });
+    if (!profile) return Promise.resolve(null);
+    state.indexedChiselRefresh = fetchEvmCatalogRows(profile).then(function (result) {
+      beginPortalBatch();
+      try {
+        result.rows.forEach(function (row) { upsertPortalRow(row, {silent: true}); });
+        state.evmCatalogLoaded[profile.id] = true;
+      } finally { endPortalBatch(); }
+      requestPortalRender();
+      return result.rows.length;
+    }).catch(function (error) {
+      console.warn("Rigler Chisel catalog refresh:", error);
+      return null;
+    }).finally(function () { state.indexedChiselRefresh = null; });
+    return state.indexedChiselRefresh;
+  }
+
+  function startIndexedChiselPolling() {
+    if (state.indexedChiselTimer) window.clearInterval(state.indexedChiselTimer);
+    const ms = Number(configValue("indexedChiselRefreshMs", 30000));
+    if (!Number.isFinite(ms) || ms < 1000) return;
+    state.indexedChiselTimer = window.setInterval(refreshIndexedChisel, Math.max(15000, ms));
   }
 
   const ETHERSCAN_V2_URL = "https://api.etherscan.io/v2/api";
@@ -6495,7 +6534,7 @@
   }
 
   async function syncEvmContractsFromEtherscan() {
-    if (!configBool("autoSyncEvmContracts", true) || document.hidden) return 0;
+    if (!configBool("autoSyncEvmContracts", false) || document.hidden) return 0;
     if (state.evmSyncPromise) return state.evmSyncPromise;
     const apiKey = savedEtherscanApiKey();
     if (!apiKey) return 0;
@@ -6525,7 +6564,7 @@
 
   function startEvmContractPolling() {
     if (state.evmSyncTimer) window.clearInterval(state.evmSyncTimer);
-    if (!configBool("autoSyncEvmContracts", true)) return;
+    if (!configBool("autoSyncEvmContracts", false)) return;
     if (!savedEtherscanApiKey()) {
       console.info("Polygon auto-sync is waiting for the Etherscan key saved by the Polygon workbench; cached FileProxy transactions still load.");
     }
@@ -8072,9 +8111,13 @@ function getPortalFirstCharacter() {
     });
     window.addEventListener("focus", function () {
       if (configBool("liveLedgerRefreshOnFocus", true)) refreshLiveLedger();
+      if (recordCatalogConfig) recordCatalogConfig.then(refreshIndexedChisel).catch(function () {});
     });
     window.addEventListener("chisel:mode", function (event) {
-      if (event.detail && event.detail.mode === "portal") refreshLiveLedger();
+      if (event.detail && event.detail.mode === "portal") {
+        refreshLiveLedger();
+        if (recordCatalogConfig) recordCatalogConfig.then(refreshIndexedChisel).catch(function () {});
+      }
     });
     document.addEventListener("visibilitychange", function () {
       if (!document.hidden && configBool("liveLedgerRefreshOnFocus", true)) refreshLiveLedger();
@@ -8131,6 +8174,7 @@ function getPortalFirstCharacter() {
         })
         : Promise.resolve();
       evmCatalogLoad.then(startEvmContractPolling);
+      startIndexedChiselPolling();
       startLocalTransactionPolling();
       startLiveLedgerPolling();
     }).catch(function (error) {
@@ -8149,6 +8193,7 @@ function getPortalFirstCharacter() {
         })
         : Promise.resolve();
       evmCatalogLoad.then(startEvmContractPolling);
+      startIndexedChiselPolling();
       if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
       if (state.personalAccount && !state.urlMainThunderwordRequest) {
         loadPersonalAccountStream(state.personalAccount, {filterResults:true, noReloadIfCurrent:false, captureReturnView:false}).catch(function () {});
