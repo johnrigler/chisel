@@ -149,7 +149,7 @@
     portalRowKeys: Object.create(null),
     selectedRowKey: "",
     portalPage: 1,
-    portalPageSize: 20,
+    portalPageSize: null,
     expandedRowKeys: Object.create(null),
     pendingHydration: Object.create(null),
     pendingDateLookup: Object.create(null),
@@ -3796,9 +3796,34 @@
     state.portalSortPending = false;
   }
 
+  const portalPageSizes = [20, 50, 100];
+  const portalPageSizeStorageKey = "chisel.portal.pageSize.v1";
+
   function getPortalPageSize() {
-    const configured = Number(configValue("portalPageSize", state.portalPageSize || 20)) || 20;
+    if (portalPageSizes.includes(state.portalPageSize)) return state.portalPageSize;
+    try {
+      const saved = Number(window.localStorage.getItem(portalPageSizeStorageKey));
+      if (portalPageSizes.includes(saved)) return (state.portalPageSize = saved);
+    } catch (_) {}
+    const configured = Math.trunc(Number(configValue("portalPageSize", 20))) || 20;
     return Math.max(1, Math.min(200, configured));
+  }
+
+  function setPortalPageSize(value) {
+    const size = Number(value);
+    if (!portalPageSizes.includes(size)) return;
+    const rows = getFilteredPortalRows();
+    const offset = (clampPortalPage(rows) - 1) * getPortalPageSize();
+    state.portalPageSize = size;
+    try { window.localStorage.setItem(portalPageSizeStorageKey, String(size)); } catch (_) {}
+    state.portalPage = Math.floor(offset / size) + 1;
+    clampPortalPage(rows);
+    state.expandedRowKeys = Object.create(null);
+    state.selectedRowKey = "";
+    state.selectedTxid = "";
+    renderPortalRows();
+    const list = $("#portalTransactionList");
+    if (list) { list.scrollTop = 0; }
   }
 
   function getPortalPageCount(filteredRows) {
@@ -3814,7 +3839,7 @@
 
   function clampPortalPage(filteredRows) {
     const count = getPortalPageCount(filteredRows);
-    state.portalPage = Math.max(1, Math.min(count, Number(state.portalPage) || 1));
+    state.portalPage = Math.max(1, Math.min(count, Math.trunc(Number(state.portalPage)) || 1));
     return state.portalPage;
   }
 
@@ -3880,11 +3905,12 @@
   function setPortalPage(page) {
     const filteredRows = getFilteredPortalRows();
     const previousPage = clampPortalPage(filteredRows);
-    state.portalPage = Math.max(1, Number(page) || 1);
+    state.portalPage = Math.max(1, Math.trunc(Number(page)) || 1);
     const nextPage = clampPortalPage(filteredRows);
     if (nextPage !== previousPage) {
       state.expandedRowKeys = Object.create(null);
       state.selectedRowKey = "";
+      state.selectedTxid = "";
     }
     renderPortalRows();
     const list = $("#portalTransactionList");
@@ -3933,76 +3959,100 @@
   function renderPortalPageControls(rows) {
     const target = $("#portalPageControls");
     if (!target) return;
-    const box = document.createElement("div");
-
-    if (!target.dataset.pageNavigationBound) {
-      target.dataset.pageNavigationBound = "true";
-      target.addEventListener("click", function (event) {
-        const source = event.target;
-        const button = source && source.closest ? source.closest("button.portalPageButton") : null;
-        if (!button || button.disabled || !target.contains(button)) return;
-        setPortalPage(Number(button.getAttribute("data-page")));
-      });
-    }
-
     const filteredRows = Array.isArray(rows) ? rows : getFilteredPortalRows();
     if (!state.portalRows.length || !filteredRows.length) {
-      target.textContent = "";
+      target.replaceChildren();
       return;
     }
-
     const count = getPortalPageCount(filteredRows);
     const page = clampPortalPage(filteredRows);
     const size = getPortalPageSize();
     const start = ((page - 1) * size) + 1;
     const end = Math.min(filteredRows.length, page * size);
 
-    const label = document.createElement("span");
-    label.textContent = count === 1
-      ? "All " + portalTransactionCountLabel(filteredRows) + " shown · Page 1 of 1"
-      : "Page " + page + " of " + count + " · Transactions " + start + "–" + end + " of " + filteredRows.length;
-    box.appendChild(label);
-    if (count === 1) {
-      viewApi.patchChildren(target, box);
-      return;
-    }
-
-    function addButton(text, targetPage, disabled) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "secondaryButton portalPageButton";
-      button.textContent = text;
-      button.setAttribute("data-page", String(targetPage));
-      button.setAttribute("aria-label", text === "›" ? "Next page" : "Previous page");
-      button.disabled = !!disabled;
-      box.appendChild(button);
-    }
-
-    addButton("‹", page - 1, page <= 1);
-
-    const around = [];
-    for (let p = 1; p <= count; p += 1) {
-      if (p === 1 || p === count || Math.abs(p - page) <= 2) around.push(p);
-    }
-    let last = 0;
-    around.forEach(function (p) {
-      if (last && p > last + 1) {
-        const gap = document.createElement("span");
-        gap.textContent = "…";
-        box.appendChild(gap);
+    // Keep interactive controls mounted across live feed and thumbnail updates.
+    // The display-only patcher must not reset an in-progress page entry.
+    let controls = target.querySelector(".portalPagination");
+    if (!controls) {
+      controls = document.createElement("div");
+      controls.className = "portalPagination";
+      const label = document.createElement("div");
+      label.className = "portalPaginationStatus";
+      label.setAttribute("aria-live", "polite");
+      const sizes = document.createElement("label");
+      sizes.textContent = "Records per page ";
+      const select = document.createElement("select");
+      select.className = "portalPaginationSize";
+      select.setAttribute("aria-label", "Records per page");
+      select.addEventListener("change", function () {
+        delete jump.dataset.editing;
+        setPortalPageSize(select.value);
+      });
+      sizes.appendChild(select);
+      const nav = document.createElement("div");
+      nav.className = "portalPaginationNav";
+      function addButton(text, title, action, cls) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "secondaryButton portalPageButton " + cls;
+        button.textContent = text;
+        button.setAttribute("aria-label", title);
+        button.title = title;
+        button.addEventListener("click", function () {
+          if (cls !== "portalGoPage") delete jump.dataset.editing;
+          action();
+        });
+        nav.appendChild(button);
       }
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "secondaryButton portalPageButton" + (p === page ? " active" : "");
-      button.textContent = "page" + p;
-      button.setAttribute("data-page", String(p));
-      button.disabled = p === page;
-      box.appendChild(button);
-      last = p;
-    });
-
-    addButton("›", page + 1, page >= count);
-    viewApi.patchChildren(target, box);
+      addButton("«", "First page", function () { setPortalPage(1); }, "portalFirstPage");
+      addButton("‹", "Previous page", function () { setPortalPage(state.portalPage - 1); }, "portalPreviousPage");
+      const jump = document.createElement("input");
+      jump.type = "number";
+      jump.min = "1";
+      jump.step = "1";
+      jump.inputMode = "numeric";
+      jump.className = "portalPaginationJump";
+      jump.setAttribute("aria-label", "Go to page number");
+      jump.addEventListener("input", function () { jump.dataset.editing = "true"; });
+      function go() {
+        delete jump.dataset.editing;
+        const value = Number(jump.value);
+        if (!jump.value.trim() || !Number.isFinite(value)) { jump.value = String(state.portalPage); return; }
+        setPortalPage(value);
+        jump.value = String(state.portalPage);
+      }
+      jump.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") { event.preventDefault(); go(); }
+      });
+      nav.appendChild(jump);
+      addButton("Go", "Go to page", go, "portalGoPage");
+      addButton("›", "Next page", function () { setPortalPage(state.portalPage + 1); }, "portalNextPage");
+      addButton("»", "Last page", function () { setPortalPage(getPortalPageCount()); }, "portalLastPage");
+      controls.append(label, sizes, nav);
+      target.replaceChildren(controls);
+    }
+    const label = controls.querySelector(".portalPaginationStatus");
+    const summary = "Page " + page + " of " + count + " · Records " + start + "–" + end + " of " + filteredRows.length;
+    if (label.textContent !== summary) label.textContent = summary;
+    const select = controls.querySelector(".portalPaginationSize");
+    const options = Array.from(new Set(portalPageSizes.concat(size))).sort(function (a,b) { return a-b; });
+    if (Array.from(select.options).map(function (opt) { return Number(opt.value); }).join(",") !== options.join(",")) {
+      select.replaceChildren();
+      options.forEach(function (value) {
+        const opt = document.createElement("option");
+        opt.value = String(value);
+        opt.textContent = String(value);
+        select.appendChild(opt);
+      });
+    }
+    if (select.value !== String(size)) select.value = String(size);
+    const jump = controls.querySelector(".portalPaginationJump");
+    jump.max = String(count);
+    if (document.activeElement !== jump && !jump.dataset.editing && jump.value !== String(page)) jump.value = String(page);
+    controls.querySelector(".portalFirstPage").disabled = page <= 1;
+    controls.querySelector(".portalPreviousPage").disabled = page <= 1;
+    controls.querySelector(".portalNextPage").disabled = page >= count;
+    controls.querySelector(".portalLastPage").disabled = page >= count;
   }
 
   function mergePortalSummary(existingSummary, incomingSummary) {
@@ -6083,7 +6133,7 @@
     const filters = PORTAL_FILTER_IDS.map(function (id) {
       return id + "=" + (getPortalFilterValue(id) ? "1" : "0");
     }).join("&");
-    return [state.portalLoadGeneration, state.portalRows.length, state.portalPage, getPortalSearchText(), filters].join("|");
+    return [state.portalLoadGeneration, state.portalRows.length, state.portalPage, getPortalPageSize(), getPortalSearchText(), filters].join("|");
   }
 
   function rowNeedsVisibleDateLookup(row) {
