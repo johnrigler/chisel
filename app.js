@@ -2416,6 +2416,8 @@ function onClickAddCommonAddressButton() {
   function setGuiMode(mode) {
     const normalizedMode = normalizeMode(mode);
     const previousMode = document.body.dataset.mode;
+    const appMenu = document.getElementById("appMenu");
+    if (appMenu) appMenu.open = false;
     if (elems.currency) {
       // Keep the hidden UTXO form on a real coin so its render, QR, and
       // identity handlers cannot accidentally resolve Polygon as a UTXO plugin.

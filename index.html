@@ -2188,6 +2188,7 @@
     .appMenu > summary { list-style:none; cursor:pointer; border:1px solid #344150; background:#1d2630; border-radius:10px; font-size:23px; width:45px; height:43px; display:grid; place-items:center; }
     .appMenu > summary::-webkit-details-marker { display:none; }
     .appMenuContents { position:absolute; top:calc(100% + 8px); right:0; width:min(94vw,420px); max-height:min(76vh,760px); overflow:auto; padding:14px; border:1px solid #344150; border-radius:12px; background:#11161c; box-shadow:0 16px 50px #000b; display:grid; gap:10px; }
+    .appMenu:not([open]) > .appMenuContents { display:none !important; }
     .appMenuContents > strong { font-size:12px; color:#91a4b7; text-transform:uppercase; }
     .appMenuContents > button { text-align:left; }
     .menuCheck { padding:6px 0; line-height:1.4; font-size:12px; display:flex; gap:8px; align-items:flex-start; }
@@ -2414,7 +2415,7 @@
     </div>
   </section>
 
-  <script src="chisel.version.js?rev=20261126-identity-handoff-v2912"></script>
+  <script src="chisel.version.js?rev=20261126-menu-account-v2913"></script>
   <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
@@ -3020,7 +3021,7 @@
               <div class="stepTitle">Your loaded Chisel address</div>
               <strong id="portalPersonalAccountLabel">Personal account</strong>
             </div>
-            <span id="portalPersonalAccountCoin" class="portalStreamCoin">LTC</span>
+            <span id="portalPersonalAccountCoin" class="portalStreamCoin"></span>
           </div>
           <code id="portalPersonalAccountAddress" class="portalPersonalAccountAddress"></code>
           <div id="portalPersonalAccountMeta" class="portalPersonalAccountMeta">Public address only. Private key material is not stored in Portal.</div>
@@ -3539,9 +3540,10 @@
     if (headerCurrency && sendCurrency) { headerCurrency.value = sendCurrency.value; updateHeaderIdentity(); }
     const appMenu = document.getElementById("appMenu");
     if (appMenu) {
-      appMenu.querySelectorAll("[data-mode-target]").forEach(button => {
-        button.addEventListener("click", () => { appMenu.open = false; });
-      });
+      appMenu.addEventListener("click", event => {
+        if (event.target.closest("[data-mode-target]")) appMenu.open = false;
+      }, true);
+      window.addEventListener("chisel:mode", () => { appMenu.open = false; });
       document.addEventListener("pointerdown", event => {
         if (appMenu.open && !appMenu.contains(event.target)) appMenu.open = false;
       });
@@ -3668,7 +3670,7 @@
   <script src="chisel.portal.record.js?rev=20261126-refresh-route-v297"></script>
   <script src="chisel.interactions.js?rev=20261126-record-source-v2898"></script>
   <script src="chisel.interactions.ui.js?rev=20261126-compact-comments-v28106"></script>
-  <script src="chisel.portal.js?rev=20261126-identity-handoff-v2912"></script>
+  <script src="chisel.portal.js?rev=20261126-menu-account-v2913"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
@@ -3687,7 +3689,7 @@
   <script src="chisel.youtube.ui.js?rev=20261125-native-polygon-v2886"></script>
   <script src="chisel.send.registry.js?rev=20261126-send-registry-v295"></script>
   <script src="chisel.bsv.write.js?rev=20261126-send-registry-v295"></script>
-  <script src="app.js?rev=20261126-identity-handoff-v2912" fetchpriority="high"></script>
+  <script src="app.js?rev=20261126-menu-account-v2913" fetchpriority="high"></script>
   <script src="chisel.send.workspace.js?rev=20261126-send-registry-v295"></script>
   <script src="vendor/ethers-6.6.0.umd.min.js"></script>
   <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>

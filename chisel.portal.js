@@ -8616,12 +8616,25 @@ function getPortalFirstCharacter() {
     window.addEventListener("pagehide", function () { snapshotRecentPortalSummaries(); });
     renderThunderwordOptions();
     state.urlMainThunderwordRequest = mainThunderwordRequestFromUrl();
-    state.personalAccount = loadPersonalAccount();
+    window.addEventListener("chisel:main-account", receiveMainThunderwordAccount);
+    // app.js may finish the identity handoff before DOMContentLoaded binds
+    // Portal. The active public account takes precedence over remembered LTC.
+    const activeAccount = window.CHISEL_ACTIVE_ACCOUNT;
+    if (activeAccount && activeAccount.address && activeAccount.currency) {
+      state.personalAccount = savePersonalAccount({
+        address:activeAccount.address,
+        coin:activeAccount.currency,
+        ticker:activeAccount.ticker,
+        accountOnly:activeAccount.accountOnly === true,
+        label:(activeAccount.ticker || activeAccount.currency) + " account"
+      });
+    } else {
+      state.personalAccount = loadPersonalAccount();
+    }
     if (state.personalAccount) {
       const prepared = populatePersonalAccountFields(state.personalAccount);
       if (prepared && !prepared.account.accountOnly && !state.urlMainThunderwordRequest) restorePersonalTxCache(prepared.account, prepared.entry);
     }
-    window.addEventListener("chisel:main-account", receiveMainThunderwordAccount);
     window.addEventListener("chisel:identity-accounts", function (event) {
       receiveIdentityAccounts(event).catch(function (error) {
         setStatus(error.message || String(error), true);
