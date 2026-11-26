@@ -9,3 +9,7 @@ The BSVWRAPPER_MERKLE_E OP_RETURN marker identifies a separate envelope format. 
 ## Twetch / compound Bitcoin Schema
 
 Pipe-delimited B + MAP + AIP sections are recognized independently. MAP app=twetch identifies an asserted application, not verified operator provenance. The sample 82630acc3c5d284ba07520a6dad3d749be32c67acee2ea308c438614c509837c (block 976662) contains a Markdown post and a separate truncated PNG. The AIP signing address is not verified and its scope is not established. Existing image retrieval and row thumbnail machinery applies. Explore Twetch filters the loaded catalog; it is not an exhaustive index. Legacy marker support and social graph traversal remain future work. See Commons: https://johnrigler.github.io/commons/reading/commentary/2026-11-26-twetch-after-the-platform.html
+
+### Display terminology
+
+The exact Bitcom B identifier `19HxigV4QyBv3tHpQVcUEQyq1pzZVdoAut` is displayed as **Bitcom B** in file interpretations and transaction output labels. The internal protocol key remains `B` so existing cached summaries and file retrieval remain compatible. Application names such as Twetch stay separate from the file protocol. The original address remains in the source script and newly decoded file metadata.

@@ -13,6 +13,7 @@
     }
     return row.summary && Array.isArray(row.summary.files) ? row.summary.files : [];
   }
+  const protocolLabel=p=>p==="B"?"Bitcom B":p;
   const recordFacts=new WeakMap();
   const list=v=>Array.isArray(v)?v:[];
   const norm=v=>String(v||"").trim().toLowerCase();
@@ -50,7 +51,7 @@
     const raw=row.raw, summary=row.summary||{}, api=root.CHISEL_BSV_MEDIA;
     const map=list(raw&&api?api.metadata(raw):summary.metadata);
     const files=fileList(row);
-    return files.map(f=>[f.name||f.mime,f.protocol,f.metadata&&f.metadata.collection,f.metadata&&f.metadata.meshCount?f.metadata.meshCount+" meshes":"",f.metadata&&list(f.metadata.traits).find(t=>t.trait==="Rarity")?.value,Number.isFinite(f.bytes)?f.bytes.toLocaleString()+" bytes":"","output "+f.output,f.complete?"complete":"partial preview"].filter(Boolean).join(" · ")).concat(map.map(m=>m.protocol+" output "+m.output+": "+list(m.fields).map(f=>f.key+" = "+f.value).join(" · ")));
+    return files.map(f=>[f.name||f.mime,protocolLabel(f.protocol),f.metadata&&f.metadata.collection,f.metadata&&f.metadata.meshCount?f.metadata.meshCount+" meshes":"",f.metadata&&list(f.metadata.traits).find(t=>t.trait==="Rarity")?.value,Number.isFinite(f.bytes)?f.bytes.toLocaleString()+" bytes":"","output "+f.output,f.complete?"complete":"partial preview"].filter(Boolean).join(" · ")).concat(map.map(m=>m.protocol+" output "+m.output+": "+list(m.fields).map(f=>f.key+" = "+f.value).join(" · ")));
   }
   function imageRow(row) {
     return fileList(row).some(function (file) { return /^image\//.test(file.mime); }) ||
@@ -68,7 +69,7 @@
       const f=facts(row);
       const text = [row.txid, f.name, ...f.apps, ...f.collections, ...f.parents.map(p=>p.txid), summary.title, summary.opReturnText, summary.cleanText, summary.primaryUrl, summary.blockHeight,
         (summary.evmWords || []).join(" "),
-        (summary.imageChordLines || []).join(" "), files.map(function (file) { return [file.name, file.mime, file.protocol, file.metadata && file.metadata.collection].join(" "); }).join(" ")].join(" ").toLowerCase();
+        (summary.imageChordLines || []).join(" "), files.map(function (file) { return [file.name, file.mime, file.protocol, protocolLabel(file.protocol), file.protocolAddress, file.metadata && file.metadata.collection].join(" "); }).join(" ")].join(" ").toLowerCase();
       return words.every(function (word) { return text.includes(word); });
     });
   }
@@ -158,7 +159,7 @@
           view = {node: node, label: label, status: status}; fileNodes.set(key, view);
         }
         view.file = file;
-        view.label.textContent = [file.name || file.mime, file.protocol, file.metadata && file.metadata.collection, file.metadata && file.metadata.meshCount ? file.metadata.meshCount+" meshes" : "", file.metadata && file.metadata.traits && (file.metadata.traits.find(t=>t.trait==="Rarity") || {}).value, file.bytes.toLocaleString() + " bytes", "output " + file.output,
+        view.label.textContent = [file.name || file.mime, protocolLabel(file.protocol), file.metadata && file.metadata.collection, file.metadata && file.metadata.meshCount ? file.metadata.meshCount+" meshes" : "", file.metadata && file.metadata.traits && (file.metadata.traits.find(t=>t.trait==="Rarity") || {}).value, file.bytes.toLocaleString() + " bytes", "output " + file.output,
           file.encrypted ? "encrypted envelope" : file.mimeSource === "signature" ? "type from file signature" : "declared type"].filter(Boolean).join(" · ");
         if (!view.url && !view.abort) view.status.textContent = file.encrypted ? "Use Download encrypted envelope in the record. No plaintext preview." : file.complete ? "File bytes available." : "Saved preview is incomplete. Retrieve the complete output on demand.";
         const links = root.CHISEL_BSV_MEDIA ? root.CHISEL_BSV_MEDIA.externalLinks(coin, current.txid, file, map) : [];

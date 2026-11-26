@@ -944,6 +944,14 @@
       (raw.scriptPubKey && raw.scriptPubKey.hex)) || "");
     const encrypted=direction==="output" && window.CHISEL_BSV_MEDIA && window.CHISEL_BSV_MEDIA.encryptedFiles(raw,0)[0];
     if(encrypted) return {label:encrypted.name,address:"",kind:"data",subtitle:window.CHISEL_BSV_MEDIA.encryptedLabel(encrypted)};
+    const api=window.CHISEL_BSV_MEDIA;
+    if(direction==="output" && api && api.isBitcomB(raw)) {
+      const file=api.fromOutput(raw,0).find(f=>f.protocol==="B");
+      const post=api.twetchPost({vout:[raw]});
+      return {label:"Bitcom B",address:"",kind:"data",
+        subtitle:post&&post.text ? post.text : file ? file.mime+" · "+file.bytes.toLocaleString()+" bytes" : "File protocol",
+        rawScript:script||asm};
+    }
     if (direction === "output" && (/^OP_RETURN(?:\s|$)/i.test(asm) || /^6a/i.test(script))) {
       const payload = payloadData.fromOutput(raw);
       return { label: "OP_RETURN", address: "", kind: "data",
@@ -1800,6 +1808,7 @@
       if (named) summary.title = named.name + (named.mime === "model/gltf-binary" ? " · 3D ordinal" : " · inscription");
       const encrypted=summary.files.find(file=>file.encrypted);
       if(encrypted) summary.title=encrypted.name;
+      else if(!named && summary.files.some(file=>file.protocol==="B")) summary.title="Bitcom B";
       const twetch=window.CHISEL_BSV_MEDIA.twetchPost(value);
       if(twetch){
         summary.title=twetch.name;
@@ -5503,7 +5512,7 @@
     const twetch=twetchForRow(row);
     if(twetch){
       const section=document.createElement("section");section.className="portalInterpretedRecord";
-      const heading=document.createElement("div");heading.className="stepTitle";heading.textContent=twetch.name;section.appendChild(heading);
+      const heading=document.createElement("div");heading.className="stepTitle";heading.textContent=twetch.name+" · Bitcom B";section.appendChild(heading);
       const body=document.createElement("p");body.style.whiteSpace="pre-wrap";body.textContent=twetch.text;section.appendChild(body);
       const info=document.createElement("p");info.className="muted";info.textContent=(twetch.imageCount||0)+" embedded image(s)"+(twetch.signer?" · AIP signer (unverified): "+twetch.signer:"");section.appendChild(info);
       supportTarget.appendChild(section);

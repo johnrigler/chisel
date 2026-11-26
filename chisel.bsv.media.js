@@ -2,6 +2,14 @@
   "use strict";
   const PROTOCOL = "19HxigV4QyBv3tHpQVcUEQyq1pzZVdoAut";
   const decoder = new TextDecoder();
+  function protocolLabel(protocol) { return protocol === "B" ? "Bitcom B" : protocol; }
+  function isBitcomB(output) {
+    const script=output && (output.scriptPubKey || output.script) || {};
+    const parts=pushes(typeof script==="string"?script:script.hex);
+    return parts.some((part,index)=>part.complete && part.data.length===34 &&
+      decoder.decode(part.data)===PROTOCOL && (index===0 ||
+      (parts[index-1].complete && parts[index-1].data.length===1 && parts[index-1].data[0]===124)));
+  }
   function pushes(hex) {
     const bytes = scriptBytes(hex);
     let pos = bytes[0] === 0 && bytes[1] === 106 ? 2 : bytes[0] === 106 ? 1 : -1;
@@ -42,7 +50,7 @@
       const payload = parts[i + 1], declared = parts[i + 2] && parts[i + 2].complete ? decoder.decode(parts[i + 2].data).trim().toLowerCase() : "";
       const mime = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(declared) ? declared : sniff(payload.data);
       if (!mime) return;
-      files.push({protocol: "B", output: output.n == null ? index : output.n, part: i + 1,
+      files.push({protocol: "B", protocolLabel: "Bitcom B", protocolAddress: PROTOCOL, output: output.n == null ? index : output.n, part: i + 1,
         mime: mime, mimeSource: declared === mime ? "declared" : "signature", bytes: payload.bytes,
         availableBytes: payload.data.length, complete: payload.complete,
         encoding: bField(parts,i+3,i+2,40),
@@ -261,5 +269,5 @@
   // Small, independently checked public records, loaded only when requested.
   const archivedTransactions=Object.freeze({"7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d":"data/related/bsv/7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d.json"});
   function archivePath(coin,txid) { return coin==="bsv" && Object.prototype.hasOwnProperty.call(archivedTransactions,txid) ? archivedTransactions[txid] : ""; }
-  root.CHISEL_BSV_MEDIA = {twetchPost:twetchPost,encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
+  root.CHISEL_BSV_MEDIA = {protocolLabel:protocolLabel,isBitcomB:isBitcomB,twetchPost:twetchPost,encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
 })(window);

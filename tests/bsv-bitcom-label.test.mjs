@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+const window={};
+vm.runInNewContext(await readFile(new URL('../chisel.bsv.media.js',import.meta.url),'utf8'),{window,TextDecoder});
+const api=window.CHISEL_BSV_MEDIA;
+const marker='19HxigV4QyBv3tHpQVcUEQyq1pzZVdoAut';
+const push=s=>Buffer.from([Buffer.byteLength(s)]).toString('hex')+Buffer.from(s).toString('hex');
+test('Bitcom B label preserves original protocol key and address',()=>{
+ const output={n:0,scriptPubKey:{hex:'006a'+push(marker)+push('hello')+push('text/plain')}};
+ assert.equal(api.isBitcomB(output),true);
+ const f=api.fromOutput(output,0)[0];
+ assert.equal(f.protocol,'B');
+ assert.equal(f.protocolLabel,'Bitcom B');
+ assert.equal(f.protocolAddress,marker);
+ assert.equal(api.protocolLabel(f.protocol),'Bitcom B');
+ assert.equal(api.isBitcomB({scriptPubKey:{hex:'006a'+push('not a marker')+push(marker)}}),false);
+ assert.equal(api.protocolLabel('MAP'),'MAP');
+});
