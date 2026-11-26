@@ -1877,23 +1877,8 @@
       links.appendChild(row);
     });
 
-    records.filter(function (record) {
-      return record.line && looksLikeAddressLine(record.line) && record.kind !== "image-chord-line";
-    }).forEach(function (record) {
-      const row = document.createElement("div");
-      row.className = "portalLinkRow";
-
-      const label = document.createElement("code");
-      const decoded = printableText(record.displayText || record.payloadText || "");
-      const rawDecoded = printableText(record.payloadText || "");
-      label.textContent = record.kind + ": " + record.line + (decoded ? "  =>  " + decoded : "") + (rawDecoded && rawDecoded !== decoded ? "  [raw: " + rawDecoded + "]" : "");
-
-      const targetEntry = inferIndexForAddress(record.line, currentEntry);
-      row.appendChild(label);
-      row.appendChild(makeDrillButton(record.line, targetEntry, decoded || record.line));
-      row.appendChild(makeAddressExplorerLink(record.line, targetEntry));
-      links.appendChild(row);
-    });
+    const browser = makePortalAddressBrowser(records, currentEntry);
+    if (browser) links.appendChild(browser);
 
     if (!links.childNodes.length) {
       links.textContent = "No OP_RETURN URL, IPFS pair, or non-image address target found in the selected transaction.";
@@ -4087,6 +4072,78 @@
     return merged;
   }
 
+  // Keep address fan-out bounded; the full set is available on demand.
+  function makePortalAddressBrowser(records, indexEntry) {
+    const addresses = uniqueBy(records.filter(function (record) {
+      return record.line && looksLikeAddressLine(record.line) && record.kind !== "image-chord-line";
+    }), function (record) { return record.line; });
+    if (!addresses.length) return null;
+    const recognized = function (record) { return record.kind !== "address"; };
+    addresses.sort(function (a, b) { return Number(recognized(b)) - Number(recognized(a)); });
+    const drawer = makeInlineDrawer("Addresses / rabbit trails (" + addresses.length + ")", false);
+    const search = document.createElement("input");
+    search.type = "search";
+    search.placeholder = "Find address, label or type";
+    search.setAttribute("aria-label", search.placeholder);
+    search.className = "portalAddressSearch";
+    const list = document.createElement("div");
+    const nav = document.createElement("div");
+    nav.className = "portalAddressNav";
+    const prev = document.createElement("button");
+    const next = document.createElement("button");
+    [prev, next].forEach(function (button) {
+      button.type = "button";
+      button.className = "secondaryButton";
+    });
+    prev.textContent = "Previous";
+    next.textContent = "Next";
+    const count = document.createElement("span");
+    count.setAttribute("aria-live", "polite");
+    nav.append(prev, count, next);
+    drawer.append(search, list, nav);
+    const pageSize = 8;
+    let page = 0;
+    function decoded(record) {
+      return recognized(record) ? printableText(record.displayText || record.payloadText || "") : "";
+    }
+    function render() {
+      const query = search.value.trim().toLowerCase();
+      const matches = addresses.filter(function (record) {
+        return !query || [record.line, record.kind, decoded(record)].join(" ").toLowerCase().includes(query);
+      });
+      page = Math.max(0, Math.min(page, Math.ceil(matches.length / pageSize) - 1));
+      const start = page * pageSize;
+      list.replaceChildren();
+      matches.slice(start, start + pageSize).forEach(function (record) {
+        const row = document.createElement("div");
+        row.className = "portalLinkRow portalAddressRow";
+        const targetEntry = inferIndexForAddress(record.line, indexEntry);
+        const label = document.createElement("code");
+        const description = decoded(record);
+        label.textContent = record.line;
+        if (recognized(record)) {
+          const annotation = document.createElement("span");
+          annotation.className = "portalAddressAnnotation";
+          annotation.textContent = record.kind + (description ? ": " + description : "");
+          label.appendChild(annotation);
+        }
+        const drill = makeDrillButton(record.line, targetEntry, description || record.line);
+        drill.setAttribute("aria-label", "Drill into " + record.line);
+        row.append(label, drill, makeAddressExplorerLink(record.line, targetEntry));
+        list.appendChild(row);
+      });
+      count.textContent = matches.length ? (start + 1) + "–" + Math.min(start + pageSize, matches.length) + " of " + matches.length : "No matching addresses";
+      prev.disabled = page === 0;
+      next.disabled = start + pageSize >= matches.length;
+    }
+    search.addEventListener("input", function () { page = 0; render(); });
+    prev.onclick = function () { page--; render(); };
+    next.onclick = function () { page++; render(); };
+    // Do not build any address rows until the user expands the drawer.
+    drawer.addEventListener("toggle", function () { if (drawer.open) render(); });
+    return drawer;
+  }
+
   function appendPortalInlineLinks(container, semantics, indexEntry, transactionFlowActions) {
     const records = semantics && semantics.records ? semantics.records : [];
     container.replaceChildren();
@@ -4119,23 +4176,20 @@
       container.appendChild(row);
     });
 
-    records.filter(function (record) {
-      return record.line && looksLikeAddressLine(record.line) && record.kind !== "image-chord-line";
-    }).forEach(function (record) {
-      const targetEntry = inferIndexForAddress(record.line, indexEntry);
-      const decoded = printableText(record.displayText || record.payloadText || "");
-      if (transactionFlowActions) {
-        transactionFlowActions.appendChild(makeDrillButton(record.line, targetEntry, decoded || record.line));
-        return;
-      }
-
-      const row = document.createElement("div");
-      row.className = "portalLinkRow";
-      row.appendChild(makeDrillButton(record.line, targetEntry, decoded || record.line));
-      const explorer = makeAddressExplorerLink(record.line, targetEntry);
-      if (explorer && explorer.nodeType === 1) row.appendChild(explorer);
-      container.appendChild(row);
-    });
+    const browser = makePortalAddressBrowser(records, indexEntry);
+    if (browser) container.appendChild(browser);
+    if (transactionFlowActions) {
+      const shortcuts = uniqueBy(records.filter(function (record) {
+        return record.line && looksLikeAddressLine(record.line) &&
+          record.kind !== "address" && record.kind !== "image-chord-line";
+      }), function (record) { return record.line; });
+      if (shortcuts.length && shortcuts.length <= 3) shortcuts.forEach(function (record) {
+        const decoded = printableText(record.displayText || record.payloadText || "");
+        const button = makeDrillButton(record.line, inferIndexForAddress(record.line, indexEntry), decoded || record.line);
+        button.textContent = record.kind;
+        transactionFlowActions.appendChild(button);
+      });
+    }
 
     return container.childNodes.length;
   }

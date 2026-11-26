@@ -1682,6 +1682,40 @@
       right: 12px;
     }
 
+    .portalAddressSearch {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      margin: 8px 0 0;
+    }
+    .portalAddressRow {
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 6px;
+    }
+    .portalAddressRow code {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      color: inherit;
+    }
+    .portalAddressRow .secondaryButton {
+      width: auto;
+      min-width: 0;
+      padding: 5px 8px;
+    }
+    .portalAddressAnnotation {
+      display: block;
+      font-size: 0.75rem;
+    }
+    .portalAddressNav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .portalAddressNav button { width: auto; min-width: 0; }
+
     .portalInlineLinks {
       display: grid;
       gap: 8px;
@@ -2415,7 +2449,7 @@
     </div>
   </section>
 
-  <script src="chisel.version.js?rev=20261126-shared-bitcoin-identity-v2916"></script>
+  <script src="chisel.version.js?rev=20261126-address-browser-v2917"></script>
   <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
@@ -3677,7 +3711,7 @@
   <script src="chisel.portal.record.js?rev=20261126-refresh-route-v297"></script>
   <script src="chisel.interactions.js?rev=20261126-record-source-v2898"></script>
   <script src="chisel.interactions.ui.js?rev=20261126-compact-comments-v28106"></script>
-  <script src="chisel.portal.js?rev=20261126-menu-account-v2913"></script>
+  <script src="chisel.portal.js?rev=20261126-address-browser-v2917"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
