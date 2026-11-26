@@ -30,7 +30,7 @@ async function page() {
     }
   }
   const context = {
-    document: {getElementById: id => elements.get(id)},
+    document: {body:{dataset:{}}, getElementById: id => elements.get(id)},
     window: {addEventListener: (kind, callback) => {
       if (kind === "pageshow") pageshow = callback;
     }},
@@ -38,7 +38,7 @@ async function page() {
   };
   vm.runInNewContext(source, context, {filename: "chisel.header-identity.js"});
   assert.ok(observer && pageshow);
-  return {account, accountCoin, accountAddress, badge, sendSelect, window:context.window, sync: observer, pageshow};
+  return {account, accountCoin, accountAddress, badge, sendSelect, window:context.window, body:context.document.body, sync: observer, pageshow};
 }
 
 test("unloaded identity leaves the Send currency unchanged", async () => {
@@ -84,4 +84,19 @@ test("account-only network choice labels the header without changing its selecte
   assert.equal(ui.badge.textContent,"tBSV");
   assert.equal(ui.sendSelect.hidden,false);
   assert.equal(ui.sendSelect.value,"bsvTestnet");
+});
+
+test("Polygon Send displays POL even when Portal has a loaded LTC account", async () => {
+  const ui = await page();
+  ui.account.hidden = false;
+  ui.accountAddress.textContent = "LTC-public-address";
+  ui.body.dataset.mode = "send";
+  ui.body.dataset.sendNetwork = "polygon";
+  ui.sendSelect.value = "polygon";
+  ui.sync();
+  assert.equal(ui.badge.textContent, "POL");
+  assert.equal(ui.badge.hidden, false);
+  ui.body.dataset.mode = "portal";
+  ui.sync();
+  assert.equal(ui.badge.textContent, "LTC");
 });

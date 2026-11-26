@@ -81,7 +81,7 @@
     function fingerprint(tx) {
       return [String(tx.from).toLowerCase(),String(tx.to).toLowerCase(),String(tx.data).toLowerCase(),BigInt(tx.value || 0).toString()].join("|");
     }
-    async function quote(tx, estimate) {
+    async function quote(tx, estimate, overrides = {}) {
       if (sending) throw Error("Submission in progress.");
       plan = null;
       const active = requireWallet(), epoch = generation;
@@ -93,10 +93,27 @@
         call("eth_getBalance",[active.address,"pending"])
       ]);
       if (fees.maxFeePerGas == null || fees.maxPriorityFeePerGas == null) throw Error("RPC did not supply EIP-1559 fees.");
-      const maxFeePerGas = BigInt(fees.maxFeePerGas), maxPriorityFeePerGas = BigInt(fees.maxPriorityFeePerGas);
-      if (maxFeePerGas <= 0n || maxPriorityFeePerGas < 0n || maxPriorityFeePerGas > maxFeePerGas) throw Error("Invalid RPC fee quote.");
-      const gasLimit = (BigInt(estimate)*120n+99n)/100n;
-      if (gasLimit <= 0n) throw Error("Invalid gas estimate.");
+      const rpcMax = BigInt(fees.maxFeePerGas), rpcTip = BigInt(fees.maxPriorityFeePerGas);
+      if (rpcMax <= 0n || rpcTip < 0n || rpcTip > rpcMax) throw Error("Invalid RPC fee quote.");
+      // This Polygon RPC has rejected tips below 25 Gwei. Keep that floor
+      // even when ethers returns a generic 1 Gwei recommendation.
+      const minTip = 25000000000n;
+      const recommendedTip = rpcTip > minTip ? rpcTip : minTip;
+      function gwei(value, fallback, label) {
+        if (value == null || String(value).trim() === "") return fallback;
+        if (!/^\d+(?:\.\d{1,9})?$/.test(String(value).trim())) throw Error(label + " must be a non-negative Gwei amount (up to 9 decimals).");
+        return ethers.parseUnits(String(value).trim(), 9);
+      }
+      const maxPriorityFeePerGas = gwei(overrides.priorityGwei, recommendedTip, "Priority fee");
+      if (maxPriorityFeePerGas < minTip) throw Error("Polygon priority fee must be at least 25 Gwei for this RPC.");
+      const maxFeePerGas = gwei(overrides.maxFeeGwei, rpcMax - rpcTip + maxPriorityFeePerGas, "Maximum fee");
+      if (maxFeePerGas < maxPriorityFeePerGas || maxFeePerGas <= 0n) throw Error("Maximum fee must be at least the priority fee.");
+      const estimatedGas = BigInt(estimate);
+      if (estimatedGas <= 0n) throw Error("Invalid gas estimate.");
+      const gasInput = String(overrides.gasLimit ?? "").trim();
+      if (gasInput && !/^\d+$/.test(gasInput)) throw Error("Gas limit must be a whole number.");
+      const gasLimit = gasInput ? BigInt(gasInput) : (estimatedGas*120n+99n)/100n;
+      if (gasLimit < estimatedGas) throw Error("Gas limit is below the estimated " + estimatedGas + " gas.");
       const value = BigInt(tx.value || 0), maxCost = value + gasLimit*maxFeePerGas;
       const n = Number(BigInt(nonce));
       if (!Number.isSafeInteger(n) || n < 0) throw Error("Invalid RPC nonce.");
@@ -128,13 +145,19 @@
           return hash;
         } catch (error) {
           const reason = rpcBroadcastDiagnostic(error);
+          let lookupAbsent = false;
           try {
             const receipt = await call("eth_getTransactionReceipt",[hash]);
             const found = receipt || await call("eth_getTransactionByHash",[hash]);
             if (found && String(found.transactionHash || found.hash).toLowerCase() === hash.toLowerCase()) return hash;
+            lookupAbsent = receipt === null && found === null;
           } catch (_) {}
-          const failure = Error("Broadcast outcome uncertain ("+reason+"). Check "+hash+" on Polygon before attempting another send.");
+          const feeRejected = lookupAbsent && /transaction gas price below minimum:\s*gas tip cap \d+.*minimum needed \d+/i.test(reason) && /\[code: -32000(?:,|\])/.test(reason);
+          const failure = Error(feeRejected
+            ? "RPC rejected the priority fee ("+reason+"). Adjust the fee and review again. Signed hash: "+hash
+            : "Broadcast outcome uncertain ("+reason+"). Check "+hash+" on Polygon before attempting another send.");
           failure.transactionHash = hash;
+          failure.feeRejected = feeRejected;
           throw failure;
         }
       } finally { sending = false; }

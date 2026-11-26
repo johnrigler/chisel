@@ -70,3 +70,35 @@ test("broadcast displays upstream RPC error and code without exposing signed byt
  await adapter.quote(tx,"30000");
  assert.equal(await adapter.request({method:"eth_sendTransaction",params:[tx]}),ethers.keccak256(raw));
 });
+
+test("Polygon fee floor, manual fee caps, gas limit and reviewed signed values",async()=>{
+ let raw;
+ const transport={async getFeeData(){return {maxFeePerGas:3000000000n,maxPriorityFeePerGas:1000000000n};},
+ async send(method,params){if(method==="eth_chainId")return "0x89";if(method==="eth_getTransactionCount")return "0x0";if(method==="eth_getBalance")return "0x10000000000000000";if(method==="eth_sendRawTransaction"){raw=params[0];return ethers.keccak256(raw);}throw Error(method);}};
+ const adapter=api.createLocalWallet(ethers,transport);
+ const tx={from:adapter.unlock(pk),to:"0x"+"12".repeat(20),data:"0x1234",value:"0x0"};
+ const automatic=await adapter.quote(tx,"30000");
+ assert.equal(automatic.maxPriorityFeePerGasWei,"25000000000");
+ assert.equal(automatic.maxFeePerGasWei,"27000000000");
+ await assert.rejects(adapter.quote(tx,"30000",{priorityGwei:"1"}),/at least 25 Gwei/);
+ await assert.rejects(adapter.quote(tx,"30000",{priorityGwei:"30",maxFeeGwei:"29"}),/Maximum fee/);
+ await assert.rejects(adapter.quote(tx,"30000",{gasLimit:"29999"}),/Gas limit/);
+ await adapter.quote(tx,"30000",{priorityGwei:"30.5",maxFeeGwei:"60",gasLimit:"40000"});
+ await adapter.request({method:"eth_sendTransaction",params:[tx]});
+ const signed=ethers.Transaction.from(raw);
+ assert.equal(signed.maxPriorityFeePerGas,30500000000n);
+ assert.equal(signed.maxFeePerGas,60000000000n);
+ assert.equal(signed.gasLimit,40000n);
+});
+test("explicit Polygon gas tip rejection is retryable only after negative hash lookup",async()=>{
+ let found=null, lookupFails=false;
+ const transport={async getFeeData(){return {maxFeePerGas:50000000000n,maxPriorityFeePerGas:25000000000n};},
+ async send(method,params){if(method==="eth_chainId")return "0x89";if(method==="eth_getTransactionCount")return "0x0";if(method==="eth_getBalance")return "0x10000000000000000";if(method==="eth_sendRawTransaction")throw Object.assign(Error("RPC error"),{code:"UNKNOWN_ERROR",info:{error:{code:-32000,message:"transaction gas price below minimum: gas tip cap 25000000000, minimum needed 30000000000"}}});if(method==="eth_getTransactionReceipt"||method==="eth_getTransactionByHash"){if(lookupFails)throw Error("offline");return found;}throw Error(method);}};
+ const adapter=api.createLocalWallet(ethers,transport);
+ const tx={from:adapter.unlock(pk),to:"0x"+"12".repeat(20),data:"0x1234",value:"0x0"};
+ await adapter.quote(tx,"30000");
+ await assert.rejects(adapter.request({method:"eth_sendTransaction",params:[tx]}),e=>e.feeRejected===true && /Adjust the fee/.test(e.message));
+ lookupFails=true;
+ await adapter.quote(tx,"30000");
+ await assert.rejects(adapter.request({method:"eth_sendTransaction",params:[tx]}),e=>e.feeRejected===false && /uncertain/.test(e.message));
+});

@@ -1,8 +1,8 @@
 (function () {
   "use strict";
 
-  // The header describes the loaded public identity, not the independently
-  // selected Send currency. Never change the Send network to fix a label.
+  // Portal describes the loaded public identity. Polygon Send describes its
+  // own signing identity without changing or discarding the Portal identity.
   const account = document.getElementById("portalPersonalAccount");
   const accountCoin = document.getElementById("portalPersonalAccountCoin");
   const accountAddress = document.getElementById("portalPersonalAccountAddress");
@@ -22,7 +22,14 @@
   }
   if (!account || !accountCoin || !accountAddress || !badge || !sendSelect) return;
 
+  function polygonSendActive() {
+    return document.body?.dataset.mode === "send" && document.body.dataset.sendNetwork === "polygon";
+  }
   function addressContext() {
+    if (polygonSendActive()) {
+      const address = document.getElementById("polygonSendAddress")?.value.trim();
+      return address ? {address, ticker:"POL"} : null;
+    }
     const active = window.CHISEL_ACTIVE_ACCOUNT;
     if (active && active.accountOnly && sendSelect.value === active.currency) {
       return { address:active.address, ticker:active.ticker };
@@ -40,6 +47,14 @@
   }
 
   function sync() {
+    if (polygonSendActive()) {
+      badge.textContent = "POL";
+      badge.hidden = false;
+      badge.title = "Active Send network: Polygon mainnet (137)";
+      sendSelect.hidden = true;
+      if (qrButton) qrButton.disabled = !addressContext() || typeof window.QRCode !== "function";
+      return;
+    }
     const active = window.CHISEL_ACTIVE_ACCOUNT;
     if (active && active.accountOnly && sendSelect.value === active.currency) {
       badge.textContent = active.ticker;
@@ -108,5 +123,7 @@
   });
   window.addEventListener("pageshow", sync);
   window.addEventListener("chisel:active-account", sync);
+  window.addEventListener("chisel:mode", sync);
+  window.addEventListener("chisel:polygon-identity", sync);
   sync();
 })();

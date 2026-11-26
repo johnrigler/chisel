@@ -11,6 +11,11 @@
     clear = $("polygonSendClearKey"), balanceButton = $("polygonSendBalance"), txLink = $("polygonSendTx"),
     saveKey = $("polygonSendSaveKey"), restoreKey = $("polygonSendRestoreKey"),
     credentialStatus = $("polygonSendCredentialStatus"), credentialForm = $("polygonSendCredentialForm");
+  const priority = $("polygonSendPriorityGwei"), maxFee = $("polygonSendMaxFeeGwei"), gasLimit = $("polygonSendGasLimit"),
+    feeSummary = $("polygonSendFeeSummary"), resetFees = $("polygonSendResetFees"),
+    copyError = $("polygonSendCopyError"), copyStatus = $("polygonSendCopyStatus");
+  const feeFields = [priority, maxFee, gasLimit];
+  const headerUpdate = () => root.dispatchEvent(new CustomEvent("chisel:polygon-identity"));
   credentialForm.addEventListener("submit", event => event.preventDefault());
   if (!root.ethers || !root.CHISEL_EVM_LOCAL || !root.CHISEL_EVM_WRITE || !root.CHISEL_EVM_CONTRACTS) {
     status.textContent = "Polygon signing modules unavailable. Reload Chisel.";
@@ -93,26 +98,60 @@
     } catch (_) { txStatus.textContent = "Receipt lookup failed. Check PolygonScan or another Polygon RPC."; }
     finally { checkTx.disabled = false; }
   };
-  function message(s) { status.textContent = s; }
+  function message(s, error = false) {
+    status.textContent = s;
+    copyError.hidden = !error;
+    copyStatus.textContent = "";
+  }
+  copyError.onclick = async function () {
+    try {
+      await navigator.clipboard.writeText(status.textContent);
+      copyStatus.textContent = "Error copied.";
+    } catch (_) {
+      const range = document.createRange();
+      range.selectNodeContents(status);
+      const selection = root.getSelection();
+      selection.removeAllRanges(); selection.addRange(range);
+      copyStatus.textContent = "Error selected. Use your browser's Copy action.";
+    }
+  };
+  function updateFeeControls() {
+    const walletManaged = method.value !== "local";
+    [...feeFields, resetFees].forEach(el => el.disabled = busy || walletManaged);
+    if (walletManaged) feeSummary.textContent = "MetaMask sets and reviews fees in its own confirmation.";
+  }
+  function feeChanged() {
+    invalidate();
+    message("Fee settings changed. Review again before sending.");
+  }
+  feeFields.forEach(el => el.addEventListener("input", feeChanged));
+  resetFees.onclick = () => {
+    feeFields.forEach(el => { el.value = ""; el.placeholder = el === priority ? "Auto (at least 25)" : "Auto"; });
+    feeChanged();
+  };
   function invalidate() {
     generation++; writer.invalidate(); local.invalidate(); reviewed = null;
     broadcast.disabled = true; preview.hidden = true; preview.textContent = "";
+    feeSummary.textContent = method.value === "local" ? "Review to calculate the fee and maximum POL cost." : "MetaMask sets and reviews fees in its own confirmation.";
   }
   function disconnect() {
     invalidate(); local.lock(); provider = null; loadedSecret = ""; address.value = ""; funds.textContent = "";
     credentialStatus.textContent = "";
     updateCredentialButtons();
+    headerUpdate();
   }
   function setBusy(value) {
     busy = value;
     [load, reviewButton, clear, balanceButton, method, key, text].forEach(el => el.disabled = value);
     broadcast.disabled = value || !reviewed;
     updateCredentialButtons();
+    updateFeeControls();
   }
   function sync() {
     const active = document.body.dataset.sendNetwork === "polygon";
     panel.hidden = !active;
-    if (active) $("headerCurrency").value = "polygon";
+    if (active && document.body.dataset.mode === "send") $("headerCurrency").value = "polygon";
+    headerUpdate();
   }
   const select = $("polygonSendCurrency");
   for (const option of $("currency").options) if (option.value !== "polygon") select.appendChild(option.cloneNode(true));
@@ -136,6 +175,7 @@
     address.value = account;
     provider = local;
     updateCredentialButtons();
+    headerUpdate();
     credentialStatus.textContent = "Save this Polygon identity to your password manager if you want to reuse it.";
     message("Polygon key loaded. Check funds or enter a record to review.");
   }
@@ -158,7 +198,7 @@
     if (document.body.dataset.sendNetwork === "polygon") takeDraft(event.detail.content);
   });
   key.addEventListener("input", () => { disconnect(); message("Key changed. Load key to continue."); });
-  method.addEventListener("change", () => { disconnect(); key.value = ""; message("Connect the selected signing method."); });
+  method.addEventListener("change", () => { disconnect(); key.value = ""; updateFeeControls(); message("Connect the selected signing method."); });
   clear.onclick = () => { disconnect(); key.value = ""; message("Identity cleared."); };
   text.addEventListener("input", updateText);
   load.onclick = async function() {
@@ -177,8 +217,9 @@
       const connected = await writer.connect(provider);
       if (connected.chainId !== 137) throw Error("Select Polygon mainnet (137) in your wallet.");
       address.value = connected.from;
+      headerUpdate();
       message("Connected to Polygon. Enter a record and review.");
-    } catch (error) { message(error.message); }
+    } catch (error) { message(error.message, true); }
     finally { key.value = ""; setBusy(false); }
   };
   balanceButton.onclick = async function() {
@@ -191,7 +232,7 @@
         if (BigInt(await provider.request({method:"eth_chainId"})) !== 137n) throw Error("Select Polygon mainnet.");
         funds.textContent = root.ethers.formatEther(BigInt(await provider.request({method:"eth_getBalance",params:[address.value,"latest"]}))) + " POL";
       }
-    } catch(error) { message(error.message); } finally { setBusy(false); }
+    } catch(error) { message(error.message, true); } finally { setBusy(false); headerUpdate(); }
   };
   reviewButton.onclick = async function() {
     if (busy) return;
@@ -202,13 +243,24 @@
       const token = generation;
       const data = root.CHISEL_EVM_SHARE.encodeText(text.value).hex;
       const result = await writer.prepare(provider,{deploymentId:"chisel.polygon.137",functionName:"logRecord",args:{logData:data}});
-      const fees = provider === local ? await local.quote({from:result.from,to:result.to,data:result.data,value:result.value},result.gasEstimate) : null;
+      $("polygonSendBytes").textContent = new TextEncoder().encode(text.value).length + " / 80 UTF-8 bytes";
+      const fees = provider === local ? await local.quote({from:result.from,to:result.to,data:result.data,value:result.value},result.gasEstimate, {
+        priorityGwei:priority.value, maxFeeGwei:maxFee.value, gasLimit:gasLimit.value
+      }) : null;
       if (token !== generation) throw Error("Draft changed. Review again.");
       reviewed = result;
+      if (fees) {
+        priority.placeholder = "Auto: " + root.ethers.formatUnits(BigInt(fees.maxPriorityFeePerGasWei),9);
+        maxFee.placeholder = "Auto: " + root.ethers.formatUnits(BigInt(fees.maxFeePerGasWei),9);
+        gasLimit.placeholder = "Auto: " + fees.gasLimit;
+        funds.textContent = fees.balancePOL + " POL";
+        headerUpdate();
+        feeSummary.textContent = "Nonce " + fees.nonce + " · Estimated gas " + result.gasEstimate + " · Maximum fee " + fees.maximumFeePOL + " POL · Maximum total " + fees.maximumTotalPOL + " POL · Balance " + fees.balancePOL + " POL";
+      }
       preview.textContent = JSON.stringify({chainId:result.chainId,from:result.from,to:result.to,calldata:result.data,gasEstimate:result.gasEstimate,fees},null,2);
       preview.hidden = false;
       message("Review the exact calldata and fee. SEND broadcasts only after confirmation.");
-    } catch(error) { invalidate(); message(error.message); } finally { setBusy(false); }
+    } catch(error) { invalidate(); message(error.message, true); } finally { setBusy(false); }
   };
   broadcast.onclick = async function() {
     if (busy || !reviewed || document.body.dataset.sendNetwork !== "polygon") return;
@@ -223,11 +275,11 @@
     } catch(error) {
       invalidate();
       if (/^0x[0-9a-f]{64}$/i.test(error.transactionHash || "")) {
-        unresolved = error.transactionHash;
-        showHash(unresolved);
-        txStatus.textContent = "Submission uncertain; check receipt before another send.";
+        unresolved = error.feeRejected ? "" : error.transactionHash;
+        showHash(error.transactionHash);
+        txStatus.textContent = error.feeRejected ? "RPC rejected the fee; adjust fees and review again. Check the signed hash if needed." : "Submission uncertain; check receipt before another send.";
       }
-      message(error.message);
+      message(error.message, true);
     } finally { setBusy(false); }
   };
   // One-time QR handoff; only same-tab sessionStorage and no secret in URL.
@@ -239,10 +291,12 @@
       const pending = JSON.parse(raw || "null"), age = pending ? Date.now()-pending.createdAt : Infinity;
       if (!pending || age < 0 || age >= 120000 || !/^[0-9a-f]{64}$/i.test(pending.privateKeyHex)) throw Error("Scanned key expired or unavailable. Scan again.");
       loadSecret(pending.privateKeyHex);
-    } catch(error) { message(error.message); }
+    } catch(error) { message(error.message, true); }
     url.searchParams.delete("qrKey");
     root.history.replaceState(root.history.state,"",url.href);
   }
   sync();
+  updateText();
   updateCredentialButtons();
+  updateFeeControls();
 })(window);

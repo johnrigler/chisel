@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-I+7AUwXmWyjQ8AKvwAMSEANQU4+Z0wkMOeTeWPPBySA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261125-rpc-diagnostics-v2889"></script>
+  <script src="chisel.version.js?rev=20261125-polygon-fees-v2890"></script>
   <script src="chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2566,12 +2566,21 @@
         </div>
         <label for="polygonSendText">Record text</label>
         <div class="fieldStack"><textarea id="polygonSendText" rows="3" spellcheck="false"></textarea><span class="help" id="polygonSendBytes">0 / 80 UTF-8 bytes</span></div>
+        <label for="polygonSendPriorityGwei">Priority fee (Gwei)</label>
+        <div class="fieldStack"><input id="polygonSendPriorityGwei" type="text" inputmode="decimal" autocomplete="off" placeholder="Auto (at least 25)"><span class="help">Validator tip. Leave blank for the RPC quote with a 25 Gwei floor.</span></div>
+        <label for="polygonSendMaxFeeGwei">Maximum fee (Gwei)</label>
+        <div class="fieldStack"><input id="polygonSendMaxFeeGwei" type="text" inputmode="decimal" autocomplete="off" placeholder="Auto"><span class="help">Total price cap per unit of gas, including the tip.</span></div>
+        <label for="polygonSendGasLimit">Gas limit</label>
+        <div class="fieldStack"><input id="polygonSendGasLimit" type="text" inputmode="numeric" autocomplete="off" placeholder="Auto"><span class="help">Default: estimated gas plus 20%.</span></div>
+        <label>Fee quote</label>
+        <div class="fieldStack"><span id="polygonSendFeeSummary" class="help">Review to calculate the fee and maximum POL cost.</span><button id="polygonSendResetFees" type="button" class="secondaryButton">RESET TO AUTO FEES</button></div>
       </form>
       <div class="actions">
         <button id="polygonSendReview" type="button">REVIEW</button>
         <button id="polygonSendBroadcast" type="button" disabled>SEND</button>
       </div>
       <p id="polygonSendStatus" role="status" aria-live="polite">Load a key to begin.</p>
+      <div class="actions"><button id="polygonSendCopyError" type="button" class="secondaryButton" hidden>COPY ERROR</button><span id="polygonSendCopyStatus" class="help" role="status"></span></div>
       <pre id="polygonSendPreview" hidden></pre>
       <div class="grid">
         <label for="polygonSendHash">Transaction hash</label>
@@ -3382,6 +3391,16 @@
     const identityName = document.getElementById("headerIdentityName");
     const identityBalance = document.getElementById("headerIdentityBalance");
     const updateHeaderIdentity = function () {
+      if (document.body.dataset.mode === "send" && document.body.dataset.sendNetwork === "polygon") {
+        updateHeaderIdentity.lastState = null;
+        updateHeaderIdentity.requestId = (updateHeaderIdentity.requestId || 0) + 1;
+        const addr = document.getElementById("polygonSendAddress").value.trim();
+        const balance = document.getElementById("polygonSendFunds").textContent.trim();
+        identityName.textContent = addr ? "POL · " + addr.slice(0,6) + "…" + addr.slice(-4) : "Public viewer";
+        identityName.title = addr;
+        identityBalance.textContent = balance || "Balance: —";
+        return;
+      }
       const active = window.CHISEL_ACTIVE_ACCOUNT;
       const networkAccount = active && active.accountOnly && sendCurrency && sendCurrency.value === active.currency;
       if ((!account || account.hidden) && !networkAccount) {
@@ -3447,8 +3466,11 @@
       updateHeaderIdentity();
     });
     window.addEventListener("chisel:active-account", updateHeaderIdentity);
+    window.addEventListener("chisel:mode", updateHeaderIdentity);
+    window.addEventListener("chisel:polygon-identity", updateHeaderIdentity);
     window.addEventListener("chisel:balance", function (event) {
       const result = event.detail || {}, active = window.CHISEL_ACTIVE_ACCOUNT;
+      if (document.body.dataset.mode === "send" && document.body.dataset.sendNetwork === "polygon") return;
       if (active && active.accountOnly && sendCurrency.value === result.currency && active.address === result.address) {
         identityBalance.textContent = result.amount + " " + result.ticker;
       }
@@ -3598,7 +3620,7 @@
 </script>
 
   <script src="chisel.safety.js?20261017-security1"></script>
-  <script src="chisel.header-identity.js?rev=20261120-network-accounts-v2866"></script>
+  <script src="chisel.header-identity.js?rev=20261125-polygon-fees-v2890"></script>
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.evm.share.js?rev=20261125-polygon-qr-v2885"></script>
   <script src="chisel.youtube.ui.js?rev=20261125-native-polygon-v2886"></script>
@@ -3607,8 +3629,8 @@
   <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
   <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
   <script src="chisel.evm.write.js?rev=20261105-chisel-write"></script>
-  <script src="chisel.evm.local.js?rev=20261125-rpc-diagnostics-v2889"></script>
-  <script src="chisel.polygon.send.js?rev=20261125-polygon-credentials-v2888"></script>
+  <script src="chisel.evm.local.js?rev=20261125-polygon-fees-v2890"></script>
+  <script src="chisel.polygon.send.js?rev=20261125-polygon-fees-v2890"></script>
   <script src="chisel.networks.ui.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.share-diagnostics.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>
