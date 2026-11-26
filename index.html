@@ -2415,7 +2415,7 @@
     </div>
   </section>
 
-  <script src="chisel.version.js?rev=20261126-identity-entry-v2915"></script>
+  <script src="chisel.version.js?rev=20261126-shared-bitcoin-identity-v2916"></script>
   <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
@@ -3025,6 +3025,13 @@
           </div>
           <code id="portalPersonalAccountAddress" class="portalPersonalAccountAddress"></code>
           <div id="portalPersonalAccountMeta" class="portalPersonalAccountMeta">Public address only. Private key material is not stored in Portal.</div>
+          <div id="portalBitcoinFamily" hidden>
+            <p class="muted">One legacy address; separate mainnet balances and histories.</p>
+            <div class="actions"><button id="portalBitcoinFamilyCheck" class="secondaryButton" type="button">CHECK ALL LEDGERS</button></div>
+            <div class="actions"><a id="familyExplorerBTC" target="_blank" rel="noopener noreferrer">BTC explorer</a><span id="familyBalanceBTC" aria-live="polite">Not checked</span></div>
+            <div class="actions"><a id="familyExplorerBSV" target="_blank" rel="noopener noreferrer">BSV explorer</a><span id="familyBalanceBSV" aria-live="polite">Not checked</span></div>
+            <div class="actions"><a id="familyExplorerBCH" target="_blank" rel="noopener noreferrer">BCH explorer</a><span id="familyBalanceBCH" aria-live="polite">Not checked</span></div>
+          </div>
           <div class="actions">
             <button id="portalLoadPersonalAccountButton" class="secondaryButton" type="button">REFRESH MY TRANSACTIONS</button>
             <button id="portalReturnDefaultStreamButton" class="secondaryButton" type="button" hidden>EXPLORE THUNDERWORDS</button>
@@ -3707,5 +3714,6 @@
       <div id="portalBusyLabel">Loading ledger…</div>
     </div>
   </div>
+  <script src="chisel.bitcoin-family.js?rev=20261126-shared-bitcoin-identity-v2916"></script>
 </body>
 </html>
