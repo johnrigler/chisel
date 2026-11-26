@@ -47,6 +47,46 @@
     } finally { clearTimeout(timer); }
   }
 
+  // Read only public addresses, with bounded requests and independent BSV fallback.
+  C.readBsvAddressBalance = async function (address, network) {
+    const main = network === "mainnet";
+    if (!main && network !== "testnet") throw new Error("Unsupported BSV network");
+    await publicAddress(address, main ? 0 : 111);
+    const providers = [{name:"WhatsOnChain", base:"https://api.whatsonchain.com/v1/bsv/" + (main ? "main" : "test")}];
+    if (main) providers.push({name:"BananaBlocks", base:"https://bananablocks.com/api/v1/bsv/main"});
+    const errors = [];
+    let partial = null;
+    async function get(provider, field) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 7000);
+      try {
+        const response = await fetch(provider.base + "/address/" + encodeURIComponent(address) + "/" + field + "/balance", {
+          signal:controller.signal, credentials:"omit", referrerPolicy:"no-referrer", cache:"no-store"
+        });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+        if (data?.address !== address || data.error) throw new Error(data?.error ? "Provider reported an address error" : "Unexpected address response");
+        return integer(data[field], field + " balance", field === "unconfirmed");
+      } finally { clearTimeout(timer); }
+    }
+    for (const provider of providers) {
+      const [confirmed, pending] = await Promise.allSettled([get(provider,"confirmed"),get(provider,"unconfirmed")]);
+      const describe = result => result.reason?.name === "AbortError" ? "timeout" : (result.reason?.message || "request failed");
+      if (confirmed.status === "fulfilled") {
+        const value = {chain:"bsv",network,address,confirmedSats:confirmed.value,unconfirmedSats:null,totalSats:null,provider:provider.name};
+        if (pending.status === "fulfilled") {
+          value.unconfirmedSats = pending.value;
+          value.totalSats = integer(confirmed.value + pending.value,"total balance");
+          return value;
+        }
+        if (!partial) partial = value;
+      }
+      errors.push(provider.name + ": " + [confirmed,pending].map(r => r.status === "fulfilled" ? "OK" : describe(r)).join(" / "));
+    }
+    if (partial) return Object.assign(partial,{warning:errors.join("; ")});
+    throw new Error(errors.join("; "));
+  };
+
   function accountCoin(config) {
     const prefix = config.testnet ? 111 : 0;
     const coin = {
@@ -79,8 +119,13 @@
       },
       getAddressBalance: async function (_client, _values, address) {
         await publicAddress(address, prefix);
+        if (config.chain === "bsv") {
+          const result = await C.readBsvAddressBalance(address, config.network);
+          if (result.totalSats === null) throw new Error(result.warning || "Pending BSV balance unavailable");
+          return result;
+        }
         const url = config.api + "/address/" + encodeURIComponent(address);
-        const data = await read(url + (config.chain === "bsv" ? "/balance" : ""));
+        const data = await read(url);
         let confirmed, unconfirmed;
         if (config.chain === "bitcoin") {
           if (!data || data.address !== address || !data.chain_stats || !data.mempool_stats) throw new Error("Unexpected Bitcoin address response.");

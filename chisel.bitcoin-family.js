@@ -51,29 +51,52 @@
     if (explorer.style.display !== "inline-flex") explorer.style.display = "inline-flex";
     text(explorer,"VERIFY ADDRESS · "+selected.ticker);
   }
-  async function bchBalance(value) {
+  function amount(sats,ticker) { return (sats/100000000).toFixed(8)+" "+ticker; }
+  function signedBalance(value, signed) {
+    if (!Number.isSafeInteger(value) || (!signed && value < 0)) throw Error("Invalid balance");
+    return value;
+  }
+  async function readJson(url) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
+    const timer = setTimeout(() => controller.abort(), 7000);
     try {
-      const response = await fetch("https://api.blockchair.com/bitcoin-cash/dashboards/address/"+encodeURIComponent(value), {
-        signal:controller.signal, credentials:"omit", referrerPolicy:"no-referrer"
-      });
-      if (!response.ok) throw Error("BCH provider returned HTTP "+response.status);
-      const result = await response.json();
-      const entries = Object.values(result.data || {});
-      if (result.context?.code !== 200 || entries.length !== 1) throw Error("Unexpected BCH response");
-      const balance = entries[0]?.address?.balance;
-      if (!Number.isSafeInteger(balance) || balance < 0) throw Error("Invalid BCH balance");
-      return (balance/100000000).toFixed(8)+" BCH";
+      const response = await fetch(url,{signal:controller.signal,credentials:"omit",referrerPolicy:"no-referrer",cache:"no-store"});
+      if (!response.ok) throw Error("HTTP "+response.status);
+      return await response.json();
     } finally { clearTimeout(timer); }
+  }
+  function failure(error) {
+    return error?.name === "AbortError" ? "timeout" : (error?.message || "request failed");
+  }
+  async function bchBalance(value) {
+    const errors = [];
+    try {
+      const data = await readJson("https://bch.fullstack.cash/v6/fulcrum/balance/"+encodeURIComponent(value));
+      if (data?.success === false || data?.error) throw Error("Provider reported an error");
+      const balance = data.balance || data.result || data;
+      const confirmed = signedBalance(balance.confirmed,false), pending = signedBalance(balance.unconfirmed,true);
+      return amount(signedBalance(confirmed+pending,false),"BCH")+" · Fulcrum";
+    } catch (error) { errors.push("Fulcrum: "+failure(error)); }
+    try {
+      const result = await readJson("https://api.blockchair.com/bitcoin-cash/dashboards/address/"+encodeURIComponent(value));
+      const entries = Object.values(result.data || {});
+      if (result.context?.code !== 200 || entries.length !== 1) throw Error("Unexpected response");
+      return amount(signedBalance(entries[0]?.address?.balance,false),"BCH")+" · Blockchair (confirmed)";
+    } catch (error) { errors.push("Blockchair: "+failure(error)); }
+    throw Error(errors.join("; "));
   }
   async function balance(ledger,value) {
     if (ledger.key === "bitcoincash") return bchBalance(value);
+    if (ledger.key === "bsv") {
+      const data = await window.CHISEL.readBsvAddressBalance(value,"mainnet");
+      if (data.totalSats === null) return amount(data.confirmedSats,"BSV")+" confirmed · "+data.provider+" · pending unavailable ("+data.warning+")";
+      return amount(data.totalSats,"BSV")+" · "+data.provider;
+    }
     const coin = window.CHISEL?.coins?.[ledger.key];
     if (!coin || typeof coin.getAddressBalance !== "function") throw Error("Ledger reader unavailable");
     const data = await coin.getAddressBalance(null,{},value);
     if (data.address !== value || data.chain !== ledger.key || data.network !== "mainnet" || !Number.isSafeInteger(data.totalSats)) throw Error("Invalid ledger response");
-    return (data.totalSats/100000000).toFixed(8)+" "+ledger.ticker;
+    return amount(data.totalSats,ledger.ticker)+" · mempool.space";
   }
   button.addEventListener("click",async function () {
     const context = getContext();
@@ -88,7 +111,7 @@
       await Promise.all(ledgers.map(async ledger => {
         let result;
         try { result = await balance(ledger,context.address); }
-        catch (_) { result = "Unavailable — verify in explorer"; }
+        catch (error) { result = "Unavailable · "+failure(error); }
         if (id === request) text($("familyBalance"+ledger.ticker),result);
       }));
     } catch (_) {
