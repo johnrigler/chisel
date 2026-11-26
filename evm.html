@@ -414,10 +414,10 @@
             <div>
                 <label for="chiselWallet">Signing method</label>
                 <select id="chiselWallet"><option value="">Detecting wallets...</option></select>
-                <label for="chiselLocalWif">Local signing WIF (only for Chisel local WIF)</label>
-                <input id="chiselLocalWif" name="password" type="password" autocomplete="current-password" spellcheck="false">
+                <label for="chiselLocalWif">Local signing key (64 hex or WIF)</label>
+                <input id="chiselLocalWif" name="password" type="password" autocomplete="off" spellcheck="false">
                 <button id="chiselLocalLock" type="button">Clear local key</button>
-                <p>WIF is used in memory only; do not enter it unless you trust this page and its scripts. Select Chisel local WIF and connect to derive the Polygon account.</p>
+                <p>The local signer accepts a 32-byte hex key or WIF. Use only a page and scripts you trust. Select Chisel local key and connect to derive the Polygon account.</p>
                 <button id="chiselRefreshWalletsBtn" type="button">Refresh wallets</button>
                 <button id="chiselConnectBtn" type="button">Connect wallet</button>
                 <button id="chiselSwitchChainBtn" type="button">Switch to Polygon</button>
@@ -508,9 +508,9 @@
 <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
 <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
 <script src="chisel.evm.write.js?rev=20261105-chisel-write"></script>
-<script src="chisel.evm.share.js?rev=20261125-local-polygon-v2884"></script>
-<script src="chisel.evm.local.js?rev=20261125-local-polygon-v2884"></script>
-<script src="chisel.evm.write.ui.js?rev=20261125-local-polygon-v2884"></script>
+<script src="chisel.evm.share.js?rev=20261125-polygon-qr-v2885"></script>
+<script src="chisel.evm.local.js?rev=20261125-polygon-qr-v2885"></script>
+<script src="chisel.evm.write.ui.js?rev=20261125-polygon-qr-v2885"></script>
 <script>
 (function () {
     "use strict";

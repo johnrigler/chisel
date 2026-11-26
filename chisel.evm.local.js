@@ -21,6 +21,13 @@
     } catch (_) { throw new Error("Invalid WIF checksum, format or private key."); }
     finally { if (bytes) bytes.fill(0); }
   }
+  function walletFromKey(value, ethers) {
+    const key = String(value || "").trim().replace(/^0x/i, "");
+    if (!/^[0-9a-f]{64}$/i.test(key)) return walletFromWif(value, ethers);
+    const scalar = BigInt("0x" + key);
+    if (scalar === 0n || scalar >= SCALAR_LIMIT) throw Error("Invalid private key scalar.");
+    return new ethers.Wallet("0x" + key);
+  }
   function createLocalWallet(ethers, rpc) {
     const transport = rpc || new ethers.JsonRpcProvider(RPC, CHAIN, {batchMaxCount:1});
     let wallet = null, generation = 0, plan = null, sending = false;
@@ -31,13 +38,13 @@
       return "0x89";
     }
     function requireWallet() {
-      if (!wallet) throw Error("Load a WIF into Chisel first.");
+      if (!wallet) throw Error("Load a private key or WIF into Chisel first.");
       return wallet;
     }
     function lock() { generation++; wallet = null; plan = null; }
     function unlock(wif) {
       if (sending) throw Error("Wait for the current submission to finish.");
-      lock(); wallet = walletFromWif(wif,ethers); return wallet.address;
+      lock(); wallet = walletFromKey(wif,ethers); return wallet.address;
     }
     async function balance() {
       const active = requireWallet();
@@ -111,5 +118,5 @@
     }
     return Object.freeze({request,unlock,lock,balance,quote,invalidate(){plan=null;},get address(){return wallet?.address || "";}});
   }
-  root.CHISEL_EVM_LOCAL=Object.freeze({walletFromWif,createLocalWallet,RPC,CHAIN});
+  root.CHISEL_EVM_LOCAL=Object.freeze({walletFromWif,walletFromKey,createLocalWallet,RPC,CHAIN});
 })(typeof window !== "undefined" ? window : globalThis);

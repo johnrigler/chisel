@@ -5,7 +5,7 @@
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title data-chisel-release-title="QR WIF Loader">Chisel QR WIF Loader</title>
 
-  <script src="chisel.version.js?rev=20261125-local-polygon-v2884"></script>
+  <script src="chisel.version.js?rev=20261125-polygon-qr-v2885"></script>
   <script src="vendor/html5-qrcode.min.js"></script>
 
   <style>
@@ -85,7 +85,7 @@
   <header>
     <div class="shell">
       <h1>Chisel QR WIF Loader</h1>
-      <p class="muted">Scan four hex-key QR stickers, choose the chain, verify the derived address, then load the resulting WIF back into Chisel.</p>
+      <p class="muted">Scan four hex-key QR stickers, choose the chain, verify the derived address, then load the key into Chisel.</p>
     </div>
   </header>
 
@@ -104,7 +104,7 @@
           <option value="0">Uncompressed public key WIF</option>
         </select>
       </div>
-      <p class="help">The scanner builds this list from installed Chisel coin extensions. Raw private-key fragments are wrapped with the selected currency's WIF prefix before validation, so Litecoin mainnet/testnet do not get misread as prefix-128 Bitcoin-family keys. The QR stickers are normally raw private-key hex fragments, but a complete WIF is also accepted.</p>
+      <p class="help">Polygon uses raw 32-byte hex or extracts the same key from a valid WIF. WIF style applies only to UTXO currencies. The other choices come from installed Chisel coin extensions. Raw private-key fragments are wrapped with the selected currency's WIF prefix before validation, so Litecoin mainnet/testnet do not get misread as prefix-128 Bitcoin-family keys. The QR stickers are normally raw private-key hex fragments, but a complete WIF is also accepted.</p>
     </section>
 
     <section class="panel">
@@ -152,7 +152,7 @@
         <button id="copyWifButton" class="secondary" type="button">COPY WIF</button>
         <a id="openChiselLink" class="hide" href="index.html?mode=etch&loadScannedWif=1" rel="noopener">Open Chisel</a>
       </div>
-      <p class="help">The normal load path uses sessionStorage/localStorage plus a short URL flag. It does not put the private key into the address bar. If Chisel opened this page as a popup, this page also tries postMessage.</p>
+      <p class="help">Polygon uses a one-time sessionStorage handoff to its local signer. The legacy UTXO load path uses sessionStorage/localStorage plus a short URL flag. It does not put the private key into the address bar. If Chisel opened this page as a popup, this page also tries postMessage.</p>
     </section>
   </main>
 
@@ -168,6 +168,8 @@
   <script src="chisel.litecoin.js"></script>
   <script src="chisel.networks.js?rev=20261120-network-accounts-v2866"></script>
 
+  <script src="vendor/ethers-6.6.0.umd.min.js"></script>
+  <script src="chisel.evm.local.js?rev=20261125-polygon-qr-v2885"></script>
   <script>
 (function () {
   "use strict";
@@ -179,10 +181,14 @@
 
     try {
       url = new URL(window.location.href);
-      return url.searchParams.get("currency") || url.searchParams.get("coin") || "";
+      return normalizeCurrency(url.searchParams.get("currency") || url.searchParams.get("coin") || "");
     } catch (error) {
       return "";
     }
+  }
+
+  function normalizeCurrency(value) {
+    return value === "evm" ? "polygon" : value;
   }
 
   function getQrScannerCurrencies() {
@@ -192,7 +198,7 @@
 
     return CHISEL.getCoins().filter(function filterWifCoin(coin) {
       return coin && coin.NAME && typeof coin.wifToAccount === "function";
-    });
+    }).concat([{NAME: "polygon", DISPLAY_NAME: "Polygon (EVM / POL)"}]);
   }
 
   function setCurrencyOptions() {
@@ -231,6 +237,7 @@
 
     elems.currency.disabled = false;
     elems.currency.value = selected;
+    updateKeyLabels();
   }
   var html5QrCode = null;
   var cameraDevices = [];
@@ -312,6 +319,14 @@
     }
 
     elems.fragmentStatus.textContent = lines.join("\n");
+  }
+
+  function updateKeyLabels() {
+    var polygon = elems.currency.value === "polygon";
+    elems.compressed.disabled = polygon;
+    document.querySelector('label[for="wifOutput"]').textContent = polygon ? "Private key hex (Polygon)" : "WIF for Chisel";
+    document.querySelector('label[for="addressOutput"]').textContent = polygon ? "Polygon address" : "Compressed public address";
+    elems.copyWifButton.textContent = polygon ? "COPY HEX KEY" : "COPY WIF";
   }
 
   function clearDerivedResult() {
@@ -517,7 +532,7 @@
       return false;
     }
 
-    ok = await processRawInput(candidateWif);
+    ok = await processRawInput(raw);
 
     if (!ok) {
       return false;
@@ -526,7 +541,7 @@
     scanComplete = true;
     await stopCamera({ silent: true });
     celebrateOnce();
-    setStatus((sourceLabel || "QR") + " accepted. Complete WIF ready for Chisel.", false);
+    setStatus((sourceLabel || "QR") + " accepted. Key ready for Chisel.", false);
 
     return true;
   }
@@ -546,7 +561,8 @@
       var assembled;
 
       if (parsed.currency) {
-        elems.currency.value = parsed.currency;
+        elems.currency.value = normalizeCurrency(parsed.currency);
+        updateKeyLabels();
       }
 
 
@@ -577,7 +593,7 @@
         scanComplete = true;
         await stopCamera({ silent: true });
         celebrateOnce();
-        setStatus("64-hex key assembled from " + keyFragments.length + " fragment(s). WIF ready for Chisel.", false);
+        setStatus("64-hex key assembled from " + keyFragments.length + " fragment(s). Key ready for Chisel.", false);
         return true;
       }
 
@@ -627,12 +643,23 @@
 
   async function buildResult(raw) {
     var input = extractPayload(raw);
-    var currency = input.currency || elems.currency.value;
-    var coin = CHISEL.getCoin(currency);
+    var currency = normalizeCurrency(input.currency || elems.currency.value);
+    var coin;
     var compressed = elems.compressed.value === "1";
     var wif = String(input.wif || "").trim();
     var account;
 
+    if (currency === "polygon") {
+      var wallet = window.CHISEL_EVM_LOCAL.walletFromKey(input.privateKeyHex ? normalizeHex(input.privateKeyHex) : wif, window.ethers);
+      var hex = wallet.privateKey.slice(2);
+      return {
+        currency: "polygon", label: "Polygon", ticker: "POL", network: "mainnet (137)",
+        wif: "", address: wallet.address, privateKeyHex: hex,
+        compressedPublicKeyHex: CHISEL.privateKeyHexToPublicKeyHex(hex, true),
+        uncompressedPublicKeyHex: CHISEL.privateKeyHexToPublicKeyHex(hex, false)
+      };
+    }
+    coin = CHISEL.getCoin(currency);
     if (input.privateKeyHex) {
       wif = await privateKeyHexToWif(input.privateKeyHex, compressed, coin);
     }
@@ -674,7 +701,8 @@
       };
 
       elems.currency.value = result.currency;
-      elems.wifOutput.value = result.wif;
+      updateKeyLabels();
+      elems.wifOutput.value = result.currency === "polygon" ? result.privateKeyHex : result.wif;
       elems.addressOutput.value = result.compressedAddress || result.address;
       elems.publicKeyOutput.value = result.compressedPublicKeyHex;
       elems.resultJson.textContent = pretty({
@@ -687,11 +715,12 @@
         uncompressedAddress: result.uncompressedAddress,
         compressedPublicKeyHex: result.compressedPublicKeyHex,
         uncompressedPublicKeyHex: result.uncompressedPublicKeyHex,
-        privateKeyHex: result.privateKeyHex
+        privateKeyHex: result.currency === "polygon" ? "[hidden]" : result.privateKeyHex
       });
       elems.openChiselLink.href = "index.html?mode=etch&loadScannedWif=1&currency=" + encodeURIComponent(result.currency);
-      elems.openChiselLink.classList.remove("hide");
-      setStatus("Valid " + result.label + " WIF ready for Chisel.", false);
+      if (result.currency !== "polygon") elems.openChiselLink.classList.remove("hide");
+      else elems.openChiselLink.classList.add("hide");
+      setStatus("Valid " + result.label + (result.currency === "polygon" ? " private key" : " WIF") + " ready for Chisel.", false);
 
       return true;
     } catch (error) {
@@ -889,6 +918,7 @@ function getPreferredCameraIndex() {
     elems.openChiselLink.classList.add("hide");
     renderFragments();
     try {
+      window.sessionStorage.removeItem("chisel.pendingPolygonQrKey");
       window.sessionStorage.removeItem("chisel.pendingQrScan");
       window.localStorage.removeItem("chisel.pendingQrScan");
     } catch (error) {}
@@ -898,6 +928,14 @@ function getPreferredCameraIndex() {
 
   function loadIntoChisel() {
     try {
+      if (lastPayload && lastPayload.currency === "polygon") {
+        // Same-tab, one-time handoff. Never put the secret in a URL or localStorage.
+        window.sessionStorage.setItem("chisel.pendingPolygonQrKey", JSON.stringify({
+          privateKeyHex: lastPayload.privateKeyHex, createdAt: Date.now()
+        }));
+        window.location.href = "evm.html?rev=20261125-polygon-qr-v2885#wallet=local&qrKey=1";
+        return;
+      }
       storePayload();
 
       if (window.opener && !window.opener.closed) {
@@ -919,12 +957,10 @@ function getPreferredCameraIndex() {
 
   async function copyWif() {
     try {
-      if (!lastPayload || !lastPayload.wif) {
-        throw new Error("No WIF is ready to copy.");
-      }
-
-      await navigator.clipboard.writeText(lastPayload.wif);
-      setStatus("WIF copied.", false);
+      var key = lastPayload && (lastPayload.currency === "polygon" ? lastPayload.privateKeyHex : lastPayload.wif);
+      if (!key) throw new Error("No key is ready to copy.");
+      await navigator.clipboard.writeText(key);
+      setStatus("Key copied.", false);
     } catch (error) {
       setStatus(error.message || String(error), true);
     }
@@ -968,7 +1004,7 @@ function getPreferredCameraIndex() {
     }
   }
 
-  elems.currency.onchange = rerenderCurrentKey;
+  elems.currency.onchange = function () { updateKeyLabels(); return rerenderCurrentKey(); };
   elems.compressed.onchange = rerenderCurrentKey;
 
   setCurrencyOptions();

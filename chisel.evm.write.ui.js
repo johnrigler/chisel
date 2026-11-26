@@ -122,7 +122,7 @@
   function discover() {
     if (root.backpack && root.backpack.ethereum) addWallet(root.backpack.ethereum, "Backpack", "backpack");
     if (root.ethereum) addWallet(root.ethereum, injectedWalletName(root.ethereum), "injected");
-    if (local) addWallet(local, "Chisel local WIF (Polygon)", "local");
+    if (local) addWallet(local, "Chisel local key (Polygon)", "local");
     panels.forEach(function (panel) { panel.renderWallets(); });
     root.dispatchEvent(new Event("eip6963:requestProvider"));
   }
@@ -213,7 +213,7 @@
         if (wallet.provider === local) {
           const key = $("chiselLocalWif");
           try { if (key.value.trim()) local.unlock(key.value); } finally { key.value = ""; }
-          if (!local.address) throw Error("Enter a WIF in the local signing field.");
+          if (!local.address) throw Error("Enter a 64-hex private key or WIF in the local signing field.");
         }
         const connected = await writer.connect(wallet.provider);
         if (token !== revision || selectedWallet() !== wallet) return;
@@ -346,6 +346,24 @@
   $("chiselPayments").addEventListener("input", updateChiselFields);
   updateChiselFields();
   discover();
+
+  // Only an explicit scanner handoff in this tab can populate the local input.
+  if (local && root.top === root && new URLSearchParams(root.location.hash.slice(1)).get("qrKey") === "1") {
+    try {
+      const raw = root.sessionStorage.getItem("chisel.pendingPolygonQrKey");
+      root.sessionStorage.removeItem("chisel.pendingPolygonQrKey");
+      const pending = JSON.parse(raw || "null");
+      const age = pending ? Date.now() - pending.createdAt : Infinity;
+      if (pending && age >= 0 && age < 120000 && /^[0-9a-f]{64}$/i.test(pending.privateKeyHex)) {
+        $("chiselLocalWif").value = pending.privateKeyHex;
+        $("chiselWalletStatus").textContent = "Scanned key loaded. Click Connect wallet to verify the Polygon account.";
+      } else {
+        $("chiselWalletStatus").textContent = "Scanned key expired or unavailable. Scan again or paste a key.";
+      }
+    } catch (_) {
+      $("chiselWalletStatus").textContent = "Scanned key unavailable. Scan again or paste a key.";
+    }
+  }
 
   // URL fragments contain public draft text only. They never connect a wallet,
   // trigger review, set recipients, or submit a transaction.
