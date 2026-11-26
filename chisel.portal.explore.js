@@ -89,7 +89,7 @@
           view = {node: node, label: label, status: status}; fileNodes.set(key, view);
         }
         view.file = file;
-        view.label.textContent = [file.name || file.mime, file.protocol, file.metadata && file.metadata.collection, file.metadata && file.metadata.meshCount ? file.metadata.meshCount+" meshes" : "", file.bytes.toLocaleString() + " bytes", "output " + file.output,
+        view.label.textContent = [file.name || file.mime, file.protocol, file.metadata && file.metadata.collection, file.metadata && file.metadata.meshCount ? file.metadata.meshCount+" meshes" : "", file.metadata && file.metadata.traits && (file.metadata.traits.find(t=>t.trait==="Rarity") || {}).value, file.bytes.toLocaleString() + " bytes", "output " + file.output,
           file.mimeSource === "signature" ? "type from file signature" : "declared type"].filter(Boolean).join(" · ");
         if (!view.url && !view.abort) view.status.textContent = file.complete ? "File bytes available." : "Saved preview is incomplete. Retrieve the complete output on demand.";
         if (file.mime==="model/gltf-binary" && !view.modelButton) {

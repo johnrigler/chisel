@@ -1786,6 +1786,8 @@
     };
     if (/^(?:bsv|bsvTestnet)$/.test(normalizeCoinName(indexEntry && (indexEntry.coin || indexEntry.ticker))) && window.CHISEL_BSV_MEDIA) {
       Object.assign(summary, window.CHISEL_BSV_MEDIA.summarize(value));
+      const named = summary.files.find(file => file.protocol === "1Sat Ordinals" && file.name);
+      if (named) summary.title = named.name + (named.mime === "model/gltf-binary" ? " · 3D ordinal" : " · inscription");
     }
     return summary;
   }
@@ -5131,6 +5133,13 @@
 
     const title = document.createElement("h4");
     title.textContent = displayTitleForRow(row);
+    // Decode hydrated records even when an older catalog supplied the title.
+    const bsv = /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row));
+    const bsvFiles = bsv && window.CHISEL_PORTAL_EXPLORE ? window.CHISEL_PORTAL_EXPLORE.fileList(row) : [];
+    const ordinal = bsvFiles.find(file => file.protocol === "1Sat Ordinals");
+    if (ordinal && !getPortalAnnotation(row).metadata.title) {
+      title.textContent = (ordinal.name || ordinal.mime) + (ordinal.mime === "model/gltf-binary" ? " · 3D ordinal" : " · inscription");
+    }
 
     const tx = document.createElement("code");
     tx.textContent = row.txid || "";
@@ -5239,6 +5248,15 @@
     }
 
     header.appendChild(title);
+    if (ordinal) {
+      const info = document.createElement("p");
+      const model = ordinal.metadata || {};
+      const rarity = (model.traits || []).find(trait => trait.trait === "Rarity");
+      info.textContent = [ordinal.protocol, model.collection, rarity && rarity.value, model.meshCount && model.meshCount + " meshes",
+        ordinal.bytes.toLocaleString() + " bytes", "output " + ordinal.output,
+        ordinal.complete ? "payload available" : "partial preview"].filter(Boolean).join(" · ");
+      header.appendChild(info);
+    }
     header.appendChild(tx);
     if (meta.textContent) header.appendChild(meta);
     header.appendChild(actions);
