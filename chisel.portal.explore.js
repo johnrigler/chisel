@@ -92,6 +92,24 @@
         view.label.textContent = [file.name || file.mime, file.protocol, file.metadata && file.metadata.collection, file.metadata && file.metadata.meshCount ? file.metadata.meshCount+" meshes" : "", file.metadata && file.metadata.traits && (file.metadata.traits.find(t=>t.trait==="Rarity") || {}).value, file.bytes.toLocaleString() + " bytes", "output " + file.output,
           file.mimeSource === "signature" ? "type from file signature" : "declared type"].filter(Boolean).join(" · ");
         if (!view.url && !view.abort) view.status.textContent = file.complete ? "File bytes available." : "Saved preview is incomplete. Retrieve the complete output on demand.";
+        const links = root.CHISEL_BSV_MEDIA ? root.CHISEL_BSV_MEDIA.externalLinks(coin, current.txid, file, map) : [];
+        const linkStamp = JSON.stringify(links);
+        if (view.linkStamp !== linkStamp) {
+          if (view.external) view.external.remove();
+          view.external = null;
+          view.linkStamp = linkStamp;
+          if (links.length) {
+            const actions = doc.createElement("div"); actions.className = "actions";
+            links.forEach(function (entry) {
+              const anchor = doc.createElement("a"); anchor.className = "secondaryButton";
+              anchor.href = entry.url; anchor.target = "_blank"; anchor.rel = "noopener noreferrer";
+              anchor.textContent = entry.label; anchor.title = "Open this inscription outpoint on an external site";
+              actions.appendChild(anchor);
+            });
+            view.node.insertBefore(actions, view.status.nextSibling);
+            view.external = actions;
+          }
+        }
         if (file.mime==="model/gltf-binary" && !view.modelButton) {
           const button=doc.createElement("button"); button.type="button"; button.className="secondaryButton";
           button.textContent="DOWNLOAD GLB"; view.modelButton=button; view.node.appendChild(button);

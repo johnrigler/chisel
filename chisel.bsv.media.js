@@ -108,7 +108,7 @@
       if (field.op===0x51 || field.data && field.data.length===1 && field.data[0]===1)
         mime=decoder.decode(value.data).trim().toLowerCase();
     }
-    if (!body || !body.data || !/^[a-z0-9!#  function files(raw) {^_.+-]+\/[a-z0-9!#  function files(raw) {^_.+-]+$/.test(mime)) return [];
+    if (!body || !body.data || !/^[a-z0-9!#!#  function files(raw) {^^_.+-]+\/[a-z0-9!#!#  function files(raw) {^^_.+-]+$/.test(mime)) return [];
     const closed=body.complete && bytes[body.next]===0x68;
     // A provider-truncated push is a preview, not a valid complete inscription.
     if (!closed && !script.isTruncated && body.complete) return [];
@@ -153,6 +153,22 @@
       const value = Object.assign({}, file); delete value.data; return value;
     }), metadata: metadata(raw)};
   }
+  // External sites are optional protocol-specific navigation targets.
+  // The outpoint identifies this inscription output, not verified current ownership.
+  function externalLinks(coin, txid, file, metadataRecords) {
+    if (coin !== "bsv" || typeof txid !== "string" || !/^[0-9a-f]{64}$/i.test(txid) ||
+        !file || file.protocol !== "1Sat Ordinals" || !Number.isInteger(file.output) ||
+        file.output < 0 || file.output > 0xffffffff) return [];
+    const outpoint = txid.toLowerCase() + "_" + file.output;
+    const links = [{label:"View on 1Sat Market",url:"https://1sat.market/outpoint/" + outpoint + "/timeline"}];
+    const records = Array.isArray(metadataRecords) ? metadataRecords : [];
+    if (records.some(record => record && record.protocol === "MAP" && Array.isArray(record.fields) &&
+        record.fields.some(field => field && field.key === "app" && /^(?:zoide|zoidenft)$/i.test(field.value)) &&
+        record.fields.some(field => field && field.key === "type" && field.value === "ordinal_mint"))) {
+      links.push({label:"View on Zoide",url:"https://zoide.io/market/inscription/" + outpoint});
+    }
+    return links;
+  }
   async function loadFile(coin, txid, file, fetcher, signal) {
     if (!/^(?:bsv|bsvTestnet)$/.test(coin) || !/^[0-9a-f]{64}$/i.test(txid) || !Number.isSafeInteger(file.output) || file.output < 0) throw new Error("Invalid BSV file identity.");
     const url = "https://api.whatsonchain.com/v1/bsv/" + (coin === "bsvTestnet" ? "test" : "main") + "/tx/" + txid + "/out/" + file.output + "/hex";
@@ -166,5 +182,5 @@
     if (file.data && !file.data.every(function (byte, i) { return result.data[i] === byte; })) throw new Error("Provider file differs from the saved preview.");
     return result;
   }
-  root.CHISEL_BSV_MEDIA = {pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata};
+  root.CHISEL_BSV_MEDIA = {pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks};
 })(window);
