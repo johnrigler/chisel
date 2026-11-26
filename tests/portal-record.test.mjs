@@ -653,3 +653,14 @@ test("Chisel and Thunderword qualified URLs and Facebook shares retain their sou
     assert.equal(share.searchParams.get("chain"),"137");
   }
 });
+
+test("raw BSV JSON downloads locally without FileProxy or any network request", async () => {
+  const f = fixture(undefined, () => { throw Error("offline"); });
+  const raw = {txid,vin:[],vout:[{value:0,scriptpubkey:"6a0454657374"}],provider:{partial:true}};
+  const row = {coin:"bsv",txid,raw,summary:{title:"Test"},privateKey:"not part of the export"};
+  const filename = f.portal.downloadRawTransactionJson(row);
+  assert.equal(filename,"chisel-bsv-"+txid+"-raw.json");
+  assert.equal(f.context.document.clicks[0].download,filename);
+  assert.deepEqual(JSON.parse(await f.blobs[0].text()),raw);
+  assert.equal(f.calls.length,0);
+});

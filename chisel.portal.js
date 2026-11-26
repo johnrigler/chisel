@@ -3239,6 +3239,25 @@
     return saved;
   }
 
+  // Explicit browser export, distinct from the optional FileProxy cache.
+  function downloadRawTransactionJson(row) {
+    if (!row || !row.raw || typeof row.raw !== "object") throw new Error("No transaction JSON is loaded.");
+    const coin = canonicalCoinForRow(row), txid = String(row.txid || "").replace(/^0x/i,"").toLowerCase();
+    if (!TXID_RE.test(txid) || !/^[a-zA-Z0-9]+$/.test(coin) || coin === "unknown") throw new Error("Transaction identity is unavailable.");
+    const filename = "chisel-" + coin + "-" + txid + "-raw.json";
+    const blob = new Blob([pretty(row.raw) + "\n"], {type:"application/json"});
+    const objectUrl = URL.createObjectURL(blob), link = document.createElement("a");
+    try {
+      link.href = objectUrl; link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+    } finally {
+      link.remove();
+      window.setTimeout(function () { URL.revokeObjectURL(objectUrl); },60000);
+    }
+    return filename;
+  }
+
   async function saveCurrentTransaction() {
     return saveTransactionToFileProxy(state.rawJson, state.selectedTxid, state.currentIndex);
   }
@@ -5171,16 +5190,52 @@
       save.type = "button";
       save.className = "secondaryButton";
       save.textContent = "save JSON";
+      save.title = "Download the original transaction JSON to this device";
+      const feedback = document.createElement("span");
+      feedback.className = "muted";
+      feedback.setAttribute("role","status");
       save.onclick = function (event) {
         event.preventDefault();
         event.stopPropagation();
-        saveTransactionToFileProxy(row.raw, row.txid, rowIndexEntry(row)).then(function (saved) {
-          row.localPath = saved.path || row.localPath;
-          setStatus("Saved local jq-format transaction JSON: " + (saved.path || saved.filename || row.txid) + ".", false);
-          requestPortalRender();
-        }).catch(function (error) { setStatus(error.message || String(error), true); });
+        try {
+          const filename = downloadRawTransactionJson(row);
+          feedback.textContent = "Download requested: " + filename;
+          setStatus(feedback.textContent,false);
+        } catch (error) {
+          feedback.textContent = "Download failed: " + (error.message || String(error));
+          setStatus(feedback.textContent,true);
+        }
       };
       actions.appendChild(save);
+      const copy = document.createElement("button");
+      copy.type = "button"; copy.className = "secondaryButton"; copy.textContent = "copy JSON";
+      copy.onclick = function (event) {
+        event.preventDefault(); event.stopPropagation();
+        copyPortalText(pretty(row.raw),copy).then(function () {
+          feedback.textContent = "Raw JSON copied.";
+        }).catch(function (error) {
+          feedback.textContent = error.message || String(error);
+        });
+      };
+      actions.appendChild(copy);
+      if (canonicalCoinForRow(row) !== "evm") {
+        const cache = document.createElement("button");
+        cache.type = "button"; cache.className = "secondaryButton"; cache.textContent = "cache on FileProxy";
+        cache.onclick = function (event) {
+          event.preventDefault(); event.stopPropagation();
+          cache.disabled = true; feedback.textContent = "Saving to FileProxy…";
+          saveTransactionToFileProxy(row.raw,row.txid,rowIndexEntry(row)).then(function (saved) {
+            row.localPath = saved.path || row.localPath;
+            feedback.textContent = "FileProxy saved: " + (saved.path || saved.filename || row.txid);
+            requestPortalRender();
+          }).catch(function (error) {
+            feedback.textContent = "FileProxy save failed: " + (error.message || String(error)) + ". Save JSON still works.";
+            setStatus(feedback.textContent,true);
+          }).finally(function () { cache.disabled = false; });
+        };
+        actions.appendChild(cache);
+      }
+      actions.appendChild(feedback);
     }
 
     header.appendChild(title);
@@ -8673,6 +8728,7 @@ function getPortalFirstCharacter() {
     loadLocalTransaction: loadLocalTransaction,
     loadLocalTransactionPath: loadLocalTransactionPath,
     hydrateLocalRowsInBackground: hydrateLocalRowsInBackground,
+    downloadRawTransactionJson: downloadRawTransactionJson,
     saveCurrentTransaction: saveCurrentTransaction,
     saveTransactionToFileProxy: saveTransactionToFileProxy,
     shouldCacheLiveRawPortalRow: shouldCacheLiveRawPortalRow,

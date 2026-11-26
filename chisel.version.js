@@ -3,7 +3,7 @@
 
   // Single source of truth for the Chisel application release.
   // Increment for every published update to main; preserve earlier ledger protocol versions.
-  const version = '2.8.98';
+  const version = '2.8.99';
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
     throw new Error('Invalid Chisel release version.');
   }

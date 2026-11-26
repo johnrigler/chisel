@@ -384,8 +384,16 @@
         const objectUrl = URL.createObjectURL(blob), link = doc.createElement("a");
         link.href = objectUrl;
         link.download = "chisel-" + current.coin + "-" + current.txid + ".json";
-        link.click();
-        root.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
+        try {
+          doc.body.appendChild(link);
+          link.click();
+          deps.status("Download requested: " + link.download,false);
+        } catch (error) {
+          deps.status("Download failed: " + (error.message || String(error)),true);
+        } finally {
+          link.remove();
+          root.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000);
+        }
       };
       root.addEventListener("popstate", openFromUrl);
       return openFromUrl();
