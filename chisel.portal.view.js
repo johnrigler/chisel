@@ -135,5 +135,16 @@
     return {render: render, clear: clear};
   }
 
-  root.CHISEL_PORTAL_VIEW = {createList: createList, patchDisplay: patchDisplay, patchChildren: patchChildren};
+  // Only the record header is a navigation surface. Nested controls retain
+  // their own behavior, and selecting text must not navigate away.
+  function shouldOpenRecordRow(event, doc) {
+    if (!event || event.defaultPrevented || event.button > 0 || event.ctrlKey ||
+        event.metaKey || event.shiftKey || event.altKey) return false;
+    const target = event.target;
+    const element = target && (target.nodeType === 3 ? target.parentElement : target);
+    if (!element || !element.closest || element.closest("a,button,input,select,textarea,label,summary,[role=button],[role=link],[contenteditable=true]")) return false;
+    const selection = doc && doc.getSelection && doc.getSelection();
+    return !selection || selection.isCollapsed || !String(selection).trim();
+  }
+  root.CHISEL_PORTAL_VIEW = {createList: createList, patchDisplay: patchDisplay, patchChildren: patchChildren, shouldOpenRecordRow: shouldOpenRecordRow};
 })(window);

@@ -5634,6 +5634,14 @@
     }
 
     const recordLink = !row.draftRecord && window.CHISEL_PORTAL_RECORD ? portalRecordUrl(row) : "";
+    if (recordLink) {
+      line.classList.add("isRecordLink");
+      line.onclick = function (event) {
+        if (!viewApi.shouldOpenRecordRow(event, line.ownerDocument)) return;
+        event.preventDefault();
+        openPortalRecord(row);
+      };
+    }
     const time = document.createElement(recordLink ? "a" : "span");
     time.className = "portalStreamTime";
     time.textContent = formatRowTime(row);
@@ -5657,7 +5665,7 @@
     const genericTitle = /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
     const compactGeneric = !primaryUrl && !opText && genericTitle;
     if (compactGeneric) item.classList.add("isCompactGeneric");
-    titleWrap.title = compactGeneric ? "Expand for transaction details" : titleText;
+    titleWrap.title = compactGeneric ? (recordLink ? "Open Chisel record page" : "Expand for transaction details") : titleText;
     if (primaryUrl) {
       const titleLink = document.createElement("a");
       setSafeHref(titleLink, primaryUrl);
