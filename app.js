@@ -3168,13 +3168,22 @@ function onClickAddCommonAddressButton() {
     // The Portal owns discovery, regardless of whether the share came from
     // Mogwai, a copied URL, or a Chisel link. Do not open Send for a match.
     let existingRecord = null;
+    const originalShareUrl = url.href;
+    let shareInterrupted = false;
+    const interruptShare = () => { shareInterrupted = true; };
+    window.addEventListener("pointerdown", interruptShare, {once:true,capture:true});
+    window.addEventListener("keydown", interruptShare, {once:true,capture:true});
+    const mayNavigate = () => !shareInterrupted && window.location.href === originalShareUrl;
     if (/https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\//i.test(text)) {
       setStatusMessage("Checking whether this video is already in the ledger…", false);
     }
     if (window.CHISEL_PORTAL && typeof window.CHISEL_PORTAL.resolveSharedYoutube === "function") {
-      try { existingRecord = await window.CHISEL_PORTAL.resolveSharedYoutube(text); }
+      try { existingRecord = await window.CHISEL_PORTAL.resolveSharedYoutube(text, mayNavigate); }
       catch (error) { console.warn("Shared video resolution:", error); }
     }
+    window.removeEventListener("pointerdown", interruptShare, true);
+    window.removeEventListener("keydown", interruptShare, true);
+    if (!existingRecord && !mayNavigate()) return false;
     if (!existingRecord && !loadArtifactPayload({ opReturnAscii: text }, "shared link")) return false;
     try {
       const consumed = new URL(window.location.href);

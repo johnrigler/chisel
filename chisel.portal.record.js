@@ -65,6 +65,18 @@
     return {coin: coin, txid: txid, sourceId: source, chainId: chain, dataUrl: publicDataUrl(params.get("data"), url.href)};
   }
 
+  // Transient browsing must not turn a refresh into a record deep link.
+  function listUrl(base) {
+    const url = new URL(base);
+    let route = null;
+    try { route = parseRoute(url.href); } catch (_) {}
+    if (route || url.searchParams.has("txid")) {
+      ["txid","coin","data","source","chain"].forEach(key=>url.searchParams.delete(key));
+      if (BASE58_ID.test(url.hash.slice(1))) url.hash = "";
+    }
+    if (url.searchParams.get("mode") === "portal") url.searchParams.delete("mode");
+    return url.href;
+  }
   function recordUrl(row, base, dataUrl) {
     const store = root.CHISEL_PORTAL_STORE, coin = store.canonicalCoinForRow(row);
     const txid = String(row.txid || "").replace(/^0x/i, "").toLowerCase();
@@ -171,6 +183,9 @@
     const deps = options, doc = deps.document || root.document, state = deps.state;
     const get = function (id) { return doc.querySelector("#" + id); };
     let current = null, sequence = 0, bound = false, snapshot = null, lastRender = null;
+    const transientRecords = new Map();
+    const documentId = Date.now().toString(36)+"-"+Math.random().toString(36).slice(2);
+    let transientSequence = 0;
     const active = function () { return !!current; };
 
     function refresh(force) {
@@ -283,7 +298,13 @@
       show();
       setRecordControls(true);
       if (push && root.history) {
-        try { root.history.pushState({chiselRecord: true}, "", recordUrl(current.row, root.location.href, deps.sourceUrl(current.row))); }
+        try {
+          const key = documentId+":"+(++transientSequence);
+          transientRecords.set(key, {route: Object.assign({},route), row: current.row});
+          // Back/forward can revisit records within this document, but reload
+          // always uses the visible URL, never a persisted history state.
+          root.history.pushState({chiselTransientRecord: key}, "", listUrl(root.location.href));
+        }
         catch (_) { /* The copyable link still works when local-file history is unavailable. */ }
       }
       refresh(true);
@@ -325,12 +346,10 @@
     }
 
     function back() {
-      if (root.history && root.history.state && root.history.state.chiselRecord && snapshot) root.history.back();
+      if (root.history && root.history.state && transientRecords.has(root.history.state.chiselTransientRecord) && snapshot) root.history.back();
       else {
-        const url = new URL(snapshot ? snapshot.url : root.location.href);
-        ["txid", "data", "source", "chain"].forEach(function (key) { url.searchParams.delete(key); });
-        if (BASE58_ID.test(url.hash.slice(1))) { url.hash = ""; url.searchParams.delete("coin"); }
-        if (root.history) { try { root.history.replaceState(null, "", url.href); } catch (_) {} }
+        const url = listUrl(root.location.href);
+        if (root.history) { try { root.history.replaceState(null, "", url); } catch (_) {} }
         returnToList();
       }
     }
@@ -395,7 +414,26 @@
           root.setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000);
         }
       };
-      root.addEventListener("popstate", openFromUrl);
+      function onHistoryNavigation() {
+        const entry = root.history && root.history.state && transientRecords.get(root.history.state.chiselTransientRecord);
+        if (entry) return open(entry.route, deps.find(entry.route) || entry.row, false);
+        return openFromUrl();
+      }
+      root.addEventListener("popstate", onHistoryNavigation);
+      try {
+        // Older releases pushed a query-based record URL for ordinary clicks.
+        // Its legacy history marker distinguishes it from a pasted deep link.
+        if (root.history && root.history.state && root.history.state.chiselRecord) {
+          root.history.replaceState(null, "", listUrl(root.location.href));
+        } else if (root.history && root.history.state && root.history.state.chiselTransientRecord) {
+          root.history.replaceState(null, "", root.location.href);
+        }
+        if (!parseRoute(root.location.href)) {
+          if (root.history && "scrollRestoration" in root.history) root.history.scrollRestoration = "manual";
+          returnToList();
+          if (root.scrollTo) root.scrollTo(0,0);
+        }
+      } catch (_) {}
       return openFromUrl();
     }
 

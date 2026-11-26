@@ -6325,7 +6325,7 @@
     return matches[0] || null;
   }
 
-  async function resolveSharedYoutube(input) {
+  async function resolveSharedYoutube(input, mayNavigate) {
     if (!youtubeIdFromUrl(input)) return null;
     await ensureStarterDataset();
     let row = findExistingYoutubeRecord(input);
@@ -6336,7 +6336,7 @@
       catch (error) { console.warn("Shared video index lookup:", error); }
       row = findExistingYoutubeRecord(input);
     }
-    if (!row) return null;
+    if (!row || (typeof mayNavigate === "function" && !mayNavigate())) return null;
     if (typeof window.setGuiMode === "function") window.setGuiMode("portal");
     await openPortalRecord(row);
     return row;
@@ -6867,7 +6867,7 @@
     if (recentPolygonTimer) window.clearTimeout(recentPolygonTimer);
     recentPolygonTimer = null;
     recentPolygon = {hash:hash,at:at};
-    recentPolygonReveal = Date.now()-at < 900000;
+    recentPolygonReveal = !restoredAt && Date.now()-at < 900000;
     try { window.localStorage.setItem(RECENT_POLYGON_KEY,JSON.stringify(recentPolygon)); } catch (_) {}
     refreshRecentPolygon();
   }
@@ -8884,8 +8884,8 @@ function getPortalFirstCharacter() {
       startEvmContractPolling();
       startIndexedChiselPolling();
       if (configBool("autoSearchLedgersAfterStatic", true)) maybeAutoLoadConversationStreams();
-      if (state.personalAccount && !state.urlMainThunderwordRequest) {
-        loadPersonalAccountStream(state.personalAccount, {filterResults:false, noReloadIfCurrent:false, captureReturnView:false}).catch(function () {});
+      if (state.personalAccount && !state.urlMainThunderwordRequest && !(recordView && recordView.active())) {
+        loadPersonalAccountStream(state.personalAccount, {filterResults:false, noReloadIfCurrent:false, captureReturnView:false, updateUrl:false}).catch(function () {});
       }
       startLiveLedgerPolling();
       });
