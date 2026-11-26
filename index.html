@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-I+7AUwXmWyjQ8AKvwAMSEANQU4+Z0wkMOeTeWPPBySA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261125-broadcast-v2887"></script>
+  <script src="chisel.version.js?rev=20261125-polygon-credentials-v2888"></script>
   <script src="chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -2542,28 +2542,31 @@
     <section class="panel" id="polygonSendPanel" hidden>
       <h2>Send Polygon (POL)</h2>
       <p class="muted">Polygon mainnet · chain 137 · Chisel short record</p>
-      <div class="grid">
+      <form class="grid" id="polygonSendCredentialForm" autocomplete="on" method="post">
         <label for="polygonSendCurrency">Currency</label>
         <select id="polygonSendCurrency"><option value="polygon">Polygon (POL)</option></select>
         <label for="polygonSendMethod">Signing method</label>
         <select id="polygonSendMethod"><option value="local">Chisel local key</option><option value="metamask">MetaMask / injected wallet</option></select>
         <label for="polygonSendKey">Sender private key</label>
         <div class="fieldStack">
-          <input id="polygonSendKey" type="password" autocomplete="off" spellcheck="false" placeholder="64 hex characters or WIF">
+          <input id="polygonSendKey" name="password" type="password" autocomplete="current-password" spellcheck="false" placeholder="64 hex characters or WIF">
           <div class="actions">
             <button id="polygonSendLoadKey" type="button" class="secondaryButton">LOAD KEY / CONNECT</button>
             <button id="polygonSendClearKey" type="button" class="secondaryButton">SWITCH IDENTITY</button>
+            <button id="polygonSendSaveKey" type="button" class="secondaryButton" disabled>SAVE TO PASSWORD MANAGER</button>
+            <button id="polygonSendRestoreKey" type="button" class="secondaryButton">LOAD SAVED KEY</button>
             <a href="qrScan.html?currency=polygon&amp;rev=20261125-native-polygon-v2886">SCAN KEY</a>
           </div>
+          <span id="polygonSendCredentialStatus" class="help" role="status" aria-live="polite"></span>
         </div>
         <label for="polygonSendAddress">Derived public address</label>
         <div class="fieldStack">
-          <input id="polygonSendAddress" readonly>
+          <input id="polygonSendAddress" name="username" autocomplete="username" readonly>
           <div class="actions"><button id="polygonSendBalance" type="button" class="secondaryButton">CHECK FUNDS</button><span id="polygonSendFunds"></span></div>
         </div>
         <label for="polygonSendText">Record text</label>
         <div class="fieldStack"><textarea id="polygonSendText" rows="3" spellcheck="false"></textarea><span class="help" id="polygonSendBytes">0 / 80 UTF-8 bytes</span></div>
-      </div>
+      </form>
       <div class="actions">
         <button id="polygonSendReview" type="button">REVIEW</button>
         <button id="polygonSendBroadcast" type="button" disabled>SEND</button>
@@ -3605,7 +3608,7 @@
   <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
   <script src="chisel.evm.write.js?rev=20261105-chisel-write"></script>
   <script src="chisel.evm.local.js?rev=20261125-broadcast-v2887"></script>
-  <script src="chisel.polygon.send.js?rev=20261125-broadcast-v2887"></script>
+  <script src="chisel.polygon.send.js?rev=20261125-polygon-credentials-v2888"></script>
   <script src="chisel.networks.ui.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.share-diagnostics.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>

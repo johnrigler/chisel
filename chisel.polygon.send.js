@@ -8,16 +8,63 @@
     text = $("polygonSendText"), status = $("polygonSendStatus"), funds = $("polygonSendFunds"),
     preview = $("polygonSendPreview"), broadcast = $("polygonSendBroadcast"),
     reviewButton = $("polygonSendReview"), load = $("polygonSendLoadKey"),
-    clear = $("polygonSendClearKey"), balanceButton = $("polygonSendBalance"), txLink = $("polygonSendTx");
+    clear = $("polygonSendClearKey"), balanceButton = $("polygonSendBalance"), txLink = $("polygonSendTx"),
+    saveKey = $("polygonSendSaveKey"), restoreKey = $("polygonSendRestoreKey"),
+    credentialStatus = $("polygonSendCredentialStatus"), credentialForm = $("polygonSendCredentialForm");
+  credentialForm.addEventListener("submit", event => event.preventDefault());
   if (!root.ethers || !root.CHISEL_EVM_LOCAL || !root.CHISEL_EVM_WRITE || !root.CHISEL_EVM_CONTRACTS) {
     status.textContent = "Polygon signing modules unavailable. Reload Chisel.";
-    [load, reviewButton, broadcast, balanceButton].forEach(b => b.disabled = true);
+    [load, reviewButton, broadcast, balanceButton, saveKey, restoreKey].forEach(b => b.disabled = true);
     panel.hidden = document.body.dataset.sendNetwork !== "polygon";
     return;
   }
   const local = root.CHISEL_EVM_LOCAL.createLocalWallet(root.ethers);
   const writer = root.CHISEL_EVM_WRITE.createWriter({registry:root.CHISEL_EVM_CONTRACTS, ethers:root.ethers});
   let provider = null, reviewed = null, generation = 0, busy = false, unresolved = "";
+  // Only the loaded local identity has a saveable secret. Never persist it in app storage.
+  let loadedSecret = "";
+  function updateCredentialButtons() {
+    saveKey.disabled = busy || method.value !== "local" || provider !== local || !loadedSecret || !address.value;
+    restoreKey.disabled = busy || method.value !== "local";
+  }
+  saveKey.onclick = async function () {
+    if (saveKey.disabled) return;
+    if (!root.PasswordCredential || !navigator.credentials || typeof navigator.credentials.store !== "function") {
+      credentialStatus.textContent = "Direct password-manager saving is unavailable in this browser. Open Chisel in Chrome, or add the credential manually in your password manager.";
+      return;
+    }
+    const publicAddress = address.value;
+    setBusy(true);
+    try {
+      const credential = new root.PasswordCredential({id:publicAddress,password:loadedSecret,name:"Polygon (POL) " + publicAddress});
+      const result = await navigator.credentials.store(credential);
+      credentialStatus.textContent = result ? "Credential offered to the browser password manager. Confirm its save prompt if shown." : "Browser did not confirm storage; check your password manager.";
+    } catch (_) {
+      credentialStatus.textContent = "Password-manager save was cancelled or unavailable. No key was stored by Chisel.";
+    } finally { setBusy(false); }
+  };
+  restoreKey.onclick = async function () {
+    if (restoreKey.disabled) return;
+    if (!root.PasswordCredential || !navigator.credentials || typeof navigator.credentials.get !== "function") {
+      credentialStatus.textContent = "Direct credential selection is unavailable here. Tap the private-key field and select a saved password from your browser.";
+      key.focus();
+      return;
+    }
+    setBusy(true);
+    try {
+      const credential = await navigator.credentials.get({password:true,mediation:"required"});
+      if (!credential) { credentialStatus.textContent = "No saved credential selected."; return; }
+      const candidate = root.CHISEL_EVM_LOCAL.walletFromKey(credential.password,root.ethers);
+      if (!root.ethers.isAddress(credential.id) || candidate.address.toLowerCase() !== credential.id.toLowerCase()) {
+        credentialStatus.textContent = "That credential does not match its Polygon address. Choose a saved Polygon identity.";
+        return;
+      }
+      loadSecret(credential.password);
+      credentialStatus.textContent = "Saved Polygon identity loaded.";
+    } catch (_) {
+      credentialStatus.textContent = "Could not load the selected credential. Choose a valid Polygon identity.";
+    } finally { setBusy(false); }
+  };
   const hashField = $("polygonSendHash"), checkTx = $("polygonSendCheckTx"), txStatus = $("polygonSendTxStatus");
   function showHash(hash) {
     hashField.value = hash;
@@ -51,11 +98,16 @@
     generation++; writer.invalidate(); local.invalidate(); reviewed = null;
     broadcast.disabled = true; preview.hidden = true; preview.textContent = "";
   }
-  function disconnect() { invalidate(); local.lock(); provider = null; address.value = ""; funds.textContent = ""; }
+  function disconnect() {
+    invalidate(); local.lock(); provider = null; loadedSecret = ""; address.value = ""; funds.textContent = "";
+    credentialStatus.textContent = "";
+    updateCredentialButtons();
+  }
   function setBusy(value) {
     busy = value;
     [load, reviewButton, clear, balanceButton, method, key, text].forEach(el => el.disabled = value);
     broadcast.disabled = value || !reviewed;
+    updateCredentialButtons();
   }
   function sync() {
     const active = document.body.dataset.sendNetwork === "polygon";
@@ -76,10 +128,15 @@
   function loadSecret(value) {
     disconnect();
     method.value = "local";
-    const account = local.unlock(value);
+    // Preserve the canonical 32-byte secret rather than a network-specific WIF.
+    const canonical = root.CHISEL_EVM_LOCAL.walletFromKey(value,root.ethers).privateKey;
+    const account = local.unlock(canonical);
+    loadedSecret = canonical;
     key.value = "";
     address.value = account;
     provider = local;
+    updateCredentialButtons();
+    credentialStatus.textContent = "Save this Polygon identity to your password manager if you want to reuse it.";
     message("Polygon key loaded. Check funds or enter a record to review.");
   }
   function updateText() {
@@ -187,4 +244,5 @@
     root.history.replaceState(root.history.state,"",url.href);
   }
   sync();
+  updateCredentialButtons();
 })(window);
