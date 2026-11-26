@@ -2414,7 +2414,7 @@
     </div>
   </section>
 
-  <script src="chisel.version.js?rev=20261126-identity-v2911"></script>
+  <script src="chisel.version.js?rev=20261126-identity-handoff-v2912"></script>
   <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
@@ -3478,14 +3478,14 @@
       // The Portal header always represents the loaded public identity.
       // Send currency is independent and must not hide an LTC account.
       const normalizedAccount = accountCoin.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const coinKey = networkAccount ? active.currency : normalizedAccount.startsWith("ltc") ? "litecoin"
+      const coinKey = networkAccount ? active.currency : account?.dataset.currency || (normalizedAccount.startsWith("ltc") ? "litecoin"
         : normalizedAccount.startsWith("dgb") ? "digibyte"
         : normalizedAccount.startsWith("rvn") ? "ravencoin"
         : normalizedAccount.startsWith("tltc") ? "litecoinTestnet"
         : normalizedAccount.startsWith("litecoin") ? "litecoin"
         : normalizedAccount.startsWith("digibyte") ? "digibyte"
         : normalizedAccount.startsWith("ravencoin") ? "ravencoin"
-        : "";
+        : "");
       const signature = [coinKey, accountCoin, addr].join("|");
       if (updateHeaderIdentity.lastState === signature) return;
       updateHeaderIdentity.lastState = signature;
@@ -3668,7 +3668,7 @@
   <script src="chisel.portal.record.js?rev=20261126-refresh-route-v297"></script>
   <script src="chisel.interactions.js?rev=20261126-record-source-v2898"></script>
   <script src="chisel.interactions.ui.js?rev=20261126-compact-comments-v28106"></script>
-  <script src="chisel.portal.js?rev=20261126-twetch-post-v299"></script>
+  <script src="chisel.portal.js?rev=20261126-identity-handoff-v2912"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
@@ -3687,7 +3687,7 @@
   <script src="chisel.youtube.ui.js?rev=20261125-native-polygon-v2886"></script>
   <script src="chisel.send.registry.js?rev=20261126-send-registry-v295"></script>
   <script src="chisel.bsv.write.js?rev=20261126-send-registry-v295"></script>
-  <script src="app.js?rev=20261126-refresh-route-v297" fetchpriority="high"></script>
+  <script src="app.js?rev=20261126-identity-handoff-v2912" fetchpriority="high"></script>
   <script src="chisel.send.workspace.js?rev=20261126-send-registry-v295"></script>
   <script src="vendor/ethers-6.6.0.umd.min.js"></script>
   <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>

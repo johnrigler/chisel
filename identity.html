@@ -380,13 +380,23 @@ code { overflow-wrap: anywhere; color: #c5f467; }
 
   openChisel.addEventListener("click", () => {
     if (!currentPrivateKey) return;
+    const currency = addressNetwork.value;
+    if (!["litecoin", "bitcoin", "digibyte", "ravencoin"].includes(currency)) {
+      alert("This format is available for address preview. Opening Portal with this network is not supported here yet.");
+      return;
+    }
     try {
       sessionStorage.setItem("chisel.pendingQrScan", JSON.stringify({
         privateKeyHex: currentPrivateKey,
+        compressed: true,
+        currency: currency,
         source: "chisel-identity-v1"
       }));
-    } catch (error) {}
-    location.href = "index.html?mode=portal";
+    } catch (error) {
+      alert("Could not transfer the identity in this browser session.");
+      return;
+    }
+    location.href = "index.html?mode=portal&coin=" + encodeURIComponent(currency);
   });
 })();
 </script>

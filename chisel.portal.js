@@ -7270,6 +7270,7 @@
 
   function liveLedgerTarget() {
     const account = normalizePersonalAccount(state.personalAccount);
+    if (account && account.accountOnly) return null;
     const entry = account ? indexEntryForCoin(account.coin, state.currentIndex) : state.currentIndex;
     const address = account ? account.address : (state.mainThunderword && state.mainThunderword.address || entry && entry.address);
     if (!entry || !address || !indexCanFetch(entry)) return null;
@@ -8208,6 +8209,7 @@ function getPortalFirstCharacter() {
       address: canonicalMainThunderwordAddress(address),
       coin: normalizeCoinName(source.coin || source.currency || source.ticker || "") || "",
       ticker: String(source.ticker || "").trim(),
+      accountOnly: source.accountOnly === true,
       label: String(source.label || source.ticker || "Personal account").trim() || "Personal account",
       savedAt: Number(source.savedAt || Date.now()) || Date.now()
     };
@@ -8240,11 +8242,11 @@ function getPortalFirstCharacter() {
     const clean = normalizePersonalAccount(account);
     if (!clean) return null;
 
-    const fallback = inferIndexForAddress(clean.address,state.currentIndex || getSelectedIndex());
-    const entry = clean.coin ? indexEntryForCoin(clean.coin,fallback) : fallback;
+    const fallback = clean.accountOnly ? null : inferIndexForAddress(clean.address,state.currentIndex || getSelectedIndex());
+    const entry = clean.accountOnly ? null : (clean.coin ? indexEntryForCoin(clean.coin,fallback) : fallback);
 
-    if ($("#portalThunderwordAddress")) $("#portalThunderwordAddress").value = clean.address;
-    if ($("#portalSpendableAddress")) $("#portalSpendableAddress").value = clean.address;
+    if ($("#portalThunderwordAddress")) $("#portalThunderwordAddress").value = clean.accountOnly ? "" : clean.address;
+    if ($("#portalSpendableAddress")) $("#portalSpendableAddress").value = clean.accountOnly ? "" : clean.address;
     if ($("#portalSpendableNote") && !$("#portalSpendableNote").value) {
       $("#portalSpendableNote").value = clean.label;
     }
@@ -8253,17 +8255,25 @@ function getPortalFirstCharacter() {
     }
 
     const card = $("#portalPersonalAccount");
-    if (card) card.hidden = false;
+    if (card) { card.hidden = false; card.dataset.currency = clean.coin; }
+    const refresh = $("#portalLoadPersonalAccountButton");
+    if (refresh) refresh.disabled = clean.accountOnly;
+    const addRecord = card && card.querySelector('[data-mode-target="send"]');
+    if (addRecord) addRecord.disabled = clean.accountOnly;
     setText("#portalPersonalAccountLabel",clean.label);
     setText("#portalPersonalAccountCoin",clean.ticker || tickerForCoin(clean.coin) || clean.coin.toUpperCase());
     setText("#portalPersonalAccountAddress",clean.address);
     setText("#portalPersonalAccountMeta",
+      clean.accountOnly ? "Public address and balance supported. Portal transaction history and sending are not yet available for this network. Private key material is not stored here." :
       "Public account context is remembered in this browser and its address stream is also offered to the configured rigler.org fileProxy. WIF/private material is not stored here."
     );
 
     const explorer = $("#portalPersonalAccountExplorer");
     if (explorer) {
-      const href = getThunderwords() && entry ? getThunderwords().getAddressUrl(entry,clean.address) : "";
+      const plugin = clean.accountOnly && window.CHISEL && window.CHISEL.coins && window.CHISEL.coins[clean.coin];
+      const base = plugin && plugin.DEFAULT_EXPLORER_URL;
+      const href = clean.accountOnly ? (base && /\/tx\/$/.test(base) ? base.replace(/\/tx\/$/, "/address/") + encodeURIComponent(clean.address) : "") :
+        (getThunderwords() && entry ? getThunderwords().getAddressUrl(entry,clean.address) : "");
       if (href) {
         setSafeHref(explorer, href);
         explorer.target = "_blank";
@@ -8414,7 +8424,7 @@ function getPortalFirstCharacter() {
 
   function loadPersonalAccountStream(account, opts) {
     const prepared = populatePersonalAccountFields(account);
-    if (!prepared) return Promise.resolve(null);
+    if (!prepared || prepared.account.accountOnly) return Promise.resolve(null);
     const options = opts || {};
     const search = $("#portalEvmWordSearch");
     if (search && options.filterResults !== false) {
@@ -8493,12 +8503,24 @@ function getPortalFirstCharacter() {
       address:address,
       coin:detail.coin,
       ticker:detail.ticker,
+      accountOnly:detail.accountOnly === true,
       label:String(detail.label || detail.ticker || "Personal account").trim(),
       savedAt:Date.now()
     });
     if (!account) return;
 
     populatePersonalAccountFields(account);
+    if (account.accountOnly) {
+      // Keep the new public identity without guessing a history adapter from
+      // its address (BTC and BSV addresses may be byte-for-byte identical).
+      const search = $("#portalEvmWordSearch");
+      if (search) search.value = "";
+      state.portalPage = 1;
+      setPersonalStreamBackVisible(false);
+      state.personalStreamReturnView = null;
+      requestPortalRender();
+      return;
+    }
 
     // A scanner/account handoff is an explicit change of Portal context. Keep
     // that personal address stream active instead of allowing the default
@@ -8597,7 +8619,7 @@ function getPortalFirstCharacter() {
     state.personalAccount = loadPersonalAccount();
     if (state.personalAccount) {
       const prepared = populatePersonalAccountFields(state.personalAccount);
-      if (prepared && !state.urlMainThunderwordRequest) restorePersonalTxCache(prepared.account, prepared.entry);
+      if (prepared && !prepared.account.accountOnly && !state.urlMainThunderwordRequest) restorePersonalTxCache(prepared.account, prepared.entry);
     }
     window.addEventListener("chisel:main-account", receiveMainThunderwordAccount);
     window.addEventListener("chisel:identity-accounts", function (event) {

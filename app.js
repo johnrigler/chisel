@@ -2518,7 +2518,6 @@ function onClickAddCommonAddressButton() {
       currency: coin.NAME, ticker: coin.TICKER, network: account.network || coin.NETWORK || "",
       address: account.address, accountOnly: coin.ACCOUNT_ONLY === true
     } }));
-    if (coin.ACCOUNT_ONLY) return true;
     const opts = options || {};
     window.dispatchEvent(new CustomEvent("chisel:main-account", {
       detail: {
@@ -2526,7 +2525,8 @@ function onClickAddCommonAddressButton() {
         coin: (coin && (coin.NAME || coin.TICKER)) || "",
         ticker: (coin && coin.TICKER) || "",
         network: account.network || "",
-        label: ((coin && (coin.TICKER || coin.NAME)) || "WIF account") + " account",
+        label: ((coin && (coin.DISPLAY_NAME || coin.TICKER || coin.NAME)) || "WIF") + " account",
+        accountOnly: coin.ACCOUNT_ONLY === true,
         explicitSearch: opts.explicitSearch === true
       }
     }));
@@ -2740,7 +2740,7 @@ function onClickAddCommonAddressButton() {
       state.identityCompressed = payload.compressed !== false;
     }
 
-    if (payload.currency) {
+    if (payload.currency && payload.currency !== elems.currency.value) {
       setCurrencyValue(payload.currency);
     }
 
