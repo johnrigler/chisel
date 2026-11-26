@@ -13,6 +13,33 @@
     }
     return row.summary && Array.isArray(row.summary.files) ? row.summary.files : [];
   }
+  const recordFacts=new WeakMap();
+  const list=v=>Array.isArray(v)?v:[];
+  const norm=v=>String(v||"").trim().toLowerCase();
+  function facts(row) {
+    if (!/^bsv(?::|Testnet|$)/.test(scope(row))) return {apps:[],collections:[],parents:[],name:""};
+    const summary=row.summary||{}, raw=row.raw, cached=recordFacts.get(row);
+    if(cached && cached.raw===raw && cached.summary===summary) return cached.value;
+    const api=root.CHISEL_BSV_MEDIA;
+    const files=list(fileList(row)).concat(list(summary.files));
+    const map=list(raw && api ? api.metadata(raw) : []).concat(list(summary.metadata));
+    const uniq=values=>Array.from(new Map(values.filter(v=>typeof v==="string"&&v.trim()).map(v=>[norm(v),v.trim()])).values());
+    const parents=list(raw && api ? api.parentInputs(raw) : []).concat(list(summary.parentInputs)).filter(p=>p && typeof p.txid==="string" && /^[a-f0-9]{64}$/i.test(p.txid) && Number.isInteger(p.vout) && p.vout>=0);
+    const named=files.find(f=>f && f.protocol==="1Sat Ordinals" && f.name);
+    const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>f.value))),
+      collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
+      parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
+      name:named ? named.name+(named.mime==="model/gltf-binary"?" · 3D ordinal":" · inscription") : ""};
+    recordFacts.set(row,{raw,summary,value});return value;
+  }
+  function matchesFacet(row,facet) {
+    if(!facet)return true;
+    const f=facts(row), value=norm(facet.value);
+    if(facet.kind==="app")return f.apps.some(a=>norm(a)===value);
+    if(facet.kind==="collection")return f.collections.some(a=>norm(a)===value);
+    if(facet.kind==="parent")return norm(row.txid)===value||f.parents.some(p=>p.txid===value);
+    return false;
+  }
   function imageRow(row) {
     return fileList(row).some(function (file) { return /^image\//.test(file.mime); }) ||
       !!(row.summary && (row.summary.imageLines > 0 || row.summary.imageChordLines && row.summary.imageChordLines.length || row.summary.imageCount > 0 && row.summary.imageAssetPath));
@@ -20,13 +47,14 @@
   function search(rows, current, options) {
     const words = String(options.query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
     return rows.filter(function (row) {
-      if (scope(row) !== scope(current)) return false;
+      if (scope(row) !== scope(current) || !matchesFacet(row,options.facet)) return false;
       const summary = row.summary || {}, files = fileList(row);
       if (options.type === "images" && !imageRow(row)) return false;
       if (options.type === "models" && !files.some(file=>file.mime==="model/gltf-binary")) return false;
       if (options.type === "text" && !summary.opReturnText && !summary.cleanText && !files.some(function (file) { return /^text\//.test(file.mime); })) return false;
       if (options.block && (!summary.blockHeight || summary.blockHeight !== (current.summary || {}).blockHeight)) return false;
-      const text = [row.txid, summary.title, summary.opReturnText, summary.cleanText, summary.primaryUrl, summary.blockHeight,
+      const f=facts(row);
+      const text = [row.txid, f.name, ...f.apps, ...f.collections, ...f.parents.map(p=>p.txid), summary.title, summary.opReturnText, summary.cleanText, summary.primaryUrl, summary.blockHeight,
         (summary.evmWords || []).join(" "),
         (summary.imageChordLines || []).join(" "), files.map(function (file) { return [file.name, file.mime, file.protocol, file.metadata && file.metadata.collection].join(" "); }).join(" ")].join(" ").toLowerCase();
       return words.every(function (word) { return text.includes(word); });
@@ -39,7 +67,8 @@
     const query = get("portalRecordSearch"), type = get("portalRecordFileType"), block = get("portalRecordBlockFilter");
     const results = get("portalRecordResults"), count = get("portalRecordResultCount"), inventory = get("portalRecordFiles");
     const resultNodes = new Map(), fileNodes = new Map();
-    let current = null, generation = 0, checkedServices = false;
+    let current = null, generation = 0, checkedServices = false, facet=null;
+    const facetPanel=doc.createElement("div"); facetPanel.className="actions"; panel.insertBefore(facetPanel,get("portalRecordScope"));
     function clearFiles() {
       generation += 1;
       fileNodes.forEach(function (view) { if (view.abort) view.abort.abort(); if (view.url) URL.revokeObjectURL(view.url); view.node.remove(); });
@@ -47,9 +76,10 @@
     }
     function renderResults() {
       if (!current) return;
-      const rows = search(deps.rows(), current, {query: query.value, type: type.value, block: block.value === "current"});
+      const rows = search(deps.rows(), current, {query: query.value, type: type.value, block: block.value === "current",facet:facet});
       const chain = store().tickerForCoin(store().canonicalCoinForRow(current));
       count.textContent = rows.length + " matching " + chain + " transaction" + (rows.length === 1 ? "" : "s") + " in the loaded catalog" + (rows.length > 40 ? " · first 40 shown" : "");
+      if(facet) count.textContent += " · "+facet.kind+": "+facet.value;
       const visible = new Set();
       rows.slice(0, 40).forEach(function (row) {
         const key = scope(row) + ":" + row.txid; visible.add(key);
@@ -63,21 +93,41 @@
             event.preventDefault(); deps.open(view.row);
           };
         }
-        view.row = row; view.node.href = deps.recordUrl(row); view.title.textContent = (row.summary || {}).title || row.txid.slice(0, 16);
+        view.row = row; view.node.href = deps.recordUrl(row); view.title.textContent = facts(row).name || (row.summary || {}).title || row.txid.slice(0, 16);
         if (imageRow(row) && /^(?:BSV data output|Truncated OP_RETURN preview)$/.test(view.title.textContent)) view.title.textContent = "BSV image file";
         const formats = Array.from(new Set(fileList(row).map(function (file) { return file.mime; }))).join(", ");
-        view.detail.textContent = [formats, "block " + ((row.summary || {}).blockHeight || "unknown"), row.txid.slice(0, 16) + "…"].filter(Boolean).join(" · ");
+        const related=facts(row).parents.filter(p=>facet&&facet.kind==="parent"&&p.txid===facet.value).map(p=>"parent output "+p.vout).join(", ");
+        view.detail.textContent = [related,formats, "block " + ((row.summary || {}).blockHeight || "unknown"), row.txid.slice(0, 16) + "…"].filter(Boolean).join(" · ");
         view.node.setAttribute("aria-current", row.txid === current.txid ? "page" : "false");
         if (results.children[visible.size - 1] !== view.node) results.insertBefore(view.node, results.children[visible.size - 1] || null);
       });
       resultNodes.forEach(function (view, key) { if (!visible.has(key)) { view.node.remove(); resultNodes.delete(key); } });
+    }
+    function renderFacets() {
+      facetPanel.replaceChildren();
+      const f=facts(current);
+      function add(kind,value,label) {
+        const b=doc.createElement("button"); b.type="button";b.className="secondaryButton";b.textContent=label;
+        b.setAttribute("aria-pressed",String(!!facet&&facet.kind===kind&&norm(facet.value)===norm(value)));
+        b.onclick=()=>{facet={kind,value};query.value="";type.value="all";block.value="all";renderFacets();renderResults();};
+        facetPanel.appendChild(b);
+      }
+      f.apps.forEach(a=>add("app",a,"Explore "+a));
+      f.collections.forEach(a=>add("collection",a,"Collection: "+a));
+      Array.from(new Set(f.parents.map(p=>p.txid))).forEach(txid=>{
+        add("parent",txid,"Related: parent "+txid.slice(0,12)+"…");
+        const a=doc.createElement("a");a.className="secondaryButton";a.textContent="View parent transaction";
+        a.href="https://whatsonchain.com/tx/"+txid; a.target="_blank";a.rel="noopener noreferrer";
+        if(store().canonicalCoinForRow(current)==="bsv")facetPanel.appendChild(a);
+      });
+      if(facet){const b=doc.createElement("button");b.type="button";b.className="secondaryButton";b.textContent="Clear "+facet.kind+" filter";b.onclick=()=>{facet=null;renderFacets();renderResults();};facetPanel.appendChild(b);}
     }
     function renderFiles() {
       const coin = store().canonicalCoinForRow(current), bsv = /^(?:bsv|bsvTestnet)$/.test(coin);
       inventory.hidden = !bsv;
       if (!bsv) return;
       const files = fileList(current), visible = new Set();
-      const map = current.raw && root.CHISEL_BSV_MEDIA ? root.CHISEL_BSV_MEDIA.metadata(current.raw) : [];
+      const map = current.raw && root.CHISEL_BSV_MEDIA ? root.CHISEL_BSV_MEDIA.metadata(current.raw) : list((current.summary||{}).metadata);
       const mapText = map.map(m=>m.protocol+" output "+m.output+": "+m.fields.map(f=>f.key+" = "+f.value).join(" · ")).join(" | ");
       get("portalRecordFileStatus").textContent = (files.length ? "Files in this transaction" : !current.raw ? "File inventory requires transaction data." : "No recognized BSV files in this transaction.") + (mapText ? " · "+mapText : "");
       files.forEach(function (file) {
@@ -176,14 +226,14 @@
       } finally { button.disabled = false; }
     };
     return {setRow: function (row) {
-      if (!current || scope(current) !== scope(row)) { query.value = ""; type.value = "all"; block.value = "all"; }
+      if (!current || scope(current) !== scope(row)) { query.value = ""; type.value = "all"; block.value = "all"; facet=null; }
       if (!current || scope(current) !== scope(row) || current.txid !== row.txid) clearFiles();
       current = row;
       get("portalRecordScope").textContent = "Explore " + store().tickerForCoin(store().canonicalCoinForRow(row));
       const option = get("portalRecordCurrentBlock"); option.textContent = "This block (" + ((row.summary || {}).blockHeight || "unknown") + ")"; option.disabled = !(row.summary || {}).blockHeight;
-      renderResults(); renderFiles();
+      renderFacets(); renderResults(); renderFiles();
       if (!checkedServices) { checkedServices = true; services(); }
-    }, clear: function () { clearFiles(); current = null; }};
+    }, clear: function () { clearFiles(); current = null; facet=null; facetPanel.replaceChildren(); }};
   }
-  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, search: search, createController: createController};
+  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, matchesFacet: matchesFacet, search: search, createController: createController};
 })(window);

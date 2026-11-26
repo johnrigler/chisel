@@ -157,7 +157,7 @@
         if (!incoming[field] && previous[field] && !(field === "cleanText" && isGenericTitle(previous[field]))) merged[field] = previous[field];
       });
       if (isGenericTitle(incoming.cleanText)) merged.cleanText = previous.cleanText && !isGenericTitle(previous.cleanText) ? previous.cleanText : "";
-      ["opReturnUrls", "mediaCards", "imageChordLines", "evmWords", "evmReceivers", "evmAmounts"].forEach(function (field) {
+      ["opReturnUrls", "mediaCards", "imageChordLines", "evmWords", "evmReceivers", "evmAmounts", "files", "metadata", "parentInputs"].forEach(function (field) {
         if (!safeArray(incoming[field]).length && safeArray(previous[field]).length) merged[field] = previous[field];
       });
       if (safeArray(previous.mediaCards).length && safeArray(incoming.mediaCards).length) {
@@ -244,7 +244,7 @@
           "lines", "imageLines", "imageChordLines", "ipfsCount", "imageCount", "imageAssetPath",
           "imageMime", "imageBytes", "imageWidth", "imageHeight", "imageAssetId", "artifactId",
           "artifactAddress", "blockHeight", "blockTime", "blockTimeEstimated", "ledgerFinance",
-          "recordKind", "evmWords", "evmReceivers", "evmAmounts", "contractName", "contractAddress", "from", "to", "explorerUrl", "functionName", "methodId"].forEach(function (field) {
+          "recordKind", "files", "metadata", "parentInputs", "evmWords", "evmReceivers", "evmAmounts", "contractName", "contractAddress", "from", "to", "explorerUrl", "functionName", "methodId"].forEach(function (field) {
           if (row.summary && row.summary[field] !== undefined) summary[field] = row.summary[field];
         });
         if (JSON.stringify(summary).length <= 32768) {

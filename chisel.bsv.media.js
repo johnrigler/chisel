@@ -108,7 +108,7 @@
       if (field.op===0x51 || field.data && field.data.length===1 && field.data[0]===1)
         mime=decoder.decode(value.data).trim().toLowerCase();
     }
-    if (!body || !body.data || !/^[a-z0-9!#!#  function files(raw) {^^_.+-]+\/[a-z0-9!#!#  function files(raw) {^^_.+-]+$/.test(mime)) return [];
+    if (!body || !body.data || !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(mime)) return [];
     const closed=body.complete && bytes[body.next]===0x68;
     // A provider-truncated push is a preview, not a valid complete inscription.
     if (!closed && !script.isTruncated && body.complete) return [];
@@ -148,10 +148,14 @@
     const tx = raw && (raw.tx || raw), outputs = tx && (tx.vout || tx.outputs);
     return Array.isArray(outputs) ? outputs.flatMap(fromOutput) : [];
   }
+  function parentInputs(raw) {
+    const tx=raw && (raw.tx || raw), inputs=tx && (tx.vin || tx.inputs);
+    return Array.isArray(inputs) ? inputs.filter(i=>i && typeof i.txid==="string" && /^[a-f0-9]{64}$/i.test(i.txid) && Number.isInteger(i.vout) && i.vout>=0 && i.vout<=0xffffffff).map(i=>({txid:i.txid.toLowerCase(),vout:i.vout})) : [];
+  }
   function summarize(raw) {
     return {files: files(raw).map(function (file) {
       const value = Object.assign({}, file); delete value.data; return value;
-    }), metadata: metadata(raw)};
+    }), metadata: metadata(raw), parentInputs: parentInputs(raw)};
   }
   // External sites are optional protocol-specific navigation targets.
   // The outpoint identifies this inscription output, not verified current ownership.
@@ -182,5 +186,5 @@
     if (file.data && !file.data.every(function (byte, i) { return result.data[i] === byte; })) throw new Error("Provider file differs from the saved preview.");
     return result;
   }
-  root.CHISEL_BSV_MEDIA = {pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks};
+  root.CHISEL_BSV_MEDIA = {pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
 })(window);

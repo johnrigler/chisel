@@ -554,6 +554,8 @@
     prepareEvmRow(row);
     const notedTitle = getPortalAnnotation(row).metadata.title;
     if (typeof notedTitle === "string" && notedTitle.trim()) return truncateText(notedTitle, 96);
+    const interpreted=window.CHISEL_PORTAL_EXPLORE && /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row)) ? window.CHISEL_PORTAL_EXPLORE.facts(row).name : "";
+    if(interpreted)return truncateText(interpreted,96);
     const target = recordTargetUrlForRow(row);
     const captured = target ? readPageMetadata(target) : null;
     if (captured && captured.title) return truncateText(captured.title, 96);
@@ -3540,6 +3542,7 @@
       parts.push(card.title, card.text, card.url, card.sourceUrl, card.videoId, card.kind);
     });
     summaryWordsForRow(row).forEach(function (x) { parts.push(x); });
+    if(window.CHISEL_PORTAL_EXPLORE && /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))){const f=window.CHISEL_PORTAL_EXPLORE.facts(row);parts.push(f.name,...f.apps,...f.collections,...f.parents.map(p=>p.txid));}
     const text = parts.filter(Boolean).join(" ").toLowerCase();
     if (cache) cache.searchText = text;
     return text;
@@ -3548,6 +3551,7 @@
   function portalRowMatchesSearch(row) {
     const needle = getPortalSearchText();
     if (!needle) return true;
+    if(needle.startsWith("app:") && window.CHISEL_PORTAL_EXPLORE){try{return window.CHISEL_PORTAL_EXPLORE.matchesFacet(row,{kind:"app",value:decodeURIComponent(needle.slice(4))});}catch(_){return false;}}
     const hay = searchableTextForRow(row);
     return needle.split(/\s+/).filter(Boolean).every(function (part) { return hay.indexOf(part) !== -1; });
   }
@@ -5683,6 +5687,13 @@
       const facts = document.createElement("span"); facts.className = "portalStreamOpReturn";
       facts.textContent = window.CHISEL_PORTAL_DISCOVERY.recordLabel(row.summary);
       titleWrap.appendChild(facts);
+    }
+    if(window.CHISEL_PORTAL_EXPLORE && /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))){
+      window.CHISEL_PORTAL_EXPLORE.facts(row).apps.forEach(app=>{
+        const b=document.createElement("button");b.type="button";b.className="secondaryButton";b.textContent="Explore "+app;
+        b.onclick=event=>{event.preventDefault();event.stopPropagation();const box=$("#portalEvmWordSearch");if(box){box.value="app:"+encodeURIComponent(app.toLowerCase());state.portalPage=1;requestPortalRender();}};
+        titleWrap.appendChild(b);
+      });
     }
     if (opText) {
       const payload = document.createElement("span");
