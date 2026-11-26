@@ -127,7 +127,7 @@
 
   function safeArray(value) { return Array.isArray(value) ? value : []; }
   function isLikelyUrl(value) { return /^https?:\/\/\S+/i.test(String(value || "").trim()); }
-  function isGenericTitle(value) { return /^(?:(?:gomez|jethro|evm|polygon-main-thunderword)\s+)?(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(String(value || "").trim()); }
+  function isGenericTitle(value) { return /^(?:(?:gomez|jethro|mogwai|chisel|evm|polygon-main-thunderword)\s+)?(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(String(value || "").trim()); }
 
   const RECENT_PORTAL_CACHE_KEY = "chisel.portal.recentDisplay.v1";
   const RECENT_PORTAL_CACHE_LIMIT = 60;
@@ -156,7 +156,7 @@
       ["opReturnText", "primaryUrl", "cleanText", "imageAssetPath", "imageMime", "ledgerFinance", "recordKind"].forEach(function (field) {
         if (!incoming[field] && previous[field] && !(field === "cleanText" && isGenericTitle(previous[field]))) merged[field] = previous[field];
       });
-      if (previous.cleanText && isGenericTitle(incoming.cleanText)) merged.cleanText = previous.cleanText;
+      if (isGenericTitle(incoming.cleanText)) merged.cleanText = previous.cleanText && !isGenericTitle(previous.cleanText) ? previous.cleanText : "";
       ["opReturnUrls", "mediaCards", "imageChordLines", "evmWords", "evmReceivers", "evmAmounts"].forEach(function (field) {
         if (!safeArray(incoming[field]).length && safeArray(previous[field]).length) merged[field] = previous[field];
       });
@@ -180,7 +180,7 @@
         merged.mediaCards = cards;
       }
       if (previous.title && (!incoming.title || isLikelyUrl(incoming.title) ||
-          isGenericTitle(incoming.title))) {
+          (isGenericTitle(incoming.title) && !isGenericTitle(previous.title)))) {
         merged.title = previous.title;
       }
       const previousTime = normalizeUnixTime(previous.blockTime || previous.block_time || previous.time || previous.timestamp);

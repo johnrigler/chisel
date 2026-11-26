@@ -157,3 +157,11 @@ test("the browser entry loads the store before Portal with relative script paths
   assert.ok(store >= 0 && portal > store);
   assert.equal(scripts.filter(path => path === "chisel.portal.store.js").length, 1);
 });
+
+test("generic Mogwai and Chisel titles cannot replace ledger text", () => {
+  const store = createStore();
+  for (const title of ["MOGWAI transaction","Chisel transaction"]) {
+    const merged = store.mergeSummary({title:"test",cleanText:"test"},{title,cleanText:title});
+    assert.equal(merged.title,"test"); assert.equal(merged.cleanText,"test");
+  }
+});

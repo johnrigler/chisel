@@ -405,3 +405,17 @@ test("a new confirmed ledger read retains reviewed media and supplies the sent r
   assert.equal(f.portal.state.portalSourceFilters.bsv, false);
   assert.equal(f.calls.length, 0);
 });
+
+test("direct Polygon calldata supplies the title without FileProxy", () => {
+  const f = fixture(() => { throw Error("title extraction must not fetch"); });
+  const address = "0x683cfA103FE5DbD0a47402d78Fbf818D4160B1d3";
+  const word = n => BigInt(n).toString(16).padStart(64,"0");
+  const hex = Buffer.from("test").toString("hex");
+  const input = "0x5d9c3e43" + word(0) + word(64) + word(4) + hex.padEnd(64,"0");
+  const index = {coin:"evm",contractName:"mogwai",contractAddress:address};
+  const raw = {coin:"evm",txid:id(123),contract:{name:"mogwai",address},tx:{hash:"0x"+id(123),to:address,input},
+    summary:{title:"MOGWAI transaction",cleanText:"MOGWAI transaction"}};
+  assert.equal(f.portal.extractSummary(raw,index).title,"test");
+  assert.equal(f.portal.displayTitleForRow({coin:"evm",txid:id(123),index,raw,summary:raw.summary}),"test");
+  assert.equal(f.calls.length,0);
+});

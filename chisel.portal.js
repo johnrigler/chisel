@@ -566,6 +566,11 @@
       if (cache) cache.displayTitle = behaviorTitle;
       return behaviorTitle;
     }
+    const mediaMetadata = collectEvmMediaCards(row).map(function (card) {
+      const url = card.url || card.sourceUrl;
+      return youtubeMetadataId(url) ? readPageMetadata(url) : null;
+    }).find(function (metadata) { return metadata && metadata.title; });
+    if (mediaMetadata) return truncateText(mediaMetadata.title,96);
     const rawTitle = summary.title || (row && row.title) || "";
     const anchorTitle = anchorTextsFromHtml(rawTitle)[0] || "";
     let title = isRawHtmlTitle(rawTitle) ? compactMediaTitle(anchorTitle || rawTitle) : printableText(rawTitle);
@@ -1561,7 +1566,7 @@
   }
 
   function isGenericEvmTitle(value) {
-    return /^(?:(?:gomez|jethro|evm|polygon-main-thunderword)\s+)?(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(String(value || "").trim());
+    return /^(?:(?:gomez|jethro|mogwai|chisel|evm|polygon-main-thunderword)\s+)?(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(String(value || "").trim());
   }
 
   function compactMediaTitle(value) {
@@ -1701,7 +1706,13 @@
     const cleanTitle = compactMediaTitle(cleanText);
     const existingTitle = isRawHtmlTitle(existing.title) || isGenericEvmTitle(existing.title) || isLikelyUrl(existing.title) ? "" : printableText(existing.title || "");
     const imageTitle = decoded.image ? (safeArray(decoded.words).join(" · ") || decoded.image.mime.replace("image/", "").toUpperCase() + " image") : "";
-    const title = existingTitle || cleanTitle || imageTitle || firstMedia.title || safeArray(decoded.words).join(" · ") || (tx && (tx.functionName || tx.methodId)) || (txid ? "EVM transaction " + shortTxid(txid) : "EVM transaction");
+    const isChisel = /^(?:mogwai|chisel)$/i.test(String(existing.contractName || (value.contract && value.contract.name) || (indexEntry && indexEntry.contractName) || ""));
+    const mediaTitle = firstMedia.title && !isLikelyUrl(firstMedia.title) ? firstMedia.title : (firstMedia.url ? humanUrlTitle(firstMedia.url) : "");
+    const artifactTitle = decoded.artifact && !isLikelyUrl(decoded.artifact) && !looksLikeEncodedPortalTitle(decoded.artifact) ? compactMediaTitle(decoded.artifact) : "";
+    const methodTitle = decoded.kind === "chisel.logRecord" ? "Chisel log" + (Number.isFinite(decoded.payloadBytes) ? " · " + decoded.payloadBytes + " bytes" : "") :
+      decoded.kind === "chisel.execute" ? "Chisel execute" : decoded.kind === "jethro.mapArtifact" ? "Chisel artifact mapping" : "Chisel record " + shortTxid(txid);
+    const title = isChisel ? (artifactTitle || cleanTitle || imageTitle || mediaTitle || existingTitle || safeArray(decoded.words).join(" · ") || methodTitle) :
+      (existingTitle || cleanTitle || imageTitle || firstMedia.title || safeArray(decoded.words).join(" · ") || (tx && (tx.functionName || tx.methodId)) || (txid ? "EVM transaction " + shortTxid(txid) : "EVM transaction"));
     return {
       txid: txid,
       hash: evmHashForExplorer(value, txid),
@@ -4185,10 +4196,29 @@
     } catch (error) { return false; }
   }
 
+  const youtubeMetadataMemory = new Map();
+  const youtubeMetadataAttempts = new Map();
+  const youtubeMetadataPending = new Set();
+  let youtubeMetadataActive = 0;
+  function youtubeMetadataId(url) {
+    // Only actual YouTube hosts, not arbitrary pages with a v= parameter.
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      if (!/^(?:(?:www|m|music)\.)?youtube\.com$|^(?:www\.)?youtu\.be$|^(?:www\.)?youtube-nocookie\.com$/.test(host)) return "";
+      const id = youtubeIdFromUrl(url);
+      return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : "";
+    } catch (_) { return ""; }
+  }
   function readPageMetadata(url) {
     try {
       const saved = JSON.parse(localStorage.getItem(pageMetadataKey(url)) || "null");
       if (saved && saved.schema === "chisel-page-metadata-v1") return saved;
+      const videoId = youtubeMetadataId(url);
+      if (videoId) {
+        const canonical = mediaUrlFromYoutubeId(videoId);
+        const shared = youtubeMetadataMemory.get(videoId) || JSON.parse(localStorage.getItem(pageMetadataKey(canonical)) || "null");
+        if (shared && shared.schema === "chisel-page-metadata-v1") return shared;
+      }
       // Migrate the earlier Netflix-specific local annotations transparently.
       if (isNetflixLink(url)) {
         const legacy = JSON.parse(localStorage.getItem("chisel.portal.netflixMetadata.v1:" + encodeURIComponent(url)) || "null");
@@ -4219,6 +4249,50 @@
     };
     try { localStorage.setItem(pageMetadataKey(url), JSON.stringify(metadata)); return metadata; }
     catch (error) { return null; }
+  }
+
+  async function fetchYoutubePortalMetadata(id) {
+    const canonical = mediaUrlFromYoutubeId(id);
+    // Direct YouTube first, then a public CORS-capable oEmbed service.
+    const endpoints = ["https://www.youtube.com/oembed?format=json&url=", "https://noembed.com/embed?url="];
+    for (const endpoint of endpoints) {
+      try {
+        const source = endpoint + encodeURIComponent(canonical);
+        const data = await directPolygonJson(source);
+        if (!data || data.error || typeof data.title !== "string" || !data.title.trim() ||
+            !/^youtube$/i.test(String(data.provider_name || ""))) continue;
+        const fields = {title:data.title,authorName:data.author_name,provider:"YouTube",
+          image:youtubeThumbnailUrl(id),captureMethod:"youtube-oembed",metadataSource:source,fetchedAt:new Date().toISOString()};
+        const saved = savePageMetadata(canonical,fields,null);
+        youtubeMetadataMemory.set(id,saved || Object.assign({schema:"chisel-page-metadata-v1",url:canonical},fields));
+        return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+  function scheduleVisibleYoutubeMetadata(rows) {
+    for (const row of rows) {
+      if (youtubeMetadataActive >= 3) break;
+      if (canonicalCoinForRow(row) !== "evm") continue;
+      for (const card of collectEvmMediaCards(row)) {
+        if (youtubeMetadataActive >= 3) break;
+        const id = youtubeMetadataId(card.url || card.sourceUrl);
+        if (!id || youtubeMetadataPending.has(id) ||
+            readPageMetadata(card.url || card.sourceUrl) ||
+            Date.now() - (youtubeMetadataAttempts.get(id) || 0) < 300000) continue;
+        youtubeMetadataAttempts.set(id,Date.now());
+        youtubeMetadataPending.add(id);
+        youtubeMetadataActive++;
+        fetchYoutubePortalMetadata(id).then(function (ok) {
+          if (!ok) return;
+          state.portalRows.forEach(function (item) {
+            if (collectEvmMediaCards(item).some(function (c) { return youtubeMetadataId(c.url || c.sourceUrl) === id; })) invalidatePortalRowCache(item);
+          });
+        }).catch(function () {}).finally(function () {
+          youtubeMetadataActive--; youtubeMetadataPending.delete(id); requestPortalRender();
+        });
+      }
+    }
   }
 
   function downloadPageMetadata(metadata) {
@@ -5893,6 +5967,7 @@
     scheduleVisiblePortalFinance(pageRows);
     scheduleVisiblePortalEvm(pageRows);
     scheduleVisiblePortalAnnotations(pageRows);
+    scheduleVisibleYoutubeMetadata(pageRows);
   }
 
   async function selectPortalRow(key) {
@@ -6735,7 +6810,7 @@
       summary: {
         txid: txid,
         hash: hash.toLowerCase(),
-        title: name.toUpperCase() + " transaction",
+        title: profile.id === "chisel" ? "Chisel transaction" : name.toUpperCase() + " transaction",
         methodId: methodId ? "0x" + methodId[1].toLowerCase() : "",
         from: String(raw.from || ""),
         to: String(raw.to || ""),
