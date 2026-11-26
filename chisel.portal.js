@@ -1811,7 +1811,7 @@
       else if(!named && summary.files.some(file=>file.protocol==="B")) summary.title="Bitcom B";
       const twetch=window.CHISEL_BSV_MEDIA.twetchPost(value);
       if(twetch){
-        summary.title=twetch.name;
+        summary.title=window.CHISEL_PORTAL_EXPLORE ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(twetch) : (twetch.text||twetch.name);
         summary.opReturnText=twetch.text||twetch.name;
         summary.opReturnUrls=extractUrls(twetch.text);
         summary.primaryUrl="";
@@ -5260,7 +5260,9 @@
     title.textContent = displayTitleForRow(row);
     const bsv = /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row));
     const interpreted=bsv && window.CHISEL_PORTAL_EXPLORE;
-    if(interpreted && !getPortalAnnotation(row).metadata.title)title.textContent=interpreted.facts(row).name||title.textContent;
+    const post=twetchForRow(row);
+    if(post)title.textContent=options&&options.recordPage?"Transaction details":interpreted.twetchTitle(post);
+    else if(interpreted && !getPortalAnnotation(row).metadata.title)title.textContent=interpreted.facts(row).name||title.textContent;
 
     const tx = document.createElement("code");
     tx.textContent = row.txid || "";
@@ -5370,7 +5372,7 @@
 
     header.appendChild(title);
     if(interpreted){
-      interpreted.interpretationLines(row).forEach(line=>{const info=document.createElement("p");info.textContent=line;header.appendChild(info);});
+      if(!post)interpreted.interpretationLines(row).forEach(line=>{const info=document.createElement("p");info.textContent=line;header.appendChild(info);});
       if(!(options&&options.recordPage)){
         Array.from(new Set(interpreted.facts(row).parents.map(p=>p.txid))).slice(0,4).forEach(txid=>{
           const a=document.createElement("a");a.className="secondaryButton";a.textContent="Open parent "+txid.slice(0,12)+"…";
@@ -5387,17 +5389,17 @@
 
   }
 
-  const twetchCache=new WeakMap();
   function twetchForRow(row) {
-    if(!row||!window.CHISEL_BSV_MEDIA||!/^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row)))return null;
-    if(!row.raw) {
-      const summary=row.summary||{}, map=safeArray(summary.metadata).find(m=>m.protocol==="MAP"&&safeArray(m.fields).some(f=>f.key==="app"&&String(f.value).toLowerCase()==="twetch"));
-      if(!map)return null;
-      const text=String(summary.opReturnText||"");
-      return {name:"Twetch · "+((map.fields.find(f=>f.key==="type")||{}).value||"record"),text:text.includes("19HxigV4QyBv3tHpQVcUEQyq1pzZVdoAut")?"":text.slice(0,65536)};
-    }
-    if(!twetchCache.has(row.raw))twetchCache.set(row.raw,window.CHISEL_BSV_MEDIA.twetchPost(row.raw));
-    return twetchCache.get(row.raw);
+    const explore=window.CHISEL_PORTAL_EXPLORE;
+    return explore ? explore.twetchForRow(row) : null;
+  }
+  let pendingTwetchFeed=false;
+  function showTwetchFeed() {
+    if(recordView && recordView.active()){pendingTwetchFeed=true;recordView.back();return;}
+    const box=$("#portalEvmWordSearch");
+    if(!box)return;
+    PORTAL_FILTER_IDS.forEach(id=>setPortalFilterValue(id,true));
+    box.value="app:twetch";state.portalPage=1;requestPortalRender();
   }
   const encryptedBsvCache=new WeakMap();
   function encryptedBsvFilesForRow(row) {
@@ -5510,14 +5512,6 @@
     }
 
     if (!(options && options.recordPage) && window.CHISEL_PORTAL_EXPLORE) window.CHISEL_PORTAL_EXPLORE.appendInlineBsvMedia(supportTarget,row);
-    const twetch=twetchForRow(row);
-    if(twetch){
-      const section=document.createElement("section");section.className="portalInterpretedRecord";
-      const heading=document.createElement("div");heading.className="stepTitle";heading.textContent=twetch.name+" · Bitcom B";section.appendChild(heading);
-      const body=document.createElement("p");body.style.whiteSpace="pre-wrap";body.textContent=twetch.text;section.appendChild(body);
-      const info=document.createElement("p");info.className="muted";info.textContent=(twetch.imageCount||0)+" embedded image(s)"+(twetch.signer?" · AIP signer (unverified): "+twetch.signer:"");section.appendChild(info);
-      supportTarget.appendChild(section);
-    }
     const encryptedFiles=encryptedBsvFilesForRow(row);
     if(encryptedFiles.length) appendEncryptedBsvDetails(supportTarget,row,encryptedFiles);
     const lines = extractLines(row.raw);
@@ -5849,6 +5843,7 @@
     titleWrap.className = "portalStreamTitle";
     const titleText = displayTitleForRow(row);
     const opText = opReturnTextForRow(row);
+    const post=twetchForRow(row);
     const genericTitle = /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
     const compactGeneric = !primaryUrl && !opText && genericTitle && thumb.classList.contains("isEmpty");
     if (compactGeneric) item.classList.add("isCompactGeneric");
@@ -5863,22 +5858,23 @@
       titleWrap.appendChild(titleLink);
     } else {
       // Plain notes need one full text copy, not a duplicate truncated title.
-      titleWrap.textContent = genericTitle || titleText === truncateText(opText, 96) ? "" : titleText;
+      titleWrap.textContent = post ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(post) : genericTitle || titleText === truncateText(opText, 96) ? "" : titleText;
     }
     if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
-    if (window.CHISEL_PORTAL_DISCOVERY && canonicalCoinForRow(row) === "bsv") {
+    if (!post && window.CHISEL_PORTAL_DISCOVERY && canonicalCoinForRow(row) === "bsv") {
       const facts = document.createElement("span"); facts.className = "portalStreamOpReturn";
       facts.textContent = window.CHISEL_PORTAL_DISCOVERY.recordLabel(row.summary);
       titleWrap.appendChild(facts);
     }
     if(window.CHISEL_PORTAL_EXPLORE && /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))){
-      window.CHISEL_PORTAL_EXPLORE.facts(row).apps.forEach(app=>{
+      if(post)window.CHISEL_PORTAL_EXPLORE.appendTwetchMenu(titleWrap,row,showTwetchFeed);
+      window.CHISEL_PORTAL_EXPLORE.facts(row).apps.filter(app=>app.toLowerCase()!=="twetch").forEach(app=>{
         const b=document.createElement("button");b.type="button";b.className="secondaryButton";b.textContent="Explore "+app;
         b.onclick=event=>{event.preventDefault();event.stopPropagation();const box=$("#portalEvmWordSearch");if(box){box.value="app:"+encodeURIComponent(app.toLowerCase());state.portalPage=1;requestPortalRender();}};
         titleWrap.appendChild(b);
       });
     }
-    if (opText) {
+    if (opText && !post) {
       const payload = document.createElement("span");
       payload.className = "portalStreamOpReturn";
       appendLinkedTransactionText(payload, opText);
@@ -6346,7 +6342,7 @@
     if (recordView) return recordView;
     if (window.CHISEL_PORTAL_EXPLORE) recordExplore = window.CHISEL_PORTAL_EXPLORE.createController({
       document: document, rows: function () { return state.portalRows; },
-      open: openPortalRecord, recordUrl: portalRecordUrl, parentUrl: relatedRecordUrl, openParent: openRelatedRecord,
+      open: openPortalRecord, recordUrl: portalRecordUrl, parentUrl: relatedRecordUrl, openParent: openRelatedRecord, showTwetch:showTwetchFeed,
       hydrate: function (row) { return hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true}); },
       refresh: async function () {
         const results = await Promise.allSettled([loadConfiguredStaticDatasets({quiet: true}), listLocalTransactions()]);
@@ -6398,6 +6394,7 @@
       },
       onReturn: function () {
         if (recordExplore) recordExplore.clear();
+        if(pendingTwetchFeed){pendingTwetchFeed=false;showTwetchFeed();}
         if (state.portalListDirty) { state.portalListDirty = false; window.setTimeout(requestPortalRender, 0); }
       }
     });

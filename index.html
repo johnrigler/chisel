@@ -4,7 +4,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-I+7AUwXmWyjQ8AKvwAMSEANQU4+Z0wkMOeTeWPPBySA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel 2.9.7</title>
+  <title>Chisel 2.9.9</title>
   <meta name="description" content="Chisel is a browser-first portal for public ledger records, readable artifacts, and transaction tools.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Chisel">
@@ -2326,12 +2326,23 @@
 </style>
   <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261122-visible-payload-links-v2870" />
   <link rel="stylesheet" href="chisel.portal.record.css?rev=20261122-record-explore-v2871" />
+<style>
+.portalTwetchHero {margin:0 0 .75rem;overflow-wrap:anywhere}
+.portalTwetchHero h2 {font-size:clamp(1.3rem,4vw,2rem);line-height:1.25;margin:0 0 .4rem;white-space:pre-wrap}
+.portalTwetchText {white-space:pre-wrap;overflow-wrap:anywhere}
+.portalTwetchMenu {display:block;margin:.3rem 0;max-width:100%;white-space:normal}
+.portalTwetchMenu>summary {display:inline-block;cursor:pointer;width:auto}
+.portalTwetchMenu>summary::after {content:" ▾"}
+.portalTwetchMenu[open]>summary::after {content:" ▴"}
+.portalTwetchMenu>details {font-size:.85rem;overflow-wrap:anywhere}
+.portalTwetchMenu .actions {flex-wrap:wrap}
+</style>
 </head>
 <body data-mode="portal">
   <header>
     <div class="shell">
       <div class="topBar">
-        <div class="headerBrand"><h1>Chisel</h1><p id="version" class="muted">chisel v2.9.8</p></div>
+        <div class="headerBrand"><h1>Chisel</h1><p id="version" class="muted">chisel v2.9.9</p></div>
         <div class="headerIdentity" id="headerIdentity" title="Current public identity; open menu for account actions">
           <label class="headerCurrencyLabel" for="headerCurrency">Currency</label>
           <select id="headerCurrency" aria-label="Choose active Send currency">
@@ -2403,7 +2414,7 @@
     </div>
   </section>
 
-  <script src="chisel.version.js?rev=20261126-twetch-trails-v298"></script>
+  <script src="chisel.version.js?rev=20261126-twetch-post-v299"></script>
   <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
@@ -3653,11 +3664,11 @@
   <script src="chisel.portal.notes.js?rev=20261101-queue-v2826"></script>
   <script src="chisel.portal.note-function.js?rev=20261101-history-v2828"></script>
   <script src="chisel.bsv.media.js?rev=20261126-bitcom-v294"></script>
-  <script src="chisel.portal.explore.js?rev=20261126-twetch-trails-v298"></script>
+  <script src="chisel.portal.explore.js?rev=20261126-twetch-post-v299"></script>
   <script src="chisel.portal.record.js?rev=20261126-refresh-route-v297"></script>
   <script src="chisel.interactions.js?rev=20261126-record-source-v2898"></script>
   <script src="chisel.interactions.ui.js?rev=20261126-compact-comments-v28106"></script>
-  <script src="chisel.portal.js?rev=20261126-refresh-route-v297"></script>
+  <script src="chisel.portal.js?rev=20261126-twetch-post-v299"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>

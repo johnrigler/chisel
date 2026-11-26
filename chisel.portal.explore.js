@@ -48,6 +48,43 @@
       {label:"BTC · mempool.space",url:"https://mempool.space/address/"+a},
       {label:"BCH · Blockchair",url:"https://blockchair.com/bitcoin-cash/address/"+a}];
   }
+  // MAP identifies the application; Bitcom B carries the actual post text.
+  function twetchForRow(row) {
+    if (!row || !/^bsv(?:Testnet)?$/.test(scope(row))) return null;
+    const api=root.CHISEL_BSV_MEDIA, summary=row.summary||{};
+    if (row.raw && api) {
+      const decoded=api.twetchPost(row.raw);
+      if (decoded) return decoded;
+    }
+    const map=list(summary.metadata).find(m=>m.protocol==="MAP"&&list(m.fields).some(f=>f.key==="app"&&norm(f.value)==="twetch"));
+    if(!map)return null;
+    const action=(list(map.fields).find(f=>f.key==="type")||{}).value||"record";
+    let text=String(summary.opReturnText||"").trim();
+    if (/19HxigV4QyBv3tHpQVcUEQyq1pzZVdoAut|1PuQa7K62MiKCtssSLKy1kh56WWU7MtUR5|\ufffd/.test(text)||/^Twetch\s*·/i.test(text)) text="";
+    return {name:"Twetch · "+action,action,text:text.slice(0,65536)};
+  }
+  function twetchTitle(post) {
+    return String(post&&post.text||"").trim().split(/\r?\n/)[0].slice(0,160).trim() || "Untitled "+String(post&&post.action||"post");
+  }
+  function appendTwetchMenu(container,row,onFilter) {
+    const doc=container.ownerDocument, menu=doc.createElement("details");
+    menu.className="portalTwetchMenu";
+    const summary=doc.createElement("summary");summary.className="secondaryButton";summary.textContent="Twetch";
+    summary.title="Twetch actions and protocol details";
+    const actions=doc.createElement("div");actions.className="actions";
+    const only=doc.createElement("button");only.type="button";only.className="secondaryButton";only.textContent="Only show Twetch";
+    only.onclick=event=>{event.preventDefault();event.stopPropagation();onFilter();};
+    actions.appendChild(only);
+    if(scope(row)==="bsv"&&/^[a-f0-9]{64}$/i.test(row.txid||"")){
+      const link=doc.createElement("a");link.className="secondaryButton";link.textContent="Open this in Twetch";
+      link.href="https://twetch.com/t/"+row.txid;link.target="_blank";link.rel="noopener noreferrer";actions.appendChild(link);
+    }
+    const website=doc.createElement("a");website.className="secondaryButton";website.textContent="Twetch website";
+    website.href="https://twetch.com/";website.target="_blank";website.rel="noopener noreferrer";actions.appendChild(website);
+    const meta=doc.createElement("details"), label=doc.createElement("summary");label.textContent="Protocol details";meta.appendChild(label);
+    interpretationLines(row).forEach(line=>{const node=doc.createElement("p");node.textContent=line;meta.appendChild(node);});
+    menu.append(summary,actions,meta);container.appendChild(menu);return menu;
+  }
   function facts(row) {
     if (!/^bsv(?::|Testnet|$)/.test(scope(row))) return {apps:[],collections:[],parents:[],addresses:[],name:""};
     const summary=row.summary||{}, raw=row.raw, cached=recordFacts.get(row);
@@ -63,12 +100,12 @@
     const mapFields=map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields));
     const app=mapFields.find(f=>f&&f.key==="app"&&typeof f.value==="string");
     const type=mapFields.find(f=>f&&f.key==="type"&&typeof f.value==="string");
-    const twetch=raw&&api&&api.twetchPost(raw);
+    const twetch=twetchForRow(row);
     const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>norm(f.value)==="twetch"?"Twetch":f.value)).concat(files.filter(f=>f&&f.encrypted&&f.metadata&&/^indelible\./.test(f.metadata.application)).map(()=>"Indelible"))),
       collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
       addresses:addressTrails(raw,map,store().canonicalCoinForRow(row)),
       parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
-      name:encrypted ? encrypted.name : twetch ? twetch.name : ordinal ? ordinalTitle(ordinal) : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : ""};
+      name:encrypted ? encrypted.name : twetch ? twetchTitle(twetch) : ordinal ? ordinalTitle(ordinal) : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : ""};
     recordFacts.set(row,{raw,summary,value});return value;
   }
   function ordinalTitle(file) {
@@ -165,6 +202,8 @@
     const query = get("portalRecordSearch"), type = get("portalRecordFileType"), block = get("portalRecordBlockFilter");
     const results = get("portalRecordResults"), count = get("portalRecordResultCount"), inventory = get("portalRecordFiles");
     const resultNodes = new Map(), fileNodes = new Map();
+    const postHero=doc.createElement("section");postHero.className="portalTwetchHero";postHero.hidden=true;panel.insertBefore(postHero,inventory);
+    let heroStamp="";
     let current = null, generation = 0, checkedServices = false, facet=null;
     const facetPanel=doc.createElement("div"); facetPanel.className="actions"; panel.insertBefore(facetPanel,get("portalRecordScope"));
     function clearFiles() {
@@ -210,7 +249,7 @@
         b.onclick=()=>{facet={kind,value};query.value="";type.value="all";block.value="all";renderFacets();renderResults();};
         facetPanel.appendChild(b);
       }
-      f.apps.forEach(a=>add("app",a,"Explore "+a));
+      f.apps.filter(a=>norm(a)!=="twetch").forEach(a=>add("app",a,"Explore "+a));
       const coin=store().canonicalCoinForRow(current);
       if(coin==="bsv"&&/^[a-f0-9]{64}$/i.test(current.txid)){
         const a=doc.createElement("a");a.className="secondaryButton";a.textContent="BananaBlocks";
@@ -247,14 +286,26 @@
       if(/^bsv(?:Testnet)?$/.test(store().canonicalCoinForRow(current))&&deps.rows().some(row=>scope(row)===scope(current)&&facts(row).parents.some(p=>p.txid===current.txid)))add("parent",current.txid,"Explore funded transactions");
       if(facet){const b=doc.createElement("button");b.type="button";b.className="secondaryButton";b.textContent="Clear "+facet.kind+" filter";b.onclick=()=>{facet=null;renderFacets();renderResults();};facetPanel.appendChild(b);}
     }
+    function renderPostHero() {
+      const post=twetchForRow(current);
+      const stamp=post?JSON.stringify([current.txid,post,interpretationLines(current)]):"";
+      if(stamp===heroStamp)return;
+      heroStamp=stamp;postHero.replaceChildren();postHero.hidden=!post;
+      if(!post)return;
+      const title=doc.createElement("h2");title.textContent=twetchTitle(post);postHero.appendChild(title);
+      const text=String(post.text||"").trim(), rest=text.slice(title.textContent.length).trim();
+      if(rest){const body=doc.createElement("p");body.className="portalTwetchText";body.textContent=rest;postHero.appendChild(body);}
+      appendTwetchMenu(postHero,current,deps.showTwetch);
+    }
     function renderFiles() {
       const coin = store().canonicalCoinForRow(current), bsv = /^(?:bsv|bsvTestnet)$/.test(coin);
       inventory.hidden = !bsv;
       if (!bsv) return;
-      const files = fileList(current), visible = new Set();
+      const post=twetchForRow(current), files = fileList(current).slice(), visible = new Set();
+      if(post)files.sort((a,b)=>Number(/^image\//.test(b.mime))-Number(/^image\//.test(a.mime)));
       const map = current.raw && root.CHISEL_BSV_MEDIA ? root.CHISEL_BSV_MEDIA.metadata(current.raw) : list((current.summary||{}).metadata);
       const mapText = map.map(m=>m.protocol+" output "+m.output+": "+m.fields.map(f=>f.key+" = "+f.value).join(" · ")).join(" | ");
-      get("portalRecordFileStatus").textContent = (files.length ? "Files in this transaction" : !current.raw ? "File inventory requires transaction data." : "No recognized BSV files in this transaction.") + (mapText ? " · "+mapText : "");
+      get("portalRecordFileStatus").textContent = (files.length ? "Files in this transaction" : !current.raw ? "File inventory requires transaction data." : "No recognized BSV files in this transaction.") + (mapText && !post ? " · "+mapText : "");
       // Only the first reasonably sized raster image auto-loads on record open.
       // Remaining images, large payloads and SVG retain explicit user controls.
       const autoImage = files.find(file => /^image\/(?:jpeg|png|gif|webp|avif|bmp|x-icon)$/.test(file.mime) &&
@@ -268,6 +319,7 @@
           view = {node: node, label: label, status: status}; fileNodes.set(key, view);
         }
         view.file = file;
+        if(post && inventory.children[visible.size]!==view.node)inventory.insertBefore(view.node,inventory.children[visible.size]||null);
         view.label.textContent = [file.name || file.mime, protocolLabel(file.protocol), file.metadata && file.metadata.collection, file.metadata && file.metadata.meshCount ? file.metadata.meshCount+" meshes" : "", file.metadata && file.metadata.traits && (file.metadata.traits.find(t=>t.trait==="Rarity") || {}).value, file.bytes.toLocaleString() + " bytes", "output " + file.output,
           file.encrypted ? "encrypted envelope" : file.mimeSource === "signature" ? "type from file signature" : "declared type"].filter(Boolean).join(" · ");
         if (!view.url && !view.abort) view.status.textContent = file.encrypted ? "Use Download encrypted envelope in the record. No plaintext preview." : file.complete ? "File bytes available." : "Saved preview is incomplete. Retrieve the complete output on demand.";
@@ -382,9 +434,9 @@
       current = row;
       get("portalRecordScope").textContent = "Explore " + store().tickerForCoin(store().canonicalCoinForRow(row));
       const option = get("portalRecordCurrentBlock"); option.textContent = "This block (" + ((row.summary || {}).blockHeight || "unknown") + ")"; option.disabled = !(row.summary || {}).blockHeight;
-      renderFacets(); renderResults(); renderFiles();
+      renderPostHero(); renderFacets(); renderResults(); renderFiles();
       if (!checkedServices) { checkedServices = true; services(); }
-    }, clear: function () { clearFiles(); current = null; facet=null; facetPanel.replaceChildren(); }};
+    }, clear: function () { clearFiles(); current = null; facet=null; facetPanel.replaceChildren(); postHero.replaceChildren();postHero.hidden=true;heroStamp=""; }};
   }
-  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, addressTrails: addressTrails, addressExplorerLinks: addressExplorerLinks, ordinalTitle: ordinalTitle, appendInlineBsvMedia: appendInlineBsvMedia, interpretationLines: interpretationLines, matchesFacet: matchesFacet, search: search, createController: createController};
+  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, twetchForRow:twetchForRow, twetchTitle:twetchTitle, appendTwetchMenu:appendTwetchMenu, addressTrails: addressTrails, addressExplorerLinks: addressExplorerLinks, ordinalTitle: ordinalTitle, appendInlineBsvMedia: appendInlineBsvMedia, interpretationLines: interpretationLines, matchesFacet: matchesFacet, search: search, createController: createController};
 })(window);
