@@ -30,6 +30,10 @@
     if (decoder.decode(data.slice(0, 4)) === "RIFF" && decoder.decode(data.slice(8, 12)) === "WEBP") return "image/webp";
     return "";
   }
+  function bField(parts,index,start,limit) {
+    for(let j=start;j<=index;j++) if(!parts[j]||!parts[j].complete||decoder.decode(parts[j].data)==="|") return "";
+    return decoder.decode(parts[index].data).slice(0,limit);
+  }
   function bFiles(output, index) {
     const script = output && (output.scriptPubKey || output.script) || {};
     const parts = pushes(typeof script === "string" ? script : script.hex), files = [];
@@ -41,8 +45,8 @@
       files.push({protocol: "B", output: output.n == null ? index : output.n, part: i + 1,
         mime: mime, mimeSource: declared === mime ? "declared" : "signature", bytes: payload.bytes,
         availableBytes: payload.data.length, complete: payload.complete,
-        encoding: parts[i + 3] && parts[i + 3].complete ? decoder.decode(parts[i + 3].data).slice(0, 40) : "",
-        name: parts[i + 4] && parts[i + 4].complete ? decoder.decode(parts[i + 4].data).slice(0, 200) : "",
+        encoding: bField(parts,i+3,i+2,40),
+        name: bField(parts,i+4,i+2,200),
         data: payload.data});
     });
     return files;
@@ -118,18 +122,53 @@
       bytes:body.bytes,availableBytes:body.data.length,complete:closed,data:body.data,
       name:meta?meta.name:"",encoding:"",metadata:meta}];
   }
+  // Accept MAP and AIP at the beginning or immediately after an actual pipe push.
+  // Skip the B content push even if the entire content happens to be a pipe.
+  function sections(output) {
+    const script=output && (output.scriptPubKey||output.script)||{};
+    const parts=pushes(typeof script==="string"?script:script.hex), result=[[]];
+    parts.forEach(part=>{
+      const section=result[result.length-1];
+      const bContent=section.length===1&&section[0].complete&&decoder.decode(section[0].data)===PROTOCOL;
+      if(!bContent&&part.complete&&part.data.length===1&&part.data[0]===124) result.push([]);
+      else section.push(part);
+    });
+    return result;
+  }
   function mapMetadata(output,index) {
-    const script=output && (output.scriptPubKey || output.script) || {};
-    const parts=pushes(typeof script==="string"?script:script.hex);
-    if (parts.length<2 || !parts[0].complete || !parts[1].complete ||
-      decoder.decode(parts[0].data)!=="1PuQa7K62MiKCtssSLKy1kh56WWU7MtUR5" ||
-      decoder.decode(parts[1].data)!=="SET") return [];
-    const fields=[];
-    for(let i=2;i+1<parts.length;i+=2) {
-      if(!parts[i].complete || !parts[i+1].complete || decoder.decode(parts[i].data)==="|") break;
-      fields.push({key:decoder.decode(parts[i].data).slice(0,200),value:decoder.decode(parts[i+1].data).slice(0,1000)});
-    }
-    return [{protocol:"MAP",output:output.n==null?index:output.n,action:"SET",fields:fields}];
+    const results=[];
+    sections(output).forEach(parts=>{
+      if(parts.length<2||!parts[0].complete||!parts[1].complete||
+        decoder.decode(parts[0].data)!=="1PuQa7K62MiKCtssSLKy1kh56WWU7MtUR5"||decoder.decode(parts[1].data)!=="SET") return;
+      const fields=[];
+      for(let i=2;i+1<parts.length;i+=2){
+        if(!parts[i].complete||!parts[i+1].complete) break;
+        fields.push({key:decoder.decode(parts[i].data).slice(0,200),value:decoder.decode(parts[i+1].data).slice(0,1000)});
+      }
+      results.push({protocol:"MAP",output:output.n==null?index:output.n,action:"SET",fields});
+    });
+    return results;
+  }
+  function aipMetadata(output,index) {
+    return sections(output).filter(parts=>parts.length>=4&&parts.slice(0,4).every(p=>p.complete)&&decoder.decode(parts[0].data)==="15PciHG22SNLQJXMoSUaWVi7WSqc7hCfva")
+      .map(parts=>({protocol:"AIP",output:output.n==null?index:output.n,action:"asserted signature",fields:[
+        {key:"algorithm",value:decoder.decode(parts[1].data).slice(0,80)},
+        {key:"signing address",value:decoder.decode(parts[2].data).slice(0,120)},
+        {key:"verification",value:"not verified"}
+      ]}));
+  }
+  function twetchPost(raw) {
+    const tx=raw&&(raw.tx||raw), outputs=tx&&(tx.vout||tx.outputs);
+    if(!Array.isArray(outputs)) return null;
+    const record=outputs.flatMap(mapMetadata).find(m=>m.fields.some(f=>f.key==="app"&&f.value.toLowerCase()==="twetch"));
+    if(!record) return null;
+    const action=(record.fields.find(f=>f.key==="type")||{}).value||"record";
+    const all=outputs.flatMap(bFiles);
+    const text=all.find(f=>f.output===record.output&&f.complete&&/^text\//.test(f.mime)&&f.bytes<=65536);
+    const signer=outputs.flatMap(aipMetadata).find(a=>a.output===record.output);
+    return {name:"Twetch · "+action.slice(0,80),action:action,output:record.output,
+      text:text?decoder.decode(text.data):"",imageCount:all.filter(f=>/^image\//.test(f.mime)).length,
+      signer:signer?(signer.fields.find(f=>f.key==="signing address")||{}).value||"":"",signatureVerified:false};
   }
   const ENCRYPTED_WRAPPER="BSVWRAPPER_MERKLE_E";
   function base64Bytes(value) {
@@ -166,7 +205,8 @@
     {id:"encrypted-wrapper",files:encryptedFiles},
     {id:"B",files:bFiles},
     {id:"1sat",files:ordinalFiles},
-    {id:"map",metadata:mapMetadata}
+    {id:"map",metadata:mapMetadata},
+    {id:"aip",metadata:aipMetadata}
   ].map(Object.freeze));
   function fromOutput(output,index) {
     return registry.flatMap(entry=>entry.files?entry.files(output,index):[]);
@@ -221,5 +261,5 @@
   // Small, independently checked public records, loaded only when requested.
   const archivedTransactions=Object.freeze({"7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d":"data/related/bsv/7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d.json"});
   function archivePath(coin,txid) { return coin==="bsv" && Object.prototype.hasOwnProperty.call(archivedTransactions,txid) ? archivedTransactions[txid] : ""; }
-  root.CHISEL_BSV_MEDIA = {encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
+  root.CHISEL_BSV_MEDIA = {twetchPost:twetchPost,encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
 })(window);

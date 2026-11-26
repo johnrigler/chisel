@@ -5,3 +5,7 @@ The existing BSV media library now dispatches B://, 1Sat Ordinals and MAP indepe
 ## Encrypted BSV wrapper
 
 The BSVWRAPPER_MERKLE_E OP_RETURN marker identifies a separate envelope format. Indelible's indelible.claude-code JSON contains protocol, encrypted and wrap_owner. Sample transaction a18479a46e4b4053bc639e2db3dd178ad4e8e26f9a553f85f8bb2a93204d3904 output 0 contains a 17,046-byte JSON push with Base64 component sizes 12, 16 and 12,559 bytes. Algorithm and plaintext remain unverified. Chisel displays metadata and downloads original JSON push bytes, preserving the key wrap. No decryption is attempted.
+
+## Twetch / compound Bitcoin Schema
+
+Pipe-delimited B + MAP + AIP sections are recognized independently. MAP app=twetch identifies an asserted application, not verified operator provenance. The sample 82630acc3c5d284ba07520a6dad3d749be32c67acee2ea308c438614c509837c (block 976662) contains a Markdown post and a separate truncated PNG. The AIP signing address is not verified and its scope is not established. Existing image retrieval and row thumbnail machinery applies. Explore Twetch filters the loaded catalog; it is not an exhaustive index. Legacy marker support and social graph traversal remain future work. See Commons: https://johnrigler.github.io/commons/reading/commentary/2026-11-26-twetch-after-the-platform.html

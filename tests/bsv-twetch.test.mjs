@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+const window={};
+vm.runInNewContext(await readFile(new URL('../chisel.bsv.media.js',import.meta.url),'utf8'),{window,TextDecoder});
+const api=window.CHISEL_BSV_MEDIA;
+const hex='006a2231394878696756345179427633744870515663554551797131707a5a56646f4175740a77656e206d6f6f6e203f0d746578742f6d61726b646f776e055554462d38017c223150755161374b36324d694b43747373534c4b79316b683536575755374d74555235035345540361707006747765746368047479706504706f7374017c22313550636948473232534e4c514a584d6f53556157566937575371633768436676610d424954434f494e5f454344534122313758705750796a376a31573479504158637955717557636e356935786e377137674c58482b316b6554514d35344a796f6730425153433375774b4c443633736456562f3066585930426c79333539334f4372727258375a33565242396f516e387457396a68647445785868416a3639634a414c354161577557733d';
+const img='006a2231394878696756345179427633744870515663554551797131707a5a56646f4175744e99c5030089504e470d0a1a0a';
+test('Twetch compound post and truncated PNG prefix',()=>{
+ const raw={vout:[{n:0,scriptPubKey:{hex}},{n:1,scriptPubKey:{hex:img,isTruncated:true}}]};
+ const post=api.twetchPost(raw), summary=api.summarize(raw);
+ assert.equal(post.text,'wen moon ?');
+ assert.equal(post.name,'Twetch · post');
+ assert.equal(post.signer,'17XpWPyj7j1W4yPAXcyUquWcn5i5xn7q7g');
+ assert.equal(post.signatureVerified,false);
+ assert.equal(post.imageCount,1);
+ assert.equal(summary.files[0].name,'');
+ assert.equal(summary.files[1].bytes,247193);
+ assert.equal(summary.files[1].complete,false);
+ assert.equal(summary.metadata[0].fields[0].value,'twetch');
+ assert.equal(summary.metadata[1].protocol,'AIP');
+ assert.equal(api.twetchPost({vout:[{scriptPubKey:{hex:img}}]}),null);
+});

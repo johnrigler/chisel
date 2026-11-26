@@ -30,10 +30,11 @@
     const mapFields=map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields));
     const app=mapFields.find(f=>f&&f.key==="app"&&typeof f.value==="string");
     const type=mapFields.find(f=>f&&f.key==="type"&&typeof f.value==="string");
-    const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>f.value)).concat(files.filter(f=>f&&f.encrypted&&f.metadata&&/^indelible\./.test(f.metadata.application)).map(()=>"Indelible"))),
+    const twetch=raw&&api&&api.twetchPost(raw);
+    const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>norm(f.value)==="twetch"?"Twetch":f.value)).concat(files.filter(f=>f&&f.encrypted&&f.metadata&&/^indelible\./.test(f.metadata.application)).map(()=>"Indelible"))),
       collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
       parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
-      name:encrypted ? encrypted.name : named ? named.name+(named.mime==="model/gltf-binary"?" · 3D ordinal":" · inscription") : app && type ? app.value+" · "+type.value.replace(/_/g," ") : ""};
+      name:encrypted ? encrypted.name : twetch ? twetch.name : named ? named.name+(named.mime==="model/gltf-binary"?" · 3D ordinal":" · inscription") : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : ""};
     recordFacts.set(row,{raw,summary,value});return value;
   }
   function matchesFacet(row,facet) {

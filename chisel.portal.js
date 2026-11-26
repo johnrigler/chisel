@@ -1114,6 +1114,8 @@
   function opReturnTextForRow(row) {
     // Read the same output scripts used by the expanded transaction flow.
     // Older cached summaries may have only a generic title or no OP_RETURN.
+    const twetch=twetchForRow(row);
+    if(twetch) return twetch.text || twetch.name;
     const encrypted=encryptedBsvFilesForRow(row);
     if (encrypted.length) return encrypted.map(window.CHISEL_BSV_MEDIA.encryptedLabel).join("\n");
     const payloads = extractOutputs(row && row.raw).map(function (output) { return output.opReturnPayload; }).filter(Boolean);
@@ -1798,6 +1800,13 @@
       if (named) summary.title = named.name + (named.mime === "model/gltf-binary" ? " · 3D ordinal" : " · inscription");
       const encrypted=summary.files.find(file=>file.encrypted);
       if(encrypted) summary.title=encrypted.name;
+      const twetch=window.CHISEL_BSV_MEDIA.twetchPost(value);
+      if(twetch){
+        summary.title=twetch.name;
+        summary.opReturnText=twetch.text||twetch.name;
+        summary.opReturnUrls=extractUrls(twetch.text);
+        summary.primaryUrl="";
+      }
     }
     return summary;
   }
@@ -5369,6 +5378,18 @@
 
   }
 
+  const twetchCache=new WeakMap();
+  function twetchForRow(row) {
+    if(!row||!window.CHISEL_BSV_MEDIA||!/^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row)))return null;
+    if(!row.raw) {
+      const summary=row.summary||{}, map=safeArray(summary.metadata).find(m=>m.protocol==="MAP"&&safeArray(m.fields).some(f=>f.key==="app"&&String(f.value).toLowerCase()==="twetch"));
+      if(!map)return null;
+      const text=String(summary.opReturnText||"");
+      return {name:"Twetch · "+((map.fields.find(f=>f.key==="type")||{}).value||"record"),text:text.includes("19HxigV4QyBv3tHpQVcUEQyq1pzZVdoAut")?"":text.slice(0,65536)};
+    }
+    if(!twetchCache.has(row.raw))twetchCache.set(row.raw,window.CHISEL_BSV_MEDIA.twetchPost(row.raw));
+    return twetchCache.get(row.raw);
+  }
   const encryptedBsvCache=new WeakMap();
   function encryptedBsvFilesForRow(row) {
     const api=window.CHISEL_BSV_MEDIA;
@@ -5479,6 +5500,14 @@
       return;
     }
 
+    const twetch=twetchForRow(row);
+    if(twetch){
+      const section=document.createElement("section");section.className="portalInterpretedRecord";
+      const heading=document.createElement("div");heading.className="stepTitle";heading.textContent=twetch.name;section.appendChild(heading);
+      const body=document.createElement("p");body.style.whiteSpace="pre-wrap";body.textContent=twetch.text;section.appendChild(body);
+      const info=document.createElement("p");info.className="muted";info.textContent=(twetch.imageCount||0)+" embedded image(s)"+(twetch.signer?" · AIP signer (unverified): "+twetch.signer:"");section.appendChild(info);
+      supportTarget.appendChild(section);
+    }
     const encryptedFiles=encryptedBsvFilesForRow(row);
     if(encryptedFiles.length) appendEncryptedBsvDetails(supportTarget,row,encryptedFiles);
     const lines = extractLines(row.raw);
