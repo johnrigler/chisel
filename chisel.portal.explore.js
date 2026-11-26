@@ -27,6 +27,7 @@
     const uniq=values=>Array.from(new Map(values.filter(v=>typeof v==="string"&&v.trim()).map(v=>[norm(v),v.trim()])).values());
     const parents=list(raw && api ? api.parentInputs(raw) : []).concat(list(summary.parentInputs)).filter(p=>p && typeof p.txid==="string" && /^[a-f0-9]{64}$/i.test(p.txid) && Number.isInteger(p.vout) && p.vout>=0);
     const named=files.find(f=>f && f.protocol==="1Sat Ordinals" && f.name);
+    const ordinal=named || files.find(f=>f && f.protocol==="1Sat Ordinals");
     const encrypted=files.find(f=>f && f.encrypted);
     const mapFields=map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields));
     const app=mapFields.find(f=>f&&f.key==="app"&&typeof f.value==="string");
@@ -35,8 +36,59 @@
     const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>norm(f.value)==="twetch"?"Twetch":f.value)).concat(files.filter(f=>f&&f.encrypted&&f.metadata&&/^indelible\./.test(f.metadata.application)).map(()=>"Indelible"))),
       collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
       parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
-      name:encrypted ? encrypted.name : twetch ? twetch.name : named ? named.name+(named.mime==="model/gltf-binary"?" · 3D ordinal":" · inscription") : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : ""};
+      name:encrypted ? encrypted.name : twetch ? twetch.name : ordinal ? ordinalTitle(ordinal) : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : ""};
     recordFacts.set(row,{raw,summary,value});return value;
+  }
+  function ordinalTitle(file) {
+    const kind=file.mime==="model/gltf-binary"?"3D ordinal":/^image\//.test(file.mime)?"image inscription":/^text\//.test(file.mime)?"text inscription":"inscription";
+    return file.name ? file.name+" · "+(file.mime==="model/gltf-binary"?"3D ordinal":"inscription") : "1Sat Ordinal · "+kind;
+  }
+  const inlineFiles = new WeakMap();
+  function appendInlineBsvMedia(container,row) {
+    if (!/^bsv(?:Testnet)?$/.test(scope(row)) || !row.raw || !root.CHISEL_BSV_MEDIA) return;
+    const api=root.CHISEL_BSV_MEDIA;
+    const files=fileList(row);
+    const selected=files.find(f=>f.protocol==="1Sat Ordinals" && /^image\/(jpeg|png|gif|webp|avif|bmp|x-icon)$/.test(f.mime)) ||
+      files.find(f=>/^image\/(jpeg|png|gif|webp|avif|bmp|x-icon)$/.test(f.mime));
+    if(!selected)return;
+    const doc=container.ownerDocument, section=doc.createElement("section"), title=doc.createElement("div"), img=doc.createElement("img"), status=doc.createElement("p"), button=doc.createElement("button");
+    section.className="portalInterpretedRecord";
+    title.className="stepTitle";title.textContent=selected.protocol==="1Sat Ordinals"?ordinalTitle(selected):protocolLabel(selected.protocol)+" · image";
+    img.alt=selected.name||title.textContent;img.style.cssText="display:block;max-width:100%;width:auto;height:auto;max-height:80vh;object-fit:contain;margin:0 auto";
+    img.hidden=true;img.style.display="none";
+    status.className="muted";status.setAttribute("role","status");
+    button.type="button";button.className="secondaryButton";button.textContent="LOAD IMAGE";
+    section.append(title,img,status,button);container.appendChild(section);
+    const description=selected.mime+" · "+selected.bytes.toLocaleString()+" bytes · output "+selected.output;
+    status.textContent=description;
+    async function load() {
+      if(button.disabled)return;
+      button.disabled=true;status.textContent=description+" · loading…";
+      let url="";
+      try {
+        if(!Number.isFinite(selected.bytes)||selected.bytes<=0||selected.bytes>32*1024*1024)throw Error("Image exceeds inline preview limit.");
+        let pending=inlineFiles.get(selected);
+        if(!pending){
+          pending=selected.complete?Promise.resolve(selected):api.loadFile(scope(row),row.txid,selected,root.fetch.bind(root),AbortSignal.timeout(30000));
+          inlineFiles.set(selected,pending);
+          pending.catch(()=>{if(inlineFiles.get(selected)===pending)inlineFiles.delete(selected);});
+        }
+        const full=await pending;
+        if(!section.isConnected)return;
+        if(!full.complete||!full.data||full.data.length!==full.bytes)throw Error("Complete image unavailable.");
+        url=URL.createObjectURL(new Blob([full.data],{type:full.mime}));
+        img.src=url;await img.decode();
+        if(!section.isConnected)return;
+        img.hidden=false;img.style.display="block";button.hidden=true;
+        status.textContent=description;
+      }catch(error){
+        img.removeAttribute("src");img.hidden=true;img.style.display="none";
+        status.textContent=description+" · "+(error.message||String(error));
+        button.textContent="RETRY IMAGE";
+      }finally{if(url)URL.revokeObjectURL(url);button.disabled=false;}
+    }
+    button.onclick=event=>{event.preventDefault();event.stopPropagation();load();};
+    if(selected.bytes>0&&selected.bytes<=4*1024*1024)root.setTimeout(()=>{if(section.isConnected)load();},0);
   }
   function matchesFacet(row,facet) {
     if(!facet)return true;
@@ -277,5 +329,5 @@
       if (!checkedServices) { checkedServices = true; services(); }
     }, clear: function () { clearFiles(); current = null; facet=null; facetPanel.replaceChildren(); }};
   }
-  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, interpretationLines: interpretationLines, matchesFacet: matchesFacet, search: search, createController: createController};
+  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, ordinalTitle: ordinalTitle, appendInlineBsvMedia: appendInlineBsvMedia, interpretationLines: interpretationLines, matchesFacet: matchesFacet, search: search, createController: createController};
 })(window);

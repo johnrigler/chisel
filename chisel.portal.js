@@ -1804,8 +1804,8 @@
     };
     if (/^(?:bsv|bsvTestnet)$/.test(normalizeCoinName(indexEntry && (indexEntry.coin || indexEntry.ticker))) && window.CHISEL_BSV_MEDIA) {
       Object.assign(summary, window.CHISEL_BSV_MEDIA.summarize(value));
-      const named = summary.files.find(file => file.protocol === "1Sat Ordinals" && file.name);
-      if (named) summary.title = named.name + (named.mime === "model/gltf-binary" ? " · 3D ordinal" : " · inscription");
+      const named = summary.files.find(file => file.protocol === "1Sat Ordinals" && file.name) || summary.files.find(file => file.protocol === "1Sat Ordinals");
+      if (named) summary.title = window.CHISEL_PORTAL_EXPLORE ? window.CHISEL_PORTAL_EXPLORE.ordinalTitle(named) : (named.name || "1Sat Ordinal") + " · inscription";
       const encrypted=summary.files.find(file=>file.encrypted);
       if(encrypted) summary.title=encrypted.name;
       else if(!named && summary.files.some(file=>file.protocol==="B")) summary.title="Bitcom B";
@@ -5509,6 +5509,7 @@
       return;
     }
 
+    if (!(options && options.recordPage) && window.CHISEL_PORTAL_EXPLORE) window.CHISEL_PORTAL_EXPLORE.appendInlineBsvMedia(supportTarget,row);
     const twetch=twetchForRow(row);
     if(twetch){
       const section=document.createElement("section");section.className="portalInterpretedRecord";
