@@ -329,7 +329,22 @@
       if (view && view.key === key) { commentViews.add(view); view.paint(); return; }
       if (view) commentViews.delete(view);
       container.replaceChildren();
+      const control = element("div", "portalCommentControl");
+      const toggle = button("💬", null);
+      toggle.className += " portalCommentToggle";
+      control.appendChild(toggle);
       const section = element("section", "portalComments");
+      section.hidden = true;
+      control.appendChild(section);
+      let manuallyToggled = false;
+      function setExpanded(expanded) {
+        section.hidden = !expanded;
+        toggle.setAttribute("aria-expanded", String(expanded));
+      }
+      toggle.onclick = function () {
+        manuallyToggled = true;
+        setExpanded(section.hidden);
+      };
       section.appendChild(element("h5", "", "Comments"));
       const entries = element("div"); section.appendChild(entries);
       view = makeFeed(entries, {subject: key, kind: "comment"}, true);
@@ -352,7 +367,18 @@
       };
       section.appendChild(form);
       section.appendChild(element("p", "muted", "Each comment is a new dated entry. A loaded identity signs the comment with its Litecoin identity."));
-      container.appendChild(section); commentsByContainer.set(container, view); commentViews.add(view);
+      const paintFeed = view.paint;
+      view.paint = function () {
+        paintFeed();
+        const feed = client.feed(view.filter), count = feed.items.length;
+        const countLabel = String(count) + (count && feed.hasMore ? "+" : "");
+        const label = count ? countLabel + " loaded comments" : "Comments: add or view";
+        if (!manuallyToggled) setExpanded(count > 0);
+        toggle.textContent = count ? "💬 " + countLabel : "💬";
+        toggle.setAttribute("aria-label", label);
+        toggle.title = label;
+      };
+      container.appendChild(control); commentsByContainer.set(container, view); commentViews.add(view);
       view.paint(); client.refresh(view.filter);
     }
     async function tick(force) {
