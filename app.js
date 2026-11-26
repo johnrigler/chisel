@@ -2467,12 +2467,14 @@ function onClickAddCommonAddressButton() {
 
     try {
       const url = new URL(window.location.href);
-      initialMode = url.searchParams.get("mode") || "portal";
+      const shared = url.searchParams.has("opreturn") || url.searchParams.has("share_url") ||
+        url.searchParams.has("share_text") || new URLSearchParams(url.hash.slice(1)).has("opreturn");
+      initialMode = url.searchParams.get("mode") || (shared ? "send" : "portal");
       const coin = url.searchParams.get("coin");
       // A Portal record keeps its explicit view and chain identity. A bare
       // ?coin=evm link still opens the Polygon workbench.
       if (coin === "evm" || coin === "polygon") {
-        if (url.searchParams.has("mode") && normalizeMode(initialMode) === "send") {
+        if ((url.searchParams.has("mode") || shared) && normalizeMode(initialMode) === "send") {
           document.body.dataset.sendNetwork = "polygon";
           initialMode = "send";
         } else if (!url.searchParams.has("mode") && !(window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href))) {
@@ -3159,6 +3161,9 @@ function onClickAddCommonAddressButton() {
     // The Portal owns discovery, regardless of whether the share came from
     // Mogwai, a copied URL, or a Chisel link. Do not open Send for a match.
     let existingRecord = null;
+    if (/https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\//i.test(text)) {
+      setStatusMessage("Checking whether this video is already in the ledger…", false);
+    }
     if (window.CHISEL_PORTAL && typeof window.CHISEL_PORTAL.resolveSharedYoutube === "function") {
       try { existingRecord = await window.CHISEL_PORTAL.resolveSharedYoutube(text); }
       catch (error) { console.warn("Shared video resolution:", error); }

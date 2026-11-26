@@ -3016,6 +3016,25 @@
     return { added: added, updated: updated, total: rows.length };
   }
 
+  // The 832 KB starter bundle is Portal data, not a Send dependency.
+  let starterDatasetPromise = null;
+  function ensureStarterDataset() {
+    if (window.CHISEL_PORTAL_STARTER_DATA) return Promise.resolve(loadEmbeddedStaticDataset());
+    if (starterDatasetPromise) return starterDatasetPromise;
+    starterDatasetPromise = new Promise(function (resolve) {
+      const script = document.createElement("script");
+      script.src = "data-bundled/portal-starter.js?rev=20261012S";
+      script.async = true;
+      script.onload = function () {
+        try { resolve(loadEmbeddedStaticDataset()); }
+        catch (error) { console.warn("Bundled Portal data:", error); resolve(null); }
+      };
+      script.onerror = function () { starterDatasetPromise = null; resolve(null); };
+      document.head.appendChild(script);
+    });
+    return starterDatasetPromise;
+  }
+
   function loadEmbeddedStaticDataset() {
     const dataset = window.CHISEL_PORTAL_STARTER_DATA;
     if (!dataset || state.staticDatasetLoaded) return null;
@@ -5920,6 +5939,7 @@
 
   async function resolveSharedYoutube(input) {
     if (!youtubeIdFromUrl(input)) return null;
+    await ensureStarterDataset();
     let row = findExistingYoutubeRecord(input);
     if (!row) {
       // The startup bundle is not a complete ledger index. Refresh the
@@ -6512,6 +6532,7 @@
     const ms = Math.max(30000, Number(configValue("autoSyncEvmContractsMs", 60000)) || 60000);
     syncEvmContractsFromEtherscan().catch(function (error) { console.warn("Polygon contract auto-sync failed:", error); });
     state.evmSyncTimer = window.setInterval(function () {
+      if (document.body.dataset.mode !== "portal") return;
       syncEvmContractsFromEtherscan().catch(function (error) { console.warn("Polygon contract auto-sync failed:", error); });
     }, ms);
   }
@@ -6528,6 +6549,7 @@
     }
     if (ms < 1000) return;
     state.localPollTimer = window.setInterval(function () {
+      if (document.body.dataset.mode !== "portal") return;
       listLocalTransactions().catch(function () {});
     }, ms);
   }
@@ -7862,7 +7884,7 @@ function getPortalFirstCharacter() {
       });
     });
     renderEmptyTransactionList(state.personalAccount ? "Restoring your account stream…" : "Loading bundled static dataset; live ledger searches can add newer records after first paint.");
-    loadEmbeddedStaticDataset();
+    // Starter data is loaded when Portal or an explicit duplicate lookup needs it.
 
     if (loadTx) loadTx.onclick = async function () {
       try {
@@ -8058,15 +8080,19 @@ function getPortalFirstCharacter() {
       if (!document.hidden && configBool("liveLedgerRefreshOnFocus", true)) refreshLiveLedger();
     });
 
-    loadColorMap(DEFAULT_COLOR_PATH).catch(function (error) {
-      setStatus(error.message || String(error), true);
-    });
-
     recordCatalogConfig = loadPortalConfig().then(function (config) {
       applyPortalConfig(config);
       applyEvmProfileConfig();
     });
-    recordCatalogConfig.then(function () {
+    let portalBackgroundStarted = false;
+    function startPortalBackground() {
+      if (portalBackgroundStarted || document.body.dataset.mode !== "portal") return;
+      portalBackgroundStarted = true;
+      ensureStarterDataset();
+      loadColorMap(DEFAULT_COLOR_PATH).catch(function (error) {
+        setStatus(error.message || String(error), true);
+      });
+      recordCatalogConfig.then(function () {
       initializePortalInteractions();
       // A saved public identity is the homepage. The generic indexes remain
       // available through explicit navigation, never as an automatic takeover.
@@ -8128,7 +8154,11 @@ function getPortalFirstCharacter() {
         loadPersonalAccountStream(state.personalAccount, {filterResults:true, noReloadIfCurrent:false, captureReturnView:false}).catch(function () {});
       }
       startLiveLedgerPolling();
-    });
+      });
+    }
+    window.addEventListener("chisel:mode", startPortalBackground);
+    // Defer the initial Portal workload until after the shell can paint.
+    window.setTimeout(startPortalBackground, 0);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);

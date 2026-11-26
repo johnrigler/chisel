@@ -3,10 +3,8 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-I+7AUwXmWyjQ8AKvwAMSEANQU4+Z0wkMOeTeWPPBySA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261125-polygon-fees-v2890"></script>
-  <script src="chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
-  <title>Chisel</title>
+  <title>Chisel 2.8.91</title>
   <meta name="description" content="Chisel is a browser-first portal for public ledger records, readable artifacts, and transaction tools.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Chisel">
@@ -2326,7 +2324,7 @@
   <header>
     <div class="shell">
       <div class="topBar">
-        <div class="headerBrand"><h1>Chisel</h1><p id="version" class="muted"></p></div>
+        <div class="headerBrand"><h1>Chisel</h1><p id="version" class="muted">chisel v2.8.91</p></div>
         <div class="headerIdentity" id="headerIdentity" title="Current public identity; open menu for account actions">
           <label class="headerCurrencyLabel" for="headerCurrency">Currency</label>
           <select id="headerCurrency" aria-label="Choose active Send currency">
@@ -2398,7 +2396,8 @@
     </div>
   </section>
 
-  <main>
+  <script src="chisel.version.js?rev=20261125-route-boot-v2891"></script>
+  <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
         <button class="modeButton active" type="button" data-mode-target="portal">Portal</button>
@@ -3573,6 +3572,7 @@
     });
   })();
   </script>
+<script src="chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
 <script src="chisel.activity-monitor.js?rev=20261117-progress2-v2840"></script>
   <script src="chisel.debug.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.ai-context.js?rev=20261117-unified-diag-v2844"></script>
@@ -3591,7 +3591,6 @@
   <script src="chisel.litecoin.js?rev=20261017-security1"></script>
   <script src="chisel.networks.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.thunderwords.js?rev=20261122-bsv-scan-v2867"></script>
-  <script src="data-bundled/portal-starter.js?rev=20261012S"></script>
 <script src="chisel.portal.static-data.js?rev=20261124-files-v2877"></script>
   <script src="chisel.evm.decode.js?rev=20261125-polygon-share-v2881"></script>
   <script src="chisel.portal.payload.js?rev=20261122-bsv-scan-v2867"></script>
@@ -3607,7 +3606,7 @@
   <script src="chisel.portal.record.js?rev=20261124-base58-v2878"></script>
   <script src="chisel.interactions.js?rev=20261122-bsv-scan-v2867"></script>
   <script src="chisel.interactions.ui.js?rev=20261117-transaction-only-v2841"></script>
-  <script src="chisel.portal.js?rev=20261125-polygon-share-v2881"></script>
+  <script src="chisel.portal.js?rev=20261125-route-boot-v2891"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>
@@ -3624,7 +3623,7 @@
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.evm.share.js?rev=20261125-polygon-qr-v2885"></script>
   <script src="chisel.youtube.ui.js?rev=20261125-native-polygon-v2886"></script>
-  <script src="app.js?rev=20261125-native-polygon-v2886"></script>
+  <script src="app.js?rev=20261125-route-boot-v2891" fetchpriority="high"></script>
   <script src="vendor/ethers-6.6.0.umd.min.js"></script>
   <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
   <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
