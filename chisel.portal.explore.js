@@ -17,8 +17,39 @@
   const recordFacts=new WeakMap();
   const list=v=>Array.isArray(v)?v:[];
   const norm=v=>String(v||"").trim().toLowerCase();
+  // Addresses are case-sensitive. Provider-reported destinations and asserted
+  // AIP signers are evidence, not proof of ownership or spendability.
+  function addressTrails(raw, metadataRecords, coin) {
+    const tx=raw&&(raw.tx||raw)||{}, result=new Map();
+    const testnet=coin==="bsvTestnet";
+    const pattern=testnet?/^[mn2][1-9A-HJ-NP-Za-km-z]{25,34}$/:/^[13][1-9A-HJ-NP-Za-km-z]{25,34}$/;
+    function add(value,role) {
+      if(typeof value!=="string"||!pattern.test(value))return;
+      if(!result.has(value))result.set(value,{address:value,roles:[],wordCandidate:!testnet&&/^1[A-E]x/.test(value)});
+      const roles=result.get(value).roles;if(!roles.includes(role))roles.push(role);
+    }
+    function reported(entry,role) {
+      if(!entry)return;
+      const script=entry.scriptPubKey||entry.script||{};
+      [entry.scriptpubkey_address,entry.address,entry.addr,script.address,...list(entry.addresses),...list(script.addresses)].forEach(a=>add(a,role));
+    }
+    list(tx.vin||tx.inputs).forEach((input,i)=>{
+      reported(input,"input "+i+" (reported)");
+      reported(input&&input.prevout,"input "+i+" prevout");
+    });
+    list(tx.vout||tx.outputs).forEach((output,i)=>reported(output,"output "+(output&&Number.isInteger(output.n)?output.n:i)));
+    list(metadataRecords).filter(m=>m&&m.protocol==="AIP").forEach(m=>list(m.fields).filter(f=>f&&f.key==="signing address").forEach(f=>add(f.value,"AIP signer (unverified)")));
+    return Array.from(result.values());
+  }
+  function addressExplorerLinks(coin,address) {
+    if(coin!=="bsv"||typeof address!=="string"||!/^[13][1-9A-HJ-NP-Za-km-z]{25,34}$/.test(address))return [];
+    const a=encodeURIComponent(address);
+    return [{label:"BSV · WhatsOnChain",url:"https://whatsonchain.com/address/"+a},
+      {label:"BTC · mempool.space",url:"https://mempool.space/address/"+a},
+      {label:"BCH · Blockchair",url:"https://blockchair.com/bitcoin-cash/address/"+a}];
+  }
   function facts(row) {
-    if (!/^bsv(?::|Testnet|$)/.test(scope(row))) return {apps:[],collections:[],parents:[],name:""};
+    if (!/^bsv(?::|Testnet|$)/.test(scope(row))) return {apps:[],collections:[],parents:[],addresses:[],name:""};
     const summary=row.summary||{}, raw=row.raw, cached=recordFacts.get(row);
     if(cached && cached.raw===raw && cached.summary===summary) return cached.value;
     const api=root.CHISEL_BSV_MEDIA;
@@ -35,6 +66,7 @@
     const twetch=raw&&api&&api.twetchPost(raw);
     const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>norm(f.value)==="twetch"?"Twetch":f.value)).concat(files.filter(f=>f&&f.encrypted&&f.metadata&&/^indelible\./.test(f.metadata.application)).map(()=>"Indelible"))),
       collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
+      addresses:addressTrails(raw,map,store().canonicalCoinForRow(row)),
       parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
       name:encrypted ? encrypted.name : twetch ? twetch.name : ordinal ? ordinalTitle(ordinal) : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : ""};
     recordFacts.set(row,{raw,summary,value});return value;
@@ -96,6 +128,7 @@
     if(facet.kind==="app")return f.apps.some(a=>norm(a)===value);
     if(facet.kind==="collection")return f.collections.some(a=>norm(a)===value);
     if(facet.kind==="parent")return norm(row.txid)===value||f.parents.some(p=>p.txid===value);
+    if(facet.kind==="address")return f.addresses.some(a=>a.address===facet.value);
     return false;
   }
   function interpretationLines(row) {
@@ -178,6 +211,30 @@
         facetPanel.appendChild(b);
       }
       f.apps.forEach(a=>add("app",a,"Explore "+a));
+      const coin=store().canonicalCoinForRow(current);
+      if(coin==="bsv"&&/^[a-f0-9]{64}$/i.test(current.txid)){
+        const a=doc.createElement("a");a.className="secondaryButton";a.textContent="BananaBlocks";
+        a.href="https://bananablocks.com/tx/"+current.txid;a.target="_blank";a.rel="noopener noreferrer";facetPanel.appendChild(a);
+      }
+      if(f.addresses.length){
+        const details=doc.createElement("details");details.style.width="100%";
+        const title=doc.createElement("summary");title.textContent="Address rabbit trails ("+f.addresses.length+")";details.appendChild(title);
+        if(facet&&facet.kind==="address")details.open=true;
+        const note=doc.createElement("p");note.className="muted";note.textContent="Local catalog matches exact addresses. External links inspect separate ledgers; equal address text does not establish shared activity or ownership. Word candidates and AIP signers are not verified.";details.appendChild(note);
+        f.addresses.forEach(trail=>{
+          const line=doc.createElement("div");line.className="portalRecordFile";
+          const label=doc.createElement("p");label.textContent=trail.address+" · "+trail.roles.join(" · ")+(trail.wordCandidate?" · Thunderword-pattern candidate":"");label.style.overflowWrap="anywhere";line.appendChild(label);
+          const b=doc.createElement("button");b.type="button";b.className="secondaryButton";b.textContent="Explore loaded address history";
+          b.setAttribute("aria-pressed",String(!!facet&&facet.kind==="address"&&facet.value===trail.address));
+          b.onclick=()=>{facet={kind:"address",value:trail.address};query.value="";type.value="all";block.value="all";renderFacets();renderResults();};
+          line.appendChild(b);
+          addressExplorerLinks(coin,trail.address).forEach(link=>{
+            const a=doc.createElement("a");a.className="secondaryButton";a.textContent=link.label;a.href=link.url;a.target="_blank";a.rel="noopener noreferrer";line.appendChild(a);
+          });
+          details.appendChild(line);
+        });
+        facetPanel.appendChild(details);
+      }
       f.collections.forEach(a=>add("collection",a,"Collection: "+a));
       Array.from(new Set(f.parents.map(p=>p.txid))).forEach(txid=>{
         add("parent",txid,"Related: parent "+txid.slice(0,12)+"…");
@@ -329,5 +386,5 @@
       if (!checkedServices) { checkedServices = true; services(); }
     }, clear: function () { clearFiles(); current = null; facet=null; facetPanel.replaceChildren(); }};
   }
-  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, ordinalTitle: ordinalTitle, appendInlineBsvMedia: appendInlineBsvMedia, interpretationLines: interpretationLines, matchesFacet: matchesFacet, search: search, createController: createController};
+  root.CHISEL_PORTAL_EXPLORE = {scope: scope, fileList: fileList, imageRow: imageRow, facts: facts, addressTrails: addressTrails, addressExplorerLinks: addressExplorerLinks, ordinalTitle: ordinalTitle, appendInlineBsvMedia: appendInlineBsvMedia, interpretationLines: interpretationLines, matchesFacet: matchesFacet, search: search, createController: createController};
 })(window);
