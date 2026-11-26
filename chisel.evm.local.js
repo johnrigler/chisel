@@ -85,7 +85,7 @@
         if (balance < reviewed.tx.value + reviewed.tx.gasLimit*reviewed.tx.maxFeePerGas) throw Error("POL balance changed; review again.");
         if (epoch !== generation || wallet !== active) throw Error("Local identity changed.");
         let raw;
-        try { raw = await active.signTransaction(reviewed.tx); }
+        try { raw = await active.signTransaction({ ...reviewed.tx }); }
         catch (_) { throw Error("Local signing failed."); }
         if (epoch !== generation || wallet !== active) throw Error("Local identity changed before broadcast.");
         const hash = ethers.keccak256(raw);
