@@ -35,3 +35,38 @@ test("local signer uses only raw signed Polygon bytes and locks on demand",async
  chain="0x1"; await assert.rejects(adapter.quote(tx,"30000"),/Polygon mainnet/);
  adapter.lock(); assert.equal(adapter.address,"");
 });
+
+test("broadcast displays upstream RPC error and code without exposing signed bytes",async()=>{
+ let raw, known=false;
+ const transport={async getFeeData(){return {maxFeePerGas:100n,maxPriorityFeePerGas:10n};},
+ async send(method,params){
+   if(method==="eth_chainId")return "0x89";
+   if(method==="eth_getTransactionCount")return "0x0";
+   if(method==="eth_getBalance")return "0x10000000000000000";
+   if(method==="eth_sendRawTransaction"){
+     raw=params[0];
+     throw Object.assign(Error("could not coalesce error"),{
+       code:"UNKNOWN_ERROR",shortMessage:"could not coalesce error",
+       info:{error:{code:-32000,message:"transaction gas price below minimum: "+raw+" at https://example.com/private-token"},payload:{params:[raw]}}
+     });
+   }
+   if(method==="eth_getTransactionReceipt")return null;
+   if(method==="eth_getTransactionByHash")return known?{hash:ethers.keccak256(raw)}:null;
+   throw Error(method);
+ }};
+ const adapter=api.createLocalWallet(ethers,transport);
+ const from=adapter.unlock(pk);
+ const tx={from,to:"0x"+"12".repeat(20),data:"0x1234",value:"0x0"};
+ await adapter.quote(tx,"30000");
+ await assert.rejects(adapter.request({method:"eth_sendTransaction",params:[tx]}),error=>{
+   assert.match(error.message,/transaction gas price below minimum/);
+   assert.match(error.message,/-32000, UNKNOWN_ERROR/);
+   assert.ok(!error.message.includes(raw));
+   assert.ok(!error.message.includes("private-token"));
+   assert.equal(error.transactionHash,ethers.keccak256(raw));
+   return true;
+ });
+ known=true;
+ await adapter.quote(tx,"30000");
+ assert.equal(await adapter.request({method:"eth_sendTransaction",params:[tx]}),ethers.keccak256(raw));
+});

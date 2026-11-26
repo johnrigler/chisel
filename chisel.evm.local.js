@@ -28,6 +28,32 @@
     if (scalar === 0n || scalar >= SCALAR_LIMIT) throw Error("Invalid private key scalar.");
     return new ethers.Wallet("0x" + key);
   }
+  function rpcBroadcastDiagnostic(error) {
+    // ethers may put the real JSON-RPC response under info.error.
+    // Never stringify the exception, payload, request, or response body.
+    const nested = [error?.info?.error, error?.error, error?.cause?.info?.error,
+      error?.cause?.error, error?.cause];
+    const sanitize = value => {
+      if (typeof value !== "string") return "";
+      return value
+        .split(/\s+\((?:error|payload|requestBody|request|response|transaction|value|code)=/i)[0]
+        .replace(/(?:0x)?[0-9a-f]{64,}/gi, "[hex redacted]")
+        .replace(/[1-9A-HJ-NP-Za-km-z]{50,53}/g, "[key redacted]")
+        .replace(/https?:\/\/[^\s"'<>]+/gi, "[URL redacted]")
+        .replace(/[\u0000-\u001f\u007f]+/g, " ")
+        .trim().slice(0, 500);
+    };
+    const upstream = nested.find(item => typeof item?.message === "string" && item.message.trim());
+    const detail = sanitize(upstream?.message) || sanitize(error?.shortMessage) ||
+      sanitize(error?.message) || "RPC did not provide an error message";
+    const codes = [...new Set([upstream?.code, error?.code].filter(code =>
+      (typeof code === "number" && Number.isFinite(code)) ||
+      (typeof code === "string" && /^[-A-Z0-9_]{1,40}$/i.test(code))))];
+    const status = [error?.info?.responseStatus, error?.status, error?.statusCode]
+      .find(value => typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599);
+    return detail + (codes.length ? " [code: " + codes.join(", ") + "]" : "") +
+      (status ? " [HTTP " + status + "]" : "");
+  }
   function createLocalWallet(ethers, rpc) {
     const transport = rpc || new ethers.JsonRpcProvider(RPC, CHAIN, {batchMaxCount:1});
     let wallet = null, generation = 0, plan = null, sending = false;
@@ -101,10 +127,7 @@
           if (String(result).toLowerCase() !== hash.toLowerCase()) throw Error("Hash mismatch.");
           return hash;
         } catch (error) {
-          // Never expose ethers' full error object: it may embed raw signed calldata.
-          const details = [error?.shortMessage,error?.message,error?.info?.error?.message,error?.error?.message].filter(Boolean).join(" ");
-          const known = ["already known","nonce too low","nonce too high","replacement transaction underpriced","transaction underpriced","max fee per gas less than block base fee","fee cap less than block base fee","insufficient funds","invalid sender","rate limit","too many requests","method not allowed","method not found","timeout","network error","failed to fetch","hash mismatch"];
-          const reason = known.find(value => details.toLowerCase().includes(value)) || "RPC returned an unclassified error";
+          const reason = rpcBroadcastDiagnostic(error);
           try {
             const receipt = await call("eth_getTransactionReceipt",[hash]);
             const found = receipt || await call("eth_getTransactionByHash",[hash]);
