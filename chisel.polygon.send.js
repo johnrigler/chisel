@@ -88,11 +88,13 @@
         if (String(receipt.transactionHash).toLowerCase() !== hash.toLowerCase()) throw Error("Receipt hash mismatch.");
         const state = BigInt(receipt.status);
         if (state !== 0n && state !== 1n) throw Error("Unrecognized receipt status.");
+        if (root.CHISEL_PORTAL) root.CHISEL_PORTAL.trackPolygonHash(hash);
         txStatus.textContent = (state === 1n ? "Confirmed successfully" : "Confirmed, execution reverted") + " in block " + BigInt(receipt.blockNumber).toString() + ".";
         if (unresolved.toLowerCase() === hash.toLowerCase()) unresolved = "";
       } else {
         const tx = await local.request({method:"eth_getTransactionByHash",params:[hash]});
         if (tx && String(tx.hash).toLowerCase() !== hash.toLowerCase()) throw Error("Transaction hash mismatch.");
+        if (tx && root.CHISEL_PORTAL) root.CHISEL_PORTAL.trackPolygonHash(hash);
         txStatus.textContent = tx ? "Transaction found; awaiting receipt." : "Not found by this RPC. This is not proof of rejection; check PolygonScan before resending.";
       }
     } catch (_) { txStatus.textContent = "Receipt lookup failed. Check PolygonScan or another Polygon RPC."; }
@@ -270,6 +272,7 @@
       const result = await writer.submit(provider,reviewed);
       invalidate();
       showHash(result.hash);
+      if (root.CHISEL_PORTAL) root.CHISEL_PORTAL.trackPolygonHash(result.hash);
       message("Submitted: " + result.hash);
       txStatus.textContent = "Submitted; check receipt to confirm execution.";
     } catch(error) {

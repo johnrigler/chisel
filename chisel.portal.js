@@ -3422,6 +3422,7 @@
     if (row.staticSource) flags.push(row.staticSource);
     if (row.discoverySource) flags.push(row.discoverySource);
     if (row.localPath) flags.push("local");
+    if (row.polygonReceiptStatus) flags.push(row.polygonReceiptStatus);
     flags.push(row.raw ? "hydrated" : "summary");
     const annotation = getPortalAnnotation(row);
     if (annotation.note) flags.push("note");
@@ -3631,6 +3632,12 @@
 
   function sortPortalRows() {
     state.portalRows.sort(function (a, b) {
+      const pin = recentPolygon && Date.now() - recentPolygon.at < 900000 ? recentPolygon.hash.slice(2) : "";
+      if (pin) {
+        const apin = a.txid === pin && sourceIdForRow(a) === "evmChisel";
+        const bpin = b.txid === pin && sourceIdForRow(b) === "evmChisel";
+        if (apin !== bpin) return Number(bpin) - Number(apin);
+      }
       const ap = a.publication && a.publication.ledgerState !== "seen" ? 1 : 0;
       const bp = b.publication && b.publication.ledgerState !== "seen" ? 1 : 0;
       if (ap !== bp) return bp - ap;
@@ -3745,7 +3752,7 @@
 
   function resetPortalRowsForNewLoad() {
     snapshotRecentPortalSummaries(false);
-    const publications = state.portalRows.filter(function (row) { return !!row.publication; });
+    const publications = state.portalRows.filter(function (row) { return !!row.publication || !!row.recentPolygon; });
     state.portalLoadGeneration += 1;
     loadingQueue.reset();
     state.liveLedgerHistories = Object.create(null);
@@ -6367,6 +6374,102 @@
 
   // Rigler's scheduled indexer owns discovery. Refresh its Chisel catalog
   // independently of the optional browser Etherscan adapter.
+  // Remember only the public hash, not any signing material.
+  const RECENT_POLYGON_KEY = "chisel.portal.recentPolygonHash.v1";
+  let recentPolygon = null, recentPolygonTimer = null, recentPolygonBusy = false;
+  let recentPolygonReveal = false;
+  function revealRecentPolygon() {
+    if (!recentPolygonReveal || document.body.dataset.mode !== "portal") return;
+    recentPolygonReveal = false;
+    clearPortalSearch();
+    setPortalFilterValue("evmChisel", true);
+    state.portalPage = 1;
+    state.portalSortPending = true;
+    requestPortalRender();
+  }
+  async function readRecentPolygon(method, params) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(function () { controller.abort(); }, 10000);
+    try {
+      const response = await fetch("https://polygon.drpc.org", {method:"POST", cache:"no-store",
+        headers:{"Content-Type":"application/json"}, signal:controller.signal,
+        body:JSON.stringify({jsonrpc:"2.0",id:1,method:method,params:params})});
+      if (!response.ok) throw Error("Polygon RPC unavailable");
+      const body = await response.json();
+      if (body.error || !Object.prototype.hasOwnProperty.call(body,"result")) throw Error("Polygon RPC read failed");
+      return body.result;
+    } finally { window.clearTimeout(timeout); }
+  }
+  async function refreshRecentPolygon() {
+    if (!recentPolygon || recentPolygonBusy) return;
+    const target = recentPolygon;
+    recentPolygonBusy = true;
+    let retry = true;
+    try {
+      const chain = await readRecentPolygon("eth_chainId", []);
+      if (BigInt(chain) !== 137n) throw Error("Unexpected Polygon chain");
+      const [tx, receipt] = await Promise.all([
+        readRecentPolygon("eth_getTransactionByHash",[target.hash]),
+        readRecentPolygon("eth_getTransactionReceipt",[target.hash])
+      ]);
+      if (target !== recentPolygon) return;
+      if (!tx) return;
+      const profile = EVM_PROFILES.find(function (item) { return item.id === "chisel"; });
+      if (String(tx.hash).toLowerCase() !== target.hash ||
+          String(tx.to).toLowerCase() !== profile.contractAddress.toLowerCase()) {
+        retry = false; return;
+      }
+      if (receipt && (String(receipt.transactionHash).toLowerCase() !== target.hash ||
+          !["0x0","0x1"].includes(receipt.status))) throw Error("Invalid Polygon receipt");
+      let timestamp = 0;
+      if (receipt && receipt.blockNumber) {
+        try {
+          const block = await readRecentPolygon("eth_getBlockByNumber",[receipt.blockNumber,false]);
+          if (block && block.hash === receipt.blockHash) timestamp = Number(block.timestamp);
+        } catch (_) {}
+      }
+      if (target !== recentPolygon) return;
+      const publicTx = Object.assign({},tx,{timeStamp:timestamp,
+        gasUsed:receipt ? receipt.gasUsed : "",isError:receipt ? (receipt.status === "0x0" ? "1" : "0") : ""});
+      const packet = evmTxPacket(publicTx,profile);
+      packet.source.kind = "polygon-rpc-hash";
+      if (receipt) packet.receipt = receipt;
+      const status = receipt ? (receipt.status === "0x1" ? "receipt confirmed" : "execution reverted") : "receipt pending";
+      const row = upsertPortalRow({coin:"evm",txid:packet.txid,index:evmIndexEntry(profile),raw:packet,
+        summary:packet.summary,receivedTime:target.at/1000,confirmed:!!receipt,
+        recentPolygon:true,polygonReceiptStatus:status,discoverySource:"polygon-rpc"}, {ledgerObserved:true});
+      if (row) revealRecentPolygon();
+      retry = !receipt;
+    } catch (error) { console.warn("Recent Polygon transaction lookup:", error); }
+    finally {
+      recentPolygonBusy = false;
+      if (recentPolygon !== target) {
+        if (recentPolygon) refreshRecentPolygon();
+      } else if (retry && Date.now()-target.at < 120000) {
+        recentPolygonTimer = window.setTimeout(function () { recentPolygonTimer = null; refreshRecentPolygon(); },5000);
+      }
+    }
+  }
+  function trackPolygonHash(hash, restoredAt) {
+    hash = String(hash || "").toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(hash)) return;
+    const at = Number(restoredAt) || Date.now();
+    if (at > Date.now() || Date.now()-at >= 900000) return;
+    if (recentPolygonTimer) window.clearTimeout(recentPolygonTimer);
+    recentPolygonTimer = null;
+    recentPolygon = {hash:hash,at:at};
+    recentPolygonReveal = true;
+    try { window.localStorage.setItem(RECENT_POLYGON_KEY,JSON.stringify(recentPolygon)); } catch (_) {}
+    refreshRecentPolygon();
+  }
+  function restoreRecentPolygon() {
+    if (recentPolygon) { revealRecentPolygon(); return; }
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(RECENT_POLYGON_KEY) || "null");
+      if (saved && Number(saved.at) > 0) trackPolygonHash(saved.hash,saved.at);
+    } catch (_) {}
+  }
+
   function refreshIndexedChisel() {
     if (document.hidden || document.body.dataset.mode !== "portal" ||
         !configBool("autoLoadEvmCatalog", true)) return Promise.resolve(null);
@@ -8115,6 +8218,8 @@ function getPortalFirstCharacter() {
     });
     window.addEventListener("chisel:mode", function (event) {
       if (event.detail && event.detail.mode === "portal") {
+        restoreRecentPolygon();
+        revealRecentPolygon();
         refreshLiveLedger();
         if (recordCatalogConfig) recordCatalogConfig.then(refreshIndexedChisel).catch(function () {});
       }
@@ -8203,7 +8308,10 @@ function getPortalFirstCharacter() {
     }
     window.addEventListener("chisel:mode", startPortalBackground);
     // Defer the initial Portal workload until after the shell can paint.
-    window.setTimeout(startPortalBackground, 0);
+    window.setTimeout(function () {
+      startPortalBackground();
+      if (document.body.dataset.mode === "portal") restoreRecentPolygon();
+    }, 0);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
@@ -8249,6 +8357,7 @@ function getPortalFirstCharacter() {
     recordUrl: portalRecordUrl,
     recordSourceUrl: recordDataUrl,
     presentPublication: presentPublication,
+    trackPolygonHash: trackPolygonHash,
     renderSemantics: renderSemantics,
     loadPortalAnnotations: loadPortalAnnotations,
     getPortalAnnotation: getPortalAnnotation,
