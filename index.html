@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' 'sha256-I+7AUwXmWyjQ8AKvwAMSEANQU4+Z0wkMOeTeWPPBySA=' 'sha256-y6csnKO6qFLjATKeEj3BbcML9GSbaunxrEruIrtt4KI='; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta charset="utf-8" />
-  <script src="chisel.version.js?rev=20261125-polygon-qr-v2885"></script>
+  <script src="chisel.version.js?rev=20261125-native-polygon-v2886"></script>
   <script src="chisel.stickers.js?rev=20261119-simple-labels-v2865"></script>
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Chisel</title>
@@ -601,6 +601,10 @@
     .aboutMeta { color:#91a4b7; font-size:12px; }
     @media(max-width:760px){.aboutGrid{grid-template-columns:1fr}.aboutActions{display:grid}.aboutAction{width:100%}}
 
+    #polygonSendPanel[hidden], body[data-send-network="polygon"] #utxoSendPanel, body[data-send-network="polygon"] #utxoSendHero, body[data-send-network="polygon"] #youtubeDriver { display:none!important; }
+    #polygonSendPanel { overflow-wrap:anywhere; }
+    #polygonSendPanel pre { white-space:pre-wrap; }
+    #polygonSendPanel .grid input, #polygonSendPanel .grid textarea { min-width:0; }
     .polygonWorkbenchFrame { width:100%; height:min(86vh,1100px); min-height:780px; border:1px solid #39434d; border-radius:10px; display:block; background:#101214; }
     @media(max-width:760px){ .polygonWorkbenchFrame{height:82vh;min-height:680px} }
 
@@ -2528,14 +2532,48 @@
     </section>
 
     <section class="modePanel" data-mode-panel="etch">
-    <section class="panel hero">
+    <section class="panel hero" id="utxoSendHero">
       <h2 id="heroTitle">Send crypto</h2>
       <p id="heroText">
         Paste one private key in WIF format, optionally add OP_RETURN data, and broadcast a self-send consolidation transaction. Your private key is only used locally in this session and never sent to the remote API.
       </p>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="polygonSendPanel" hidden>
+      <h2>Send Polygon (POL)</h2>
+      <p class="muted">Polygon mainnet · chain 137 · Chisel short record</p>
+      <div class="grid">
+        <label for="polygonSendCurrency">Currency</label>
+        <select id="polygonSendCurrency"><option value="polygon">Polygon (POL)</option></select>
+        <label for="polygonSendMethod">Signing method</label>
+        <select id="polygonSendMethod"><option value="local">Chisel local key</option><option value="metamask">MetaMask / injected wallet</option></select>
+        <label for="polygonSendKey">Sender private key</label>
+        <div class="fieldStack">
+          <input id="polygonSendKey" type="password" autocomplete="off" spellcheck="false" placeholder="64 hex characters or WIF">
+          <div class="actions">
+            <button id="polygonSendLoadKey" type="button" class="secondaryButton">LOAD KEY / CONNECT</button>
+            <button id="polygonSendClearKey" type="button" class="secondaryButton">SWITCH IDENTITY</button>
+            <a href="qrScan.html?currency=polygon&amp;rev=20261125-native-polygon-v2886">SCAN KEY</a>
+          </div>
+        </div>
+        <label for="polygonSendAddress">Derived public address</label>
+        <div class="fieldStack">
+          <input id="polygonSendAddress" readonly>
+          <div class="actions"><button id="polygonSendBalance" type="button" class="secondaryButton">CHECK FUNDS</button><span id="polygonSendFunds"></span></div>
+        </div>
+        <label for="polygonSendText">Record text</label>
+        <div class="fieldStack"><textarea id="polygonSendText" rows="3" spellcheck="false"></textarea><span class="help" id="polygonSendBytes">0 / 80 UTF-8 bytes</span></div>
+      </div>
+      <div class="actions">
+        <button id="polygonSendReview" type="button">REVIEW</button>
+        <button id="polygonSendBroadcast" type="button" disabled>SEND</button>
+      </div>
+      <p id="polygonSendStatus" role="status" aria-live="polite">Load a key to begin.</p>
+      <pre id="polygonSendPreview" hidden></pre>
+      <p><a id="polygonSendTx" target="_blank" rel="noopener noreferrer" hidden>View transaction on PolygonScan</a></p>
+      <p class="help">This Send form publishes a short record through the existing Chisel contract. For advanced contract calls use Tools / EVM Workbench.</p>
+    </section>
+    <section class="panel" id="utxoSendPanel">
       <div class="actions">
         <button id="sendLocalPolygonButton" class="secondaryButton" type="button">CHISEL LOCAL WIF (POLYGON)</button>
         <button id="sendMetaMaskButton" class="secondaryButton" type="button">USE METAMASK (POLYGON)</button>
@@ -3184,7 +3222,7 @@
             <strong>Broadcast key capture</strong>
             <span>Tablet/phone scanner for four left-to-right colored key stickers, scanned-key library, multi-chain addresses, red private-key QR, direct-printer/PNG handoff, and return to Chisel.</span>
           </a>
-          <a class="toolCard" href="qrScan.html?rev=20261125-polygon-qr-v2885">
+          <a class="toolCard" href="qrScan.html?rev=20261125-native-polygon-v2886">
             <strong>Legacy QR / WIF scanner</strong>
             <span>Older linear scanner: assemble four 16-hex stickers, paste a full hex key or WIF, and verify an address including Polygon before loading.</span>
           </a>
@@ -3322,7 +3360,7 @@
     const headerCurrency = document.getElementById("headerCurrency");
     const sendCurrency = document.getElementById("currency");
     if (headerCurrency && sendCurrency) {
-      const syncCurrency = function () { headerCurrency.value = sendCurrency.value; if (typeof updateHeaderIdentity === "function") updateHeaderIdentity(); };
+      const syncCurrency = function () { headerCurrency.value = document.body.dataset.sendNetwork === "polygon" ? "polygon" : sendCurrency.value; if (typeof updateHeaderIdentity === "function") updateHeaderIdentity(); };
       headerCurrency.addEventListener("change", function () {
         sendCurrency.value = headerCurrency.value;
         sendCurrency.dispatchEvent(new Event("change", { bubbles: true }));
@@ -3553,8 +3591,14 @@
   <script src="chisel.header-identity.js?rev=20261120-network-accounts-v2866"></script>
 <script src="chisel.share-driver.js?rev=20261117-youtube-v2847"></script>
   <script src="chisel.evm.share.js?rev=20261125-polygon-qr-v2885"></script>
-  <script src="chisel.youtube.ui.js?rev=20261125-polygon-qr-v2885"></script>
-  <script src="app.js?rev=20261125-polygon-qr-v2885"></script>
+  <script src="chisel.youtube.ui.js?rev=20261125-native-polygon-v2886"></script>
+  <script src="app.js?rev=20261125-native-polygon-v2886"></script>
+  <script src="vendor/ethers-6.6.0.umd.min.js"></script>
+  <script src="chisel.evm.contracts.js?rev=20261105-chisel-write"></script>
+  <script src="chisel.evm.chisel.js?rev=20261105-polygon-deployment"></script>
+  <script src="chisel.evm.write.js?rev=20261105-chisel-write"></script>
+  <script src="chisel.evm.local.js?rev=20261125-polygon-qr-v2885"></script>
+  <script src="chisel.polygon.send.js?rev=20261125-native-polygon-v2886"></script>
   <script src="chisel.networks.ui.js?rev=20261120-network-accounts-v2866"></script>
   <script src="chisel.share-diagnostics.js?rev=20261117-unified-diag-v2844"></script>
   <script src="chisel.selftest.js?rev=20261012S"></script>

@@ -85,7 +85,7 @@
         const bridge = root.CHISEL_EVM_SHARE;
         if (!bridge) throw new Error("Polygon share bridge unavailable. Refresh Chisel.");
         if (chainChoice.value === "metamask") bridge.openMetaMask(content.value);
-        else if (chainChoice.value === "local") root.location.href = bridge.localUrl(root.location.href, content.value);
+        else if (chainChoice.value === "local") root.openPolygonSend({text:content.value});
         else root.location.href = bridge.workbenchUrl(root.location.href, content.value);
       } catch (error) { $("ytStatus").textContent = error.message || String(error); }
       return;
@@ -115,7 +115,7 @@
   }).observe($("status"),{subtree:true,childList:true,characterData:true});
   const localButton = $("sendLocalPolygonButton");
   if (localButton) localButton.onclick = function () {
-    try { root.location.href = root.CHISEL_EVM_SHARE.localUrl(root.location.href, content.value); }
+    try { root.openPolygonSend({text:content.value}); }
     catch (error) { $("sendMetaMaskStatus").textContent = error.message || String(error); }
   };
   const metaButton = $("sendMetaMaskButton");

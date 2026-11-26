@@ -2261,9 +2261,11 @@ return;
 
   function onChangeCurrency() {
     if (elems.currency.value === "polygon") {
-      setGuiMode("polygon");
+      elems.currency.value = state.lastUtxoCurrency || DEFAULT_CURRENCY_KEY;
+      openPolygonSend();
       return;
     }
+    document.body.dataset.sendNetwork = "utxo";
     state.lastUtxoCurrency = elems.currency.value || DEFAULT_CURRENCY_KEY;
     if (document.body.dataset.mode === "polygon") setGuiMode("send");
     clearOutputs();
@@ -2404,6 +2406,13 @@ function onClickAddCommonAddressButton() {
     return "portal";
   }
 
+  function openPolygonSend(options) {
+    document.body.dataset.sendNetwork = "polygon";
+    stopReceiveMonitor();
+    setGuiMode("send");
+    window.dispatchEvent(new CustomEvent("chisel:polygon-send", {detail: options || {}}));
+  }
+
   function setGuiMode(mode) {
     const normalizedMode = normalizeMode(mode);
     if (elems.currency) {
@@ -2415,7 +2424,7 @@ function onClickAddCommonAddressButton() {
         state.lastUtxoCurrency = elems.currency.value;
       }
       const headerCurrency = document.querySelector("#headerCurrency");
-      if (headerCurrency) headerCurrency.value = normalizedMode === "polygon" ? "polygon" : elems.currency.value;
+      if (headerCurrency) headerCurrency.value = normalizedMode === "polygon" || (normalizedMode === "send" && document.body.dataset.sendNetwork === "polygon") ? "polygon" : elems.currency.value;
     }
     const buttons = Array.from(document.querySelectorAll("[data-mode-target]"));
     const modeHint = document.querySelector("#modeHint");
@@ -2435,7 +2444,7 @@ function onClickAddCommonAddressButton() {
       const url = new URL(window.location.href);
       // A bare /chisel/ URL is the canonical Portal entry point.
       // Keep it clean instead of inserting ?mode=portal on initial load.
-      if (normalizedMode === "polygon") {
+      if (normalizedMode === "polygon" || (normalizedMode === "send" && document.body.dataset.sendNetwork === "polygon")) {
         url.searchParams.set("coin", "evm");
         url.searchParams.set("chain", "137");
       } else if (!(normalizedMode === "portal" && (url.searchParams.has("txid") || (window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href)))) &&
@@ -2462,9 +2471,14 @@ function onClickAddCommonAddressButton() {
       const coin = url.searchParams.get("coin");
       // A Portal record keeps its explicit view and chain identity. A bare
       // ?coin=evm link still opens the Polygon workbench.
-      if ((!url.searchParams.has("mode") || normalizeMode(initialMode) === "send") &&
-          (coin === "evm" || coin === "polygon") &&
-          !(window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href))) initialMode = "polygon";
+      if (coin === "evm" || coin === "polygon") {
+        if (url.searchParams.has("mode") && normalizeMode(initialMode) === "send") {
+          document.body.dataset.sendNetwork = "polygon";
+          initialMode = "send";
+        } else if (!url.searchParams.has("mode") && !(window.CHISEL_PORTAL_RECORD && window.CHISEL_PORTAL_RECORD.parseRoute(url.href))) {
+          initialMode = "polygon";
+        }
+      }
     } catch (error) {
       initialMode = "portal";
     }
@@ -3471,6 +3485,7 @@ function init() {
   init();
 
   window.setGuiMode = setGuiMode;
+  window.openPolygonSend = openPolygonSend;
   window.getCoin = getCoin;
   window.getCoinName = getCoinName;
   window.runBuildSignDecodeSend = runBuildSignDecodeSend;

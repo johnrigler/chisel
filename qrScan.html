@@ -5,7 +5,7 @@
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title data-chisel-release-title="QR WIF Loader">Chisel QR WIF Loader</title>
 
-  <script src="chisel.version.js?rev=20261125-polygon-qr-v2885"></script>
+  <script src="chisel.version.js?rev=20261125-native-polygon-v2886"></script>
   <script src="vendor/html5-qrcode.min.js"></script>
 
   <style>
@@ -152,7 +152,7 @@
         <button id="copyWifButton" class="secondary" type="button">COPY WIF</button>
         <a id="openChiselLink" class="hide" href="index.html?mode=etch&loadScannedWif=1" rel="noopener">Open Chisel</a>
       </div>
-      <p class="help">Polygon uses a one-time sessionStorage handoff to its local signer. The legacy UTXO load path uses sessionStorage/localStorage plus a short URL flag. It does not put the private key into the address bar. If Chisel opened this page as a popup, this page also tries postMessage.</p>
+      <p class="help">Polygon uses a one-time sessionStorage handoff to the regular Chisel Send screen. The legacy UTXO load path uses sessionStorage/localStorage plus a short URL flag. It does not put the private key into the address bar. If Chisel opened this page as a popup, this page also tries postMessage.</p>
     </section>
   </main>
 
@@ -933,7 +933,7 @@ function getPreferredCameraIndex() {
         window.sessionStorage.setItem("chisel.pendingPolygonQrKey", JSON.stringify({
           privateKeyHex: lastPayload.privateKeyHex, createdAt: Date.now()
         }));
-        window.location.href = "evm.html?rev=20261125-polygon-qr-v2885#wallet=local&qrKey=1";
+        window.location.href = "index.html?mode=send&coin=polygon&chain=137&qrKey=1&rev=20261125-native-polygon-v2886";
         return;
       }
       storePayload();
