@@ -27,9 +27,10 @@
   function text(node,value) { if (node && node.textContent !== value) node.textContent = value; }
   function sync() {
     const context = getContext();
-    family.hidden = !context;
+    if (family.hidden !== !context) family.hidden = !context;
     if (!context) {
       if (current) { current = ""; request++; button.disabled = false; }
+      if (explorer.textContent.startsWith("VERIFY ADDRESS · ")) text(explorer,"VERIFY ADDRESS");
       return;
     }
     if (current !== context.address) {
