@@ -1587,6 +1587,11 @@
     return /^(?:(?:gomez|jethro|mogwai|chisel|evm|polygon-main-thunderword)\s+)?(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(String(value || "").trim());
   }
 
+  function needsBsvClassification(row, value) {
+    return /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row)) &&
+      /^(?:truncated op_return preview|bsv data output|bsv large transaction|large transaction)$/i.test(String(value || "").trim());
+  }
+
   function compactMediaTitle(value) {
     const clean = cleanHtmlishText(value).replace(/^>+\s*/, "");
     return clean.length > 140 ? clean.slice(0, 137) + "…" : clean;
@@ -1804,6 +1809,7 @@
     };
     if (/^(?:bsv|bsvTestnet)$/.test(normalizeCoinName(indexEntry && (indexEntry.coin || indexEntry.ticker))) && window.CHISEL_BSV_MEDIA) {
       Object.assign(summary, window.CHISEL_BSV_MEDIA.summarize(value));
+      if (summary.recordType && summary.recordType.id === "krep-v1") summary.title = summary.recordType.name;
       const named = summary.files.find(file => file.protocol === "1Sat Ordinals" && file.name) || summary.files.find(file => file.protocol === "1Sat Ordinals");
       if (named) summary.title = window.CHISEL_PORTAL_EXPLORE ? window.CHISEL_PORTAL_EXPLORE.ordinalTitle(named) : (named.name || "1Sat Ordinal") + " · inscription";
       const encrypted=summary.files.find(file=>file.encrypted);
@@ -8147,7 +8153,7 @@ function getPortalFirstCharacter() {
       // Defer full JSON until expansion rather than refetching it on every boot.
       const cachedTitle = String(row.summary && row.summary.title || "").trim();
       if (!row.raw && row.cachedSummaryReady &&
-          cachedTitle && !isGenericEvmTitle(cachedTitle) &&
+          cachedTitle && !isGenericEvmTitle(cachedTitle) && !needsBsvClassification(row, cachedTitle) &&
           !state.expandedRowKeys[key]) {
         if ((i + 1) % 4 === 0) await yieldPortalThread();
         continue;

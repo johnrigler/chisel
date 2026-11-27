@@ -1,6 +1,7 @@
 (function (root) {
   "use strict";
   const PROTOCOL = "19HxigV4QyBv3tHpQVcUEQyq1pzZVdoAut";
+  const KREP_MAGIC = [0x42, 0x42, 0x10, 0x33];
   const decoder = new TextDecoder();
   function protocolLabel(protocol) { return protocol === "B" ? "Bitcom B" : protocol; }
   function isBitcomB(output) {
@@ -29,6 +30,35 @@
       pos += length;
     }
     return result;
+  }
+  function krepRecord(raw) {
+    const tx = raw && (raw.tx || raw), outputs = tx && (tx.vout || tx.outputs);
+    if (!Array.isArray(outputs)) return null;
+    for (let i = 0; i < outputs.length; i += 1) {
+      const output = outputs[i], script = output && (output.scriptPubKey || output.script) || {};
+      const parts = pushes(typeof script === "string" ? script : script.hex);
+      const marker = parts[0], version = parts[1], key = parts[2], payload = parts[3];
+      if (!marker || !marker.complete || decoder.decode(marker.data) !== "KREP" ||
+          !version || !version.complete || version.data.length !== 1 || version.data[0] !== 1 ||
+          !key || !key.complete || key.data.length !== 33 || (key.data[0] !== 2 && key.data[0] !== 3) ||
+          !payload || payload.data.length < 70) continue;
+      const data = payload.data;
+      if (!KREP_MAGIC.every((value, index) => data[index] === value) ||
+          !key.data.every((value, index) => data[index + 4] === value) ||
+          !key.data.every((value, index) => data[index + 37] === value)) continue;
+      return {
+        id: "krep-v1",
+        name: "KREP v1 · large binary payload",
+        protocol: "KREP",
+        version: 1,
+        output: output.n == null ? i : output.n,
+        publicKey: Array.from(key.data, byte => byte.toString(16).padStart(2, "0")).join(""),
+        payloadBytes: payload.bytes,
+        availablePayloadBytes: data.length,
+        complete: payload.complete && !script.isTruncated
+      };
+    }
+    return null;
   }
   function sniff(data) {
     const starts = function (signature) { return signature.every(function (v, i) { return data[i] === v; }); };
@@ -235,7 +265,7 @@
   function summarize(raw) {
     return {files: files(raw).map(function (file) {
       const value = Object.assign({}, file); delete value.data; return value;
-    }), metadata: metadata(raw), parentInputs: parentInputs(raw)};
+    }), metadata: metadata(raw), parentInputs: parentInputs(raw), recordType: krepRecord(raw)};
   }
   // External sites are optional protocol-specific navigation targets.
   // The outpoint identifies this inscription output, not verified current ownership.
@@ -269,5 +299,5 @@
   // Small, independently checked public records, loaded only when requested.
   const archivedTransactions=Object.freeze({"7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d":"data/related/bsv/7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d.json"});
   function archivePath(coin,txid) { return coin==="bsv" && Object.prototype.hasOwnProperty.call(archivedTransactions,txid) ? archivedTransactions[txid] : ""; }
-  root.CHISEL_BSV_MEDIA = {protocolLabel:protocolLabel,isBitcomB:isBitcomB,twetchPost:twetchPost,encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
+  root.CHISEL_BSV_MEDIA = {protocolLabel:protocolLabel,isBitcomB:isBitcomB,twetchPost:twetchPost,encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, classify: krepRecord, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
 })(window);

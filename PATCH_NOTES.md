@@ -1,3 +1,9 @@
+# 2.9.22 — classify KREP v1 records
+
+- Detect KREP v1 from its OP_RETURN marker, version, compressed public key and repeated payload framing, including provider-truncated previews.
+- Label detected records `KREP v1 · large binary payload`, preserve payload completeness and declared size, and apply the derived label when existing catalog rows are hydrated.
+- Keep user-authored record titles above the derived protocol label.
+
 # 2.8.66 — Bitcoin and BSV public accounts
 
 - Add explicit Bitcoin mainnet, Testnet4, BSV mainnet and BSV testnet receive choices, public balance reads and testnet funding instructions.

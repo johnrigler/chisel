@@ -90,6 +90,7 @@
     const summary=row.summary||{}, raw=row.raw, cached=recordFacts.get(row);
     if(cached && cached.raw===raw && cached.summary===summary) return cached.value;
     const api=root.CHISEL_BSV_MEDIA;
+    const recordType = raw && api && api.classify ? api.classify(raw) : summary.recordType;
     const files=list(fileList(row)).concat(list(summary.files));
     const map=list(raw && api ? api.metadata(raw) : []).concat(list(summary.metadata));
     const uniq=values=>Array.from(new Map(values.filter(v=>typeof v==="string"&&v.trim()).map(v=>[norm(v),v.trim()])).values());
@@ -105,7 +106,7 @@
       collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
       addresses:addressTrails(raw,map,store().canonicalCoinForRow(row)),
       parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
-      name:encrypted ? encrypted.name : twetch ? twetchTitle(twetch) : ordinal ? ordinalTitle(ordinal) : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : ""};
+      name:encrypted ? encrypted.name : twetch ? twetchTitle(twetch) : ordinal ? ordinalTitle(ordinal) : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : recordType && recordType.name || ""};
     recordFacts.set(row,{raw,summary,value});return value;
   }
   function ordinalTitle(file) {
@@ -173,7 +174,9 @@
     const raw=row.raw, summary=row.summary||{}, api=root.CHISEL_BSV_MEDIA;
     const map=list(raw&&api?api.metadata(raw):summary.metadata);
     const files=fileList(row);
-    return files.map(f=>[f.name||f.mime,protocolLabel(f.protocol),f.metadata&&f.metadata.collection,f.metadata&&f.metadata.meshCount?f.metadata.meshCount+" meshes":"",f.metadata&&list(f.metadata.traits).find(t=>t.trait==="Rarity")?.value,Number.isFinite(f.bytes)?f.bytes.toLocaleString()+" bytes":"","output "+f.output,f.complete?"complete":"partial preview"].filter(Boolean).join(" · ")).concat(map.map(m=>m.protocol+" output "+m.output+": "+list(m.fields).map(f=>f.key+" = "+f.value).join(" · ")));
+    const recordType=raw&&api&&api.classify?api.classify(raw):summary.recordType;
+    const typeLine=recordType?[recordType.name,"output "+recordType.output,Number.isFinite(recordType.payloadBytes)?(Number.isFinite(recordType.availablePayloadBytes)?recordType.availablePayloadBytes.toLocaleString()+" / ":"")+recordType.payloadBytes.toLocaleString()+" payload bytes":"",recordType.complete?"complete":"partial preview"].filter(Boolean).join(" · "):"";
+    return files.map(f=>[f.name||f.mime,protocolLabel(f.protocol),f.metadata&&f.metadata.collection,f.metadata&&f.metadata.meshCount?f.metadata.meshCount+" meshes":"",f.metadata&&list(f.metadata.traits).find(t=>t.trait==="Rarity")?.value,Number.isFinite(f.bytes)?f.bytes.toLocaleString()+" bytes":"","output "+f.output,f.complete?"complete":"partial preview"].filter(Boolean).join(" · ")).concat(map.map(m=>m.protocol+" output "+m.output+": "+list(m.fields).map(f=>f.key+" = "+f.value).join(" · ")),typeLine?[typeLine]:[]);
   }
   function imageRow(row) {
     return fileList(row).some(function (file) { return /^image\//.test(file.mime); }) ||
