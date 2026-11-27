@@ -213,7 +213,7 @@
     if (typeof value!=="string" || !value.length || !/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length%4) return null;
     return value.length/4*3-(value.endsWith("==")?2:value.endsWith("=")?1:0);
   }
-  function encryptedFiles(output,index) {
+  function encryptedWrapperFiles(output,index) {
     const script=output && (output.scriptPubKey || output.script) || {};
     const parts=pushes(typeof script==="string"?script:script.hex);
     if (!parts[0] || !parts[0].complete || decoder.decode(parts[0].data)!==ENCRYPTED_WRAPPER || !parts[1]) return [];
@@ -235,12 +235,51 @@
       complete:body.complete,data:body.data,name:protocol==="indelible.claude-code"?"Indelible · Claude Code":protocol.startsWith("indelible.")?"Indelible · "+protocol.slice(10):"Encrypted BSV envelope",
       encrypted:true,metadata:{application:protocol,componentBytes:componentBytes,ciphertextBytes:componentBytes.length===3?componentBytes[2]:null,hasOwnerWrap:hasOwnerWrap,validEnvelope:!!protocol && componentBytes.length===3 && hasOwnerWrap}}];
   }
+  function indelibleDriftFiles(output,index) {
+    const script=output && (output.scriptPubKey || output.script) || {};
+    const parts=pushes(typeof script==="string"?script:script.hex);
+    if(!parts[0]||!parts[0].complete||decoder.decode(parts[0].data)!=="INDELIBLE_DRIFT"||!parts[1])return [];
+    const body=parts[1];
+    if(!body.complete)return [];
+    let segment;
+    try { segment=JSON.parse(decoder.decode(body.data)); } catch (_) { return []; }
+    if(!segment||segment.v!==1||segment.kind!=="segment"||!Number.isInteger(segment.seq)||segment.seq<0||
+      !Number.isInteger(segment.n)||segment.n<1||segment.seq>=segment.n||!Array.isArray(segment.events)||!segment.events.length||segment.events.length>100)return [];
+    const events=[];
+    for(const item of segment.events){
+      let event;
+      try { event=typeof item==="string"?JSON.parse(item):item; } catch (_) { return []; }
+      if(!event||event.v!==1||typeof event.from!=="string"||!/^0[23][0-9a-f]{64}$/i.test(event.from)||
+        typeof event.wrap!=="string"||typeof event.ct!=="string"||typeof event.sig!=="string"||!/^(?:[0-9a-f]{2})+$/i.test(event.sig))return [];
+      const wrap=event.wrap.split(":");
+      const wrapBytes=wrap.map(value=>/^(?:[0-9a-f]{2})+$/i.test(value)?value.length/2:null);
+      const components=event.ct.split(":").map(base64Bytes);
+      if(wrap.length!==4||wrapBytes.some(value=>value===null)||components.length!==3||components.some(value=>value===null))return [];
+      events.push({sender:event.from.toLowerCase(),wrapBytes:wrapBytes,componentBytes:components,signatureBytes:event.sig.length/2});
+    }
+    const eventSenders=Array.from(new Set(events.map(event=>event.sender)));
+    const componentBytes=events.length===1?events[0].componentBytes:null;
+    const encryptedBytes=events.reduce((sum,event)=>sum+event.componentBytes.reduce((part,n)=>part+n,0),0);
+    return [{protocol:"INDELIBLE_DRIFT",output:output.n==null?index:output.n,part:1,
+      mime:"application/json",mimeSource:"protocol marker",bytes:body.bytes,availableBytes:body.data.length,
+      complete:body.complete&&!script.isTruncated,data:body.data,name:"Indelible Drift · encrypted segment",encrypted:true,
+      metadata:{application:"indelible.drift",version:1,segmentSequence:segment.seq,segmentCount:segment.n,
+        eventCount:events.length,eventSenders:eventSenders,eventDetails:events,componentBytes:componentBytes,
+        encryptedBytes:encryptedBytes,signatureVerified:false,structureValid:true}}];
+  }
+  function encryptedFiles(output,index) {
+    return encryptedWrapperFiles(output,index).concat(indelibleDriftFiles(output,index));
+  }
   function encryptedLabel(file) {
     const meta=file.metadata||{};
+    if(meta.application==="indelible.drift")return ["Indelible Drift",Number.isInteger(meta.segmentSequence)?"segment "+(meta.segmentSequence+1)+" of "+meta.segmentCount:"",
+      meta.eventCount+" event"+(meta.eventCount===1?"":"s"),Number.isFinite(meta.encryptedBytes)?meta.encryptedBytes.toLocaleString()+" encoded encrypted bytes":"",
+      file.complete?"":"partial preview"].filter(Boolean).join(" · ");
     return ["Encrypted artifact",Number.isFinite(meta.ciphertextBytes)?meta.ciphertextBytes.toLocaleString()+" bytes ciphertext":file.complete?"Envelope format unverified":"Partial envelope"].join(" · ");
   }
   const registry=Object.freeze([
-    {id:"encrypted-wrapper",files:encryptedFiles},
+    {id:"encrypted-wrapper",files:encryptedWrapperFiles},
+    {id:"indelible-drift",files:indelibleDriftFiles},
     {id:"B",files:bFiles},
     {id:"1sat",files:ordinalFiles},
     {id:"map",metadata:mapMetadata},
@@ -265,7 +304,50 @@
   function summarize(raw) {
     return {files: files(raw).map(function (file) {
       const value = Object.assign({}, file); delete value.data; return value;
-    }), metadata: metadata(raw), parentInputs: parentInputs(raw), recordType: krepRecord(raw)};
+    }), metadata: metadata(raw), parentInputs: parentInputs(raw), recordType: classify(raw)};
+  }
+  function classify(raw) {
+    const krep=krepRecord(raw);
+    if(krep)return krep;
+    const tx=raw&&(raw.tx||raw),outputs=tx&&(tx.vout||tx.outputs);
+    if(!Array.isArray(outputs))return null;
+    for(let i=0;i<outputs.length;i++){
+      const file=indelibleDriftFiles(outputs[i],i)[0];
+      if(!file)continue;
+      const meta=file.metadata||{};
+      return {id:"indelible-drift-v1",name:file.name,protocol:file.protocol,version:1,output:file.output,
+        segmentSequence:meta.segmentSequence,segmentCount:meta.segmentCount,eventCount:meta.eventCount,
+        eventSenders:meta.eventSenders,componentBytes:meta.componentBytes,encryptedBytes:meta.encryptedBytes,
+        signatureVerified:false,complete:file.complete};
+    }
+    const treechat=treechatPost(raw);
+    if(treechat)return {id:"treechat-post",name:treechat.title?"Treechat · "+treechat.title:"Treechat post",
+      protocol:"MAP+B",output:treechat.output,postId:treechat.postId,sourceUrl:treechat.sourceUrl,
+      captureTitle:treechat.captureTitle,payloadBytes:treechat.payloadBytes,warningCode:treechat.warningCode,
+      complete:treechat.complete};
+    return null;
+  }
+  function treechatPost(raw) {
+    const postId=metadata(raw).filter(record=>record.protocol==="MAP")
+      .flatMap(record=>record.fields||[]).find(field=>field&&field.key==="treechat_post_id"&&
+        typeof field.value==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(field.value));
+    if(!postId)return null;
+    const file=files(raw).find(item=>item.protocol==="B"&&/^text\//i.test(item.mime));
+    let text="",captureTitle="",sourceUrl="",warningCode="";
+    if(file&&file.data&&file.data.length){
+      text=decoder.decode(file.data);
+      const header=/^Title:\s*([^\r\n]+)\s*\r?\n\s*\r?\nURL Source:\s*(https?:\/\/[^\s\r\n]+)/i.exec(text);
+      if(header){
+        captureTitle=header[1].trim();
+        try { const parsed=new URL(header[2]); if(parsed.protocol==="https:"||parsed.protocol==="http:")sourceUrl=parsed.href; } catch (_) {}
+      }
+      const warning=/^Warning:\s*Target URL returned error\s+(\d{3})\b/im.exec(text);
+      if(warning)warningCode=warning[1];
+    }
+    return {postId:postId.value.toLowerCase(),url:"https://app.treechat.com/quest/post-"+postId.value.toLowerCase(),
+      title:captureTitle,captureTitle:captureTitle,sourceUrl:sourceUrl,warningCode:warningCode,
+      output:file?file.output:null,payloadBytes:file?file.bytes:0,complete:file?file.complete:false,text:text,
+      mime:file?file.mime:"",fileName:file?file.name:""};
   }
   // External sites are optional protocol-specific navigation targets.
   // The outpoint identifies this inscription output, not verified current ownership.
@@ -299,5 +381,5 @@
   // Small, independently checked public records, loaded only when requested.
   const archivedTransactions=Object.freeze({"7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d":"data/related/bsv/7a90cec7e748b65a9b938ed21cba9f2dbac483e5c6c41f6a9235115e9ce1426d.json"});
   function archivePath(coin,txid) { return coin==="bsv" && Object.prototype.hasOwnProperty.call(archivedTransactions,txid) ? archivedTransactions[txid] : ""; }
-  root.CHISEL_BSV_MEDIA = {protocolLabel:protocolLabel,isBitcomB:isBitcomB,twetchPost:twetchPost,encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, classify: krepRecord, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
+  root.CHISEL_BSV_MEDIA = {protocolLabel:protocolLabel,isBitcomB:isBitcomB,twetchPost:twetchPost,treechatPost:treechatPost,encryptedFiles:encryptedFiles,encryptedLabel:encryptedLabel,archivePath:archivePath,pushes: pushes, sniff: sniff, fromOutput: fromOutput, files: files, summarize: summarize, classify: classify, loadFile: loadFile, registry: registry, metadata: metadata, glbMetadata: glbMetadata, externalLinks: externalLinks, parentInputs: parentInputs};
 })(window);

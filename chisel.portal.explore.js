@@ -102,11 +102,12 @@
     const app=mapFields.find(f=>f&&f.key==="app"&&typeof f.value==="string");
     const type=mapFields.find(f=>f&&f.key==="type"&&typeof f.value==="string");
     const twetch=twetchForRow(row);
-    const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>norm(f.value)==="twetch"?"Twetch":f.value)).concat(files.filter(f=>f&&f.encrypted&&f.metadata&&/^indelible\./.test(f.metadata.application)).map(()=>"Indelible"))),
+    const treechat=raw&&api&&api.treechatPost?api.treechatPost(raw):recordType&&recordType.id==="treechat-post"?recordType:null;
+    const value={apps:uniq(map.filter(m=>m && m.protocol==="MAP").flatMap(m=>list(m.fields).filter(f=>f && f.key==="app").map(f=>norm(f.value)==="twetch"?"Twetch":f.value)).concat(files.filter(f=>f&&f.encrypted&&f.metadata&&/^indelible\./.test(f.metadata.application)).map(()=>"Indelible"),treechat?["Treechat"]:[])),
       collections:uniq(files.map(f=>f && f.metadata && f.metadata.collection)),
       addresses:addressTrails(raw,map,store().canonicalCoinForRow(row)),
       parents:Array.from(new Map(parents.map(p=>[norm(p.txid)+":"+p.vout,{txid:norm(p.txid),vout:p.vout}])).values()),
-      name:encrypted ? encrypted.name : twetch ? twetchTitle(twetch) : ordinal ? ordinalTitle(ordinal) : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : recordType && recordType.name || ""};
+      name:encrypted ? encrypted.name : twetch ? twetchTitle(twetch) : ordinal ? ordinalTitle(ordinal) : treechat ? "Treechat · "+(treechat.captureTitle||"post") : app && type ? (norm(app.value)==="twetch"?"Twetch":app.value)+" · "+type.value.replace(/_/g," ") : recordType && recordType.name || ""};
     recordFacts.set(row,{raw,summary,value});return value;
   }
   function ordinalTitle(file) {

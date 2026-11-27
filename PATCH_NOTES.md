@@ -1,4 +1,11 @@
-# 2.9.22 — classify KREP v1 records
+# 2.9.23 — identify Treechat posts and Drift segments
+
+- Added structural recognition for Indelible Drift v1 segments and a concise encrypted-segment preview. Expanded records show segment counts, sender keys, encoded byte sizes, and that signatures remain unverified.
+- Added an Indelible · The Drift project link for recognized Drift records.
+- Detects the MAP `treechat_post_id` field and creates a direct `app.treechat.com/quest/post-<id>` link to the matching Treechat post.
+- Recognizes B-protocol page-capture text associated with Treechat. The stream shows a compact title, source, byte count, and capture warning; the full captured text stays collapsed, and only the declared source URL is treated as a related link.
+
+## 2.9.22 — classify KREP v1 records
 
 - Detect KREP v1 from its OP_RETURN marker, version, compressed public key and repeated payload framing, including provider-truncated previews.
 - Label detected records `KREP v1 · large binary payload`, preserve payload completeness and declared size, and apply the derived label when existing catalog rows are hydrated.

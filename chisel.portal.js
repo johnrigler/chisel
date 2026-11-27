@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 105228)
+Total output lines: 9297
+
 (function () {
   "use strict";
 
@@ -1119,11 +1122,23 @@
     });
   }
 
+  function treechatForRow(row) {
+    const api=window.CHISEL_BSV_MEDIA, summary=row&&row.summary||{};
+    if(row&&row.raw&&api&&api.treechatPost)return api.treechatPost(row.raw);
+    const record=summary.recordType;
+    return record&&record.id==="treechat-post"?{postId:record.postId,url:"https://app.treechat.com/quest/post-"+encodeURIComponent(record.postId),
+      captureTitle:record.captureTitle||"",sourceUrl:record.sourceUrl||"",warningCode:record.warningCode||"",payloadBytes:record.payloadBytes||0,
+      output:record.output,complete:record.complete,text:""}:null;
+  }
+
   function opReturnTextForRow(row) {
     // Read the same output scripts used by the expanded transaction flow.
     // Older cached summaries may have only a generic title or no OP_RETURN.
     const twetch=twetchForRow(row);
     if(twetch) return twetch.text || twetch.name;
+    const treechat=treechatForRow(row);
+    if(treechat)return ["Treechat post",treechat.captureTitle,Number.isFinite(treechat.payloadBytes)?treechat.payloadBytes.toLocaleString()+" captured bytes":"",
+      treechat.warningCode?"source returned "+treechat.warningCode:""].filter(Boolean).join(" · ");
     const encrypted=encryptedBsvFilesForRow(row);
     if (encrypted.length) return encrypted.map(window.CHISEL_BSV_MEDIA.encryptedLabel).join("\n");
     const payloads = extractOutputs(row && row.raw).map(function (output) { return output.opReturnPayload; }).filter(Boolean);
@@ -1252,10 +1267,19 @@
     const outputs = extractOutputs(value);
     const lineRecords = lines.filter(looksLikeAddressLine).map(classifyAddressLine);
     const records = pairIpfsRecords(lineRecords);
+    const treechat = window.CHISEL_BSV_MEDIA && window.CHISEL_BSV_MEDIA.treechatPost
+      ? window.CHISEL_BSV_MEDIA.treechatPost(value) : null;
 
     outputs.forEach(function (output) {
       if (output.opReturnPayload) {
         const payload = describeOpReturnText(output.opReturnText);
+        if (treechat && treechat.output === output.n) {
+          payload.title = treechat.captureTitle || "Treechat post";
+          payload.text = ["Treechat post", treechat.captureTitle, treechat.payloadBytes.toLocaleString() + " captured bytes",
+            treechat.warningCode ? "source returned " + treechat.warningCode : ""].filter(Boolean).join(" · ");
+          payload.urls = treechat.sourceUrl ? [treechat.sourceUrl] : [];
+          payload.parsedJson = null;
+        }
         records.push({
           kind: "op-return",
           index: output.n,
@@ -1814,7 +1838,14 @@
       if (named) summary.title = window.CHISEL_PORTAL_EXPLORE ? window.CHISEL_PORTAL_EXPLORE.ordinalTitle(named) : (named.name || "1Sat Ordinal") + " · inscription";
       const encrypted=summary.files.find(file=>file.encrypted);
       if(encrypted) summary.title=encrypted.name;
-      else if(!named && summary.files.some(file=>file.protocol==="B")) summary.title="Bitcom B";
+      const treechat=window.CHISEL_BSV_MEDIA.treechatPost(value);
+      if(treechat){
+        summary.title=treechat.captureTitle?"Treechat · "+treechat.captureTitle:"Treechat post";
+        summary.primaryUrl=treechat.sourceUrl||summary.primaryUrl;
+        summary.opReturnText=["Treechat post",treechat.captureTitle,treechat.payloadBytes.toLocaleString()+" captured bytes",
+          treechat.warningCode?"source returned "+treechat.warningCode:""].filter(Boolean).join(" · ");
+        summary.opReturnUrls=treechat.sourceUrl?[treechat.sourceUrl]:[];
+      } else if(!encrypted && !named && summary.files.some(file=>file.protocol==="B")) summary.title="Bitcom B";
       const twetch=window.CHISEL_BSV_MEDIA.twetchPost(value);
       if(twetch){
         summary.title=window.CHISEL_PORTAL_EXPLORE ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(twetch) : (twetch.text||twetch.name);
@@ -4554,439 +4585,7 @@
   }
 
   function downloadPageMetadata(metadata) {
-    const blob = new Blob([JSON.stringify(metadata,null,2) + "\n"], {type:"application/json"});
-    const objectUrl = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = objectUrl;
-    a.download = "chisel-page-" + new Date().toISOString().slice(0,10) + ".json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 1000);
-  }
-
-  function mediaImageUrl(value) {
-    const text = String(value || "").trim();
-    const safe = CHISEL.safeWebUrl(text, window.location.href);
-    if (!safe || !/^https?:\/\//i.test(text)) return "";
-    // Explicit image fields may contain extensionless IPFS/proxy URLs. A
-    // Netflix watch/title page is a navigation destination, not image bytes.
-    if (isNetflixLink(safe) && /^\/(?:watch|title)\//i.test(new URL(safe).pathname)) return "";
-    return safe;
-  }
-
-  function mediaCardPresentation(card) {
-    const url = normalizeMediaUrl(card.url || card.sourceUrl || "");
-    const netflix = isNetflixLink(url);
-    const saved = url ? readPageMetadata(url) : null;
-    const previewUrl = String(saved && (saved.previewUrl || saved.image) || "").trim();
-    const knownPublicPreview = /^(?:https:\/\/)?(?:www\.)?netflix\.com\/title\/70264888(?:[/?#]|$)/i.test(previewUrl)
-      ? "https://occ-0-3012-3997.1.nflxso.net/dnm/api/v6/MgXQGyNr1xbI8tJSYiMWv5kXg5g/AAAABWKRtnVHa-W7sbHt3OFJ6SLD4XC9XUZcPe_c4JqhKTD7IuY_NqyLuEy7jkZ-0b5jjbdR4NGbuhif_82l516ziGVXTOyDt5wOe-W0oMmKOQiuKShM-qBLVOrsjg.jpg?r=fe6" : "";
-    const thumbnailUrl = mediaImageUrl(saved && saved.image) || mediaImageUrl(card.thumbnailUrl) || knownPublicPreview;
-    const candidate = printableText(saved && saved.title || card.title || "");
-    const hasTitle = candidate && !isLikelyUrl(candidate) && !isRawHtmlTitle(candidate);
-    const title = hasTitle ? candidate : netflix ? "Netflix reference (metadata not captured)" : humanUrlTitle(url) || "media";
-    return {url: url, sourceUrl: card.sourceUrl || url, saved: saved, previewUrl: previewUrl,
-      thumbnailUrl: thumbnailUrl, title: title,
-      description: cleanHtmlishText(saved && saved.description || card.description || card.text || ""),
-      authorName: printableText(saved && saved.authorName || card.authorName || ""),
-      provider: printableText(saved && saved.provider || card.provider || (netflix ? "Netflix" : card.kind === "youtube" ? "YouTube" : card.kind && card.kind !== "link" ? card.kind : ""))};
-  }
-
-  function appendCollapsedMediaMetadata(container, row) {
-    const cards = collectEvmMediaCards(row);
-    if (!cards.length) return;
-    const display = mediaCardPresentation(cards[0]);
-    const parts = uniqueStrings([display.authorName, display.provider,
-      display.description && display.description !== display.title ? display.description : ""].filter(Boolean));
-    if (!parts.length) return;
-    const metadata = document.createElement("span");
-    metadata.className = "portalStreamMetadata";
-    metadata.textContent = parts.join(" · ");
-    metadata.title = metadata.textContent;
-    container.appendChild(metadata);
-    return true;
-  }
-
-  function appendPortalEvmMediaCards(container, row) {
-    const cards = collectEvmMediaCards(row);
-    if (!cards.length) return null;
-
-    const block = document.createElement("div");
-    block.className = "portalEvmMediaBlock";
-    block.setAttribute("aria-label", "Linked media");
-
-    const grid = document.createElement("div");
-    grid.className = "portalEvmMediaGrid";
-
-    cards.forEach(function (card) {
-      const display = mediaCardPresentation(card);
-      const url = display.url;
-      const netflix = isNetflixLink(url);
-      const saved = display.saved;
-      const media = document.createElement(url ? "a" : "div");
-      media.className = "portalEvmMediaCard";
-      if (card.videoId || String(card.kind || "").toLowerCase() === "youtube") media.classList.add("isYoutube");
-      if (String(card.kind || "").toLowerCase() === "tiktok") media.classList.add("isTikTok");
-      if (url) {
-        setSafeHref(media, url);
-        media.target = "_blank";
-        media.rel = "noopener noreferrer";
-      }
-
-      const previewUrl = display.previewUrl;
-      const thumb = display.thumbnailUrl;
-
-      function makePreviewFallback() {
-        const fallback = document.createElement("div");
-        fallback.className = "portalEvmMediaThumb portalEvmMediaThumbFallback";
-        fallback.style.overflowWrap = "anywhere";
-        fallback.textContent = netflix ? "Netflix series preview" : String(card.kind || "link").toUpperCase();
-        return fallback;
-      }
-      if (thumb) {
-        const img = document.createElement("img");
-        img.className = "portalEvmMediaThumb";
-        img.alt = display.title || card.kind || "media thumbnail";
-        img.loading = "lazy";
-        img.referrerPolicy = "no-referrer";
-        img.onerror = function () {
-          img.replaceWith(makePreviewFallback());
-        };
-        img.src = thumb;
-        media.appendChild(img);
-      } else {
-        media.appendChild(makePreviewFallback());
-      }
-
-      const body = document.createElement("div");
-      body.className = "portalEvmMediaBody";
-
-      const h = document.createElement("strong");
-      const cardTitle = display.title;
-      h.textContent = cardTitle;
-      body.appendChild(h);
-
-      if (display.authorName) {
-        const author = document.createElement("p");
-        author.className = "muted";
-        author.textContent = display.authorName;
-        body.appendChild(author);
-      }
-
-      const text = display.description;
-      if (text && text !== cardTitle) {
-        const p = document.createElement("p");
-        p.textContent = text.length > 180 ? text.slice(0, 177) + "…" : text;
-        body.appendChild(p);
-      }
-
-      media.appendChild(body);
-      grid.appendChild(media);
-      if (previewUrl && previewUrl !== url) {
-        const previewInfo = document.createElement("div");
-        previewInfo.className = "portalEvmMediaBody";
-        const preview = document.createElement("a");
-        preview.textContent = "Series preview: " + previewUrl;
-        const safePreview = CHISEL.safeWebUrl(previewUrl, window.location.href);
-        if (safePreview && /^https:\/\//i.test(safePreview) && /^https:\/\//i.test(previewUrl)) {
-          setSafeHref(preview, safePreview);
-          preview.target = "_blank";
-          preview.rel = "noopener noreferrer";
-          previewInfo.appendChild(preview);
-        } else {
-          previewInfo.textContent = "Series preview reference: " + previewUrl;
-        }
-        grid.appendChild(previewInfo);
-      }
-      if (url && !row.draftRecord) {
-        const controls = document.createElement("div");
-        controls.className = "portalEvmMediaBody";
-        if (isFacebookLink(url)) {
-          const fetchFacebook = document.createElement("button");
-          fetchFacebook.type = "button";
-          fetchFacebook.className = "secondaryButton";
-          fetchFacebook.textContent = saved && saved.captureMethod === "facebook-oembed" ? "Refresh Facebook metadata" : "Fetch Facebook metadata";
-          fetchFacebook.onclick = async function () {
-            const label = fetchFacebook.textContent;
-            fetchFacebook.disabled = true;
-            setStatus("Querying Facebook public metadata through FileProxy…", false);
-            try {
-              const result = await fileProxyJson("/facebook-metadata", {url:url});
-              const remote = result && result.metadata || {};
-              const metadata = savePageMetadata(url, {
-                title:remote.title || remote.authorName || card.title || "",
-                description:remote.description || "",
-                image:remote.thumbnailUrl || "",
-                captureMethod:"facebook-oembed",
-                provider:remote.provider || "Facebook",
-                authorName:remote.authorName || "",
-                metadataSource:remote.metadataSource || "",
-                fetchedAt:remote.fetchedAt || ""
-              }, saved);
-              if (!metadata) throw new Error("Facebook metadata could not be saved in this browser.");
-              requestPortalRender();
-              setStatus((result.cached ? "Loaded cached" : "Fetched") + " Facebook metadata into FileProxy and this browser.", false);
-            } catch (error) {
-              setStatus(error && error.message || "Facebook metadata lookup failed.", true);
-            } finally {
-              fetchFacebook.disabled = false;
-              fetchFacebook.textContent = label;
-            }
-          };
-          controls.appendChild(fetchFacebook);
-        }
-        const edit = document.createElement("button");
-        edit.type = "button";
-        edit.className = "secondaryButton";
-        edit.textContent = saved ? "Edit page metadata" : "Capture page metadata";
-        edit.onclick = function () {
-          const title = window.prompt("Page title:", saved && saved.title || card.title || "");
-          if (title === null) return;
-          const description = window.prompt("Page description:", saved && saved.description || "");
-          if (description === null) return;
-          const image = window.prompt("Public series preview page URL (or direct HTTPS image URL):", saved && (saved.previewUrl || saved.image) || "");
-          if (image === null) return;
-          const metadata = savePageMetadata(url,{title:title,description:description,image:image},saved);
-          if (!metadata) { setStatus("Page metadata could not be saved to this browser.",true); return; }
-          requestPortalRender();
-          setStatus("Page metadata captured locally. Export JSON to publish through your preferred IPFS/FileProxy workflow.",false);
-        };
-        controls.appendChild(edit);
-        if (saved) {
-          const exportButton = document.createElement("button");
-          exportButton.type = "button";
-          exportButton.className = "secondaryButton";
-          exportButton.textContent = "Export metadata JSON";
-          exportButton.onclick = function () { downloadPageMetadata(saved); };
-          controls.appendChild(exportButton);
-        }
-        grid.appendChild(controls);
-      }
-    });
-
-    block.appendChild(grid);
-    container.appendChild(block);
-    return block;
-  }
-
-  function appendPortalEvmDecodedBlock(container, row) {
-    const sourceId = sourceIdForRow(row);
-    if (sourceId.indexOf("evm") !== 0) return null;
-
-    const summary = row.summary || {};
-    const decoded = rawDecodedForRow(row);
-    const words = summaryWordsForRow(row);
-    const receivers = safeArray(summary.evmReceivers && summary.evmReceivers.length ? summary.evmReceivers : decoded.receivers);
-    const amounts = safeArray(summary.evmAmounts && summary.evmAmounts.length ? summary.evmAmounts : decoded.amounts);
-    const kind = summary.recordKind || decoded.kind || summary.functionName || summary.methodId || "EVM record";
-    const rawText = summary.cleanText || decoded.message || decoded.text || decoded.body || (decoded.image ? "" : summary.title) || "";
-    const cleanText = cleanHtmlishText(rawText);
-    const urls = uniqueStrings([summary.primaryUrl].concat(safeArray(summary.opReturnUrls), extractUrlsFromText(rawText), extractUrlsFromText(summary.title)));
-    const mediaCards = collectEvmMediaCards(row);
-
-    if (!words.length && !receivers.length && !cleanText && !urls.length && !kind) return null;
-
-    const block = document.createElement("div");
-    block.className = "portalEvmDecodedBlock";
-
-    const title = document.createElement("div");
-    title.className = "stepTitle";
-    title.textContent = sourceId === "evmGomez" ? "Gomez decoded record" : (sourceId === "evmJethro" ? "Jethro decoded artifact" : "EVM decoded record");
-    block.appendChild(title);
-
-    const meta = document.createElement("p");
-    meta.className = "muted";
-    meta.textContent = [
-      kind,
-      summary.contractName ? "contract " + summary.contractName : "",
-      summary.methodId || ""
-    ].filter(Boolean).join(" | ");
-    block.appendChild(meta);
-
-    if (decoded.decodeError) block.appendChild(makeInlinePre("Input decoding error", decoded.decodeError, false));
-    if (decoded.message || decoded.body) block.appendChild(makeInlinePre("Original ledger message", decoded.message || decoded.body, false));
-
-    if (cleanText) {
-      const message = document.createElement("p");
-      const compactText = mediaCards.length && cleanText.length > 520 ? cleanText.slice(0, 517) + "…" : cleanText;
-      message.textContent = compactText;
-      block.appendChild(message);
-    }
-
-    if (urls.length) {
-      const actions = document.createElement("div");
-      actions.className = "actions";
-      urls.forEach(function (url, index) {
-        actions.appendChild(makeRecordLink(url, index ? "open link " + (index + 1) : "open record target"));
-      });
-      block.appendChild(actions);
-    }
-
-    if (words.length) {
-      const wordsTitle = document.createElement("div");
-      wordsTitle.className = "stepTitle";
-      wordsTitle.textContent = sourceId === "evmGomez" ? "receiver address words" : "artifact words";
-      block.appendChild(wordsTitle);
-      appendWordChips(block, words);
-    }
-
-    if (receivers.length) {
-      const table = document.createElement("table");
-      table.className = "portalMiniTable";
-      const thead = document.createElement("thead");
-      const headRow = document.createElement("tr");
-      ["#", "decoded word", "EVM address", "amount"].forEach(function (label) {
-        const th = document.createElement("th");
-        th.textContent = label;
-        headRow.appendChild(th);
-      });
-      thead.appendChild(headRow);
-      table.appendChild(thead);
-      const tbody = document.createElement("tbody");
-      receivers.forEach(function (address, index) {
-        const tr = document.createElement("tr");
-        [String(index + 1), words[index] || "", address, amounts[index] || ""].forEach(function (value) {
-          const td = document.createElement("td");
-          td.textContent = value;
-          tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      block.appendChild(table);
-    }
-
-    container.appendChild(block);
-    return block;
-  }
-
-  function appendPortalEvmImages(container, row) {
-    const images = collectEvmImageAssets(row);
-    if (!images.length) return null;
-
-    const block = document.createElement("div");
-    block.className = "portalInlineImageBlock portalInlineEvmImageBlock";
-
-    const title = document.createElement("div");
-    title.className = "stepTitle";
-    title.textContent = "EVM image asset";
-    block.appendChild(title);
-
-    images.forEach(function (asset) {
-      const frame = document.createElement("div");
-      frame.className = "portalInlineEvmImageFrame";
-
-      const img = document.createElement("img");
-      img.className = "portalInlineEvmImage";
-      img.alt = asset.assetId || "EVM image asset";
-      img.title = asset.assetId || asset.path || "EVM image asset";
-      img.loading = "lazy";
-      if (asset.inline) img.src = asset.path;
-      else setPortalAssetImage(img, asset.path, row);
-      frame.appendChild(img);
-
-      const caption = document.createElement("p");
-      caption.className = "muted";
-      caption.textContent = [
-        asset.assetId || "image",
-        asset.mime || "",
-        asset.width && asset.height ? asset.width + " × " + asset.height : "",
-        asset.bytes ? asset.bytes + " bytes" : ""
-      ].filter(Boolean).join(" | ");
-      frame.appendChild(caption);
-
-      block.appendChild(frame);
-    });
-
-    container.appendChild(block);
-    return block;
-  }
-
-  function appendPortalInlineImage(container, imageLines) {
-    const lines = getImageLines(imageLines || []);
-    if (!lines.length) return null;
-
-    const block = document.createElement("div");
-    block.className = "portalInlineImageBlock";
-
-    const title = document.createElement("div");
-    title.className = "stepTitle";
-    title.textContent = "Base57 image";
-    block.appendChild(title);
-
-    const canvasWrap = document.createElement("div");
-    canvasWrap.className = "portalInlineImageCanvasWrap";
-
-    const canvas = document.createElement("canvas");
-    canvas.className = "portalInlineImageCanvas";
-    canvas.title = "Base57 image carried by this transaction";
-
-    const configuredScale = configValue("inlineImageExpandedScale", configValue("inlineImageScale", 12));
-    const scale = Math.max(1, Number(configuredScale) || 12);
-    const stats = paintChordCanvas(canvas, lines, { scale: scale, skipPrefix: DEFAULT_SKIP_PREFIX, skipSuffix: DEFAULT_SKIP_SUFFIX });
-
-    canvasWrap.appendChild(canvas);
-    block.appendChild(canvasWrap);
-
-    const caption = document.createElement("p");
-    caption.className = "muted";
-    caption.textContent = stats.rows + " rows × " + stats.cols + " cols | scale " + stats.scale + " | " + lines.length + " Base57 line(s)";
-    block.appendChild(caption);
-
-    container.appendChild(block);
-    return block;
-  }
-
-  function appendPortalAnnotationEditor(container, row) {
-    const annotation = getPortalAnnotation(row), hasContent = portalAnnotationHasContent(annotation);
-    let view = annotationViews.get(container);
-    if (!view || view.row !== row) {
-      noteFunction.disposeWithin(container); container.replaceChildren();
-      const block = document.createElement("section");
-      block.className = "portalAnnotationBlock portalTransactionNotes";
-      const heading = document.createElement("h5"); heading.textContent = "Notes"; block.appendChild(heading);
-      const text = document.createElement("div"); text.className = "portalAnnotationText"; block.appendChild(text);
-      const runtime = document.createElement("div"); runtime.style.display = "contents"; block.appendChild(runtime);
-      const metadataDrawer = makeInlinePre("Metadata", "", false); block.appendChild(metadataDrawer);
-      const metadataPre = metadataDrawer.children[metadataDrawer.children.length - 1];
-      const editor = document.createElement("details"); editor.open = !!row.annotationDraft;
-      const summary = document.createElement("summary"); editor.appendChild(summary);
-      const grid = document.createElement("div"); grid.className = "portalAnnotationGrid";
-      const noteLabel = document.createElement("label"); noteLabel.textContent = "Note";
-      const note = document.createElement("textarea"); note.rows = 7; note.maxLength = notesData.MAX_NOTE;
-      note.placeholder = "What this transaction means, the work behind it, links, analysis or follow-up.";
-      noteLabel.appendChild(note); grid.appendChild(noteLabel);
-      const metadataLabel = document.createElement("label"); metadataLabel.textContent = "Metadata (optional JSON object)";
-      const metadata = document.createElement("textarea"); metadata.rows = 5; metadata.spellcheck = false;
-      metadata.placeholder = '{"title":"Record title","sources":[]}';
-      metadataLabel.appendChild(metadata); grid.appendChild(metadataLabel); editor.appendChild(grid);
-      function rememberDraft() { row.annotationDraft = {note: note.value, metadataText: metadata.value, dirty: true}; }
-      note.oninput = metadata.oninput = rememberDraft;
-      function value() { return {schema: notesData.SCHEMA, note: note.value, metadata: notesData.metadata(metadata.value)}; }
-      const actions = document.createElement("div"); actions.className = "actions portalAnnotationActions";
-      const save = document.createElement("button"); save.type = "button"; save.className = "secondaryButton"; save.textContent = "SAVE TO FILEPROXY";
-      save.onclick = async function (event) {
-        event.preventDefault(); event.stopPropagation(); rememberDraft(); save.disabled = true;
-        try {
-          const saved = await savePortalAnnotationToFileProxy(row, value());
-          row.annotationDraft = null;
-          setStatus("Saved transaction note through FileProxy: " + saved.path + ".", false); requestPortalRender();
-        } catch (error) { setStatus(error.message || String(error), true); }
-        finally { save.disabled = false; }
-      };
-      const local = document.createElement("button"); local.type = "button"; local.className = "secondaryButton"; local.textContent = "SAVE IN BROWSER";
-      local.onclick = function (event) {
-        event.preventDefault(); event.stopPropagation(); rememberDraft();
-        try {
-          if (setPortalAnnotation(row, value())) {
-            row.annotationDraft = null;
-            annotationReads.set(portalAnnotationKey(row), Object.assign({}, annotationReads.get(portalAnnotationKey(row)), {source: "browser"}));
-            setStatus("Saved transaction note in this browser.", false); requestPortalRender();
-          }
-        } catch (error) { setStatus(error.message || String(error), true); }
-      };
-      const reload = document.createElement("button"); reload.type = "button"; reload.className = "secondaryButton"; reload.textContent = "RELOAD SHARED NOTE";
+    const blob = new Blob([JSON.stringify(metadata,null,2) + "\…5228 tokens truncated…eload.className = "secondaryButton"; reload.textContent = "RELOAD SHARED NOTE";
       reload.onclick = function (event) {
         event.preventDefault(); event.stopPropagation();
         loadPortalAnnotation(row, {force: true}).then(function () { requestPortalRender(); }).catch(function (error) { setStatus(error.message, true); });
@@ -5373,6 +4972,8 @@
     const bsv = /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row));
     const interpreted=bsv && window.CHISEL_PORTAL_EXPLORE;
     const post=twetchForRow(row);
+    const treechat=treechatForRow(row);
+    const bsvType=bsv&&window.CHISEL_BSV_MEDIA&&row.raw?window.CHISEL_BSV_MEDIA.classify(row.raw):null;
     if(post)title.textContent=options&&options.recordPage?"Transaction details":interpreted.twetchTitle(post);
     else if(interpreted && !getPortalAnnotation(row).metadata.title)title.textContent=interpreted.facts(row).name||title.textContent;
 
@@ -5414,6 +5015,14 @@
       primary.rel = "noopener noreferrer";
       primary.textContent = isNetflixLink(primaryTarget) ? "original Netflix URL (may not resolve)" : "open record target";
       actions.appendChild(primary);
+    }
+    if(treechat&&treechat.url){
+      const openTreechat=document.createElement("a");openTreechat.className="secondaryButton";openTreechat.textContent="OPEN IN TREECHAT";
+      setSafeHref(openTreechat,treechat.url);openTreechat.target="_blank";openTreechat.rel="noopener noreferrer";actions.appendChild(openTreechat);
+    }
+    if(bsvType&&bsvType.id==="indelible-drift-v1"){
+      const project=document.createElement("a");project.className="secondaryButton";project.textContent="INDELIBLE · THE DRIFT";
+      setSafeHref(project,"https://indelible.one/drift/");project.target="_blank";project.rel="noopener noreferrer";actions.appendChild(project);
     }
 
     if (canonicalCoinForRow(row) !== "litecoin") {
@@ -5533,6 +5142,9 @@
       details.textContent=[api.encryptedLabel(file),file.protocol,meta.application,
         "Output "+file.output,file.bytes.toLocaleString()+" bytes envelope",
         meta.componentBytes && meta.componentBytes.length===3?"Base64 components: "+meta.componentBytes.join(" / ")+" bytes":"",
+        Array.isArray(meta.eventSenders)&&meta.eventSenders.length?"Sender public key"+(meta.eventSenders.length===1?"":"s")+": "+meta.eventSenders.join(", "):"",
+        Array.isArray(meta.eventDetails)?meta.eventDetails.map((event,index)=>"Event "+(index+1)+" · wrapped-key bytes "+event.wrapBytes.join("/")+" · ciphertext parts "+event.componentBytes.join("/")+" bytes · signature "+event.signatureBytes+" bytes").join("; "):"",
+        meta.signatureVerified===false?"Signature present; not verified":"",
         meta.hasOwnerWrap?"Owner key wrap present":"",
         "Encryption algorithm not verified; plaintext not available."].filter(Boolean).join(" · ");
       section.appendChild(details);
@@ -5553,6 +5165,29 @@
       };
       section.appendChild(button);section.appendChild(status);container.appendChild(section);
     });
+  }
+  function appendTreechatCaptureDetails(container,post) {
+    if(!post)return;
+    const section=document.createElement("section");section.className="portalInterpretedRecord";
+    const title=document.createElement("div");title.className="stepTitle";title.textContent="Treechat post";section.appendChild(title);
+    const summary=document.createElement("p");summary.textContent=[post.captureTitle||"Post title not present in capture",
+      post.payloadBytes.toLocaleString()+" bytes · "+(post.complete?"complete":"partial preview"),
+      post.warningCode?"source returned HTTP "+post.warningCode:""].filter(Boolean).join(" · ");section.appendChild(summary);
+    const actions=document.createElement("div");actions.className="actions";
+    const treechatLink=document.createElement("a");treechatLink.className="secondaryButton";treechatLink.textContent="OPEN IN TREECHAT";
+    setSafeHref(treechatLink,post.url);treechatLink.target="_blank";treechatLink.rel="noopener noreferrer";actions.appendChild(treechatLink);
+    if(post.sourceUrl){
+      const source=document.createElement("a");source.className="secondaryButton";source.textContent="OPEN SOURCE PAGE";
+      setSafeHref(source,post.sourceUrl);source.target="_blank";source.rel="noopener noreferrer";actions.appendChild(source);
+    }
+    section.appendChild(actions);
+    const id=document.createElement("p");id.className="muted";id.textContent="Treechat post ID · "+post.postId;section.appendChild(id);
+    if(post.text){
+      const disclosure=document.createElement("details");disclosure.className="portalInlineDrawer";
+      const label=document.createElement("summary");label.textContent="Captured page text";disclosure.appendChild(label);
+      const pre=document.createElement("pre");pre.className="json";pre.textContent=post.text;disclosure.appendChild(pre);section.appendChild(disclosure);
+    }
+    container.appendChild(section);
   }
   function appendPortalInlineBody(container, row, options) {
     // Linked media leads the expanded record. Ledger flow and supporting
@@ -5591,6 +5226,7 @@
       }
     } else appendPortalTransactionQr(supportTarget, row);
     if (!subjectVisible) appendPortalInterpretedRecord(supportTarget, row);
+    appendTreechatCaptureDetails(supportTarget,treechatForRow(row));
 
 
     const evmImages = collectEvmImageAssets(row);
@@ -5956,6 +5592,7 @@
     const titleText = displayTitleForRow(row);
     const opText = opReturnTextForRow(row);
     const post=twetchForRow(row);
+    const treechat=treechatForRow(row);
     const genericTitle = /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
     const compactGeneric = !primaryUrl && !opText && genericTitle && thumb.classList.contains("isEmpty");
     if (compactGeneric) item.classList.add("isCompactGeneric");
@@ -5980,11 +5617,22 @@
     }
     if(window.CHISEL_PORTAL_EXPLORE && /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))){
       if(post)window.CHISEL_PORTAL_EXPLORE.appendTwetchMenu(titleWrap,row,showTwetchFeed);
-      window.CHISEL_PORTAL_EXPLORE.facts(row).apps.filter(app=>app.toLowerCase()!=="twetch").forEach(app=>{
+      window.CHISEL_PORTAL_EXPLORE.facts(row).apps.filter(app=>!["twetch","treechat","indelible"].includes(app.toLowerCase())).forEach(app=>{
         const b=document.createElement("button");b.type="button";b.className="secondaryButton";b.textContent="Explore "+app;
         b.onclick=event=>{event.preventDefault();event.stopPropagation();const box=$("#portalEvmWordSearch");if(box){box.value="app:"+encodeURIComponent(app.toLowerCase());state.portalPage=1;requestPortalRender();}};
         titleWrap.appendChild(b);
       });
+    }
+    if(treechat&&treechat.url){
+      const link=document.createElement("a");link.className="secondaryButton";link.textContent="Treechat";link.title="Open the exact Treechat post";
+      setSafeHref(link,treechat.url);link.target="_blank";link.rel="noopener noreferrer";
+      link.onclick=event=>event.stopPropagation();titleWrap.appendChild(link);
+    }
+    const bsvType=canonicalCoinForRow(row)==="bsv"&&row.raw&&window.CHISEL_BSV_MEDIA?window.CHISEL_BSV_MEDIA.classify(row.raw):null;
+    if(bsvType&&bsvType.id==="indelible-drift-v1"){
+      const link=document.createElement("a");link.className="secondaryButton";link.textContent="Indelible";link.title="Project: Indelible · The Drift";
+      setSafeHref(link,"https://indelible.one/drift/");link.target="_blank";link.rel="noopener noreferrer";
+      link.onclick=event=>event.stopPropagation();titleWrap.appendChild(link);
     }
     if (opText && !post) {
       const payload = document.createElement("span");
