@@ -1,3 +1,8 @@
+# 2.9.24 — improve Twetch and comment contrast
+
+- Put decoded Twetch posts on a light, high-contrast surface so content and links remain readable within Chisel's dark shell.
+- Darken comment record links on their white comment cards, and soften the raw JSON panel from near-black to slate while keeping its text and links high contrast.
+
 # 2.9.23 — identify Treechat posts and Drift segments
 
 - Added structural recognition for Indelible Drift v1 segments and a concise encrypted-segment preview. Expanded records show segment counts, sender keys, encoded byte sizes, and that signatures remain unverified.

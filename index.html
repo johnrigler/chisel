@@ -2375,7 +2375,9 @@
   <link rel="stylesheet" href="chisel.portal.mobile.css?rev=20261122-visible-payload-links-v2870" />
   <link rel="stylesheet" href="chisel.portal.record.css?rev=20261122-record-explore-v2871" />
 <style>
-.portalTwetchHero {margin:0 0 .75rem;overflow-wrap:anywhere}
+.portalTwetchHero {margin:0 0 .75rem;padding:12px;border:1px solid #c9ced4;border-radius:10px;background:#f7f7f7;color:#111820;overflow-wrap:anywhere}
+.portalTwetchHero :is(h2,p) {color:#111820}
+.portalTwetchHero a:not(.secondaryButton) {color:#075985;text-decoration:underline;text-underline-offset:2px}
 .portalTwetchHero h2 {font-size:clamp(1.3rem,4vw,2rem);line-height:1.25;margin:0 0 .4rem;white-space:pre-wrap}
 .portalTwetchText {white-space:pre-wrap;overflow-wrap:anywhere}
 .portalTwetchMenu {display:block;margin:.3rem 0;max-width:100%;white-space:normal}
@@ -2384,6 +2386,9 @@
 .portalTwetchMenu[open]>summary::after {content:" ▴"}
 .portalTwetchMenu>details {font-size:.85rem;overflow-wrap:anywhere}
 .portalTwetchMenu .actions {flex-wrap:wrap}
+.portalComments .portalHistoryRecord {color:#075985}
+.portalInlineDetails .json {background:#18222b;color:#f2f6fa}
+.portalInlineDetails .json a {color:#8bd5ff;text-decoration:underline;text-underline-offset:2px}
 </style>
 </head>
 <body data-mode="portal">
@@ -2462,7 +2467,7 @@
     </div>
   </section>
 
-  <script src="chisel.version.js?rev=20261127-treechat-links-v2923"></script>
+  <script src="chisel.version.js?rev=20261127-contrast-v2924"></script>
   <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
