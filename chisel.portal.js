@@ -3598,6 +3598,8 @@
     const box = $("#portalEvmWordSearch");
     if (!box) return;
     box.value = "";
+    ++exactSearchSequence;
+    if (exactSearchTimer !== null) { window.clearTimeout(exactSearchTimer); exactSearchTimer = null; }
     state.portalPage = 1;
     requestPortalRender();
   }
@@ -6370,6 +6372,83 @@
     return window.CHISEL_PORTAL_RECORD.compactRecordUrl(row, window.location.href);
   }
 
+  // Exact-ID search is independent of the scanner's inventory freshness.
+  function exactPortalSearchId(value) {
+    const text = String(value || "").trim();
+    if (/^(?:0x)?[0-9a-f]{64}$/i.test(text)) return text.replace(/^0x/i,"").toLowerCase();
+    try {
+      const url = new URL(text);
+      const match = url.pathname.match(/^\/t\/([0-9a-f]{64})\/?$/i);
+      if (url.protocol === "https:" && url.hostname === "twetch.com" && match) return match[1].toLowerCase();
+    } catch (_) {}
+    return "";
+  }
+
+  async function readExactBsvTransaction(txid) {
+    const entry = getCoinIndexByCoinName("bsv");
+    const index = entry && normalizeCoinName(entry.coin) === "bsv" ? entry : {coin:"bsv",ticker:"BSV"};
+    const name = window.CHISEL_PORTAL_RECORD.encodeTxid(txid) + "-" + txid.slice(0,12) + ".json";
+    const bases = Array.from(new Set(getStaticDataSources().map(function (source) {
+      try { return staticData.sourceLocation(source, window.location.href).baseUrl; } catch (_) { return ""; }
+    }).filter(Boolean)));
+    const urls = bases.flatMap(base => [txid + ".json", name].map(file => staticData.joinDataPath(base,"transactions/bsv/"+file)));
+    // Try the known storage names without downloading the full directory index.
+    const saved = await Promise.all(urls.map(async function (url) {
+      try { return await staticTransport.fetchStaticRawFromRow({txid,coin:"bsv",staticRawUrl:url}); }
+      catch (_) { return null; }
+    }));
+    let loaded = saved.find(Boolean);
+    if (!loaded) {
+      const url = "https://api.whatsonchain.com/v1/bsv/main/tx/hash/" + txid;
+      const json = await staticTransport.request(url,{cache:"no-store",credentials:"omit",referrerPolicy:"no-referrer"},async function (response) {
+        if (!response.ok) throw Error("WhatsOnChain HTTP " + response.status);
+        return response.json();
+      },15000);
+      const tx = txObject(json);
+      if (extractTxid(json) !== txid || !Array.isArray(tx.vin) || !Array.isArray(tx.vout)) throw Error("WhatsOnChain transaction identity or shape mismatch.");
+      loaded = {json,source:"live",coin:"bsv",url};
+    }
+    const summary = extractSummary(loaded.json,index);
+    const row = upsertPortalRow({coin:"bsv",txid,index,raw:loaded.json,summary,
+      blockTime:summary.blockTime || 0,rawSourceUrl:loaded.url,
+      staticRawUrl:loaded.source === "live" ? "" : loaded.url,
+      discoverySource:"exact-id-lookup"}, {silent:true});
+    return {row,source:loaded.source,url:loaded.url,json:loaded.json,coin:"bsv"};
+  }
+
+  let exactSearchSequence = 0, exactSearchTimer = null;
+  function scheduleExactPortalSearch(box, immediate) {
+    const token = ++exactSearchSequence;
+    if (exactSearchTimer !== null) window.clearTimeout(exactSearchTimer);
+    const id = exactPortalSearchId(box.value);
+    if (!id) return;
+    exactSearchTimer = window.setTimeout(async function () {
+      exactSearchTimer = null;
+      if (token !== exactSearchSequence || exactPortalSearchId(box.value) !== id) return;
+      // Normalize a pasted Twetch URL so the regular TXID filter also matches.
+      box.value = id;
+      const matches = state.portalRows.filter(row => !row.draftRecord && row.txid === id);
+      if (matches.length) {
+        matches.forEach(row => setPortalFilterValue(sourceIdForRow(row),true));
+        state.portalPage = 1; requestPortalRender();
+        setStatus("Found " + matches.length + " matching catalog record(s).",false);
+        return;
+      }
+      setStatus("Searching saved BSV files, then WhatsOnChain…",false);
+      try {
+        const result = await readExactBsvTransaction(id);
+        if (token !== exactSearchSequence || exactPortalSearchId(box.value) !== id) return;
+        setPortalFilterValue("bsv",true);
+        state.portalPage = 1;
+        requestPortalRender();
+        setStatus(result.source === "live" ? "BSV transaction retrieved from WhatsOnChain. Expand it to cache on FileProxy." : "BSV transaction found in static catalog files.",false);
+      } catch (error) {
+        if (token !== exactSearchSequence || exactPortalSearchId(box.value) !== id) return;
+        setStatus("No available BSV result: " + (error.message || String(error)) + ". Other ledger providers were not queried.",true);
+      }
+    }, immediate ? 0 : 350);
+  }
+
   async function lookupPortalRecords(route) {
     // Initial configuration and embedded records may still be loading when
     // an external fragment is opened. Refresh all configured local catalogs
@@ -6378,10 +6457,13 @@
     if (recordCatalogConfig) await recordCatalogConfig;
     loadEmbeddedStaticDataset();
     await Promise.allSettled([loadConfiguredStaticDatasets({quiet: true}), listLocalTransactions()]);
-    return state.portalRows.filter(function (row) {
+    const matches = state.portalRows.filter(function (row) {
       return !row.draftRecord && String(row.txid || "").replace(/^0x/i, "").toLowerCase() === route.txid &&
         window.CHISEL_PORTAL_RECORD.compactRecordUrl(row, window.location.href);
     });
+    if (matches.length) return matches;
+    try { return [(await readExactBsvTransaction(route.txid)).row]; }
+    catch (_) { return []; }
   }
 
   function findPortalRecord(route) {
@@ -6491,6 +6573,11 @@
       resolve: async function (route, row) {
         loadPortalAnnotation(row).catch(function () {});
         if (row.raw) return row;
+        // Only explicit record navigation uses this exact-ID fallback, not background hydration.
+        if (route.coin === "bsv" && !route.dataUrl && !row.staticRawPath && !row.staticRawUrl && !row.localPath) {
+          try { return (await readExactBsvTransaction(route.txid)).row; }
+          catch (_) { /* Keep the configured provider fallback below. */ }
+        }
         if (route.dataUrl) row.staticRawUrl = route.dataUrl;
         const loaded = await hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true, deferCache: true});
         if (!loaded || !loaded.raw) throw new Error(loaded && loaded.loadError || "Transaction data is unavailable from the saved files and ledger services.");
@@ -8887,10 +8974,19 @@ function getPortalFirstCharacter() {
     });
 
     const searchBox = $("#portalEvmWordSearch");
-    if (searchBox) searchBox.oninput = function () {
-      state.portalPage = 1;
-      requestPortalRender();
-    };
+    if (searchBox) {
+      searchBox.oninput = function () {
+        state.portalPage = 1;
+        requestPortalRender();
+        scheduleExactPortalSearch(searchBox,false);
+      };
+      searchBox.addEventListener("keydown",function (event) {
+        if (event.key === "Enter" && exactPortalSearchId(searchBox.value)) {
+          event.preventDefault();
+          scheduleExactPortalSearch(searchBox,true);
+        }
+      });
+    }
 
     // An installed PWA may briefly have an older HTML shell than this script.
     // Add the control to that shell as well instead of depending on its markup.

@@ -253,7 +253,7 @@
       setRecordControls(false);
       const content = get("portalRecordContent"), status = get("portalRecordStatus");
       if (content) content.textContent = "";
-      if (status) status.textContent = "Searching transaction catalogs across currencies…";
+      if (status) status.textContent = "Searching transaction catalogs across currencies, then BSV if missing…";
       let matches = [];
       try { matches = await deps.lookup(route); }
       catch (error) {
@@ -267,7 +267,7 @@
         return open(qualified, row, false);
       }
       if (status) status.textContent = matches.length ? matches.length + " matching ledger records in the available catalogs." :
-        "Transaction not found in the available catalogs. Try a currency-qualified link or refresh the catalogs.";
+        "No matching catalog record or available BSV result. Try a currency-qualified link; other live ledgers were not queried.";
       if (content) {
         matches.forEach(function (row) {
           const section = doc.createElement("section"), title = doc.createElement("a");
