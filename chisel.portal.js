@@ -1304,17 +1304,45 @@
     if (row.draftRecord && row.draftRecord.ledger && row.draftRecord.ledger.opReturnText) {
       candidates.push(String(row.draftRecord.ledger.opReturnText));
     }
+    // Recognize JSON-embedded images and bare base64 without assuming Bitcom B.
+    let budget = 256;
+    function inspect(value, depth) {
+      if (--budget < 0 || depth > 6) return;
+      if (typeof value === "string") { if (value.length >= 24) candidates.push(value); }
+      else if (value && typeof value === "object") {
+        for (const key of Object.keys(value).slice(0, 256)) {
+          if (budget <= 0) break;
+          inspect(value[key], depth + 1);
+        }
+      }
+    }
+    for (const source of candidates.slice()) {
+      if (/^[\s\[{]/.test(source) && source.length <= 48 * 1024 * 1024) {
+        try { inspect(JSON.parse(source), 0); } catch (_) {}
+      }
+    }
     const pattern = /^data:(image\/(?:png|jpeg|gif|webp|avif|bmp|x-icon));base64,([A-Za-z0-9+/=\s]+)$/i;
+    function imageMime(encoded) {
+      try {
+        const head = atob(encoded.slice(0, 24));
+        if (head.startsWith("\x89PNG\r\n\x1a\n")) return "image/png";
+        if (head.startsWith("\xff\xd8\xff")) return "image/jpeg";
+        if (/^GIF8[79]a/.test(head)) return "image/gif";
+        if (head.startsWith("RIFF") && head.slice(8, 12) === "WEBP") return "image/webp";
+      } catch (_) {}
+      return "";
+    }
     for (let i = 0; i < candidates.length; i += 1) {
       const match = candidates[i].trim().match(pattern);
-      if (!match) continue;
-      const encoded = match[2].replace(/\s/g, "");
+      const encoded = (match ? match[2] : candidates[i].trim()).replace(/\s/g, "");
+      const mime = match ? match[1].toLowerCase() : imageMime(encoded);
+      if (!mime) continue;
       if (!encoded || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 === 1) continue;
       const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
       const bytes = Math.floor(encoded.length * 3 / 4) - padding;
       if (bytes < 1 || bytes > 32 * 1024 * 1024) continue;
-      return {src: "data:" + match[1].toLowerCase() + ";base64," + encoded,
-        mime: match[1].toLowerCase(), bytes: bytes};
+      return {src: "data:" + mime + ";base64," + encoded,
+        mime: mime, bytes: bytes};
     }
     return null;
   }
@@ -6388,6 +6416,13 @@
     });
   }
 
+  // Bound both logical lines and long unbroken strings before building DOM.
+  function compactPortalText(value) {
+    const source = String(value || "").trim();
+    const preview = source.slice(0, 900).split(/\r\n|\r|\n/).slice(0, 8).join("\n").trimEnd();
+    return {text: preview + (preview.length < source.length ? "…" : ""), truncated: preview.length < source.length};
+  }
+
   function renderPortalStreamItem(list, row, options) {
     prepareEvmRow(row);
     const opts = options || {};
@@ -6492,7 +6527,7 @@
     const bsvInlineImage = bsvInlineImageForRow(row);
     const opText = bsvInlineImage
       ? "Embedded " + bsvInlineImage.mime.slice(6).toUpperCase() + " image · " + bsvInlineImage.bytes.toLocaleString() + " bytes"
-      : rawOpText;
+      : !expanded && bsvThumbnailForRow(row) ? "Embedded BSV image · open for full record" : rawOpText;
     const post=twetchForRow(row);
     const treechat=treechatForRow(row);
     const genericTitle = /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
@@ -6506,12 +6541,13 @@
       setSafeHref(titleLink, primaryUrl);
       titleLink.target = "_blank";
       titleLink.rel = "noopener noreferrer";
-      titleLink.textContent = titleText;
+      titleLink.textContent = expanded ? titleText : compactPortalText(titleText).text;
       titleLink.className = "isDirectLink";
       titleWrap.appendChild(titleLink);
     } else {
       // Plain notes need one full text copy, not a duplicate truncated title.
-      titleWrap.textContent = post ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(post) : genericTitle || bsvInlineImage || titleText === truncateText(opText, 96) ? "" : titleText;
+      const heading = post ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(post) : genericTitle || bsvInlineImage || titleText === truncateText(opText, 96) ? "" : titleText;
+      titleWrap.textContent = expanded ? heading : compactPortalText(heading).text;
     }
     if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
     const taggedFormats = new Set();
@@ -6559,9 +6595,25 @@
     if (opText && !post) {
       const payload = document.createElement("span");
       payload.className = "portalStreamOpReturn";
-      appendLinkedTransactionText(payload, opText);
+      const preview = expanded ? {text: opText, truncated: false} : compactPortalText(opText);
+      appendLinkedTransactionText(payload, preview.text);
+      if (preview.truncated) {
+        payload.title = "Excerpt · expand to read the full payload";
+        const label = document.createElement("span");
+        label.className = "portalStreamPreviewLabel";
+        label.textContent = "Long text / data · open for full record";
+        titleWrap.appendChild(label);
+      }
       titleWrap.appendChild(payload);
       item.classList.add("hasOpReturnText");
+    }
+
+    if (!expanded && genericTitle && !post && !opText && !bsvInlineImage &&
+        thumb.classList.contains("isEmpty") && !primaryUrl) {
+      const label = document.createElement("span");
+      label.className = "portalStreamPreviewLabel";
+      label.textContent = row.raw ? "Unclassified transaction" : "Unclassified · details not loaded";
+      titleWrap.appendChild(label);
     }
 
     let verify = null;

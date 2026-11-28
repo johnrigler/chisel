@@ -286,7 +286,18 @@
     {id:"aip",metadata:aipMetadata}
   ].map(Object.freeze));
   function fromOutput(output,index) {
-    return registry.flatMap(entry=>entry.files?entry.files(output,index):[]);
+    const recognized = registry.flatMap(entry=>entry.files?entry.files(output,index):[]);
+    if (recognized.length) return recognized;
+    // A standalone OP_RETURN push can be an image even without a protocol marker.
+    const script = output && (output.scriptPubKey || output.script) || {};
+    return pushes(typeof script === "string" ? script : script.hex).flatMap(function (part, i) {
+      const mime = sniff(part.data);
+      return mime && part.bytes <= 32 * 1024 * 1024 ? [{
+        protocol: "raw-image", protocolLabel: "Standalone image", output: output.n == null ? index : output.n,
+        part: i, mime: mime, mimeSource: "signature", bytes: part.bytes,
+        availableBytes: part.data.length, complete: part.complete, data: part.data
+      }] : [];
+    });
   }
   function metadata(raw) {
     const tx=raw && (raw.tx || raw), outputs=tx && (tx.vout || tx.outputs);

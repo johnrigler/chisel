@@ -387,3 +387,23 @@
   .portalStreamItem.isCompactGeneric:not(.isExpanded) .portalStreamTime { display: block; }
   .portalStreamRow > .portalStreamVerify { display: none; }
 }
+
+/* Closed rows are a catalog preview, not the reading surface. Bound wrapped
+   text and metadata together, even for a single giant unbroken payload. */
+.portalStreamItem:not(.isExpanded) .portalStreamRow > .portalStreamTitle {
+  display: block;
+  line-height: 1.35;
+  max-height: 13.5em;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
+}
+.portalStreamItem:not(.isExpanded) .portalStreamOpReturn {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 7;
+  overflow: hidden;
+  max-height: 9.45em;
+}
+.portalStreamPreviewLabel { font-size: 0.9em; font-weight: 500; }
