@@ -594,7 +594,11 @@
       return youtubeMetadataId(url) ? readPageMetadata(url) : null;
     }).find(function (metadata) { return metadata && metadata.title; });
     if (mediaMetadata) return truncateText(mediaMetadata.title,96);
-    const rawTitle = summary.title || (row && row.title) || "";
+    let rawTitle = summary.title || (row && row.title) || "";
+    const structured = portalStructuredPayloadsForRow(row)[0];
+    if (structured && (portalStructuredPayload(rawTitle) || /^(?:OP_RETURN JSON|JSON payload|JSON record|Truncated OP_RETURN)/i.test(rawTitle))) {
+      rawTitle = structured.title || [structured.label, structured.format].filter(Boolean).join(" · ");
+    }
     const anchorTitle = anchorTextsFromHtml(rawTitle)[0] || "";
     let title = isRawHtmlTitle(rawTitle) ? compactMediaTitle(anchorTitle || rawTitle) : printableText(rawTitle);
     if (title.includes("\ufffd")) title = "";
@@ -1184,15 +1188,75 @@
   }
 
   function opReturnJsonPayloadsForRow(row) {
+    return portalStructuredPayloadsForRow(row).filter(function (payload) { return payload.kind === "json"; });
+  }
+
+  const PORTAL_FORMAT_NOTES = "https://johnrigler.github.io/commons/reading/formats/ledger-media.html";
+
+  function portalStructuredPayload(text) {
+    const source = String(text || ""), parsed = findJsonPayload(source);
+    if (parsed) {
+      const value = parsed.value, fields = Array.isArray(value) ? [] : Object.keys(value);
+      const short = function (item) {
+        return typeof item === "string" && item.length <= 120 && !/[\r\n<>\x00-\x1f]/.test(item) && !/^data:/i.test(item) ? item : "";
+      };
+      const format = short(value.p) || short(value.protocol) || short(value.schema) || short(value.format);
+      let media = false, presentation = false, remaining = 256;
+      const inspect = function (node, depth) {
+        if (!node || typeof node !== "object" || depth > 6 || remaining <= 0) return;
+        Object.keys(node).slice(0, 256).forEach(function (key) {
+          if (--remaining < 0) return;
+          const item = node[key];
+          if (/^(?:image|imageUrl|image_url|thumbnail|thumbnailUrl|thumbnail_url)$/i.test(key)) media = true;
+          if (/^(?:style|styles|css|presentation|mask|maskImage|mask-image|filter|opacity)$/i.test(key)) presentation = true;
+          if (typeof item === "string" && /^data:image\//i.test(item)) media = true;
+          if (item && typeof item === "object") inspect(item, depth + 1);
+        });
+      };
+      inspect(value, 0);
+      const named = window.CHISEL_PORTAL_JSON && window.CHISEL_PORTAL_JSON.describe(value);
+      const label = named ? named.label : media && presentation ? "Image & presentation record" : media ? "JSON media record" : presentation ? "Presentation metadata" : "JSON record";
+      return {kind: "json", text: parsed.text, value: value, fields: fields, format: format,
+        label: label, title: short(value.title) || short(value.name), named: named,
+        bytes: new TextEncoder().encode(parsed.text).length, guide: named ? named.guide : "json-records"};
+    }
+    // Identify document syntax; never install carried markup or styles into
+    // the portal DOM. Literal prose (including <svg> examples) stays readable.
+    const html = /<!doctype\s+html\b|<html(?:\s|>)/i.test(source) || /^\s*<style(?:\s|>)/i.test(source) || /\btext\/html\b/i.test(source) && /<(?:style|img|div)\b/i.test(source);
+    const css = /\btext\/css\b/i.test(source) && /[{}]/.test(source);
+    if (!html && !css) return null;
+    return {kind: html ? "html" : "css", text: source, label: html ? "HTML presentation record" : "CSS presentation record",
+      bytes: new TextEncoder().encode(source).length, guide: "presentation"};
+  }
+
+  function portalStructuredPayloadsForRow(row) {
     if (!row || !row.raw) return [];
-    return extractOutputs(row.raw).reduce(function (payloads, output) {
-      if (!output.opReturnPayload || !output.opReturnText) return payloads;
-      const parsed = describeOpReturnText(output.opReturnText);
-      if (!parsed.parsedJson || !parsed.jsonText) return payloads;
-      payloads.push({output: output.n, text: parsed.jsonText, value: parsed.parsedJson, title: parsed.title,
-        bytes: new TextEncoder().encode(parsed.jsonText).length});
-      return payloads;
-    }, []);
+    const cache = portalRowCacheFor(row);
+    if (cache && cache.structuredPayloads && cache.structuredPayloadRaw === row.raw) return cache.structuredPayloads;
+    const payloads = extractOutputs(row.raw).flatMap(function (output) {
+      const payload = output.opReturnText && portalStructuredPayload(output.opReturnText);
+      return payload ? [Object.assign({output: output.n}, payload)] : [];
+    });
+    if (cache) { cache.structuredPayloads = payloads; cache.structuredPayloadRaw = row.raw; }
+    return payloads;
+  }
+
+  function portalPayloadPreview(text, known) {
+    const payload = known === undefined ? portalStructuredPayload(text) : known;
+    if (!payload) return text;
+    return [payload.label, payload.format ? "declares " + payload.format : "", payload.bytes.toLocaleString() + " bytes", "open for source & format notes"].filter(Boolean).join(" · ");
+  }
+
+  function portalPayloadFormatsForRow(row) {
+    const payloads = portalStructuredPayloadsForRow(row);
+    if (payloads.length) return payloads;
+    const cache = portalRowCacheFor(row);
+    const text = row && row.summary && row.summary.opReturnText;
+    if (cache && cache.summaryFormats && cache.summaryFormatSource === text) return cache.summaryFormats;
+    const payload = portalStructuredPayload(text);
+    const values = payload ? [payload] : [];
+    if (cache) { cache.summaryFormats = values; cache.summaryFormatSource = text; }
+    return values;
   }
 
   function treechatForRow(row) {
@@ -1214,12 +1278,18 @@
       treechat.warningCode?"source returned "+treechat.warningCode:""].filter(Boolean).join(" · ");
     const encrypted=encryptedBsvFilesForRow(row);
     if (encrypted.length) return encrypted.map(window.CHISEL_BSV_MEDIA.encryptedLabel).join("\n");
-    const payloads = extractOutputs(row && row.raw).map(function (output) { return output.opReturnPayload; }).filter(Boolean);
-    if (payloads.length) return payloads.map(function (payload) { return payload.text || payload.label; }).join("\n");
+    const outputs = extractOutputs(row && row.raw).filter(function (output) { return output.opReturnPayload; });
+    if (outputs.length) {
+      const structured = new Map(portalStructuredPayloadsForRow(row).map(function (payload) { return [payload.output, payload]; }));
+      return outputs.map(function (output) {
+        const payload = output.opReturnPayload;
+        return portalPayloadPreview(payload.text || payload.label, structured.get(output.n) || null);
+      }).join("\n");
+    }
     const text = String(row && row.summary && row.summary.opReturnText ||
       row && row.draftRecord && row.draftRecord.ledger.opReturnText || "").trim();
     if (/^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row)) && /BSVWRAPPER_MERKLE_E|indelible\.claude-code/.test(text)) return "Encrypted artifact · open record to inspect envelope";
-    return text.includes("\ufffd") ? "OP_RETURN data · open record to inspect bytes" : text;
+    return text.includes("\ufffd") ? "OP_RETURN data · open record to inspect bytes" : portalPayloadPreview(text, portalPayloadFormatsForRow(row)[0] || null);
   }
 
   function bsvInlineImageForRow(row) {
@@ -3820,6 +3890,7 @@
       parts.push(card.title, card.text, card.url, card.sourceUrl, card.videoId, card.kind);
     });
     summaryWordsForRow(row).forEach(function (x) { parts.push(x); });
+    portalPayloadFormatsForRow(row).forEach(function (payload) { parts.push(payload.label, payload.format, payload.named && payload.named.section); });
     if(window.CHISEL_PORTAL_EXPLORE && /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))){const f=window.CHISEL_PORTAL_EXPLORE.facts(row);parts.push(f.name,...f.apps,...f.collections,...f.parents.map(p=>p.txid));}
     const text = parts.filter(Boolean).join(" ").toLowerCase();
     if (cache) cache.searchText = text;
@@ -3829,6 +3900,12 @@
   function portalRowMatchesSearch(row) {
     const needle = getPortalSearchText();
     if (!needle) return true;
+    if (needle.startsWith("format:")) {
+      try {
+        const format = decodeURIComponent(needle.slice(7)).toLowerCase();
+        return portalPayloadFormatsForRow(row).some(function (payload) { return (payload.format || payload.kind).toLowerCase() === format; });
+      } catch (_) { return false; }
+    }
     if(needle.startsWith("app:") && window.CHISEL_PORTAL_EXPLORE){try{return window.CHISEL_PORTAL_EXPLORE.matchesFacet(row,{kind:"app",value:decodeURIComponent(needle.slice(4))});}catch(_){return false;}}
     const hay = searchableTextForRow(row);
     return needle.split(/\s+/).filter(Boolean).every(function (part) { return hay.indexOf(part) !== -1; });
@@ -5597,7 +5674,11 @@
     if (options && options.recordPage) {
       updatePortalDetailPart(view, "readingText", stamp, function (target) { appendPortalReadingText(target, row); }, true);
     }
-    updatePortalDetailPart(view, "jsonPayload", stamp, function (target) { appendPortalJsonPayloadDetails(target, row); }, true);
+    // Lazy JSON branches own their toggle handlers and mounted children. Keep
+    // them intact through unrelated notes, connectivity and metadata updates.
+    const payloadStamp = JSON.stringify([canonicalCoinForRow(row), row.txid,
+      portalStructuredPayloadsForRow(row).map(function (payload) { return [payload.output, payload.kind, payload.text]; })]);
+    updatePortalDetailPart(view, "jsonPayload", payloadStamp, function (target) { appendPortalJsonPayloadDetails(target, row); });
     if (!view.parts.notes) {
       const notes = document.createElement("div"); notes.style.display = "contents";
       notes.dataset.portalPart = "notes"; container.appendChild(notes); view.parts.notes = {node: notes};
@@ -5630,7 +5711,7 @@
     if (twetchForRow(row) || treechatForRow(row) || bsvInlineImageForRow(row) || encryptedBsvFilesForRow(row).length) return;
     const payloads = extractOutputs(row.raw).map(function (output) { return output.opReturnPayload; }).filter(Boolean);
     const text = row.raw ? payloads.filter(function (payload) {
-      return (payload.kind === "ascii" || payload.kind === "utf8") && payload.text && !findJsonPayload(payload.text);
+      return (payload.kind === "ascii" || payload.kind === "utf8") && payload.text && !portalStructuredPayload(payload.text);
     }).map(function (payload) { return payload.text; }).join("\n") : opReturnTextForRow(row);
     if (!text || !row.raw && findJsonPayload(text)) return;
     const content = document.createElement("div");
@@ -5793,19 +5874,47 @@
   }
 
   function appendPortalJsonPayloadDetails(container, row) {
-    const payloads = opReturnJsonPayloadsForRow(row);
+    const payloads = portalStructuredPayloadsForRow(row);
     payloads.forEach(function (payload) {
+      const isJson = payload.kind === "json";
       const section = document.createElement("section");
       section.className = "portalInterpretedRecord portalJsonPayload";
+      section.dataset.payloadKind = payload.kind;
       const heading = document.createElement("h5");
-      heading.textContent = "JSON payload · output " + payload.output;
+      heading.textContent = payload.label + " · output " + payload.output;
       section.appendChild(heading);
       const meta = document.createElement("p");
       meta.className = "muted";
-      meta.textContent = (Array.isArray(payload.value) ? "JSON array" : "JSON object") + " · " + payload.bytes.toLocaleString() + " bytes";
+      meta.textContent = (isJson ? Array.isArray(payload.value) ? "JSON array" : "JSON object" : payload.kind.toUpperCase()) + " · " + payload.bytes.toLocaleString() + " bytes";
       section.appendChild(meta);
+      const source = document.createElement("p");
+      source.className = "muted";
+      source.textContent = "Source: " + coinLabelForRow(row) + " · " + row.txid + ":" + payload.output;
+      section.appendChild(source);
+      if (payload.format) {
+        const format = document.createElement("p");
+        format.textContent = "Declared format: " + payload.format + " (from the payload)";
+        section.appendChild(format);
+      }
+      if (payload.fields && payload.fields.length) {
+        const fields = document.createElement("p");
+        fields.textContent = "Fields: " + payload.fields.slice(0, 12).map(function (field) { return field.slice(0, 64); }).join(", ") + (payload.fields.length > 12 ? " …" : "");
+        section.appendChild(fields);
+      }
+      if (payload.named) {
+        const interpretation = document.createElement("p");
+        interpretation.textContent = payload.named.count.toLocaleString() + " feed items" + (payload.named.section ? " · section: " + payload.named.section : "");
+        section.appendChild(interpretation);
+      }
       const actions = document.createElement("div");
       actions.className = "actions";
+      const guide = document.createElement("a");
+      guide.className = "secondaryButton";
+      setSafeHref(guide, PORTAL_FORMAT_NOTES + "#" + payload.guide);
+      guide.textContent = "Format & authoring notes in Commons";
+      guide.target = "_blank"; guide.rel = "noopener noreferrer";
+      actions.appendChild(guide);
+      if (isJson) {
       const download = document.createElement("button");
       download.type = "button";
       download.className = "secondaryButton";
@@ -5824,14 +5933,16 @@
       };
       actions.appendChild(download);
       actions.appendChild(status);
+      }
       section.appendChild(actions);
+      if (isJson && window.CHISEL_PORTAL_JSON) section.appendChild(window.CHISEL_PORTAL_JSON.render(document, payload.value));
       const view = document.createElement("details");
       const summary = document.createElement("summary");
-      summary.textContent = "View JSON payload";
+      summary.textContent = isJson ? "View formatted JSON source" : "View presentation source";
       view.appendChild(summary);
       const pre = document.createElement("pre");
       pre.className = "json";
-      pre.textContent = pretty(payload.value);
+      pre.textContent = isJson ? pretty(payload.value) : payload.text;
       view.appendChild(pre);
       section.appendChild(view);
       container.appendChild(section);
@@ -6348,6 +6459,22 @@
       titleWrap.textContent = post ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(post) : genericTitle || bsvInlineImage || titleText === truncateText(opText, 96) ? "" : titleText;
     }
     if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
+    const taggedFormats = new Set();
+    portalPayloadFormatsForRow(row).forEach(function (payload) {
+      const format = payload.format || payload.kind;
+      if (taggedFormats.has(format)) return;
+      taggedFormats.add(format);
+      const tag = document.createElement("button"); tag.type = "button";
+      tag.className = "secondaryButton portalFormatTag";
+      tag.textContent = payload.label + (payload.format ? " · " + payload.format : "");
+      tag.title = "Show this format in the loaded catalog";
+      tag.onclick = function (event) {
+        event.preventDefault(); event.stopPropagation();
+        const box = $("#portalEvmWordSearch");
+        if (box) { box.value = "format:" + encodeURIComponent(format); state.portalPage = 1; requestPortalRender(); }
+      };
+      titleWrap.appendChild(tag);
+    });
     if (!post && window.CHISEL_PORTAL_DISCOVERY && canonicalCoinForRow(row) === "bsv") {
       const facts = document.createElement("span"); facts.className = "portalStreamOpReturn";
       facts.textContent = bsvInlineImage

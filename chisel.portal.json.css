@@ -1,0 +1,12 @@
+.portalJsonPayload { min-width: 0; overflow-wrap: anywhere; }
+.portalJsonTree { margin: 12px 0; padding: 12px; border: 1px solid var(--border, #cad5dd); border-radius: 8px; background: #f4f7fb; color: #14252f; font: 13px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.portalJsonTree summary { cursor: pointer; padding: 3px 0; }
+.portalJsonChildren { margin-left: 12px; padding-left: 12px; border-left: 1px solid #b6c7d4; }
+.portalJsonKey { color: #164a8a; }
+.portalJsonString { color: #236133; white-space: pre-wrap; }
+.portalJsonNumber { color: #81510c; }
+.portalJsonBoolean, .portalJsonNull { color: #813c99; }
+.portalJsonCount { color: #526675; }
+.portalJsonFullString { display: block; padding: 8px; }
+.portalFormatTag { margin: 4px 5px 4px 0; font-size: 11px; }
+@media (max-width: 600px) { .portalJsonTree { padding: 8px; font-size: 12px; } .portalJsonChildren { margin-left: 5px; padding-left: 8px; } }

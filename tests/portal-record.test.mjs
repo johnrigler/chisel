@@ -3,7 +3,7 @@ import {readFile} from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
-const files = ["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.payload.js",
+const files = ["chisel.js", "chisel.thunderwords.js", "chisel.portal.static-data.js", "chisel.portal.payload.js", "chisel.portal.json.js",
   "chisel.portal.queue.js", "chisel.portal.view.js", "chisel.portal.store.js", "chisel.portal.notes.js", "chisel.portal.note-function.js", "chisel.portal.record.js", "chisel.portal.js"];
 const sources = await Promise.all(files.map(async file => [file, await readFile(new URL("../" + file, import.meta.url), "utf8")]));
 const txid = "ab".repeat(32), dataUrl = "https://records.example/chisel-data/transactions/litecoin/" + txid + ".json";
@@ -390,6 +390,78 @@ function refreshStream(f) {
   f.portal.loadEmbeddedStaticDataset(); paint(f);
 }
 const byClass = (node, name) => descendants(node).find(child => child.classList.contains(name));
+
+function carriedText(text, n = 0) {
+  const bytes = Buffer.from(text), size = bytes.length;
+  const prefix = size < 76 ? Buffer.from([size]) : size <= 255 ? Buffer.from([76, size]) : Buffer.from([77, size & 255, size >> 8]);
+  return {n, value: 0, scriptpubkey: "006a" + prefix.toString("hex") + bytes.toString("hex")};
+}
+
+function contentWithExistingQr(f, row) {
+  // These cases inspect payload rendering; use an already-mounted QR control.
+  const qr = new Element("button", f.context.document);
+  qr.dataset.transactionId = "litecoin:" + row.txid;
+  f.nodes.set("portalRecordToolbar", {querySelector() { return qr; }});
+  const content = new Element("div", f.context.document);
+  f.portal.appendPortalInlineDetails(content, row, {recordPage: true});
+  return content;
+}
+
+test("media JSON has a compact feed entry and a sourced format card instead of dumping presentation fields", async () => {
+  const f = fixture(), value = {p: "synthetic-media-v1", title: "Example image", image: "data:image/png;base64,AAAA", style: {maskImage: "radial-gradient(black, transparent)"}};
+  const row = addRow(f, {...raw, vout: [carriedText(JSON.stringify(value)), carriedText("A separate readable note", 1)]});
+  row.summary = {title: JSON.stringify(value)};
+  const feed = f.portal.renderStreamItem(null, row).textContent;
+  assert.match(feed, /Image & presentation record/); assert.match(feed, /declares synthetic-media-v1/);
+  assert.match(feed, /A separate readable note/); assert.doesNotMatch(feed, /radial-gradient|base64|maskImage/);
+  const content = contentWithExistingQr(f, row);
+  const card = byClass(content, "portalJsonPayload");
+  assert.match(card.textContent, new RegExp(txid + ":0"));
+  assert.match(card.textContent, /Declared format: synthetic-media-v1 \(from the payload\)/);
+  assert.match(card.textContent, /Fields: p, title, image, style/);
+  const details = descendants(card).find(node => node.tagName === "details" && descendants(node).some(child => child.tagName === "pre"));
+  assert.ok(!details.open); assert.match(details.textContent, /radial-gradient/);
+  const guide = descendants(card).find(node => node.tagName === "a");
+  assert.equal(guide.href, "https://johnrigler.github.io/commons/reading/formats/ledger-media.html#json-records");
+  const source = descendants(card).find(node => node.tagName === "pre");
+  assert.deepEqual(JSON.parse(source.textContent), value);
+});
+
+test("HTML presentation gets an inert source entry and does not become record-page prose or executable markup", async () => {
+  const f = fixture(), html = '<html><style>body {opacity:0}</style><img src="https://images.example/a.png" onerror="alert(1)"><script>alert(2)</script></html>';
+  const row = addRow(f, {...raw, vout: [carriedText(html)]}); row.summary = {title: html};
+  const feed = f.portal.renderStreamItem(null, row).textContent;
+  assert.match(feed, /HTML presentation record/); assert.doesNotMatch(feed, /opacity|onerror|alert/);
+  const content = contentWithExistingQr(f, row);
+  const card = byClass(content, "portalJsonPayload");
+  assert.equal(card.dataset.payloadKind, "html");
+  assert.equal(descendants(card).find(node => node.tagName === "pre").textContent, html);
+  assert.equal(descendants(card).filter(node => ["script", "style", "iframe", "img"].includes(node.tagName)).length, 0);
+  assert.ok(!byClass(content, "portalRecordText"));
+});
+
+test("cached structured summaries are compact before hydration and plain UTF-8 prose remains unchanged", () => {
+  const f = fixture(), row = addRow(f, null);
+  row.summary.opReturnText = '{"schema":"example","css":"body { color: red; }"}';
+  let feed = f.portal.renderStreamItem(null, row).textContent;
+  assert.match(feed, /Presentation metadata/); assert.doesNotMatch(feed, /color: red/);
+  row.summary = {title: "A note", opReturnText: "Ordinary prose with <svg> as a literal example. Καλημέρα."};
+  feed = f.portal.renderStreamItem(null, row).textContent;
+  assert.match(feed, /Ordinary prose with <svg> as a literal example. Καλημέρα./);
+});
+
+test("BSV_SECTION_1 is named from its observed shape and its format tag filters the loaded catalog", () => {
+  const f = fixture(), section = {p: "BSV_SECTION_1", s: "example", t: 1700000000000, f: [{title: "Example item"}]};
+  const row = addRow(f, {...raw, vout: [carriedText(JSON.stringify(section))]});
+  const item = f.portal.renderStreamItem(null, row), tag = byClass(item, "portalFormatTag");
+  assert.match(tag.textContent, /BSV section feed · BSV_SECTION_1/);
+  assert.equal(f.context.CHISEL_PORTAL_JSON.describe({p: "BSV_SECTION_1", f: "not an array"}), null);
+  tag.onclick({preventDefault() {}, stopPropagation() {}});
+  assert.equal(f.nodes.get("portalEvmWordSearch").value, "format:BSV_SECTION_1");
+  assert.equal(f.portal.state.portalPage, 1);
+  paint(f);
+  assert.equal(f.nodes.get("portalTransactionList").children.length, 1);
+});
 
 test("an unrelated history update preserves mounted rows, an open editor, caret, payload control and disclosure", async () => {
   const f = streamFixture(), list = f.nodes.get("portalTransactionList"), row = f.portal.state.portalRows[0];

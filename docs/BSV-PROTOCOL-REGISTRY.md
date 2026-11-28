@@ -13,3 +13,11 @@ Pipe-delimited B + MAP + AIP sections are recognized independently. MAP app=twet
 ### Display terminology
 
 The exact Bitcom B identifier `19HxigV4QyBv3tHpQVcUEQyq1pzZVdoAut` is displayed as **Bitcom B** in file interpretations and transaction output labels. The internal protocol key remains `B` so existing cached summaries and file retrieval remain compatible. Application names such as Twetch stay separate from the file protocol. The original address remains in the source script and newly decoded file metadata.
+
+## Structured records and presentation source
+
+The portal gives decoded JSON its own sourced card and compact feed summary. HTML/CSS presentation source is collapsed and inert. Generic categories are descriptive: an image field plus style/CSS/presentation fields does not establish an application identity. Explicit p/protocol/schema/format values are shown as declared identifiers.
+
+`chisel.portal.json.js` names the observed `p=BSV_SECTION_1` + array-valued `f` layout **BSV section feed**. The supplied 7f137c54145aa78fa04adb7a256157fb504a275cb0fa74534c1776f157198665 output 0 has section deepdive and 37 media entries. Its publisher and a formal spec are unverified. JSON uses a colored lazy tree, independently collapsible objects/arrays, 100-child pages and long-string disclosures; exact formatted source and JSON download remain available. A clickable format tag applies `format:<declared-identifier>` to the loaded catalog. Unknown JSON uses a JSON tag. Plain prose and existing image previews remain separate.
+
+Commons keeps the provenance, field table, intentional legacy authoring example and limits: https://johnrigler.github.io/commons/reading/formats/ledger-media.html . No format writer or new ledger bytes are introduced. The specific image fade effect still needs an identified transaction before assigning its original application or rendering rules.
