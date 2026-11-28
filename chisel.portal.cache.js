@@ -96,7 +96,7 @@
       const generation = expectedEpoch === undefined ? epoch : expectedEpoch;
       return enqueue(async function () {
         await ready;
-        if (generation !== epoch || typeof text !== "string" || !["catalog", "transaction"].includes(group)) return false;
+        if (generation !== epoch || typeof text !== "string" || !["catalog", "transaction", "thumbnail"].includes(group)) return false;
         const size = bytes(text), limit = db ? budget : Math.min(budget, 8 * 1024 * 1024);
         if (size > entryLimit || size > limit) return false;
         const meta = {key: key, group: group, bytes: size, storedAt: now(), usedAt: now(), touchedAt: now()};
@@ -166,7 +166,7 @@
       hit: function (offline) { counters.hits += 1; if (offline) counters.offlineHits += 1; notify(); },
       downloaded: function (text) { counters.downloads += 1; counters.receivedBytes += bytes(text); notify(); },
       stats: function () {
-        const groups = {catalog: 0, transaction: 0};
+        const groups = {catalog: 0, transaction: 0, thumbnail: 0};
         metadata.forEach(function (item) { groups[item.group] = (groups[item.group] || 0) + 1; });
         return Object.assign({persistent: !!db, entries: metadata.size, bytes: totalBytes(), maxBytes: db ? budget : Math.min(budget, 8 * 1024 * 1024), groups: groups}, counters);
       },

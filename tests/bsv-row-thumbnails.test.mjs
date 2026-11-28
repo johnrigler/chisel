@@ -31,3 +31,27 @@ test('BSV thumbnails participate in collapsed feed rendering and display invalid
   assert.match(portal,/genericTitle && thumb\.classList\.contains\("isEmpty"\)/);
   assert.match(portal,/scheduleVisibleBsvThumbnails\(pageRows\);/);
 });
+
+test('persistent thumbnail keys separate BSV networks and cache only small PNG previews', async () => {
+  const context = vm.createContext({canonicalCoinForRow: row => row.coin});
+  vm.runInContext(helper, context);
+  const items = new Map(), writes = [];
+  let hits = 0;
+  const cache = {get: async key => items.get(key), hit: () => hits++,
+    put: async (key,text,group,generation) => {writes.push({key,group,generation});items.set(key,{text});}};
+  const row = {coin:'bsv',txid:'a'.repeat(64)}, testnet = {...row,coin:'bsvTestnet'};
+  const png = 'data:image/png;base64,AAAA';
+  await context.saveCachedBsvThumbnail(row,cache,png,7);
+  assert.equal(writes[0].group,'thumbnail');assert.equal(writes[0].generation,7);
+  assert.equal(await context.readCachedBsvThumbnail({...row,raw:null},cache),png);
+  assert.equal(await context.readCachedBsvThumbnail(testnet,cache),'');
+  assert.equal(hits,1);
+  await context.saveCachedBsvThumbnail(row,cache,'data:image/svg+xml;base64,AAAA',7);
+  await context.saveCachedBsvThumbnail(row,cache,'data:image/png;base64,'+'A'.repeat(262144),7);
+  assert.equal(writes.length,1);
+});
+test('the visible thumbnail scheduler reads the persistent cache before hydrating transaction data', () => {
+  assert.ok(helper.indexOf('const cached = await readCachedBsvThumbnail(row, dataCache)') <
+    helper.indexOf('await hydratePortalRow(row.key'));
+  assert.match(helper,/if \(cached\) \{[\s\S]*?return;/);
+});

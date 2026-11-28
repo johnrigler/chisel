@@ -270,7 +270,7 @@
     const catalogs = stats.groups.catalog + " catalog file" + (stats.groups.catalog === 1 ? "" : "s");
     const transactions = stats.groups.transaction + " transaction file" + (stats.groups.transaction === 1 ? "" : "s");
     target.textContent = (stats.persistent ? "Saved on this device: " : "This visit only: ") + catalogs +
-      " · " + transactions + " · " + size +
+      " · " + transactions + " · " + stats.groups.thumbnail + " thumbnails · " + size +
       " · " + stats.hits + " reads reused this visit" + (stats.offlineHits ? " (" + stats.offlineHits + " while offline)" : "");
   }
 
@@ -2508,12 +2508,42 @@
     return !!matched.behavior.renderExpanded(container, matched.record, row);
   }
 
-  // Session-only compact raster previews. No full-size image blobs retained.
+  // Compact raster previews, persisted by immutable chain + TXID identity.
   const bsvRowThumbnails = new WeakMap();
   let visibleBsvThumbnailsScheduled = false;
   function bsvThumbnailForRow(row) {
     const entry = bsvRowThumbnails.get(row);
     return entry && entry.url || "";
+  }
+
+  function bsvThumbnailCacheKey(row) {
+    const coin = canonicalCoinForRow(row), txid = String(row.txid || "").toLowerCase();
+    return /^(?:bsv|bsvTestnet)$/.test(coin) && /^[0-9a-f]{64}$/.test(txid) ?
+      "thumbnail:bsv-raster-208x112-v1:" + coin + ":" + txid : "";
+  }
+
+  function validBsvThumbnail(value) {
+    return typeof value === "string" && value.length <= 256 * 1024 &&
+      /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+  }
+
+  async function readCachedBsvThumbnail(row, cache) {
+    const key = bsvThumbnailCacheKey(row);
+    if (!cache || !key) return "";
+    try {
+      const item = await cache.get(key);
+      if (item && validBsvThumbnail(item.text)) {
+        cache.hit(false);
+        return item.text;
+      }
+    } catch (_) {}
+    return "";
+  }
+
+  async function saveCachedBsvThumbnail(row, cache, url, generation) {
+    const key = bsvThumbnailCacheKey(row);
+    if (!cache || !key || !validBsvThumbnail(url)) return;
+    try { await cache.put(key, url, "thumbnail", generation); } catch (_) {}
   }
 
   function isBsvRasterImage(file) {
@@ -2553,7 +2583,7 @@
       if (!/^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))) return false;
       const previous = bsvRowThumbnails.get(row);
       if (previous && (previous.url || previous.raw === row.raw && previous.summary === row.summary)) return false;
-      return !!row.raw || rowCanHydrate(row);
+      return !!row.raw || rowCanHydrate(row) || !!(dataCache && bsvThumbnailCacheKey(row));
     });
     if (!candidates.length) return;
     visibleBsvThumbnailsScheduled = true;
@@ -2565,14 +2595,24 @@
           await Promise.all(candidates.slice(offset, offset + 2).map(async function (row) {
             if (!isVisiblePortalRow(row)) return;
             try {
-              if (!row.raw) await hydratePortalRow(row.key, {
+              const cacheGeneration = dataCache && dataCache.generation();
+              const cached = await readCachedBsvThumbnail(row, dataCache);
+              if (generation !== state.portalLoadGeneration || state.portalRowKeys[row.key] !== row || !isVisiblePortalRow(row)) return;
+              if (cached) {
+                bsvRowThumbnails.set(row, {raw: row.raw, summary: row.summary, url: cached});
+                return;
+              }
+              if (!row.raw && rowCanHydrate(row)) await hydratePortalRow(row.key, {
                 quiet: true, silent: true, suppressRender: true, deferSort: true, deferCache: true, refreshIndex: false
               });
               if (generation !== state.portalLoadGeneration || state.portalRowKeys[row.key] !== row) return;
               if (!isVisiblePortalRow(row)) return;
               const entry = {raw: row.raw, summary: row.summary, url: ""};
               bsvRowThumbnails.set(row, entry);
-              if (row.raw) entry.url = await makeBsvRowThumbnail(row);
+              if (row.raw) {
+                entry.url = await makeBsvRowThumbnail(row);
+                if (entry.url) await saveCachedBsvThumbnail(row, dataCache, entry.url, cacheGeneration);
+              }
             } catch (_) {
               // Unavailable media must not interrupt the ledger feed.
               bsvRowThumbnails.set(row, {raw: row.raw, summary: row.summary, url: ""});

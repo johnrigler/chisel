@@ -142,3 +142,14 @@ test('clearing catalogs preserves transaction files and fences late downloads fr
   assert.equal(await f.cache.put('late', '{}', 'catalog', generation), false);
   await f.cache.clear(); assert.equal(f.cache.stats().entries, 0);
 });
+
+test('thumbnail entries share bounded storage and are removed by the cache clear control', async () => {
+  const f = fixture({maxBytes:100});
+  await f.cache.put('thumbnail:test','data:image/png;base64,AAAA','thumbnail');
+  assert.equal(f.cache.stats().groups.thumbnail,1);
+  assert.equal((await f.cache.get('thumbnail:test')).text,'data:image/png;base64,AAAA');
+  await f.cache.clear('catalog');
+  assert.ok(await f.cache.get('thumbnail:test'));
+  await f.cache.clear();
+  assert.equal(await f.cache.get('thumbnail:test'),null);
+});
