@@ -25,3 +25,12 @@ test('bare and JSON-carried base64 raster images are recognized without a protoc
   assert.equal(context.bsvInlineImageForRow(row(JSON.stringify({image: png}))).mime, 'image/png');
   assert.equal(context.bsvInlineImageForRow(row('ordinary prose')), null);
 });
+
+test('headings collapse whitespace and never exceed 120 characters', () => {
+  const context = vm.createContext({});
+  vm.runInContext(helper, context);
+  assert.equal(context.compactPortalHeading('Short\n  title'), 'Short title');
+  assert.equal(context.compactPortalHeading('x'.repeat(10000)).length, 120);
+  assert.ok(context.compactPortalHeading('x'.repeat(10000)).endsWith('…'));
+  assert.equal(context.compactPortalHeading(''), '');
+});

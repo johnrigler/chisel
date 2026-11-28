@@ -407,3 +407,28 @@
   max-height: 9.45em;
 }
 .portalStreamPreviewLabel { font-size: 0.9em; font-weight: 500; }
+
+/* Keep catalog headings short independently of the payload excerpt. */
+.portalStreamItem:not(.isExpanded) .portalStreamHeading,
+.portalStreamItem:not(.isExpanded) .portalStreamTitle > .isDirectLink,
+.portalStreamItem:not(.isExpanded) .portalStreamMetadata {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-height: 2.7em;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.portalStreamItem:not(.isExpanded) .portalStreamHeading:empty { display: none; }
+.portalStreamItem:not(.isExpanded) .portalStreamOpReturn {
+  -webkit-line-clamp: 5;
+  max-height: 6.75em;
+}
+.portalStreamItem.isExpanded .portalStreamRow > .portalStreamTitle {
+  display: block;
+  -webkit-line-clamp: unset;
+  max-height: none;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

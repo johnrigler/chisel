@@ -6423,6 +6423,11 @@
     return {text: preview + (preview.length < source.length ? "…" : ""), truncated: preview.length < source.length};
   }
 
+  function compactPortalHeading(value) {
+    const source = String(value || "").replace(/\s+/g, " ").trim();
+    return source.length > 120 ? source.slice(0, 119).trimEnd() + "…" : source;
+  }
+
   function renderPortalStreamItem(list, row, options) {
     prepareEvmRow(row);
     const opts = options || {};
@@ -6525,6 +6530,7 @@
     const titleText = displayTitleForRow(row);
     const rawOpText = opReturnTextForRow(row);
     const bsvInlineImage = bsvInlineImageForRow(row);
+    const embeddedImagePreview = !!(bsvInlineImage || bsvThumbnailForRow(row));
     const opText = bsvInlineImage
       ? "Embedded " + bsvInlineImage.mime.slice(6).toUpperCase() + " image · " + bsvInlineImage.bytes.toLocaleString() + " bytes"
       : !expanded && bsvThumbnailForRow(row) ? "Embedded BSV image · open for full record" : rawOpText;
@@ -6533,21 +6539,24 @@
     const genericTitle = /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
     const compactGeneric = !primaryUrl && !opText && genericTitle && thumb.classList.contains("isEmpty");
     if (compactGeneric) item.classList.add("isCompactGeneric");
-    titleWrap.title = bsvInlineImage
-      ? opText
-      : compactGeneric ? (recordLink ? "Open Chisel record page" : "Expand for transaction details") : titleText;
+    titleWrap.title = !expanded && embeddedImagePreview
+      ? "Embedded image · expand for full record"
+      : compactGeneric ? (recordLink ? "Open Chisel record page" : "Expand for transaction details") : expanded ? titleText : compactPortalHeading(titleText);
     if (primaryUrl) {
       const titleLink = document.createElement("a");
       setSafeHref(titleLink, primaryUrl);
       titleLink.target = "_blank";
       titleLink.rel = "noopener noreferrer";
-      titleLink.textContent = expanded ? titleText : compactPortalText(titleText).text;
+      titleLink.textContent = expanded ? titleText : embeddedImagePreview && !post ? "Embedded image" : compactPortalHeading(titleText);
       titleLink.className = "isDirectLink";
       titleWrap.appendChild(titleLink);
     } else {
       // Plain notes need one full text copy, not a duplicate truncated title.
       const heading = post ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(post) : genericTitle || bsvInlineImage || titleText === truncateText(opText, 96) ? "" : titleText;
-      titleWrap.textContent = expanded ? heading : compactPortalText(heading).text;
+      const headingSpan = document.createElement("span");
+      headingSpan.className = "portalStreamHeading";
+      headingSpan.textContent = expanded ? heading : embeddedImagePreview && !post ? "" : compactPortalHeading(heading);
+      titleWrap.appendChild(headingSpan);
     }
     if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
     const taggedFormats = new Set();
@@ -6596,6 +6605,10 @@
       const payload = document.createElement("span");
       payload.className = "portalStreamOpReturn";
       const preview = expanded ? {text: opText, truncated: false} : compactPortalText(opText);
+      if (!expanded && !embeddedImagePreview && preview.text.length > 400) {
+        preview.text = preview.text.slice(0, 399).trimEnd() + "…";
+        preview.truncated = true;
+      }
       appendLinkedTransactionText(payload, preview.text);
       if (preview.truncated) {
         payload.title = "Excerpt · expand to read the full payload";
