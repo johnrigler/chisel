@@ -9,6 +9,15 @@
     return Number.isFinite(date.getTime()) ? date.toLocaleString(undefined, {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "unknown";
   }
 
+  function recentRecords(job) {
+    const seen = new Set();
+    return (Array.isArray(job.recentRecords) ? job.recentRecords : []).filter(function (record) {
+      if (!record || typeof record.txid !== "string" || !/^[0-9a-f]{64}$/.test(record.txid) ||
+          seen.has(record.txid) || integer(record.blockHeight) === null) return false;
+      seen.add(record.txid); return true;
+    }).slice(0, 20);
+  }
+
   function createModel(scan, options) {
     const settings = options || {}, blocks = new Map();
     (Array.isArray(scan.blocks) ? scan.blocks : Array.isArray(scan.topBlocks) ? scan.topBlocks : []).forEach(function (block) {
@@ -55,7 +64,7 @@
     const readers = chosen.map(function (job, index) {
       const height = integer(job.currentBlock && job.currentBlock.height) ?? integer(job.nextHeight);
       const cell = height === null ? null : cells[cellForHeight(height)];
-      return {job, height, cell, id: String(job.name || "reader-" + index),
+      return {job, height, cell, recentRecords: recentRecords(job), id: String(job.name || "reader-" + index),
         title: job.name === "apollo-forward" ? "Apollo forward" : job.name === "apollo-backward" ? "Apollo backward" :
           job.direction === "forward" ? "Early reader" : "Recent reader",
         marker: job.name === "apollo-forward" ? "A→" : job.name === "apollo-backward" ? "A←" : job.direction === "forward" ? "E→" : "R←",
@@ -173,6 +182,7 @@
     if (!view || view.section.parentNode !== container) { view = buildView(container); views.set(container, view); }
     const model = createModel(scan, settings); view.model = model;
     if (settings.onRefresh) view.onRefresh = settings.onRefresh;
+    view.onReader = settings.onReader;
     view.refresh.disabled = !!settings.loading;
     view.percent.textContent = model.percentage > 0 && model.percentage < 0.01 ? "<0.01%" : model.percentage.toFixed(2) + "%";
     view.counts.textContent = "of ledger blocks complete · " + format(model.complete) + " / " + format(model.total) +
@@ -205,11 +215,20 @@
       if (!card) {
         const node = view.make("article", "portalCoverageReader", "", view.cards);
         card = {node, title: view.make("strong", "", "", node), position: view.make("p", "", "", node),
-          progress: view.make("progress", "", "", node), state: view.make("p", "help", "", node)};
+          progress: view.make("progress", "", "", node), state: view.make("p", "help", "", node),
+          open: view.make("button", "secondaryButton portalCoverageOpenReader", "", node)};
+        card.open.type = "button";
+        card.node.onclick = function (event) {
+          if (event.target !== card.open && !card.open.disabled && !card.open.hidden) card.open.click();
+        };
         view.readerCards.set(reader.id, card);
       }
       card.node.style.setProperty("--reader-color", reader.color);
       card.title.textContent = reader.arrow + " " + reader.title + " · " + reader.id;
+      card.open.hidden = !view.onReader;
+      card.open.disabled = !reader.recentRecords.length && reader.height === null;
+      card.open.textContent = reader.recentRecords.length ? "View recent finds (" + reader.recentRecords.length + ")" : "View nearby records";
+      card.open.onclick = function () { if (view.onReader) view.onReader(reader); };
       const current = reader.job.currentBlock || {}, checked = integer(current.transactionsChecked), total = integer(current.transactionsTotal);
       card.position.textContent = reader.height === null ? "Position not reported" : "Block " + format(reader.height) +
         (checked !== null && total !== null ? " · " + format(checked) + " / " + format(total) + " transactions" : "");
@@ -235,7 +254,8 @@
     const active = () => !disposed && panel.open && !doc.hidden && (!deps.isActive || deps.isActive());
     const now = deps.now || Date.now;
     function draw(loading) {
-      if (snapshot) render(container, snapshot, {tipHeight: tip, now: now(), loading, error, onRefresh: () => refresh(true)});
+      if (snapshot) render(container, snapshot, {tipHeight: tip, now: now(), loading, error, onRefresh: () => refresh(true),
+        onReader: deps.onReader ? reader => deps.onReader(reader, deps.scanUrl()) : null});
       else {
         container.textContent = loading ? "Reading the latest BSV scan report…" : error || "No BSV scan report available.";
         if (!loading) {

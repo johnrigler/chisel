@@ -100,3 +100,11 @@ test('Apollo cursors have distinct markers and split when sharing a map cell', (
   assert.equal(map.otherJobs.length,0);
   assert.equal(map.knownComplete,0);
 });
+
+test('recent discoveries use unique valid BSV IDs and preserve scanner discovery order', () => {
+  const a='a'.repeat(64), b='b'.repeat(64);
+  const map=createModel({...base,jobs:[{name:'apollo-forward',direction:'forward',nextHeight:10,
+    recentRecords:[{txid:a,blockHeight:9},{txid:b,blockHeight:8},{txid:a,blockHeight:9},
+      {txid:'bad',blockHeight:9},{txid:'c'.repeat(64),blockHeight:null}]}]});
+  assert.deepEqual(Array.from(map.readers[0].recentRecords,r=>r.txid),[a,b]);
+});

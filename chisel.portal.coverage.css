@@ -75,3 +75,6 @@
   .portalCoveragePercent { font-size: 30px; }
 }
 @media (prefers-reduced-motion: reduce) { .portalCoverageReaderMarker { transition: none; } }
+
+.portalCoverageReader:has(.portalCoverageOpenReader:not([hidden]):not(:disabled)) { cursor: pointer; }
+.portalCoverageOpenReader { width: 100%; text-align: center; font-size: 12px; padding: 7px; }

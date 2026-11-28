@@ -3897,9 +3897,21 @@
     return text;
   }
 
+  const skulkerFinds = new Map();
+
   function portalRowMatchesSearch(row) {
     const needle = getPortalSearchText();
     if (!needle) return true;
+    if (needle.startsWith("skulker:")) {
+      const ids = skulkerFinds.get(needle);
+      return sourceIdForRow(row) === "bsv" && !!ids && ids.includes(row.txid);
+    }
+    const blockRange = needle.match(/^block:(\d+)(?:-(\d+))?$/);
+    if (blockRange) {
+      const height = Number(row.summary && row.summary.blockHeight || extractBlockHeight(row.raw));
+      return sourceIdForRow(row) === "bsv" && height > 0 &&
+        height >= Number(blockRange[1]) && height <= Number(blockRange[2] || blockRange[1]);
+    }
     if (needle.startsWith("format:")) {
       try {
         const format = decodeURIComponent(needle.slice(7)).toLowerCase();
@@ -3916,7 +3928,10 @@
   }
 
   function getFilteredPortalRows() {
-    return state.portalRows.filter(portalRowIsVisible);
+    const rows = state.portalRows.filter(portalRowIsVisible);
+    const ids = skulkerFinds.get(getPortalSearchText());
+    if (ids) rows.sort(function (a, b) { return ids.indexOf(a.txid) - ids.indexOf(b.txid); });
+    return rows;
   }
 
   function applyPortalFilterConfig() {
@@ -6937,6 +6952,44 @@
     return {row,source:loaded.source,url:loaded.url,json:loaded.json,coin:"bsv"};
   }
 
+  async function openSkulkerRecords(reader, scanUrl) {
+    const box = $("#portalEvmWordSearch"), panel = $("#portalBsvScanPanel");
+    if (!box) return;
+    const ids = reader.recentRecords.map(record => record.txid);
+    const key = ids.length ? "skulker:" + reader.id.toLowerCase() :
+      "block:" + Math.max(0, reader.height - 10) + "-" + (reader.height + 10);
+    if (ids.length) skulkerFinds.set(key, ids);
+    focusPortalSources(["bsv"]);
+    const token = ++exactSearchSequence;
+    if (exactSearchTimer !== null) { window.clearTimeout(exactSearchTimer); exactSearchTimer = null; }
+    box.value = key;
+    state.portalPage = 1;
+    if (panel) panel.open = false;
+    renderPortalRows();
+    const list = $("#portalTransactionList");
+    if (list) { list.scrollTop = 0; list.scrollIntoView({block: "start"}); }
+    const active = () => token === exactSearchSequence && getPortalSearchText() === key;
+    if (!ids.length) {
+      setStatus(reader.title + ": no attributed recent finds yet; showing records near block " + reader.height + ".", false);
+      try { await loadStaticManifest(new URL("manifest.json", scanUrl).href, {refresh:true, silent:true, label:"BSV public history", badge:"scan"}); }
+      catch (_) {}
+      if (active()) { renderPortalRows(); setStatus(reader.title + ": " + getFilteredPortalRows().length +
+        " catalog records near block " + reader.height + " (not attributed to this cursor).", false); }
+      return;
+    }
+    setStatus("Loading " + reader.title + "'s " + ids.length + " recent finds…", false);
+    const missing = ids.filter(id => !state.portalRows.some(row => sourceIdForRow(row) === "bsv" && row.txid === id));
+    for (let i = 0; i < missing.length && active(); i += 4) {
+      await Promise.allSettled(missing.slice(i, i + 4).map(readExactBsvTransaction));
+      if (active()) renderPortalRows();
+    }
+    if (active()) {
+      const count = getFilteredPortalRows().length;
+      setStatus(reader.title + ": " + count + " of " + ids.length + " recent discoveries loaded, newest discovered first." +
+        (count < ids.length ? " Some records are currently unavailable." : ""), count < ids.length);
+    }
+  }
+
   let exactSearchSequence = 0, exactSearchTimer = null;
   function scheduleExactPortalSearch(box, immediate) {
     const token = ++exactSearchSequence;
@@ -9309,6 +9362,9 @@ function getPortalFirstCharacter() {
     const coveragePanel = $("#portalBsvScanPanel"), coverageTarget = $("#portalBsvScanCoverage");
     if (coveragePanel && coverageTarget && window.CHISEL_BSV_COVERAGE) {
       coverageController = window.CHISEL_BSV_COVERAGE.createController({container: coverageTarget, panel: coveragePanel,
+        onReader: function (reader, scanUrl) {
+          openSkulkerRecords(reader, scanUrl).catch(error => setStatus(error.message || String(error), true));
+        },
         isActive: function () { return document.body.dataset.mode === "portal" && !$("#portalListView").hidden; },
         scanUrl: function () {
           const feeds = normalizePathList(configValue("staticDiscoveryManifestPaths", null), []);
