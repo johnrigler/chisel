@@ -14,7 +14,7 @@ test('one canonical release value is shared by Chisel pages', async () => {
   const title = { textContent: '', getAttribute: () => 'QR WIF Loader' };
   const context = {
     window: {},
-    document: { querySelector: selector => selector === 'title[data-chisel-release-title]' ? title : null }
+    document: { getElementById: () => null, querySelector: selector => selector === 'title[data-chisel-release-title]' ? title : null }
   };
   vm.runInNewContext(release, context, { filename: 'chisel.version.js' });
   const version = context.window.CHISEL_RELEASE.version;
@@ -28,5 +28,5 @@ test('one canonical release value is shared by Chisel pages', async () => {
   assert.match(qr, /<title data-chisel-release-title="QR WIF Loader">/);
   assert.ok(main.indexOf('chisel.version.js?rev=') < main.indexOf('app.js?rev='), 'load release before app');
   assert.ok(qr.indexOf('chisel.version.js?rev=') < qr.indexOf('vendor/html5-qrcode.min.js'), 'load release before QR runtime');
-  assert.match(main, /<script src="app\.js\?rev=[^"]+"><\/script>/);
+  assert.match(main, /<script src="app\.js\?rev=[^"]+"[^>]*><\/script>/);
 });

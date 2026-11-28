@@ -1,3 +1,8 @@
+# 2.9.27 — swipe up for the next portal page
+
+- Swipe up again at the bottom of the transaction list to advance one results page and return to its first record. On phones, the gesture also works once the page controls are visible, before the optional settings drawers.
+- Keep ordinary scrolling, horizontal gestures, pinch zoom, editable fields and nested data readers native. Stop at the last page; leave top-of-page gestures unchanged.
+
 # 2.9.26 — render Base64 image payloads
 
 - Detect inline raster image data URIs in BSV OP_RETURN output text.

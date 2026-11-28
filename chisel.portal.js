@@ -4071,6 +4071,80 @@
     if (list) list.scrollTop = 0;
   }
 
+  function bindPortalPageSwipe() {
+    const host = $("#portalListView");
+    const list = $("#portalTransactionList");
+    if (!host || !list) return;
+    let swipe = null;
+    const edgeTolerance = 3;
+
+    function active() {
+      return document.body.dataset.mode === "portal" && !host.hidden && !(recordView && recordView.active());
+    }
+    function atBottom(node) {
+      return node && node.clientHeight > 0 && node.scrollTop + node.clientHeight >= node.scrollHeight - edgeTolerance;
+    }
+    function scrollable(node) {
+      return node.scrollHeight > node.clientHeight + edgeTolerance && /^(auto|scroll)$/.test(window.getComputedStyle(node).overflowY);
+    }
+    function bottomScroller(target) {
+      // Expanded JSON and other nested readers keep their own scrolling.
+      for (let node = target; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+        if (scrollable(node)) return node === list && atBottom(list) ? list : null;
+      }
+      if (scrollable(list) && !atBottom(list)) return null;
+      const page = document.scrollingElement || document.documentElement;
+      const controls = $("#portalPageControls");
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      // On phones the rows scroll with the document. The page controls mark
+      // the end of the results, before the optional storage/settings drawers.
+      const end = controls && controls.getBoundingClientRect().bottom;
+      const resultsEnd = controls && (list.contains(target) || controls.contains(target)) && end > 0 && end <= viewportHeight + edgeTolerance;
+      return atBottom(page) || resultsEnd ? page : null;
+    }
+    function canAdvance() {
+      return active() && state.portalPage < getPortalPageCount();
+    }
+
+    host.addEventListener("touchstart", function (event) {
+      swipe = null;
+      if (event.touches.length !== 1 || !canAdvance()) return;
+      const target = event.target;
+      if (target.closest("input,select,textarea,video,audio,iframe,canvas,[contenteditable]:not([contenteditable='false']),[role='slider']")) return;
+      const scroller = bottomScroller(target);
+      if (!scroller) return;
+      const touch = event.touches[0];
+      swipe = {id: touch.identifier, x: touch.clientX, y: touch.clientY, scroller: scroller,
+        context: visibleDateLookupContextToken()};
+    }, {passive: true});
+    host.addEventListener("touchmove", function (event) {
+      if (!swipe) return;
+      if (event.touches.length !== 1 || event.touches[0].identifier !== swipe.id) { swipe = null; return; }
+      const touch = event.touches[0];
+      const dx = Math.abs(touch.clientX - swipe.x);
+      const dy = swipe.y - touch.clientY;
+      if (dx > 16 && dx > Math.abs(dy)) { swipe = null; return; }
+      // Suppress the native overscroll only for an upward gesture that began
+      // at the boundary; ordinary scrolling and pinch zoom remain native.
+      if (dy > 10 && dy > dx * 1.5 && event.cancelable) event.preventDefault();
+    }, {passive: false});
+    host.addEventListener("touchend", function (event) {
+      const gesture = swipe;
+      swipe = null;
+      if (!gesture || event.touches.length) return;
+      const touch = Array.from(event.changedTouches).find(function (item) { return item.identifier === gesture.id; });
+      if (!touch) return;
+      const dy = gesture.y - touch.clientY;
+      const dx = Math.abs(touch.clientX - gesture.x);
+      if (dy < 64 || dy <= dx * 1.5 || !canAdvance() || gesture.context !== visibleDateLookupContextToken()) return;
+      if (bottomScroller(event.target) !== gesture.scroller) return;
+      if (event.cancelable) event.preventDefault();
+      setPortalPage(state.portalPage + 1);
+      list.scrollIntoView({block: "start", behavior: "instant"});
+    }, {passive: false});
+    host.addEventListener("touchcancel", function () { swipe = null; }, {passive: true});
+  }
+
   function resetPortalRowsForNewLoad() {
     snapshotRecentPortalSummaries(false);
     const publications = state.portalRows.filter(function (row) { return !!row.publication || !!row.recentPolygon; });
@@ -4182,7 +4256,10 @@
       addButton("Go", "Go to page", go, "portalGoPage");
       addButton("›", "Next page", function () { setPortalPage(state.portalPage + 1); }, "portalNextPage");
       addButton("»", "Last page", function () { setPortalPage(getPortalPageCount()); }, "portalLastPage");
-      controls.append(label, sizes, nav);
+      const swipeHint = document.createElement("div");
+      swipeHint.className = "help portalPaginationSwipeHint";
+      swipeHint.textContent = "Swipe up again at the bottom for the next page.";
+      controls.append(label, sizes, nav, swipeHint);
       target.replaceChildren(controls);
     }
     const label = controls.querySelector(".portalPaginationStatus");
@@ -4207,6 +4284,7 @@
     controls.querySelector(".portalPreviousPage").disabled = page <= 1;
     controls.querySelector(".portalNextPage").disabled = page >= count;
     controls.querySelector(".portalLastPage").disabled = page >= count;
+    controls.querySelector(".portalPaginationSwipeHint").hidden = page >= count;
   }
 
   function mergePortalSummary(existingSummary, incomingSummary) {
@@ -9295,6 +9373,7 @@ function getPortalFirstCharacter() {
     };
 
     const streamList = $("#portalTransactionList");
+    bindPortalPageSwipe();
     if (streamList) streamList.onkeydown = function (event) {
       if (event.key === "ArrowDown") { event.preventDefault(); selectRelativePortalRow(1); }
       if (event.key === "ArrowUp") { event.preventDefault(); selectRelativePortalRow(-1); }
