@@ -1,3 +1,9 @@
+# 2.9.25 — detect and export OP_RETURN JSON payloads
+
+- Detect a valid JSON object or array inside an OP_RETURN payload, including JSON preceded by a protocol marker; label it as a JSON payload record.
+- Show the parsed payload in a collapsible record card and download the original JSON text separately from the complete transaction JSON.
+- Rename the full-record controls to make the transaction JSON download distinct from the payload JSON download.
+
 # 2.9.24 — improve Twetch and comment contrast
 
 - Put decoded Twetch posts on a light, high-contrast surface so content and links remain readable within Chisel's dark shell.

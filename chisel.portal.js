@@ -599,6 +599,45 @@
     return urls;
   }
 
+  function findJsonPayload(value) {
+    const source = String(value || "");
+    for (let start = 0; start < source.length; start += 1) {
+      const first = source.charAt(start);
+      if (first !== "{" && first !== "[") continue;
+      const stack = [], expected = [];
+      let inString = false, escaped = false, invalid = false;
+      for (let index = start; index < source.length; index += 1) {
+        const char = source.charAt(index);
+        if (inString) {
+          if (escaped) escaped = false;
+          else if (char === "\\") escaped = true;
+          else if (char === "\"") inString = false;
+          continue;
+        }
+        if (char === "\"") { inString = true; continue; }
+        if (char === "{" || char === "[") {
+          stack.push(char);
+          expected.push(char === "{" ? "}" : "]");
+          continue;
+        }
+        if (char !== "}" && char !== "]") continue;
+        if (expected.pop() !== char) { invalid = true; break; }
+        stack.pop();
+        if (!stack.length) {
+          const text = source.slice(start, index + 1);
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed && typeof parsed === "object") return {text: text, value: parsed};
+          } catch (_) {}
+          invalid = true;
+          break;
+        }
+      }
+      if (!invalid) continue;
+    }
+    return null;
+  }
+
   function tryParseJsonText(value) {
     const text = String(value || "").trim();
     if (!text || !/^[\[{]/.test(text)) return null;
@@ -607,12 +646,14 @@
 
   function describeOpReturnText(text) {
     const clean = printableText(text);
-    const parsed = tryParseJsonText(text);
+    const jsonPayload = findJsonPayload(text);
+    const parsed = jsonPayload ? jsonPayload.value : null;
     const urls = extractUrls(text);
     const out = {
       text: clean,
       urls: urls,
       parsedJson: parsed,
+      jsonText: jsonPayload ? jsonPayload.text : "",
       title: ""
     };
 
@@ -621,9 +662,11 @@
         if (!item || typeof item !== "object") return "";
         return item.title || item.subject || item.name || item.text || item.url || "";
       }).filter(Boolean)[0];
-      out.title = firstTitle ? truncateText(firstTitle, 96) : "OP_RETURN JSON array (" + parsed.length + " items)";
+      out.title = firstTitle ? "JSON payload · " + truncateText(firstTitle, 88) : "JSON payload · array (" + parsed.length + " items)";
     } else if (parsed && typeof parsed === "object") {
-      out.title = truncateText(parsed.title || parsed.subject || parsed.name || parsed.text || parsed.url || "OP_RETURN JSON object", 96);
+      out.title = parsed.title || parsed.subject || parsed.name || parsed.text || parsed.url
+        ? "JSON payload · " + truncateText(parsed.title || parsed.subject || parsed.name || parsed.text || parsed.url, 88)
+        : "JSON payload · object";
     } else if (/spotify:track:/i.test(clean)) {
       out.title = "Spotify track " + clean.replace(/^.*spotify:track:/i, "");
     } else if (urls.length) {
@@ -1119,6 +1162,18 @@
     });
   }
 
+  function opReturnJsonPayloadsForRow(row) {
+    if (!row || !row.raw) return [];
+    return extractOutputs(row.raw).reduce(function (payloads, output) {
+      if (!output.opReturnPayload || !output.opReturnText) return payloads;
+      const parsed = describeOpReturnText(output.opReturnText);
+      if (!parsed.parsedJson || !parsed.jsonText) return payloads;
+      payloads.push({output: output.n, text: parsed.jsonText, value: parsed.parsedJson, title: parsed.title,
+        bytes: new TextEncoder().encode(parsed.jsonText).length});
+      return payloads;
+    }, []);
+  }
+
   function treechatForRow(row) {
     const api=window.CHISEL_BSV_MEDIA, summary=row&&row.summary||{};
     if(row&&row.raw&&api&&api.treechatPost)return api.treechatPost(row.raw);
@@ -1304,6 +1359,7 @@
           records.push({
             kind: "op-return-json",
             index: output.n,
+            text: payload.jsonText,
             value: payload.parsedJson
           });
         }
@@ -3402,6 +3458,29 @@
     return filename;
   }
 
+  function downloadJsonPayload(row, payload) {
+    if (!row || !row.raw || !payload || typeof payload.text !== "string" ||
+        !Number.isInteger(payload.output) || payload.output < 0) throw new Error("No JSON payload is available.");
+    let parsed;
+    try { parsed = JSON.parse(payload.text); }
+    catch (_) { throw new Error("The detected JSON payload is no longer valid."); }
+    if (!parsed || typeof parsed !== "object") throw new Error("The detected payload is not a JSON object or array.");
+    const coin = canonicalCoinForRow(row), txid = String(row.txid || "").replace(/^0x/i, "").toLowerCase();
+    if (!TXID_RE.test(txid) || !/^[a-zA-Z0-9]+$/.test(coin) || coin === "unknown") throw new Error("Transaction identity is unavailable.");
+    const filename = "chisel-" + coin + "-" + txid + "-output-" + payload.output + "-payload.json";
+    const blob = new Blob([payload.text + "\n"], {type:"application/json;charset=utf-8"});
+    const objectUrl = URL.createObjectURL(blob), link = document.createElement("a");
+    try {
+      link.href = objectUrl; link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+    } finally {
+      link.remove();
+      window.setTimeout(function () { URL.revokeObjectURL(objectUrl); },60000);
+    }
+    return filename;
+  }
+
   async function saveCurrentTransaction() {
     return saveTransactionToFileProxy(state.rawJson, state.selectedTxid, state.currentIndex);
   }
@@ -5365,6 +5444,7 @@
       }
     }, true);
     updatePortalDetailPart(view, "header", stamp + !!(options && options.recordPage), function (target) { appendPortalInlineHeader(target, row, options); }, true);
+    updatePortalDetailPart(view, "jsonPayload", stamp, function (target) { appendPortalJsonPayloadDetails(target, row); }, true);
     if (!view.parts.notes) {
       const notes = document.createElement("div"); notes.style.display = "contents";
       notes.dataset.portalPart = "notes"; container.appendChild(notes); view.parts.notes = {node: notes};
@@ -5403,6 +5483,7 @@
     const post=twetchForRow(row);
     const treechat=treechatForRow(row);
     const bsvType=bsv&&window.CHISEL_BSV_MEDIA&&row.raw?window.CHISEL_BSV_MEDIA.classify(row.raw):null;
+    const jsonPayloads=opReturnJsonPayloadsForRow(row);
     if(post)title.textContent=options&&options.recordPage?"Transaction details":interpreted.twetchTitle(post);
     else if(interpreted && !getPortalAnnotation(row).metadata.title)title.textContent=interpreted.facts(row).name||title.textContent;
 
@@ -5414,6 +5495,7 @@
     meta.textContent = [
       summary.blockHeight ? "block " + summary.blockHeight : "",
       window.CHISEL_PORTAL_DISCOVERY ? window.CHISEL_PORTAL_DISCOVERY.recordLabel(summary) : "",
+      jsonPayloads.map(function (payload) { return "JSON payload · output " + payload.output; }).join(" · "),
       row.localPath ? "local " + row.localPath : ""
     ].filter(Boolean).join(" · ");
 
@@ -5471,7 +5553,7 @@
       const save = document.createElement("button");
       save.type = "button";
       save.className = "secondaryButton";
-      save.textContent = "save JSON";
+      save.textContent = "save transaction JSON";
       save.title = "Download the original transaction JSON to this device";
       const feedback = document.createElement("span");
       feedback.className = "muted";
@@ -5490,7 +5572,7 @@
       };
       actions.appendChild(save);
       const copy = document.createElement("button");
-      copy.type = "button"; copy.className = "secondaryButton"; copy.textContent = "copy JSON";
+      copy.type = "button"; copy.className = "secondaryButton"; copy.textContent = "copy transaction JSON";
       copy.onclick = function (event) {
         event.preventDefault(); event.stopPropagation();
         copyPortalText(pretty(row.raw),copy).then(function () {
@@ -5537,6 +5619,52 @@
     header.appendChild(actions);
     container.appendChild(header);
 
+  }
+
+  function appendPortalJsonPayloadDetails(container, row) {
+    const payloads = opReturnJsonPayloadsForRow(row);
+    payloads.forEach(function (payload) {
+      const section = document.createElement("section");
+      section.className = "portalInterpretedRecord portalJsonPayload";
+      const heading = document.createElement("h5");
+      heading.textContent = "JSON payload · output " + payload.output;
+      section.appendChild(heading);
+      const meta = document.createElement("p");
+      meta.className = "muted";
+      meta.textContent = (Array.isArray(payload.value) ? "JSON array" : "JSON object") + " · " + payload.bytes.toLocaleString() + " bytes";
+      section.appendChild(meta);
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const download = document.createElement("button");
+      download.type = "button";
+      download.className = "secondaryButton";
+      download.textContent = "download payload JSON";
+      download.title = "Download only the JSON carried in this output, without the transaction wrapper";
+      const status = document.createElement("span");
+      status.className = "muted";
+      status.setAttribute("role", "status");
+      download.onclick = function (event) {
+        event.preventDefault(); event.stopPropagation();
+        try {
+          status.textContent = "Download requested: " + downloadJsonPayload(row, payload);
+        } catch (error) {
+          status.textContent = "Download failed: " + (error.message || String(error));
+        }
+      };
+      actions.appendChild(download);
+      actions.appendChild(status);
+      section.appendChild(actions);
+      const view = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = "View JSON payload";
+      view.appendChild(summary);
+      const pre = document.createElement("pre");
+      pre.className = "json";
+      pre.textContent = pretty(payload.value);
+      view.appendChild(pre);
+      section.appendChild(view);
+      container.appendChild(section);
+    });
   }
 
   function twetchForRow(row) {
