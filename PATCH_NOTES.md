@@ -1,3 +1,11 @@
+# 2.9.28 — reuse downloaded portal data across visits
+
+- Keep public catalogs, inventories and fetched transaction files in a browser database shared by all currencies. Limit downloaded text to 64 MiB and 1,000 files; skip individual files larger than 16 MiB and evict the least recently used files first. Fall back to a small session cache if persistent storage is unavailable.
+- Reuse catalogs for five minutes and transaction files for fifteen minutes, then allow normal HTTP revalidation. Combine concurrent reads of the same file, retain recent saved files during transient failures, and preserve explicit catalog refresh and transaction identity checks.
+- Show saved catalog/transaction counts, storage size and reused reads in File portal / storage, with a clear-downloaded-cache control. Configuration, credentials, shared notes, balances and live ledger queries remain outside this cache.
+- Keep the last connection label during routine FileProxy probes, give ping six seconds, and avoid reloading every catalog after a single failed health check.
+- Validate persistent reloads, offline fallback, manual refresh, quota bounds, obsolete requests and the existing mobile/desktop page gestures.
+
 # 2.9.27 — swipe up for the next portal page
 
 - Swipe up again at the bottom of the transaction list to advance one results page and return to its first record. On phones, the gesture also works once the page controls are visible, before the optional settings drawers.

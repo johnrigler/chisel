@@ -2485,7 +2485,7 @@
     </div>
   </section>
 
-  <script src="chisel.version.js?rev=20261127-swipe-next-v2927"></script>
+  <script src="chisel.version.js?rev=20261127-data-cache-v2928"></script>
   <main inert>
     <section class="panel">
       <div class="modeNav" aria-label="Chisel modes">
@@ -3203,6 +3203,9 @@
       <details id="filePortalSettings" class="panel portalDrawer">
         <summary>☰ File portal / storage</summary>
         <p class="help">Read saved records directly from a website or IPFS gateway. FileProxy optionally speeds up indexing, metadata and saves.</p>
+        <p id="portalDataCacheStatus" class="help" role="status">Checking saved downloads…</p>
+        <p class="help">Downloaded catalogs and transaction files are reused across visits, up to 64 MiB. Catalogs are checked after 5 minutes; transaction files after 15 minutes. Files over 16 MiB load without being kept. Saved files remain readable during temporary connection failures. Live balances and ledger checks still refresh normally.</p>
+        <div class="actions"><button id="portalDataCacheClear" class="secondaryButton" type="button">CLEAR DOWNLOADED CACHE</button></div>
         <div class="portalControls">
           <div class="portalIndexBar">
             <div>
@@ -3747,7 +3750,8 @@
   <script src="chisel.litecoin.js?rev=20261017-security1"></script>
   <script src="chisel.networks.js?rev=20261126-family-balance-v2918"></script>
   <script src="chisel.thunderwords.js?rev=20261122-bsv-scan-v2867"></script>
-<script src="chisel.portal.static-data.js?rev=20261124-files-v2877"></script>
+  <script src="chisel.portal.cache.js?rev=20261127-data-cache-v2928"></script>
+<script src="chisel.portal.static-data.js?rev=20261127-data-cache-v2928"></script>
   <script src="chisel.evm.decode.js?rev=20261125-polygon-share-v2881"></script>
   <script src="chisel.portal.payload.js?rev=20261122-bsv-scan-v2867"></script>
   <script src="chisel.portal.subject.js?rev=20261115-subject-v2838"></script>
@@ -3762,7 +3766,7 @@
   <script src="chisel.portal.record.js?rev=20261126-exact-tx-v2921"></script>
   <script src="chisel.interactions.js?rev=20261126-record-source-v2898"></script>
   <script src="chisel.interactions.ui.js?rev=20261126-compact-comments-v28106"></script>
-  <script src="chisel.portal.js?rev=20261127-swipe-next-v2927"></script>
+  <script src="chisel.portal.js?rev=20261127-data-cache-v2928"></script>
   <script src="chisel.record-preview.js?rev=20261031-publication-v2813"></script>
   <script src="chisel.portal.publication.js?rev=20261118-send-confirm-v2851"></script>
   <script src="fixtures/etch/etch-fixtures.js?rev=20261012S"></script>

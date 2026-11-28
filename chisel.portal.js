@@ -246,12 +246,32 @@
     shortTxid: shortTxid,
     txidRe: TXID_RE
   });
-  const staticTransport = staticData.createTransport({ fetch: fetch, crypto: window.crypto, baseUrl: window.location.href });
+  let cacheStatusTimer = null;
+  const dataCache = window.CHISEL_PORTAL_CACHE && window.CHISEL_PORTAL_CACHE.createCache({onChange: function () {
+    if (cacheStatusTimer !== null) return;
+    cacheStatusTimer = window.setTimeout(function () { cacheStatusTimer = null; renderDataCacheStatus(); }, 100);
+  }});
+  const staticTransport = staticData.createTransport({ fetch: fetch, crypto: window.crypto, baseUrl: window.location.href, cache: dataCache });
   let staticHttpLoad = null;
   let staticHttpGeneration = -1;
   let staticHttpSourceKey = "";
   let fileProxyRetryAfter = 0;
   let failedFileProxyBase = "";
+  let fileProxyHealthFailures = 0, fileProxyHealthBase = "";
+
+  function renderDataCacheStatus() {
+    const target = $("#portalDataCacheStatus");
+    if (!target) return;
+    if (!dataCache) { target.textContent = "Downloaded data cache is unavailable in this browser."; return; }
+    const stats = dataCache.stats();
+    const size = stats.bytes >= 1048576 ? (stats.bytes / 1048576).toFixed(1) + " MiB" :
+      stats.bytes >= 1024 ? (stats.bytes / 1024).toFixed(1) + " KiB" : stats.bytes + " B";
+    const catalogs = stats.groups.catalog + " catalog file" + (stats.groups.catalog === 1 ? "" : "s");
+    const transactions = stats.groups.transaction + " transaction file" + (stats.groups.transaction === 1 ? "" : "s");
+    target.textContent = (stats.persistent ? "Saved on this device: " : "This visit only: ") + catalogs +
+      " · " + transactions + " · " + size +
+      " · " + stats.hits + " reads reused this visit" + (stats.offlineHits ? " (" + stats.offlineHits + " while offline)" : "");
+  }
 
   function $(selector) { return document.querySelector(selector); }
 
@@ -3306,7 +3326,7 @@
 
   async function loadStaticManifest(manifestUrl, opts) {
     const label = (opts && opts.label) || manifestUrl;
-    const loaded = await staticTransport.loadManifest(manifestUrl);
+    const loaded = await staticTransport.loadManifest(manifestUrl, {refresh: !!(opts && opts.refresh)});
     const rows = normalizeStaticDatasetRows(loaded.index, {
       baseUrl: loaded.baseUrl,
       sourceLabel: label,
@@ -3324,11 +3344,11 @@
 
   async function loadConfiguredStaticDatasets(opts) {
     const reports = [];
-    const httpLoad = loadStaticHttpSources();
+    const httpLoad = loadStaticHttpSources(opts);
     const localPaths = normalizePathList(configValue("staticManifestPaths", null), [DEFAULT_STATIC_MANIFEST_PATH, DEFAULT_BUNDLED_MANIFEST_PATH]);
     for (let i = 0; i < localPaths.length; i += 1) {
       try {
-        reports.push(await loadStaticManifest(localPaths[i], { label: localPaths[i], badge: localPaths[i].indexOf("data-bundled") >= 0 ? "bundled" : "static", silent: true }));
+        reports.push(await loadStaticManifest(localPaths[i], { label: localPaths[i], badge: localPaths[i].indexOf("data-bundled") >= 0 ? "bundled" : "static", silent: true, refresh: !!(opts && opts.refresh) }));
       } catch (error) {
         reports.push({ source: localPaths[i], error: error.message || String(error) });
       }
@@ -3336,7 +3356,7 @@
     const mirrors = normalizePathList(configValue("staticManifestMirrors", null), [DEFAULT_REMOTE_MANIFEST_URL]);
     for (let j = 0; j < mirrors.length; j += 1) {
       try {
-        reports.push(await loadStaticManifest(mirrors[j], { label: mirrors[j], badge: "remote", silent: true }));
+        reports.push(await loadStaticManifest(mirrors[j], { label: mirrors[j], badge: "remote", silent: true, refresh: !!(opts && opts.refresh) }));
         break;
       } catch (error) {
         reports.push({ source: mirrors[j], error: error.message || String(error) });
@@ -3347,7 +3367,7 @@
     // configured feed so an available general mirror never hides BSV history.
     const discovery = normalizePathList(configValue("staticDiscoveryManifestPaths", null), []);
     for (const manifest of discovery) {
-      try { reports.push(await loadStaticManifest(manifest, {label: "BSV public history", badge: "scan", silent: true})); }
+      try { reports.push(await loadStaticManifest(manifest, {label: "BSV public history", badge: "scan", silent: true, refresh: !!(opts && opts.refresh)})); }
       catch (error) { reports.push({source: manifest, error: error.message || String(error)}); }
     }
     reports.push.apply(reports, http.reports);
@@ -3362,7 +3382,7 @@
     return reports;
   }
 
-  function loadStaticHttpSources() {
+  function loadStaticHttpSources(opts) {
     const generation = state.portalLoadGeneration;
     const sources = getStaticDataSources(), key = sources.join("\n");
     if (staticHttpLoad && staticHttpGeneration === generation && staticHttpSourceKey === key) return staticHttpLoad;
@@ -3370,7 +3390,7 @@
     staticHttpSourceKey = key;
     const promise = Promise.all(sources.map(async function (source) {
       try {
-        const loaded = await staticTransport.loadCatalog(source);
+        const loaded = await staticTransport.loadCatalog(source, {refresh: !!(opts && opts.refresh)});
         if (generation !== state.portalLoadGeneration) return {source: source, cancelled: true, rows: []};
         const rows = normalizeStaticDatasetRows(loaded.index, {baseUrl: loaded.baseUrl, sourceLabel: source, sourceBadge: "HTTP"});
         const report = mergeStaticRows(rows, {silent: true});
@@ -3599,15 +3619,10 @@
   async function loadLocalTransactionPath(path, txid, coin) {
     const localPath = String(path || "").trim();
     if (!localPath) throw new Error("Local transaction path is missing.");
-    let tx;
+    let tx, cached = false, offline = false;
     try {
-      if (failedFileProxyBase === getFileProxyUrl() && Date.now() < fileProxyRetryAfter) throw new Error("FileProxy is temporarily unavailable.");
-      tx = await staticTransport.request(fileProxyRawUrl(localPath), {cache: "no-store"}, async function (response) {
-        if (!response.ok) throw new Error(localPath + " failed with HTTP " + response.status + ".");
-        const value = tryParseJsonText(await response.text());
-        if (!value || typeof value !== "object") throw new Error(localPath + " is not transaction JSON.");
-        return value;
-      }, fileProxyReadTimeout());
+      const loaded = await staticTransport.fetchTransactionJson(fileProxyRawUrl(localPath), {txid: txid, coin: coin}, {timeoutMs: fileProxyReadTimeout()});
+      tx = loaded.json; cached = loaded.cached; offline = loaded.offline;
     } catch (error) {
       if (/^(TimeoutError|AbortError|TypeError)$/.test(error.name)) {
         state.fileProxyAvailable = false;
@@ -3624,6 +3639,7 @@
       txid: txid || extractTxid(tx),
       coin: requestedCoin && requestedCoin !== "unknown" ? requestedCoin : normalizeCoinName(tx.coin || tx.ticker || tx.chain || ""),
       path: localPath,
+      source: offline ? "browser-cache (offline)" : cached ? "browser-cache" : "local",
       raw: tx
     };
   }
@@ -4149,6 +4165,7 @@
     snapshotRecentPortalSummaries(false);
     const publications = state.portalRows.filter(function (row) { return !!row.publication || !!row.recentPolygon; });
     state.portalLoadGeneration += 1;
+    staticTransport.resetPendingReads();
     loadingQueue.reset();
     state.liveLedgerHistories = Object.create(null);
     transactionStore.reset();
@@ -6887,7 +6904,7 @@
       open: openPortalRecord, recordUrl: portalRecordUrl, parentUrl: relatedRecordUrl, openParent: openRelatedRecord, showTwetch:showTwetchFeed,
       hydrate: function (row) { return hydratePortalRow(row.key, {quiet: true, silent: true, suppressRender: true}); },
       refresh: async function () {
-        const results = await Promise.allSettled([loadConfiguredStaticDatasets({quiet: true}), listLocalTransactions()]);
+        const results = await Promise.allSettled([loadConfiguredStaticDatasets({quiet: true, refresh: true}), listLocalTransactions()]);
         if (results.every(function (result) { return result.status === "rejected"; })) throw new Error("Catalog refresh failed; saved records remain available.");
       },
       checkFileProxy: async function () {
@@ -6982,11 +6999,8 @@
     if(archivePath){
       try{
         const url=new URL(archivePath,document.baseURI).href;
-        const response=await fetch(url,{signal:AbortSignal.timeout(12000)});
-        if(!response.ok)throw Error("Archive HTTP "+response.status);
-        const json=await response.json();
-        if(extractTxid(json).toLowerCase()!==row.txid.toLowerCase())throw Error("Archive transaction ID mismatch");
-        return {json,source:"archive",coin:"bsv",url};
+        const loaded=await staticTransport.fetchTransactionJson(url,{txid:row.txid,coin:"bsv"},{timeoutMs:12000});
+        return {json:loaded.json,source:loaded.offline?"browser-cache (offline)":loaded.cached?"browser-cache":"archive",coin:"bsv",url};
       }catch(error){row.archiveLoadError=error.message||String(error);}
     }
     if (sourceIdForRow(row) === "evmChisel") {
@@ -7455,7 +7469,7 @@
     if (proxyCatalogRefresh) return proxyCatalogRefresh;
     proxyCatalogRefresh = (async function () {
       const online = await checkFileProxyHealth();
-      if (!online) { proxyCatalogConnected = false; return; }
+      if (!online) { if (fileProxyHealthFailures >= 2) proxyCatalogConnected = false; return; }
       const recovered = !proxyCatalogConnected;
       proxyCatalogConnected = true;
       const jobs = [];
@@ -9086,24 +9100,29 @@ function getPortalFirstCharacter() {
   async function checkFileProxyHealth() {
     const element = $("#portalFileProxyHealth");
     const base = getFileProxyUrl().replace(new RegExp("/+$"), "");
+    if (fileProxyHealthBase !== base) { fileProxyHealthBase = base; fileProxyHealthFailures = 0; }
     let label = "configured endpoint";
     try { label = new URL(base, window.location.href).host; } catch (_) {}
-    if (element) element.textContent = "FileProxy: checking " + label + "…";
+    // A routine health probe must not erase the last successful connection.
+    if (element && state.fileProxyAvailable === null) element.textContent = "FileProxy: checking " + label + "…";
     const controller = new AbortController();
     const timeout = window.setTimeout(function () { controller.abort(); }, 6000);
     try {
       await requestFileProxyJson(base + "/ping", {
         method:"GET", cache:"no-store", signal:controller.signal
-      });
+      }, 6000);
+      fileProxyHealthFailures = 0;
       if (element) {
         element.textContent = "FileProxy: connected (" + label + ")";
         element.style.color = "#a2d889";
       }
       return true;
     } catch (error) {
+      fileProxyHealthFailures += 1;
       if (element) {
-        element.textContent = "FileProxy: offline · cached records and direct HTTP/RPC still available.";
-        element.style.color = "#ffb39f";
+        element.textContent = fileProxyHealthFailures < 2 ? "FileProxy: retrying · saved and direct data remain available." :
+          "FileProxy: offline · cached records and direct HTTP/RPC still available.";
+        element.style.color = fileProxyHealthFailures < 2 ? "#ffd166" : "#ffb39f";
       }
       return false;
     } finally {
@@ -9134,6 +9153,17 @@ function getPortalFirstCharacter() {
     if (!loadThunderword) return;
 
     initializeRecordView().bind();
+    renderDataCacheStatus();
+    const clearDataCache = $("#portalDataCacheClear");
+    if (clearDataCache) {
+      clearDataCache.disabled = !dataCache;
+      clearDataCache.onclick = async function () {
+        clearDataCache.disabled = true;
+        try { await dataCache.clear(); renderDataCacheStatus(); }
+        catch (error) { setStatus("Downloaded cache could not be cleared: " + (error.message || String(error)), true); }
+        finally { clearDataCache.disabled = false; }
+      };
+    }
 
     if ($("#portalTxid")) $("#portalTxid").value = DEFAULT_DIGIBYTE_TXID;
     if ($("#portalColorPath")) $("#portalColorPath").value = DEFAULT_COLOR_PATH;
@@ -9283,7 +9313,7 @@ function getPortalFirstCharacter() {
     };
 
     if (loadStaticDataset) loadStaticDataset.onclick = async function () {
-      try { await loadConfiguredStaticDatasets(); }
+      try { await loadConfiguredStaticDatasets({refresh: true}); }
       catch (error) { setStatus(error.message || String(error), true); }
     };
 
@@ -9548,6 +9578,7 @@ function getPortalFirstCharacter() {
     loadEmbeddedStaticDataset: loadEmbeddedStaticDataset,
     loadStaticHttpSources: loadStaticHttpSources,
     loadConfiguredStaticDatasets: loadConfiguredStaticDatasets,
+    dataCacheStats: function () { return dataCache ? dataCache.stats() : null; },
     validateStaticDataset: validateStaticDataset,
     clearPortalSearch: clearPortalSearch,
     clearPortalStream: clearPortalStream,

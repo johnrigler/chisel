@@ -206,6 +206,10 @@
     const deps = options || {};
     const fetchFn = deps.fetch;
     const cryptoApi = deps.crypto;
+    const cache = deps.cache;
+    const pendingReads = new Map(), failedReads = new Map();
+    let readGeneration = 0;
+    const now = deps.now || Date.now;
     if (typeof fetchFn !== "function") throw new Error("Static dataset transport requires fetch.");
 
     async function request(url, options, read, timeoutMs) {
@@ -246,6 +250,86 @@
       }, deps.timeoutMs || 8000);
     }
 
+    function cacheKey(url, group, identity) {
+      try {
+        const parsed = new URL(url, deps.baseUrl);
+        if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password) return "";
+        if (Array.from(parsed.searchParams.keys()).some(function (key) { return /key|token|auth|secret|signature/i.test(key); })) return "";
+        parsed.hash = "";
+        return group + ":" + parsed.href + (identity ? ":" + identity : "");
+      } catch (_) { return ""; }
+    }
+
+    function transient(error) {
+      return !error.invalidData && (!error.status || error.status >= 500 || error.status === 429);
+    }
+
+    function readCached(url, group, parse, options) {
+      const settings = options || {};
+      const key = cacheKey(url, group, settings.identity);
+      const pendingKey = (key || group + ":" + url) + (settings.refresh ? ":refresh" : "");
+      if (pendingReads.has(pendingKey)) return pendingReads.get(pendingKey);
+      const promise = (async function () {
+        const generation = readGeneration;
+        const epoch = cache && cache.generation();
+        const saved = cache && key ? await cache.get(key) : null;
+        let cachedValue;
+        if (saved) { try { cachedValue = parse(saved.text); } catch (_) {} }
+        const age = saved ? now() - saved.storedAt : Infinity;
+        const freshMs = group === "transaction" ? 15 * 60000 : 5 * 60000;
+        const staleMs = group === "transaction" ? 30 * 86400000 : 7 * 86400000;
+        function reuse(offline) {
+          cache.hit(offline);
+          return {value: cachedValue, cached: true, offline: offline, savedAt: saved.storedAt};
+        }
+        if (cachedValue !== undefined && !settings.refresh && age >= 0 && age < freshMs) return reuse(false);
+        const failed = failedReads.get(pendingKey);
+        if (cachedValue !== undefined && age >= 0 && age < staleMs && !settings.refresh && failed &&
+            now() - failed.at < 30000 && transient(failed.error)) return reuse(true);
+        try {
+          const text = await request(url, {cache: "no-cache"}, async function (response) {
+            if (!response.ok) {
+              const error = new Error(url + " failed with HTTP " + response.status + ".");
+              error.status = response.status; throw error;
+            }
+            return response.text ? response.text() : JSON.stringify(await response.json());
+          }, settings.timeoutMs || deps.timeoutMs || 8000);
+          let value;
+          try { value = parse(text); } catch (error) { error.invalidData = true; throw error; }
+          if (generation === readGeneration) failedReads.delete(pendingKey);
+          if (cache) {
+            cache.downloaded(text);
+            if (key && generation === readGeneration) await cache.put(key, text, group, epoch);
+          }
+          return {value: value, cached: false, offline: false};
+        } catch (error) {
+          if (generation === readGeneration) {
+            if (failedReads.size >= 256) failedReads.delete(failedReads.keys().next().value);
+            failedReads.set(pendingKey, {at: now(), error: error});
+          }
+          if (cachedValue !== undefined && age >= 0 && age < staleMs && transient(error)) return reuse(true);
+          throw error;
+        }
+      })().finally(function () { if (pendingReads.get(pendingKey) === promise) pendingReads.delete(pendingKey); });
+      pendingReads.set(pendingKey, promise);
+      return promise;
+    }
+
+    async function fetchCatalogJson(url, settings) {
+      return (await readCached(url, "catalog", JSON.parse, settings)).value;
+    }
+
+    async function fetchTransactionJson(url, row, settings) {
+      const id = String(row && row.txid || "").replace(/^0x/i, "").toLowerCase();
+      const result = await readCached(url, "transaction", function (text) {
+        const json = JSON.parse(text), tx = json && json.tx || json;
+        const actual = String(json && (json.txid || json.hash) || tx && (tx.txid || tx.hash) || "").replace(/^0x/i, "").toLowerCase();
+        if (!/^[0-9a-f]{64}$/.test(actual) || id && actual !== id) throw new Error("Static transaction identity does not match the requested TXID.");
+        return json;
+      }, Object.assign({}, settings, {identity: normalizeProbeCoin(row && row.coin) + ":" + String(row && (row.chainId || row.index && row.index.chainId) || "") + ":" + id}));
+      return {json: result.value, cached: result.cached, offline: result.offline, savedAt: result.savedAt};
+    }
+
     function manifestBases(manifest, manifestUrl) {
       const absolute = isAbsoluteUrl(manifestUrl) || deps.baseUrl ? new URL(manifestUrl, deps.baseUrl).href : manifestUrl;
       const directory = dirnameUrl(absolute);
@@ -254,23 +338,23 @@
       return Array.from(new Set([baseUrl, directory]));
     }
 
-    async function loadManifest(manifestUrl) {
-      const manifest = await fetchJsonNoStore(manifestUrl);
+    async function loadManifest(manifestUrl, settings, initialManifest) {
+      const manifest = initialManifest || await fetchCatalogJson(manifestUrl, settings);
       const indexPath = manifest.defaultIndex || "index/portal.index.json";
       let error;
       for (const base of manifestBases(manifest, manifestUrl)) {
         const indexUrl = joinDataPath(base, indexPath);
-        try { return {manifest: manifest, baseUrl: base, indexUrl: indexUrl, index: await fetchJsonNoStore(indexUrl)}; }
+        try { return {manifest: manifest, baseUrl: base, indexUrl: indexUrl, index: await fetchCatalogJson(indexUrl, settings)}; }
         catch (caught) { error = caught; }
       }
       throw error;
     }
 
-    async function loadCatalog(source) {
+    async function loadCatalog(source, settings) {
       const location = sourceLocation(source, deps.baseUrl);
       if (/\.json$/i.test(new URL(location.url).pathname)) {
-        const json = await fetchJsonNoStore(location.url);
-        if (json.defaultIndex || json.hashes) return loadManifest(location.url);
+        const json = await fetchCatalogJson(location.url, settings);
+        if (json.defaultIndex || json.hashes) return loadManifest(location.url, settings, json);
         return Object.assign(location, {index: json, indexUrl: location.url});
       }
       const errors = [];
@@ -278,7 +362,7 @@
       for (const path of ["index/transactions.index.json", "index/portal.index.json"]) {
         const indexUrl = joinDataPath(location.baseUrl, path);
         try {
-          const json = await fetchJsonNoStore(indexUrl);
+          const json = await fetchCatalogJson(indexUrl, settings);
           let rows = Array.isArray(json) ? json : json.transactions;
           if (!Array.isArray(rows)) throw new Error("Static index has no transactions array.");
           if (location.coin) rows = rows.filter(function (row) { return normalizeProbeCoin(row.coin || row.summary && row.summary.coin) === location.coin; });
@@ -287,10 +371,7 @@
           break;
         } catch (error) { errors.push(error.message || String(error)); }
       }
-      const readListing = directory => request(directory, {cache: "no-store"}, function (response) {
-        if (!response.ok) throw new Error(directory + " failed with HTTP " + response.status);
-        return response.text();
-      }, deps.timeoutMs || 8000);
+      const readListing = async directory => (await readCached(directory, "catalog", function (text) { return text; }, settings)).value;
       let targets = [{directory: location.url, coin: location.coin}];
       if (!location.coin) {
         const transactionRoot = joinDataPath(location.baseUrl, "transactions/");
@@ -342,13 +423,11 @@
       const errors = [];
       for (let i = 0; i < paths.length; i += 1) {
         try {
-          const json = await fetchJsonNoStore(paths[i]);
-          const tx = json && json.tx || json;
-          const actual = String(json && (json.txid || json.hash) || tx && (tx.txid || tx.hash) || "").replace(/^0x/i, "").toLowerCase();
-          if (row.txid && actual !== String(row.txid).toLowerCase()) throw new Error("Static transaction identity does not match the requested TXID.");
+          const loaded = await fetchTransactionJson(paths[i], row);
           return {
-            json: json,
-            source: row.staticSource || "static",
+            json: loaded.json,
+            source: loaded.offline ? "browser-cache (offline)" : loaded.cached ? "browser-cache" : row.staticSource || "static",
+            cached: loaded.cached, offline: loaded.offline, savedAt: loaded.savedAt,
             url: paths[i],
             coin: row.coin || (canonicalCoinForRow ? canonicalCoinForRow(row) : "")
           };
@@ -404,6 +483,8 @@
     return {
       request: request,
       fetchJsonNoStore: fetchJsonNoStore,
+      fetchTransactionJson: fetchTransactionJson,
+      resetPendingReads: function () { readGeneration += 1; pendingReads.clear(); failedReads.clear(); },
       loadManifest: loadManifest,
       loadCatalog: loadCatalog,
       fetchStaticRawFromRow: fetchStaticRawFromRow,
