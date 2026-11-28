@@ -47,6 +47,7 @@ jobs:
           node --check chisel.portal.cache.js
           node --check chisel.portal.static-data.js
           node --check chisel.portal.discovery.js
+          node --check chisel.portal.coverage.js
           node --check chisel.portal.payload.js
           node --check chisel.portal.notes.js
           node --check chisel.portal.note-function.js

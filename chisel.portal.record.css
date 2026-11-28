@@ -2,10 +2,23 @@
 .portalRecordPage { min-width: 0; scroll-margin-top: 150px; }
 .portalRecordToolbar { flex-wrap: wrap; margin-bottom: 12px; }
 .portalRecordUrl { display: block; overflow-wrap: anywhere; font-size: 12px; margin: 0 0 14px; }
-.portalRecordPage .portalInlineDetails { margin: 0; border-radius: 12px; color: #000; --publication-text: #000; }
+.portalRecordPage .portalInlineDetails { grid-template-columns: minmax(0, 1fr); min-width: 0; margin: 0; border-radius: 12px; color: #000; --publication-text: #000; }
 .portalRecordPage.isAwaitingLedger .portalInlineDetails { color: #000080; --publication-text: #000080; }
 .portalRecordPage .portalInlineDetails :is(.portalInlineHeader h4, .portalInlineHeader code, .portalInlineHeader .muted, .portalEvmMediaBody, .portalTransactionQrInfo) { color: var(--publication-text); }
 .portalRecordPage h2 { margin: 12px 0 6px; }
+.portalRecordText {
+  width: 72ch;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A readable record leads with its content, followed by chain search tools. */
+.portalRecordPage.hasReadingText #portalRecordContent { order: 1; }
+.portalRecordPage.hasReadingText #portalRecordExplore { order: 2; }
 .portalPayload { min-width: 0; margin: 14px 0; padding: 12px; border: 1px solid #cad2dc; border-radius: 10px; background: #fff; color: var(--publication-text, #253b4a); }
 .portalPayload h5 { margin: 0 0 8px; }
 .portalPayload select { width: auto; max-width: 100%; }
@@ -25,6 +38,7 @@ a.portalStreamTime { color: inherit; text-decoration: underline; text-underline-
 @media (max-width: 640px) {
   .portalRecordToolbar > * { flex: 1 1 44%; text-align: center; }
   .portalRecordPage { padding: 12px; }
+  .portalRecordText { font-size: 12px; }
   .portalPayload .actions { flex-wrap: wrap; }
 }
 

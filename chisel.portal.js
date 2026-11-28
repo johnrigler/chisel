@@ -235,6 +235,7 @@
     dispose: function (node) { noteFunction.disposeWithin(node); }
   });
   let recordView = null, recordExplore = null, recordCatalogConfig = null;
+  let coverageController = null;
   let interactionClient = null, interactionView = null;
   const deferredInteractions = [];
   const annotationReads = new Map();
@@ -3335,7 +3336,8 @@
     });
     const report = mergeStaticRows(rows, { silent: opts && opts.silent });
     if (loaded.index.scan && window.CHISEL_PORTAL_DISCOVERY) {
-      window.CHISEL_PORTAL_DISCOVERY.renderCoverage($("#portalBsvScanCoverage"), loaded.index.scan);
+      if (coverageController) coverageController.setSnapshot(loaded.index.scan);
+      else window.CHISEL_PORTAL_DISCOVERY.renderCoverage($("#portalBsvScanCoverage"), loaded.index.scan);
     }
     state.staticManifest = loaded.manifest;
     state.staticDatasetReports.push(Object.assign({ source: label, manifest: manifestUrl, records: rows.length }, report));
@@ -5592,6 +5594,9 @@
       }
     }, true);
     updatePortalDetailPart(view, "header", stamp + !!(options && options.recordPage), function (target) { appendPortalInlineHeader(target, row, options); }, true);
+    if (options && options.recordPage) {
+      updatePortalDetailPart(view, "readingText", stamp, function (target) { appendPortalReadingText(target, row); }, true);
+    }
     updatePortalDetailPart(view, "jsonPayload", stamp, function (target) { appendPortalJsonPayloadDetails(target, row); }, true);
     if (!view.parts.notes) {
       const notes = document.createElement("div"); notes.style.display = "contents";
@@ -5617,6 +5622,22 @@
       getStaticDataSources(), getFileProxyUrl(), state.fileProxyAvailable,
       configValue("inlineImageScale", 12), configValue("inlineImageExpandedScale", 12)]),
       function (target) { appendPortalInlineBody(target, row, options); });
+  }
+
+  function appendPortalReadingText(container, row) {
+    // The stream already displays this text in its title column. Carry the
+    // same decoded prose into the separate record page, without a preview cap.
+    if (twetchForRow(row) || treechatForRow(row) || bsvInlineImageForRow(row) || encryptedBsvFilesForRow(row).length) return;
+    const payloads = extractOutputs(row.raw).map(function (output) { return output.opReturnPayload; }).filter(Boolean);
+    const text = row.raw ? payloads.filter(function (payload) {
+      return (payload.kind === "ascii" || payload.kind === "utf8") && payload.text && !findJsonPayload(payload.text);
+    }).map(function (payload) { return payload.text; }).join("\n") : opReturnTextForRow(row);
+    if (!text || !row.raw && findJsonPayload(text)) return;
+    const content = document.createElement("div");
+    content.className = "portalRecordText portalStreamOpReturn";
+    content.setAttribute("aria-label", "Transaction text");
+    appendLinkedTransactionText(content, text);
+    container.appendChild(content);
   }
 
   function appendPortalInlineHeader(container, row, options) {
@@ -6926,7 +6947,11 @@
       onOpen: function (row) { recordPortalInteraction("select", row, {action: "open_record"}); },
       onRefresh: function (row) { if (recordExplore) recordExplore.setRow(row); },
       find: findPortalRecord, lookup: lookupPortalRecords, sourceUrl: recordDataUrl,
-      render: function (content, row) { appendPortalInlineDetails(content, row, {recordPage: true}); },
+      render: function (content, row) {
+        appendPortalInlineDetails(content, row, {recordPage: true});
+        const page = $("#portalRecordPage");
+        if (page) page.classList.toggle("hasReadingText", !!content.querySelector(".portalRecordText"));
+      },
       status: setStatus, copy: copyPortalText, fileProxyUrl: getFileProxyUrl,
       annotation: function (row) { return notesData.documentFor(row, getPortalAnnotation(row)); },
       facebookPreviewMetadata: function (row) {
@@ -9154,6 +9179,24 @@ function getPortalFirstCharacter() {
 
     initializeRecordView().bind();
     renderDataCacheStatus();
+    const coveragePanel = $("#portalBsvScanPanel"), coverageTarget = $("#portalBsvScanCoverage");
+    if (coveragePanel && coverageTarget && window.CHISEL_BSV_COVERAGE) {
+      coverageController = window.CHISEL_BSV_COVERAGE.createController({container: coverageTarget, panel: coveragePanel,
+        isActive: function () { return document.body.dataset.mode === "portal" && !$("#portalListView").hidden; },
+        scanUrl: function () {
+          const feeds = normalizePathList(configValue("staticDiscoveryManifestPaths", null), []);
+          const feed = feeds.find(function (url) { return /^https?:/i.test(url) && /\/bsv\/manifest\.json$/i.test(url); }) ||
+            feeds.find(function (url) { return /data-bsv\/manifest\.json$/i.test(url); }) || "data-bsv/manifest.json";
+          return new URL("scan.json", new URL(feed, window.location.href)).href;
+        },
+        fetchJson: function (url) {
+          return staticTransport.request(url, {cache: "no-cache"}, function (response) {
+            if (!response.ok) throw new Error("Scan status HTTP " + response.status);
+            return response.json();
+          }, 10000);
+        }
+      });
+    }
     const clearDataCache = $("#portalDataCacheClear");
     if (clearDataCache) {
       clearDataCache.disabled = !dataCache;

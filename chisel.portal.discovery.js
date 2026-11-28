@@ -22,6 +22,7 @@
 
   function renderCoverage(container, scan) {
     if (!container || !scan || scan.kind !== "bsv-block-scan" || scan.coin !== "bsv") return;
+    if (root.CHISEL_BSV_COVERAGE) return root.CHISEL_BSV_COVERAGE.render(container, scan);
     const doc = container.ownerDocument;
     container.replaceChildren();
     function paragraph(text) {

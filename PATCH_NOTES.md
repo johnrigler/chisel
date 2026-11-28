@@ -1,3 +1,11 @@
+# 2.9.29 — readable legacy records and a BSV ledger map
+
+- Show decoded ASCII/UTF-8 transaction text on the clicked record page, with original paragraph breaks and a wrapping reading column. Lead with the record before the chain search tools. Preserve the existing stream presentation, JSON cards, encrypted-record summaries and image displays.
+- Replace the BSV scan summary with a square pixel map of block-height ranges, oldest at the top left and the live or last-reported tip at the bottom right. Complete, partly scanned, in-progress and retry sections stay distinct. Only reported block observations paint the map.
+- Mark the early forward reader and the recent backward reader separately, with exact block positions and within-block progress. Retain older cursor information in a disclosure. Display stopped/stale reports honestly.
+- Refresh the small scan report every minute while its map is open and visible. Read the live BSV mainnet tip at most every five minutes, keep the previous report through transient failures, and retain manual refresh plus keyboard/touch range inspection.
+- Check the native 2019 Alice anchor, complete prose rendering, phone/desktop layout, coverage calculations, large exports and saved-data behavior.
+
 # 2.9.28 — reuse downloaded portal data across visits
 
 - Keep public catalogs, inventories and fetched transaction files in a browser database shared by all currencies. Limit downloaded text to 64 MiB and 1,000 files; skip individual files larger than 16 MiB and evict the least recently used files first. Fall back to a small session cache if persistent storage is unavailable.
