@@ -1201,6 +1201,33 @@
     return text.includes("\ufffd") ? "OP_RETURN data · open record to inspect bytes" : text;
   }
 
+  function bsvInlineImageForRow(row) {
+    if (!row || !/^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))) return null;
+    const candidates = [];
+    if (row.raw) {
+      extractOutputs(row.raw).forEach(function (output) {
+        if (output && output.opReturnText) candidates.push(String(output.opReturnText));
+      });
+    }
+    if (row.summary && row.summary.opReturnText) candidates.push(String(row.summary.opReturnText));
+    if (row.draftRecord && row.draftRecord.ledger && row.draftRecord.ledger.opReturnText) {
+      candidates.push(String(row.draftRecord.ledger.opReturnText));
+    }
+    const pattern = /^data:(image\/(?:png|jpeg|gif|webp|avif|bmp|x-icon));base64,([A-Za-z0-9+/=\s]+)$/i;
+    for (let i = 0; i < candidates.length; i += 1) {
+      const match = candidates[i].trim().match(pattern);
+      if (!match) continue;
+      const encoded = match[2].replace(/\s/g, "");
+      if (!encoded || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 === 1) continue;
+      const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+      const bytes = Math.floor(encoded.length * 3 / 4) - padding;
+      if (bytes < 1 || bytes > 32 * 1024 * 1024) continue;
+      return {src: "data:" + match[1].toLowerCase() + ";base64," + encoded,
+        mime: match[1].toLowerCase(), bytes: bytes};
+    }
+    return null;
+  }
+
   function looksLikeAddressLine(line) {
     return /^[1-9A-HJ-NP-Za-km-z]{26,80}$/.test(String(line || ""));
   }
@@ -2482,6 +2509,18 @@
       img.title = "Image embedded in this transaction";
       img.loading = "lazy";
       img.src = bsvThumbnail;
+      cell.appendChild(img);
+      return "";
+    }
+
+    const bsvInlineImage = bsvInlineImageForRow(row);
+    if (bsvInlineImage) {
+      const img = document.createElement("img");
+      img.className = "portalStreamThumbImage";
+      img.alt = "Image embedded in BSV transaction";
+      img.title = "Embedded " + bsvInlineImage.mime.slice(6).toUpperCase() + " image · " + bsvInlineImage.bytes.toLocaleString() + " bytes";
+      img.loading = "lazy";
+      img.src = bsvInlineImage.src;
       cell.appendChild(img);
       return "";
     }
@@ -5010,17 +5049,31 @@
     return block;
   }
 
-  function appendPortalInlineImage(container, imageLines) {
+  function appendPortalInlineImage(container, imageLines, inlineImage) {
     const lines = getImageLines(imageLines || []);
-    if (!lines.length) return null;
+    if (!lines.length && !inlineImage) return null;
 
     const block = document.createElement("div");
     block.className = "portalInlineImageBlock";
 
     const title = document.createElement("div");
     title.className = "stepTitle";
-    title.textContent = "Base57 image";
+    title.textContent = inlineImage ? "Embedded " + inlineImage.mime.slice(6).toUpperCase() + " image" : "Base57 image";
     block.appendChild(title);
+
+    if (inlineImage) {
+      const image = document.createElement("img");
+      image.className = "portalInlineBase64Image";
+      image.alt = "Image embedded in this BSV transaction";
+      image.src = inlineImage.src;
+      block.appendChild(image);
+      const caption = document.createElement("p");
+      caption.className = "muted";
+      caption.textContent = inlineImage.mime + " · " + inlineImage.bytes.toLocaleString() + " bytes · Base64 data URI";
+      block.appendChild(caption);
+      container.appendChild(block);
+      return block;
+    }
 
     const canvasWrap = document.createElement("div");
     canvasWrap.className = "portalInlineImageCanvasWrap";
@@ -5479,6 +5532,7 @@
     const title = document.createElement("h4");
     title.textContent = displayTitleForRow(row);
     const bsv = /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row));
+    const inlineImage = bsvInlineImageForRow(row);
     const interpreted=bsv && window.CHISEL_PORTAL_EXPLORE;
     const post=twetchForRow(row);
     const treechat=treechatForRow(row);
@@ -5486,6 +5540,7 @@
     const jsonPayloads=opReturnJsonPayloadsForRow(row);
     if(post)title.textContent=options&&options.recordPage?"Transaction details":interpreted.twetchTitle(post);
     else if(interpreted && !getPortalAnnotation(row).metadata.title)title.textContent=interpreted.facts(row).name||title.textContent;
+    if (inlineImage) title.textContent = "Embedded " + inlineImage.mime.slice(6).toUpperCase() + " image";
 
     const tx = document.createElement("code");
     tx.textContent = row.txid || "";
@@ -5800,6 +5855,9 @@
       supportTarget.appendChild(error);
     }
 
+    const summaryInlineImage = !row.raw ? bsvInlineImageForRow(row) : null;
+    if (summaryInlineImage) appendPortalInlineImage(supportTarget, [], summaryInlineImage);
+
     if (state.pendingHydration[row.key]) {
       const loading = document.createElement("p");
       loading.className = "muted";
@@ -5821,7 +5879,8 @@
     if(encryptedFiles.length) appendEncryptedBsvDetails(supportTarget,row,encryptedFiles);
     const lines = extractLines(row.raw);
     const imageLines = getImageLines(lines);
-    const hasInlineImage = imageLines.length > 0;
+    const bsvInlineImage = bsvInlineImageForRow(row);
+    const hasInlineImage = imageLines.length > 0 || !!bsvInlineImage;
     const semantics = buildSemantics(row.raw, lines);
     if (!row.discoveredLinksSaved && (!row.publication || row.publication.ledgerState === "seen")) {
       row.discoveredLinksSaved = true;
@@ -5838,7 +5897,7 @@
       body.className = "portalExpandedBody";
 
       const mediaColumn = document.createElement("div");
-      appendPortalInlineImage(mediaColumn, imageLines);
+      appendPortalInlineImage(mediaColumn, imageLines, bsvInlineImage);
       body.appendChild(mediaColumn);
 
       dataContainer = document.createElement("div");
@@ -6147,13 +6206,19 @@
     const titleWrap = document.createElement("span");
     titleWrap.className = "portalStreamTitle";
     const titleText = displayTitleForRow(row);
-    const opText = opReturnTextForRow(row);
+    const rawOpText = opReturnTextForRow(row);
+    const bsvInlineImage = bsvInlineImageForRow(row);
+    const opText = bsvInlineImage
+      ? "Embedded " + bsvInlineImage.mime.slice(6).toUpperCase() + " image · " + bsvInlineImage.bytes.toLocaleString() + " bytes"
+      : rawOpText;
     const post=twetchForRow(row);
     const treechat=treechatForRow(row);
     const genericTitle = /^(?:transaction(?:\s+[0-9a-f…]+)?|untitled transaction)$/i.test(titleText.trim());
     const compactGeneric = !primaryUrl && !opText && genericTitle && thumb.classList.contains("isEmpty");
     if (compactGeneric) item.classList.add("isCompactGeneric");
-    titleWrap.title = compactGeneric ? (recordLink ? "Open Chisel record page" : "Expand for transaction details") : titleText;
+    titleWrap.title = bsvInlineImage
+      ? opText
+      : compactGeneric ? (recordLink ? "Open Chisel record page" : "Expand for transaction details") : titleText;
     if (primaryUrl) {
       const titleLink = document.createElement("a");
       setSafeHref(titleLink, primaryUrl);
@@ -6164,12 +6229,14 @@
       titleWrap.appendChild(titleLink);
     } else {
       // Plain notes need one full text copy, not a duplicate truncated title.
-      titleWrap.textContent = post ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(post) : genericTitle || titleText === truncateText(opText, 96) ? "" : titleText;
+      titleWrap.textContent = post ? window.CHISEL_PORTAL_EXPLORE.twetchTitle(post) : genericTitle || bsvInlineImage || titleText === truncateText(opText, 96) ? "" : titleText;
     }
     if (appendCollapsedMediaMetadata(titleWrap, row)) item.classList.add("hasMediaMetadata");
     if (!post && window.CHISEL_PORTAL_DISCOVERY && canonicalCoinForRow(row) === "bsv") {
       const facts = document.createElement("span"); facts.className = "portalStreamOpReturn";
-      facts.textContent = window.CHISEL_PORTAL_DISCOVERY.recordLabel(row.summary);
+      facts.textContent = bsvInlineImage
+        ? "BSV image · " + bsvInlineImage.mime.slice(6).toUpperCase() + " · " + bsvInlineImage.bytes.toLocaleString() + " bytes"
+        : window.CHISEL_PORTAL_DISCOVERY.recordLabel(row.summary);
       titleWrap.appendChild(facts);
     }
     if(window.CHISEL_PORTAL_EXPLORE && /^(?:bsv|bsvTestnet)$/.test(canonicalCoinForRow(row))){

@@ -1,3 +1,9 @@
+# 2.9.26 — render Base64 image payloads
+
+- Detect inline raster image data URIs in BSV OP_RETURN output text.
+- Show a compact thumbnail in the transaction stream and the full image in expanded details, with MIME type and byte count instead of dumping the Base64 string into the row.
+- Keep image data local to the transaction record; do not treat SVG or arbitrary data URIs as images.
+
 # 2.9.25 — detect and export OP_RETURN JSON payloads
 
 - Detect a valid JSON object or array inside an OP_RETURN payload, including JSON preceded by a protocol marker; label it as a JSON payload record.
