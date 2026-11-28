@@ -82,3 +82,21 @@ test('large exports are binned without exceeding JavaScript argument limits', ()
   assert.equal(map.complete, 100000); assert.equal(map.percentage, 10);
   assert.equal(map.cells.reduce((sum, cell) => sum + cell.complete, 0), 100000);
 });
+
+test('Apollo cursors have distinct markers and split when sharing a map cell', () => {
+  const jobs = [
+    {name:'early', direction:'forward', nextHeight:10},
+    {name:'recent', direction:'backward', nextHeight:90},
+    {name:'apollo-forward', direction:'forward', anchorHeight:50, nextHeight:50},
+    {name:'apollo-backward', direction:'backward', anchorHeight:50, nextHeight:50}
+  ];
+  const map = createModel({...base, jobs}, {tipHeight:99, side:8});
+  assert.deepEqual(Array.from(map.readers, r => r.id), ['early','recent','apollo-forward','apollo-backward']);
+  const [forward, backward] = map.readers.slice(2);
+  assert.equal(forward.marker,'A→'); assert.equal(backward.marker,'A←');
+  assert.equal(forward.cell.index, backward.cell.index);
+  assert.notEqual(forward.below, backward.below);
+  assert.notEqual(forward.color, backward.color);
+  assert.equal(map.otherJobs.length,0);
+  assert.equal(map.knownComplete,0);
+});

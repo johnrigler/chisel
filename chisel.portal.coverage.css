@@ -33,7 +33,7 @@
 .portalCoverageMarkers { position: absolute; inset: 0; pointer-events: none; }
 .portalCoverageReaderMarker {
   position: absolute;
-  transform: translate(-50%, calc(-100% - 8px));
+  transform: translate(calc(-50% + var(--reader-offset, 0px)), calc(-100% - 8px));
   padding: 2px 4px;
   border: 1px solid var(--reader-color);
   border-radius: 4px;
@@ -47,7 +47,7 @@
 }
 .portalCoverageReaderMarker.isRunning { box-shadow: 0 0 8px var(--reader-color); }
 .portalCoverageReaderMarker::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 9px; background: var(--reader-color); }
-.portalCoverageReaderMarker.isTop { transform: translate(-50%, 8px); }
+.portalCoverageReaderMarker.isTop { transform: translate(calc(-50% + var(--reader-offset, 0px)), 8px); }
 .portalCoverageReaderMarker.isTop::after { top: auto; bottom: 100%; }
 .portalCoverageReaderMarker[hidden] { display: none; }
 .portalCoverageSelection { min-height: 2.6em; margin: 0; font-size: 12px; color: #c2d5e3; overflow-wrap: anywhere; }

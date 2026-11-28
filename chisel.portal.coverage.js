@@ -44,6 +44,10 @@
     const recent = jobs.find(job => job.name === "recent") || jobs.find(job => job.direction === "backward");
     if (early) chosen.push(early);
     if (recent && recent !== early) chosen.push(recent);
+    ["apollo-forward", "apollo-backward"].forEach(function (name) {
+      const job = jobs.find(item => item.name === name);
+      if (job && !chosen.includes(job)) chosen.push(job);
+    });
     const stamp = Date.parse(scan.runner && scan.runner.heartbeatAt || scan.lastCheckedAt || scan.generatedAt || "");
     const age = (settings.now == null ? Date.now() : settings.now) - stamp;
     const fresh = Number.isFinite(stamp) && age >= 0 && age < 180000;
@@ -52,9 +56,25 @@
       const height = integer(job.currentBlock && job.currentBlock.height) ?? integer(job.nextHeight);
       const cell = height === null ? null : cells[cellForHeight(height)];
       return {job, height, cell, id: String(job.name || "reader-" + index),
-        title: job.direction === "forward" ? "Early reader" : "Recent reader",
-        arrow: job.direction === "forward" ? "→" : "←", color: job.direction === "forward" ? "#6edcf6" : "#d8a6ff",
+        title: job.name === "apollo-forward" ? "Apollo forward" : job.name === "apollo-backward" ? "Apollo backward" :
+          job.direction === "forward" ? "Early reader" : "Recent reader",
+        marker: job.name === "apollo-forward" ? "A→" : job.name === "apollo-backward" ? "A←" : job.direction === "forward" ? "E→" : "R←",
+        arrow: job.direction === "forward" ? "→" : "←",
+        color: job.name === "apollo-forward" ? "#ffd166" : job.name === "apollo-backward" ? "#ff9f83" :
+          job.direction === "forward" ? "#6edcf6" : "#d8a6ff",
         running: runner === "running" && fresh && job.phase === "scanning"};
+    });
+    const groups = new Map();
+    readers.forEach(function (reader) {
+      if (!reader.cell) return;
+      const group = groups.get(reader.cell.index) || [];
+      group.push(reader); groups.set(reader.cell.index, group);
+    });
+    groups.forEach(function (group) {
+      group.forEach(function (reader, index) {
+        reader.below = (Math.floor(reader.cell.index / side) < 8) !== (index % 2 === 1);
+        reader.offset = group.length > 2 ? (Math.floor(index / 2) - (Math.ceil(group.length / 2) - 1) / 2) * 38 : 0;
+      });
     });
     const knownComplete = Array.from(blocks.values()).filter(block => block.status === "complete").length;
     const complete = integer(scan.blocksComplete) ?? knownComplete;
@@ -172,11 +192,12 @@
       visible.add(reader.id);
       let marker = view.markers.get(reader.id), card = view.readerCards.get(reader.id);
       if (!marker) { marker = view.make("span", "portalCoverageReaderMarker", "", view.markerLayer); view.markers.set(reader.id, marker); }
-      marker.textContent = (reader.arrow === "→" ? "E" : "R") + reader.arrow;
+      marker.textContent = reader.marker;
       marker.style.setProperty("--reader-color", reader.color); marker.classList.toggle("isRunning", reader.running);
       marker.hidden = !reader.cell;
       if (reader.cell) {
-        marker.classList.toggle("isTop", Math.floor(reader.cell.index / model.side) < 8);
+        marker.classList.toggle("isTop", reader.below);
+        marker.style.setProperty("--reader-offset", reader.offset + "px");
         marker.style.left = (reader.cell.index % model.side + 0.5) * 100 / model.side + "%";
         marker.style.top = (Math.floor(reader.cell.index / model.side) + 0.5) * 100 / model.side + "%";
         marker.title = reader.title + " " + reader.arrow + " block " + format(reader.height);
